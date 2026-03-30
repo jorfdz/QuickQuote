@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit3, X, Check, Search } from 'lucide-react';
+import { Plus, Trash2, Edit3, Search } from 'lucide-react';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Table, Modal, Input } from '../../components/ui';
 import type { PricingMaterial } from '../../types/pricing';
@@ -142,85 +142,37 @@ export const Materials: React.FC = () => {
       {/* Table */}
       <Card>
         <Table headers={['Material Name', 'Sheet Size', 'Width', 'Height', 'Price/M', 'Cost/Sheet', 'Markup %', 'Sell/Sheet', 'Actions']}>
-          {filtered.map(m => {
-            const isEditing = editingId === m.id;
-            if (isEditing) {
-              return (
-                <tr key={m.id} className="bg-blue-50">
-                  <td className="py-2 px-4">
-                    <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                      className="w-full px-2 py-1 text-sm border rounded" />
-                  </td>
-                  <td className="py-2 px-4">
-                    <input value={form.size} onChange={e => parseSizeInput(e.target.value)}
-                      className="w-20 px-2 py-1 text-sm border rounded" placeholder="13x19" />
-                  </td>
-                  <td className="py-2 px-4">
-                    <input type="number" value={form.sizeWidth} onChange={e => setForm(f => ({ ...f, sizeWidth: parseFloat(e.target.value) || 0 }))}
-                      className="w-16 px-2 py-1 text-sm border rounded" />
-                  </td>
-                  <td className="py-2 px-4">
-                    <input type="number" value={form.sizeHeight} onChange={e => setForm(f => ({ ...f, sizeHeight: parseFloat(e.target.value) || 0 }))}
-                      className="w-16 px-2 py-1 text-sm border rounded" />
-                  </td>
-                  <td className="py-2 px-4">
-                    <input type="number" value={form.pricePerM} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))}
-                      className="w-20 px-2 py-1 text-sm border rounded" />
-                  </td>
-                  <td className="py-2 px-4 text-sm text-gray-500">{formatCurrency(form.pricePerM / 1000)}</td>
-                  <td className="py-2 px-4">
-                    <input type="number" value={form.markup} onChange={e => setForm(f => ({ ...f, markup: parseFloat(e.target.value) || 0 }))}
-                      className="w-16 px-2 py-1 text-sm border rounded" />
-                  </td>
-                  <td className="py-2 px-4 text-sm font-bold text-blue-700">
-                    {formatCurrency((form.pricePerM / 1000) * (1 + form.markup / 100))}
-                  </td>
-                  <td className="py-2 px-4">
-                    <div className="flex gap-1">
-                      <button onClick={handleSaveEdit} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded" title="Save">
-                        <Check className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => setEditingId(null)} className="p-1 text-gray-400 hover:bg-gray-100 rounded" title="Cancel">
-                        <X className="w-4 h-4" />
-                      </button>
+          {filtered.map(m => (
+            <tr key={m.id} className="hover:bg-gray-50 transition-colors">
+              <td className="py-3 px-4">
+                <p className="text-sm font-semibold text-gray-900">{m.name}</p>
+              </td>
+              <td className="py-3 px-4 text-sm text-gray-600 font-medium">{m.size}</td>
+              <td className="py-3 px-4 text-sm text-gray-500">{m.sizeWidth}"</td>
+              <td className="py-3 px-4 text-sm text-gray-500">{m.sizeHeight}"</td>
+              <td className="py-3 px-4 text-sm text-gray-700 font-medium">{formatCurrency(m.pricePerM)}</td>
+              <td className="py-3 px-4 text-sm text-gray-500">{formatCurrency(costPerSheet(m))}</td>
+              <td className="py-3 px-4 text-sm text-gray-500">{m.markup}%</td>
+              <td className="py-3 px-4 text-sm font-bold text-blue-700">{formatCurrency(sellPerSheet(m))}</td>
+              <td className="py-3 px-4">
+                <div className="flex gap-1">
+                  <button onClick={() => handleStartEdit(m)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                  {deleteConfirm === m.id ? (
+                    <div className="flex gap-1 items-center">
+                      <button onClick={() => handleDelete(m.id)} className="px-2 py-0.5 text-xs bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
+                      <button onClick={() => setDeleteConfirm(null)} className="px-2 py-0.5 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
                     </div>
-                  </td>
-                </tr>
-              );
-            }
-
-            return (
-              <tr key={m.id} className="hover:bg-gray-50 transition-colors">
-                <td className="py-3 px-4">
-                  <p className="text-sm font-semibold text-gray-900">{m.name}</p>
-                </td>
-                <td className="py-3 px-4 text-sm text-gray-600 font-medium">{m.size}</td>
-                <td className="py-3 px-4 text-sm text-gray-500">{m.sizeWidth}"</td>
-                <td className="py-3 px-4 text-sm text-gray-500">{m.sizeHeight}"</td>
-                <td className="py-3 px-4 text-sm text-gray-700 font-medium">{formatCurrency(m.pricePerM)}</td>
-                <td className="py-3 px-4 text-sm text-gray-500">{formatCurrency(costPerSheet(m))}</td>
-                <td className="py-3 px-4 text-sm text-gray-500">{m.markup}%</td>
-                <td className="py-3 px-4 text-sm font-bold text-blue-700">{formatCurrency(sellPerSheet(m))}</td>
-                <td className="py-3 px-4">
-                  <div className="flex gap-1">
-                    <button onClick={() => handleStartEdit(m)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
-                      <Edit3 className="w-3.5 h-3.5" />
+                  ) : (
+                    <button onClick={() => setDeleteConfirm(m.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete">
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
-                    {deleteConfirm === m.id ? (
-                      <div className="flex gap-1 items-center">
-                        <button onClick={() => handleDelete(m.id)} className="px-2 py-0.5 text-xs bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
-                        <button onClick={() => setDeleteConfirm(null)} className="px-2 py-0.5 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => setDeleteConfirm(m.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
         </Table>
         {filtered.length === 0 && (
           <div className="text-center py-12 text-gray-400">
@@ -229,8 +181,9 @@ export const Materials: React.FC = () => {
         )}
       </Card>
 
-      {/* Add Material Modal */}
-      <Modal isOpen={showNew} onClose={() => setShowNew(false)} title="Add Material">
+      {/* Add / Edit Material Modal */}
+      <Modal isOpen={showNew || editingId !== null} onClose={() => { setShowNew(false); setEditingId(null); }}
+        title={editingId ? 'Edit Material' : 'Add Material'}>
         <div className="space-y-4">
           <Input label="Material Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
             placeholder="e.g. 100lb Gloss Cover" />
@@ -256,8 +209,10 @@ export const Materials: React.FC = () => {
             </div>
           )}
           <div className="flex gap-3 justify-end pt-2">
-            <Button variant="secondary" onClick={() => setShowNew(false)}>Cancel</Button>
-            <Button variant="primary" onClick={handleAdd} disabled={!form.name || form.sizeWidth <= 0 || form.sizeHeight <= 0}>Add Material</Button>
+            <Button variant="secondary" onClick={() => { setShowNew(false); setEditingId(null); }}>Cancel</Button>
+            <Button variant="primary" onClick={editingId ? handleSaveEdit : handleAdd} disabled={!form.name || form.sizeWidth <= 0 || form.sizeHeight <= 0}>
+              {editingId ? 'Save Changes' : 'Add Material'}
+            </Button>
           </div>
         </div>
       </Modal>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Plus, Trash2, Edit3, X, Check, Search, Wrench, Scissors,
+  Plus, Trash2, Edit3, X, Search, Wrench, Scissors,
   ChevronDown, ChevronUp
 } from 'lucide-react';
 import { usePricingStore } from '../../store/pricingStore';
@@ -383,47 +383,6 @@ export const Equipment: React.FC = () => {
           <Table headers={['Service', 'Sub-Service', 'Output/Hour', 'Hourly Cost', 'Cost/Unit', 'Markup %', 'Notes', 'Actions']}>
             {filteredFinishing.map(f => {
               const costPerUnit = f.outputPerHour > 0 ? f.hourlyCost / f.outputPerHour : 0;
-              const isEditing = editingFinishId === f.id;
-
-              if (isEditing) {
-                return (
-                  <tr key={f.id} className="bg-blue-50">
-                    <td className="py-2 px-4">
-                      <input value={finishForm.service} onChange={e => setFinishForm(prev => ({ ...prev, service: e.target.value }))}
-                        className="w-full px-2 py-1 text-sm border rounded" />
-                    </td>
-                    <td className="py-2 px-4">
-                      <input value={finishForm.subservice} onChange={e => setFinishForm(prev => ({ ...prev, subservice: e.target.value }))}
-                        className="w-full px-2 py-1 text-sm border rounded" />
-                    </td>
-                    <td className="py-2 px-4">
-                      <input type="number" value={finishForm.outputPerHour} onChange={e => setFinishForm(prev => ({ ...prev, outputPerHour: parseInt(e.target.value) || 0 }))}
-                        className="w-20 px-2 py-1 text-sm border rounded" />
-                    </td>
-                    <td className="py-2 px-4">
-                      <input type="number" value={finishForm.hourlyCost} onChange={e => setFinishForm(prev => ({ ...prev, hourlyCost: parseFloat(e.target.value) || 0 }))}
-                        className="w-20 px-2 py-1 text-sm border rounded" />
-                    </td>
-                    <td className="py-2 px-4 text-xs text-gray-500">
-                      {finishForm.outputPerHour > 0 ? formatCurrency(finishForm.hourlyCost / finishForm.outputPerHour) : '—'}
-                    </td>
-                    <td className="py-2 px-4">
-                      <input type="number" value={finishForm.timeCostMarkup} onChange={e => setFinishForm(prev => ({ ...prev, timeCostMarkup: parseFloat(e.target.value) || 0 }))}
-                        className="w-16 px-2 py-1 text-sm border rounded" />
-                    </td>
-                    <td className="py-2 px-4">
-                      <input value={finishForm.notes} onChange={e => setFinishForm(prev => ({ ...prev, notes: e.target.value }))}
-                        className="w-full px-2 py-1 text-sm border rounded" />
-                    </td>
-                    <td className="py-2 px-4">
-                      <div className="flex gap-1">
-                        <button onClick={handleSaveEditFinish} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check className="w-4 h-4" /></button>
-                        <button onClick={() => setEditingFinishId(null)} className="p-1 text-gray-400 hover:bg-gray-100 rounded"><X className="w-4 h-4" /></button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              }
 
               return (
                 <tr key={f.id} className="hover:bg-gray-50 transition-colors">
@@ -524,8 +483,9 @@ export const Equipment: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ═══════════════ ADD FINISHING MODAL ═══════════════ */}
-      <Modal isOpen={showNewFinish} onClose={() => setShowNewFinish(false)} title="Add Finishing Service">
+      {/* ═══════════════ ADD / EDIT FINISHING MODAL ═══════════════ */}
+      <Modal isOpen={showNewFinish || editingFinishId !== null} onClose={() => { setShowNewFinish(false); setEditingFinishId(null); }}
+        title={editingFinishId ? 'Edit Finishing Service' : 'Add Finishing Service'}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Input label="Service" value={finishForm.service} onChange={e => setFinishForm(f => ({ ...f, service: e.target.value }))}
@@ -549,8 +509,10 @@ export const Equipment: React.FC = () => {
           <Input label="Notes (optional)" value={finishForm.notes} onChange={e => setFinishForm(f => ({ ...f, notes: e.target.value }))}
             placeholder="Any additional notes" />
           <div className="flex gap-3 justify-end pt-2">
-            <Button variant="secondary" onClick={() => setShowNewFinish(false)}>Cancel</Button>
-            <Button variant="primary" onClick={handleAddFinish} disabled={!finishForm.service || finishForm.outputPerHour <= 0}>Add Finishing</Button>
+            <Button variant="secondary" onClick={() => { setShowNewFinish(false); setEditingFinishId(null); }}>Cancel</Button>
+            <Button variant="primary" onClick={editingFinishId ? handleSaveEditFinish : handleAddFinish} disabled={!finishForm.service || finishForm.outputPerHour <= 0}>
+              {editingFinishId ? 'Save Changes' : 'Add Finishing'}
+            </Button>
           </div>
         </div>
       </Modal>
