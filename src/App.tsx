@@ -24,6 +24,7 @@ import { Help } from './pages/Help';
 import { Templates } from './pages/Templates';
 import { History } from './pages/History';
 import { Imposition } from './pages/Imposition';
+import { PricingTool } from './pages/PricingTool';
 import { Onboarding } from './pages/Onboarding';
 
 function App() {
@@ -60,6 +61,7 @@ function App() {
           <Route path="/integrations" element={<Integrations />} />
           <Route path="/help" element={<Help />} />
           <Route path="/imposition" element={<Imposition />} />
+          <Route path="/pricing" element={<PricingTool />} />
         </Route>
       </Routes>
     </BrowserRouter>

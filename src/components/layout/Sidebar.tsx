@@ -3,13 +3,15 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, ClipboardList, KanbanSquare, History,
   Receipt, Users, UserCheck, Truck, ShoppingCart, Package, Settings,
-  Zap, HelpCircle, ChevronLeft, ChevronRight, Layers, Wrench, Grid3X3
+  Zap, HelpCircle, ChevronLeft, ChevronRight, Layers, Wrench, Grid3X3,
+  Calculator
 } from 'lucide-react';
 import { useStore } from '../../store';
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { divider: 'ESTIMATING' },
+  { path: '/pricing', icon: Calculator, label: 'Pricing Tool' },
   { path: '/quotes', icon: FileText, label: 'Quotes' },
   { path: '/orders', icon: ClipboardList, label: 'Orders' },
   { path: '/tracker', icon: KanbanSquare, label: 'Order Tracker' },
