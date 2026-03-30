@@ -52,9 +52,9 @@ export const Sidebar: React.FC = () => {
           </div>
         )}
         {sidebarCollapsed && (
-          <div className="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center mx-auto">
+          <button onClick={() => setSidebarCollapsed(false)} className="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center mx-auto hover:bg-blue-400 transition-colors" title="Expand sidebar">
             <span className="text-white font-bold text-xs">QQ</span>
-          </div>
+          </button>
         )}
         {!sidebarCollapsed && (
           <button onClick={() => setSidebarCollapsed(true)} className="p-1 hover:bg-white/10 rounded-lg transition-colors ml-auto">
@@ -62,6 +62,17 @@ export const Sidebar: React.FC = () => {
           </button>
         )}
       </div>
+
+      {/* Expand button when collapsed */}
+      {sidebarCollapsed && (
+        <button
+          onClick={() => setSidebarCollapsed(false)}
+          className="mx-auto mt-2 mb-1 flex items-center justify-center w-10 h-7 rounded-md hover:bg-white/10 transition-colors"
+          title="Expand sidebar"
+        >
+          <ChevronRight className="w-4 h-4 text-gray-400" />
+        </button>
+      )}
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
