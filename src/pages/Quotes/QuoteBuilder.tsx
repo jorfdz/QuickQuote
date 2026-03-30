@@ -1,276 +1,83 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, Sparkles, ChevronDown, ChevronRight, Calculator, Copy, ArrowRight } from 'lucide-react';
+import {
+  Plus, Trash2, Sparkles, ChevronDown, ChevronRight, Calculator, Copy,
+  ArrowRight, Search, X, Scissors, FoldVertical, CircleDot, Printer,
+  Package, DollarSign, Grid3X3, Edit3, Check, Star, Settings2,
+} from 'lucide-react';
 import { useStore } from '../../store';
-import { Button, Input, Select, Textarea, Modal, Card, Badge } from '../../components/ui';
-import type { QuoteLineItem, ProductFamily, Quote } from '../../types';
+import { usePricingStore } from '../../store/pricingStore';
+import { Button, Input, Select, Textarea, Card, Badge, Modal } from '../../components/ui';
+import type { QuoteLineItem, Quote } from '../../types';
+import type { PricingProduct, PricingServiceLine } from '../../types/pricing';
 import { formatCurrency } from '../../data/mockData';
 import { nanoid } from '../../utils/nanoid';
 
-const PRODUCT_FAMILIES: { id: ProductFamily; label: string; icon: string; description: string }[] = [
-  { id: 'digital_print', label: 'Digital Print', icon: '🖨️', description: 'Business cards, flyers, postcards, brochures' },
-  { id: 'offset_print', label: 'Offset Print', icon: '🗞️', description: 'High-volume litho printing' },
-  { id: 'wide_format', label: 'Wide Format', icon: '🖼️', description: 'Banners, wraps, window graphics' },
-  { id: 'rigid_sign', label: 'Rigid Signs', icon: '🪧', description: 'Coroplast, aluminum, foam board' },
-  { id: 'roll_sign', label: 'Roll Signs', icon: '🎌', description: 'Vinyl rolls, decals, cut vinyl' },
-  { id: 'label', label: 'Labels', icon: '🏷️', description: 'Custom labels and stickers' },
-  { id: 'apparel', label: 'Apparel', icon: '👕', description: 'T-shirts, embroidery, screen print' },
-  { id: 'finishing', label: 'Finishing', icon: '✂️', description: 'Laminating, cutting, binding, folding' },
-  { id: 'installation', label: 'Installation', icon: '🔧', description: 'Labor, delivery, installation services' },
-  { id: 'outsourced', label: 'Outsourced', icon: '🏭', description: 'Vendor/trade items' },
-  { id: 'buyout', label: 'Buyout Item', icon: '📦', description: 'Resale or promotional products' },
-];
+// ─── HELPERS ────────────────────────────────────────────────────────────────
 
-// Smart pricing engine
-function calculateLineItem(item: Partial<QuoteLineItem>): Partial<QuoteLineItem> {
-  const matCost = item.materialCost || 0;
-  const eqCost = item.equipmentCost || 0;
-  const laborCost = (item.laborHours || 0) * (item.laborRate || 45);
-  const setupCost = item.setupCost || 0;
-  const vendorCost = item.vendorCost || 0;
-  const additionalCost = item.additionalCost || 0;
-  const totalCost = matCost + eqCost + laborCost + setupCost + vendorCost + additionalCost;
-  const markup = item.markup || 45;
-  const sellPrice = totalCost * (1 + markup / 100);
-  return { ...item, laborCost, totalCost, sellPrice };
+const fmt = (n: number) => formatCurrency(n);
+const fmtPct = (n: number) => `${n.toFixed(1)}%`;
+const slId = () => `sl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+// ─── PER-LINE-ITEM PRICING STATE ────────────────────────────────────────────
+
+interface LineItemPricingState {
+  productId: string;
+  productName: string;
+  categoryName: string;
+  quantity: number;
+  finalWidth: number;
+  finalHeight: number;
+  materialId: string;
+  equipmentId: string;
+  colorMode: 'Color' | 'Black';
+  sides: 'Single' | 'Double';
+  foldingType: string;
+  drillingType: string;
+  cuttingEnabled: boolean;
+  sheetsPerCutStack: number;
+  serviceLines: PricingServiceLine[];
 }
 
-// AI Natural Language Interpreter (simulated)
-function interpretNLQ(text: string): Partial<QuoteLineItem> | null {
-  const t = text.toLowerCase();
-  
-  if (t.includes('business card')) {
-    const qtyMatch = t.match(/(\d+)/);
-    const qty = qtyMatch ? parseInt(qtyMatch[1]) : 500;
-    return {
-      productFamily: 'digital_print', description: 'Business Cards - Full Color',
-      width: 3.5, height: 2, quantity: qty, unit: 'each',
-      materialCost: qty * 0.09, equipmentCost: 25, laborHours: 0.5, laborRate: 45,
-      setupCost: 25, markup: 45,
-    };
-  }
-  if (t.includes('postcard') && (t.includes('4x6') || t.includes('4 x 6'))) {
-    const qtyMatch = t.match(/(\d{3,})/);
-    const qty = qtyMatch ? parseInt(qtyMatch[1]) : 500;
-    return {
-      productFamily: 'digital_print', description: 'Postcards 4x6 - Full Color',
-      width: 6, height: 4, quantity: qty, unit: 'each',
-      materialCost: qty * 0.08, equipmentCost: 35, laborHours: 0.75, laborRate: 45,
-      setupCost: 25, markup: 45,
-    };
-  }
-  if (t.includes('banner') || t.includes('vinyl banner')) {
-    const sizeMatch = t.match(/(\d+)\s*x\s*(\d+)/);
-    const w = sizeMatch ? parseInt(sizeMatch[1]) : 3;
-    const h = sizeMatch ? parseInt(sizeMatch[2]) : 6;
-    const sqft = (w * 12 * h) / 144;
-    const qty = 1;
-    return {
-      productFamily: 'wide_format', description: `Vinyl Banner ${w}x${h} - 13oz Scrim`,
-      width: w * 12, height: h * 12, quantity: qty, unit: 'each',
-      materialCost: sqft * 0.45, equipmentCost: sqft * 0.25, laborHours: 0.5, laborRate: 45,
-      setupCost: 15, markup: 55,
-    };
-  }
-  if (t.includes('yard sign') || t.includes('coroplast')) {
-    const qtyMatch = t.match(/(\d+)/);
-    const qty = qtyMatch ? parseInt(qtyMatch[1]) : 10;
-    return {
-      productFamily: 'rigid_sign', description: 'Yard Signs 18x24 - Coroplast',
-      width: 24, height: 18, quantity: qty, unit: 'each',
-      materialCost: qty * 5.5, equipmentCost: qty * 2, laborHours: qty * 0.1, laborRate: 45,
-      setupCost: 20, markup: 60,
-    };
-  }
-  if (t.includes('t-shirt') || t.includes('tshirt') || t.includes('screen print')) {
-    const qtyMatch = t.match(/(\d+)/);
-    const qty = qtyMatch ? parseInt(qtyMatch[1]) : 24;
-    const colors = t.includes('2 color') || t.includes('2color') ? 2 : 1;
-    return {
-      productFamily: 'apparel', description: `T-Shirts - ${colors} Color Screen Print`,
-      quantity: qty, unit: 'each',
-      materialCost: qty * 4.5, laborHours: qty * 0.05, laborRate: 45,
-      setupCost: 35 * colors, markup: 80,
-    };
-  }
-  if (t.includes('flyer') || t.includes('8.5x11') || t.includes('letter')) {
-    const qtyMatch = t.match(/(\d{2,})/);
-    const qty = qtyMatch ? parseInt(qtyMatch[1]) : 250;
-    return {
-      productFamily: 'digital_print', description: 'Flyers 8.5x11 - Full Color',
-      width: 8.5, height: 11, quantity: qty, unit: 'each',
-      materialCost: qty * 0.06, equipmentCost: 25, laborHours: 0.5, laborRate: 45,
-      setupCost: 20, markup: 40,
-    };
-  }
-  if (t.includes('5x7') || (t.includes('5') && t.includes('7') && t.includes('postcard'))) {
-    const qtyMatch = t.match(/(\d{3,})/);
-    const qty = qtyMatch ? parseInt(qtyMatch[1]) : 500;
-    return {
-      productFamily: 'digital_print', description: 'Postcards 5x7 - Full Color',
-      width: 7, height: 5, quantity: qty, unit: 'each',
-      materialCost: qty * 0.10, equipmentCost: 35, laborHours: 0.75, laborRate: 45,
-      setupCost: 25, markup: 45,
-    };
-  }
-  if (t.includes('5x8') || (t.includes('5') && t.includes('8') && t.includes('postcard'))) {
-    const qtyMatch = t.match(/(\d{3,})/);
-    const qty = qtyMatch ? parseInt(qtyMatch[1]) : 500;
-    return {
-      productFamily: 'digital_print', description: 'Postcards 5x8 - Full Color',
-      width: 8, height: 5, quantity: qty, unit: 'each',
-      materialCost: qty * 0.12, equipmentCost: 35, laborHours: 0.75, laborRate: 45,
-      setupCost: 25, markup: 45,
-    };
-  }
-  if (t.includes('brochure') || t.includes('trifold') || t.includes('tri-fold')) {
-    const qtyMatch = t.match(/(\d{3,})/);
-    const qty = qtyMatch ? parseInt(qtyMatch[1]) : 500;
-    return {
-      productFamily: 'digital_print', description: 'Trifold Brochure 8.5x11 - Full Color',
-      width: 8.5, height: 11, quantity: qty, unit: 'each',
-      materialCost: qty * 0.10, equipmentCost: 30, laborHours: 0.75, laborRate: 45,
-      setupCost: 30, markup: 45,
-    };
-  }
-  if (t.includes('step and repeat') || t.includes('step & repeat') || t.includes('backdrop')) {
-    const sizeMatch = t.match(/(\d+)\s*x\s*(\d+)/);
-    const w = sizeMatch ? parseInt(sizeMatch[1]) : 8;
-    const h = sizeMatch ? parseInt(sizeMatch[2]) : 8;
-    const sqft = (w * h);
-    return {
-      productFamily: 'wide_format', description: `Step & Repeat Backdrop ${w}x${h}ft`,
-      width: w * 12, height: h * 12, quantity: 1, unit: 'each',
-      materialCost: sqft * 1.20, equipmentCost: sqft * 0.80, laborHours: 1.5, laborRate: 45,
-      setupCost: 45, markup: 60,
-    };
-  }
-  if (t.includes('vehicle wrap') || t.includes('car wrap') || t.includes('truck wrap')) {
-    const partial = t.includes('partial');
-    return {
-      productFamily: 'wide_format', description: partial ? 'Partial Vehicle Wrap' : 'Full Vehicle Wrap',
-      quantity: 1, unit: 'each',
-      materialCost: partial ? 350 : 800, equipmentCost: partial ? 150 : 350, laborHours: partial ? 8 : 20, laborRate: 65,
-      setupCost: 95, markup: 50,
-    };
-  }
-  if (t.includes('window graphic') || t.includes('window perf') || t.includes('window vinyl')) {
-    const sizeMatch = t.match(/(\d+)\s*x\s*(\d+)/);
-    const w = sizeMatch ? parseFloat(sizeMatch[1]) : 24;
-    const h = sizeMatch ? parseFloat(sizeMatch[2]) : 36;
-    const sqft = (w * h) / 144;
-    return {
-      productFamily: 'wide_format', description: `Window Graphics ${w}"x${h}"`,
-      width: w, height: h, quantity: 1, unit: 'each',
-      materialCost: sqft * 2.50, equipmentCost: sqft * 1.20, laborHours: 0.5, laborRate: 45,
-      setupCost: 20, markup: 55,
-    };
-  }
-  if (t.includes('foam board') || t.includes('foamboard') || t.includes('foam core')) {
-    const sizeMatch = t.match(/(\d+)\s*x\s*(\d+)/);
-    const w = sizeMatch ? parseInt(sizeMatch[1]) : 24;
-    const h = sizeMatch ? parseInt(sizeMatch[2]) : 36;
-    const qtyMatch = t.match(/(\d+)\s*(ea|each|pc|pcs|piece)/i);
-    const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
-    return {
-      productFamily: 'rigid_sign', description: `Foam Board Signs ${w}"x${h}"`,
-      width: w, height: h, quantity: qty, unit: 'each',
-      materialCost: qty * (w * h / 144) * 4.5, equipmentCost: qty * 2.5, laborHours: qty * 0.15, laborRate: 45,
-      setupCost: 20, markup: 55,
-    };
-  }
-  if (t.includes('aluminum sign') || t.includes('alum sign') || t.includes('dibond') || t.includes('alumalite')) {
-    const sizeMatch = t.match(/(\d+)\s*x\s*(\d+)/);
-    const w = sizeMatch ? parseInt(sizeMatch[1]) : 24;
-    const h = sizeMatch ? parseInt(sizeMatch[2]) : 18;
-    const qtyMatch = t.match(/(\d+)\s*(ea|each|pc|pcs)/i);
-    const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
-    return {
-      productFamily: 'rigid_sign', description: `Aluminum Sign ${w}"x${h}" - .040 Alum`,
-      width: w, height: h, quantity: qty, unit: 'each',
-      materialCost: qty * (w * h / 144) * 7.5, equipmentCost: qty * 3.5, laborHours: qty * 0.2, laborRate: 45,
-      setupCost: 25, markup: 60,
-    };
-  }
-  if (t.includes('retractable') || t.includes('roll up') || t.includes('roll-up') || t.includes('pull up banner')) {
-    const qtyMatch = t.match(/(\d+)/);
-    const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
-    return {
-      productFamily: 'wide_format', description: 'Retractable Banner Stand 33"x80"',
-      width: 33, height: 80, quantity: qty, unit: 'each',
-      materialCost: qty * 35, equipmentCost: qty * 15, laborHours: qty * 0.25, laborRate: 45,
-      setupCost: 20, vendorCost: qty * 55, markup: 45,
-    };
-  }
-  if (t.includes('door hanger')) {
-    const qtyMatch = t.match(/(\d{2,})/);
-    const qty = qtyMatch ? parseInt(qtyMatch[1]) : 250;
-    return {
-      productFamily: 'digital_print', description: 'Door Hangers 3.5x8.5 - Full Color',
-      width: 3.5, height: 8.5, quantity: qty, unit: 'each',
-      materialCost: qty * 0.12, equipmentCost: 30, laborHours: 0.5, laborRate: 45,
-      setupCost: 25, markup: 50,
-    };
-  }
-  if (t.includes('sticker') || t.includes('label')) {
-    const sizeMatch = t.match(/(\d+\.?\d*)\s*x\s*(\d+\.?\d*)/);
-    const w = sizeMatch ? parseFloat(sizeMatch[1]) : 4;
-    const h = sizeMatch ? parseFloat(sizeMatch[2]) : 3;
-    const qtyMatch = t.match(/(\d{2,})/);
-    const qty = qtyMatch ? parseInt(qtyMatch[1]) : 100;
-    return {
-      productFamily: 'label', description: `Custom Stickers/Labels ${w}"x${h}"`,
-      width: w, height: h, quantity: qty, unit: 'each',
-      materialCost: qty * 0.18, equipmentCost: 20, laborHours: 0.35, laborRate: 45,
-      setupCost: 20, markup: 55,
-    };
-  }
-  if (t.includes('embroidery') || t.includes('polo') || t.includes('hat')) {
-    const qtyMatch = t.match(/(\d+)/);
-    const qty = qtyMatch ? parseInt(qtyMatch[1]) : 12;
-    const isHat = t.includes('hat') || t.includes('cap');
-    return {
-      productFamily: 'apparel', description: isHat ? 'Embroidered Hats/Caps' : 'Embroidered Polo Shirts',
-      quantity: qty, unit: 'each',
-      materialCost: qty * (isHat ? 8 : 12), laborHours: qty * 0.1, laborRate: 45,
-      setupCost: 45, markup: 70,
-    };
-  }
-  if (t.includes('installation') || t.includes('install') || t.includes('mounting')) {
-    const hoursMatch = t.match(/(\d+)\s*hr/i);
-    const hours = hoursMatch ? parseInt(hoursMatch[1]) : 2;
-    return {
-      productFamily: 'installation', description: 'Installation / Mounting Service',
-      quantity: hours, unit: 'hour',
-      laborHours: hours, laborRate: 75,
-      markup: 30,
-    };
-  }
-  return null;
-}
+const DEFAULT_PRICING_STATE = (): LineItemPricingState => ({
+  productId: '', productName: '', categoryName: '',
+  quantity: 1000, finalWidth: 0, finalHeight: 0,
+  materialId: '', equipmentId: '',
+  colorMode: 'Color', sides: 'Double',
+  foldingType: '', drillingType: '',
+  cuttingEnabled: true, sheetsPerCutStack: 500,
+  serviceLines: [],
+});
+
+// ─── EMPTY LINE ITEM ────────────────────────────────────────────────────────
 
 const EMPTY_LINE_ITEM = (): QuoteLineItem => ({
   id: nanoid(), productFamily: 'digital_print', description: '', quantity: 1, unit: 'each',
-  totalCost: 0, markup: 45, sellPrice: 0,
+  totalCost: 0, markup: 0, sellPrice: 0,
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// QUOTE BUILDER
+// ═════════════════════════════════════════════════════════════════════════════
 
 export const QuoteBuilder: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { customers, contacts, templates, addQuote, nextQuoteNumber, currentUser } = useStore();
+  const { customers, contacts, addQuote, nextQuoteNumber, currentUser } = useStore();
+  const pricing = usePricingStore();
 
+  // ── Quote-level state ─────────────────────────────────────────────────
   const [form, setForm] = useState({
     title: '', customerId: '', contactId: '', status: 'pending' as Quote['status'],
     taxRate: 7, validUntil: '', notes: '', internalNotes: '', csrId: currentUser.id,
   });
   const [lineItems, setLineItems] = useState<QuoteLineItem[]>([EMPTY_LINE_ITEM()]);
+  const [pricingStates, setPricingStates] = useState<Record<string, LineItemPricingState>>({
+    [lineItems[0].id]: DEFAULT_PRICING_STATE(),
+  });
   const [expandedItem, setExpandedItem] = useState<string | null>(lineItems[0]?.id || null);
-  const [showTemplates, setShowTemplates] = useState(true);
-  const [showAI, setShowAI] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [aiLoading, setAiLoading] = useState(false);
-  const [showFamilyPicker, setShowFamilyPicker] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(true);
 
   const selectedCustomer = customers.find(c => c.id === form.customerId);
   const customerContacts = contacts.filter(c => c.customerId === form.customerId);
@@ -278,56 +85,79 @@ export const QuoteBuilder: React.FC = () => {
   const subtotal = lineItems.reduce((s, i) => s + (i.sellPrice || 0), 0);
   const taxAmount = subtotal * (form.taxRate / 100);
   const total = subtotal + taxAmount;
+  const totalCostAll = lineItems.reduce((s, i) => s + (i.totalCost || 0), 0);
 
-  const updateLineItem = useCallback((id: string, updates: Partial<QuoteLineItem>) => {
-    setLineItems(prev => prev.map(item => {
-      if (item.id !== id) return item;
-      const updated = { ...item, ...updates };
-      const calculated = calculateLineItem(updated);
-      return { ...updated, ...calculated } as QuoteLineItem;
-    }));
+  // ── Pricing state helpers ─────────────────────────────────────────────
+  const getPricingState = (id: string) => pricingStates[id] || DEFAULT_PRICING_STATE();
+  const updatePricingState = useCallback((id: string, updates: Partial<LineItemPricingState>) => {
+    setPricingStates(prev => ({ ...prev, [id]: { ...(prev[id] || DEFAULT_PRICING_STATE()), ...updates } }));
   }, []);
+
+  // ── Add / remove line items ───────────────────────────────────────────
+  const addLineItem = () => {
+    const item = EMPTY_LINE_ITEM();
+    setLineItems(prev => [...prev, item]);
+    setPricingStates(prev => ({ ...prev, [item.id]: DEFAULT_PRICING_STATE() }));
+    setExpandedItem(item.id);
+  };
 
   const removeLineItem = (id: string) => {
     setLineItems(prev => prev.filter(i => i.id !== id));
+    setPricingStates(prev => { const next = { ...prev }; delete next[id]; return next; });
   };
 
-  const addFromTemplate = (templateId: string) => {
-    const t = templates.find(x => x.id === templateId);
-    if (!t) return;
-    const item: QuoteLineItem = {
-      ...EMPTY_LINE_ITEM(),
-      ...t.defaultLineItem,
-      id: nanoid(),
-      description: t.defaultLineItem.description || t.name,
-      totalCost: 0, markup: t.defaultLineItem.markup || 45, sellPrice: 0,
-    } as QuoteLineItem;
-    const calc = calculateLineItem(item);
-    setLineItems(prev => [...prev, { ...item, ...calc } as QuoteLineItem]);
+  const duplicateLineItem = (item: QuoteLineItem) => {
+    const newId = nanoid();
+    const newItem = { ...item, id: newId };
+    setLineItems(prev => [...prev, newItem]);
+    setPricingStates(prev => ({ ...prev, [newId]: { ...(prev[item.id] || DEFAULT_PRICING_STATE()) } }));
+    setExpandedItem(newId);
+  };
+
+  // ── Load from pricing template ────────────────────────────────────────
+  const addFromTemplate = (tmplId: string) => {
+    const tmpl = pricing.templates.find(t => t.id === tmplId);
+    if (!tmpl) return;
+    pricing.incrementTemplateUsage(tmplId);
+
+    const item = EMPTY_LINE_ITEM();
+    item.description = tmpl.productName;
+    item.quantity = tmpl.quantity;
+    item.unit = 'each';
+    if (tmpl.finalWidth) item.width = tmpl.finalWidth;
+    if (tmpl.finalHeight) item.height = tmpl.finalHeight;
+
+    const mat = tmpl.materialId
+      ? pricing.materials.find(m => m.id === tmpl.materialId)
+      : tmpl.materialName
+        ? pricing.materials.find(m => m.name === tmpl.materialName)
+        : undefined;
+
+    setLineItems(prev => [...prev.filter(i => i.description !== ''), item]);
+    setPricingStates(prev => ({
+      ...prev,
+      [item.id]: {
+        ...DEFAULT_PRICING_STATE(),
+        productId: tmpl.productId || '',
+        productName: tmpl.productName,
+        categoryName: tmpl.categoryName,
+        quantity: tmpl.quantity,
+        finalWidth: tmpl.finalWidth,
+        finalHeight: tmpl.finalHeight,
+        materialId: mat?.id || '',
+        equipmentId: tmpl.equipmentId || '',
+        colorMode: (tmpl.color === 'Black' ? 'Black' : 'Color') as 'Color' | 'Black',
+        sides: tmpl.sides,
+        foldingType: tmpl.folding || '',
+        cuttingEnabled: true,
+        sheetsPerCutStack: 500,
+      },
+    }));
     setExpandedItem(item.id);
     setShowTemplates(false);
   };
 
-  const handleAIInterpret = async () => {
-    if (!aiPrompt.trim()) return;
-    setAiLoading(true);
-    await new Promise(r => setTimeout(r, 800)); // simulate API
-    const result = interpretNLQ(aiPrompt);
-    if (result) {
-      const item: QuoteLineItem = {
-        ...EMPTY_LINE_ITEM(),
-        ...result,
-        id: nanoid(),
-      } as QuoteLineItem;
-      const calc = calculateLineItem(item);
-      setLineItems(prev => [...prev.filter(i => i.description !== ''), { ...item, ...calc } as QuoteLineItem]);
-      setExpandedItem(item.id);
-      setAiPrompt('');
-      setShowAI(false);
-    }
-    setAiLoading(false);
-  };
-
+  // ── Save ──────────────────────────────────────────────────────────────
   const handleSave = async (andConvert = false) => {
     setSaving(true);
     const number = nextQuoteNumber();
@@ -339,8 +169,7 @@ export const QuoteBuilder: React.FC = () => {
       lineItems, subtotal, taxRate: form.taxRate, taxAmount, total,
       validUntil: form.validUntil || undefined,
       notes: form.notes || undefined, internalNotes: form.internalNotes || undefined,
-      csrId: form.csrId,
-      source: 'scratch',
+      csrId: form.csrId, source: 'scratch',
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     };
     addQuote(quote);
@@ -349,6 +178,16 @@ export const QuoteBuilder: React.FC = () => {
     if (andConvert) navigate(`/orders/new?quoteId=${quote.id}`);
     else navigate(`/quotes/${quote.id}`);
   };
+
+  // ── Filtered templates for sidebar ────────────────────────────────────
+  const sortedTemplates = useMemo(() =>
+    [...pricing.templates].sort((a, b) => (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0) || b.usageCount - a.usageCount),
+    [pricing.templates]
+  );
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════════════════════
 
   return (
     <div>
@@ -369,7 +208,7 @@ export const QuoteBuilder: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-3 gap-6">
-        {/* Main form */}
+        {/* ─── Main form ─────────────────────────────────────────────── */}
         <div className="col-span-2 space-y-4">
           {/* Quote info */}
           <Card className="p-5">
@@ -378,102 +217,70 @@ export const QuoteBuilder: React.FC = () => {
               <div className="col-span-2">
                 <Input label="Quote Title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g., Spring Marketing Package for Acme Corp" />
               </div>
-              <div>
-                <Select label="Customer" value={form.customerId}
-                  onChange={e => setForm(f => ({ ...f, customerId: e.target.value, contactId: '' }))}
-                  options={[{ value: '', label: 'Select customer...' }, ...customers.map(c => ({ value: c.id, label: c.name }))]}
-                />
-              </div>
-              <div>
-                <Select label="Contact" value={form.contactId}
-                  onChange={e => setForm(f => ({ ...f, contactId: e.target.value }))}
-                  options={[{ value: '', label: 'Select contact...' }, ...customerContacts.map(c => ({ value: c.id, label: `${c.firstName} ${c.lastName}` }))]}
-                  disabled={!form.customerId}
-                />
-              </div>
-              <div>
-                <Select label="Status" value={form.status}
-                  onChange={e => setForm(f => ({ ...f, status: e.target.value as Quote['status'] }))}
-                  options={[{ value: 'pending', label: 'Pending' }, { value: 'hot', label: 'Hot 🔥' }, { value: 'cold', label: 'Cold ❄️' }]}
-                />
-              </div>
-              <div>
-                <Input label="Valid Until" type="date" value={form.validUntil} onChange={e => setForm(f => ({ ...f, validUntil: e.target.value }))} />
-              </div>
-            </div>
-          </Card>
-
-          {/* AI Quick Quote */}
-          <Card className="p-5 border-dashed border-2 border-blue-200 bg-blue-50/30">
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-4 h-4 text-blue-500" />
-              <span className="font-semibold text-blue-900 text-sm">AI Quick Quote</span>
-              <span className="text-xs text-blue-500 bg-blue-100 px-2 py-0.5 rounded-full">Smart</span>
-            </div>
-            <div className="flex gap-2">
-              <input
-                value={aiPrompt} onChange={e => setAiPrompt(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAIInterpret()}
-                placeholder='Try: "500 5x8 postcards full color" or "20 yard signs 18x24" or "48 t-shirts 1 color screen print"'
-                className="flex-1 px-3 py-2 text-sm bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-blue-300"
+              <Select label="Customer" value={form.customerId}
+                onChange={e => setForm(f => ({ ...f, customerId: e.target.value, contactId: '' }))}
+                options={[{ value: '', label: 'Select customer...' }, ...customers.map(c => ({ value: c.id, label: c.name }))]}
               />
-              <Button variant="primary" onClick={handleAIInterpret} loading={aiLoading} icon={<Sparkles className="w-4 h-4" />}>
-                Add Item
-              </Button>
+              <Select label="Contact" value={form.contactId}
+                onChange={e => setForm(f => ({ ...f, contactId: e.target.value }))}
+                options={[{ value: '', label: 'Select contact...' }, ...customerContacts.map(c => ({ value: c.id, label: `${c.firstName} ${c.lastName}` }))]}
+                disabled={!form.customerId}
+              />
+              <Select label="Status" value={form.status}
+                onChange={e => setForm(f => ({ ...f, status: e.target.value as Quote['status'] }))}
+                options={[{ value: 'pending', label: 'Pending' }, { value: 'hot', label: 'Hot 🔥' }, { value: 'cold', label: 'Cold ❄️' }]}
+              />
+              <Input label="Valid Until" type="date" value={form.validUntil} onChange={e => setForm(f => ({ ...f, validUntil: e.target.value }))} />
             </div>
-            <p className="text-xs text-blue-400 mt-2">Describe what you need to quote — AI will fill in product type, sizing, and estimated pricing.</p>
           </Card>
 
           {/* Templates quick pick */}
-          {showTemplates && (
+          {showTemplates && sortedTemplates.length > 0 && (
             <Card className="p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-gray-900 text-sm">Quick Start from Template</h3>
                 <button onClick={() => setShowTemplates(false)} className="text-xs text-gray-400 hover:text-gray-600">Dismiss</button>
               </div>
-              <div className="grid grid-cols-4 gap-2">
-                {templates.filter(t => t.isFavorite).map(t => (
+              <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+                {sortedTemplates.filter(t => t.isFavorite).slice(0, 8).map(t => (
                   <button key={t.id} onClick={() => addFromTemplate(t.id)}
                     className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-gray-100 hover:border-blue-300 hover:bg-blue-50 transition-all group">
-                    <span className="text-xl">{t.icon}</span>
-                    <span className="text-xs font-medium text-gray-700 group-hover:text-blue-700 text-center">{t.name}</span>
-                    <span className="text-[10px] text-gray-400">{t.defaultLineItem.quantity} {t.defaultLineItem.unit}</span>
+                    <Package className="w-5 h-5 text-gray-400 group-hover:text-blue-500" />
+                    <span className="text-xs font-medium text-gray-700 group-hover:text-blue-700 text-center leading-tight">{t.name}</span>
+                    <span className="text-[10px] text-gray-400">{t.quantity.toLocaleString()} pcs</span>
                   </button>
                 ))}
               </div>
             </Card>
           )}
 
-          {/* Line Items */}
+          {/* ─── Line Items ──────────────────────────────────────────── */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-semibold text-gray-900">Line Items</h2>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" icon={<Plus className="w-3.5 h-3.5" />}
-                  onClick={() => { const item = EMPTY_LINE_ITEM(); setLineItems(p => [...p, item]); setExpandedItem(item.id); }}>
-                  Add Item
-                </Button>
-              </div>
+              <Button variant="ghost" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={addLineItem}>
+                Add Item
+              </Button>
             </div>
 
             <div className="space-y-3">
               {lineItems.map((item, idx) => (
-                <LineItemRow
-                  key={item.id} item={item} index={idx}
+                <PricingLineItemRow
+                  key={item.id}
+                  item={item}
+                  index={idx}
+                  pricingState={getPricingState(item.id)}
                   isExpanded={expandedItem === item.id}
                   onToggle={() => setExpandedItem(expandedItem === item.id ? null : item.id)}
-                  onUpdate={(updates) => updateLineItem(item.id, updates)}
+                  onUpdateItem={(updates) => setLineItems(prev => prev.map(i => i.id === item.id ? { ...i, ...updates } : i))}
+                  onUpdatePricing={(updates) => updatePricingState(item.id, updates)}
                   onRemove={() => removeLineItem(item.id)}
-                  onDuplicate={() => {
-                    const newItem = { ...item, id: nanoid() };
-                    setLineItems(prev => [...prev, newItem]);
-                    setExpandedItem(newItem.id);
-                  }}
+                  onDuplicate={() => duplicateLineItem(item)}
                 />
               ))}
             </div>
 
-            <button onClick={() => { const item = EMPTY_LINE_ITEM(); setLineItems(p => [...p, item]); setExpandedItem(item.id); }}
+            <button onClick={addLineItem}
               className="w-full mt-3 py-3 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-all flex items-center justify-center gap-2">
               <Plus className="w-4 h-4" /> Add Line Item
             </button>
@@ -488,22 +295,20 @@ export const QuoteBuilder: React.FC = () => {
           </Card>
         </div>
 
-        {/* Sidebar summary */}
+        {/* ─── Sidebar ───────────────────────────────────────────────── */}
         <div className="space-y-4">
           <Card className="p-5 sticky top-20">
             <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Calculator className="w-4 h-4 text-blue-500" /> Quote Summary</h3>
             <div className="space-y-3 mb-4">
               {lineItems.filter(i => i.description).map(item => (
                 <div key={item.id} className="flex justify-between text-sm">
-                  <span className="text-gray-600 truncate flex-1 mr-2">{item.description || 'Untitled item'}</span>
-                  <span className="font-medium text-gray-900 flex-shrink-0">{formatCurrency(item.sellPrice || 0)}</span>
+                  <span className="text-gray-600 truncate flex-1 mr-2">{item.description || 'Untitled'}</span>
+                  <span className="font-medium text-gray-900 flex-shrink-0">{fmt(item.sellPrice || 0)}</span>
                 </div>
               ))}
             </div>
             <div className="border-t border-gray-100 pt-3 space-y-2">
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>Subtotal</span><span>{formatCurrency(subtotal)}</span>
-              </div>
+              <div className="flex justify-between text-sm text-gray-600"><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
               <div className="flex items-center justify-between text-sm text-gray-600">
                 <div className="flex items-center gap-2">
                   <span>Tax</span>
@@ -511,10 +316,10 @@ export const QuoteBuilder: React.FC = () => {
                     className="w-12 px-1 py-0.5 text-xs border border-gray-200 rounded text-center" />
                   <span>%</span>
                 </div>
-                <span>{formatCurrency(taxAmount)}</span>
+                <span>{fmt(taxAmount)}</span>
               </div>
               <div className="flex justify-between text-lg font-bold text-gray-900 pt-2 border-t border-gray-100">
-                <span>Total</span><span className="text-blue-600">{formatCurrency(total)}</span>
+                <span>Total</span><span className="text-blue-600">{fmt(total)}</span>
               </div>
             </div>
             <div className="mt-4 space-y-2">
@@ -523,22 +328,43 @@ export const QuoteBuilder: React.FC = () => {
             </div>
           </Card>
 
-          {/* Margin summary */}
+          {/* Margin analysis */}
           <Card className="p-5">
             <h3 className="font-semibold text-gray-900 mb-3 text-sm">Margin Analysis</h3>
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Total Cost</span>
-                <span className="font-medium">{formatCurrency(lineItems.reduce((s, i) => s + (i.totalCost || 0), 0))}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Revenue</span>
-                <span className="font-medium">{formatCurrency(subtotal)}</span>
-              </div>
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Total Cost</span><span className="font-medium">{fmt(totalCostAll)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Revenue</span><span className="font-medium">{fmt(subtotal)}</span></div>
               <div className="flex justify-between text-sm font-semibold">
                 <span className="text-emerald-600">Gross Profit</span>
-                <span className="text-emerald-600">{formatCurrency(subtotal - lineItems.reduce((s, i) => s + (i.totalCost || 0), 0))}</span>
+                <span className="text-emerald-600">{fmt(subtotal - totalCostAll)}</span>
               </div>
+              {subtotal > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Margin</span>
+                  <span className={`font-semibold ${((subtotal - totalCostAll) / subtotal) * 100 >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {fmtPct(((subtotal - totalCostAll) / subtotal) * 100)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Product templates */}
+          <Card className="overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-700">Product Templates</h3>
+            </div>
+            <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
+              {sortedTemplates.map(t => (
+                <button key={t.id} onClick={() => addFromTemplate(t.id)}
+                  className="w-full text-left px-4 py-2.5 hover:bg-blue-50/50 transition-colors text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-gray-900">{t.name}</span>
+                    {t.isFavorite && <Star className="w-3 h-3 text-amber-400 fill-amber-400" />}
+                  </div>
+                  <span className="text-gray-400">{t.categoryName} · {t.quantity.toLocaleString()} pcs</span>
+                </button>
+              ))}
             </div>
           </Card>
         </div>
@@ -547,35 +373,295 @@ export const QuoteBuilder: React.FC = () => {
   );
 };
 
-// ─── LINE ITEM ROW ───────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// PRICING LINE ITEM ROW — each line item has the full pricing engine
+// ═════════════════════════════════════════════════════════════════════════════
 
-interface LineItemRowProps {
-  item: QuoteLineItem; index: number;
-  isExpanded: boolean; onToggle: () => void;
-  onUpdate: (u: Partial<QuoteLineItem>) => void;
-  onRemove: () => void; onDuplicate: () => void;
+interface PricingLineItemRowProps {
+  item: QuoteLineItem;
+  index: number;
+  pricingState: LineItemPricingState;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onUpdateItem: (u: Partial<QuoteLineItem>) => void;
+  onUpdatePricing: (u: Partial<LineItemPricingState>) => void;
+  onRemove: () => void;
+  onDuplicate: () => void;
 }
 
-const LineItemRow: React.FC<LineItemRowProps> = ({ item, index, isExpanded, onToggle, onUpdate, onRemove, onDuplicate }) => {
-  const { materials, equipment, vendors } = useStore();
-  const familyLabel = PRODUCT_FAMILIES.find(f => f.id === item.productFamily);
+const PricingLineItemRow: React.FC<PricingLineItemRowProps> = ({
+  item, index, pricingState: ps, isExpanded, onToggle,
+  onUpdateItem, onUpdatePricing, onRemove, onDuplicate,
+}) => {
+  const pricing = usePricingStore();
+  const { categories, products, equipment, finishing, materials,
+    searchProducts, getEquipmentForCategory, calculateImposition, lookupClickPrice } = pricing;
+
+  // ── Local UI state ────────────────────────────────────────────────────
+  const [productQuery, setProductQuery] = useState(ps.productName || '');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<Partial<PricingServiceLine>>({});
+
+  // Sync product query when pricing state changes externally (e.g. template load)
+  useEffect(() => { setProductQuery(ps.productName || ''); }, [ps.productName]);
+
+  // ── Derived data ──────────────────────────────────────────────────────
+  const selectedMaterial = useMemo(() => materials.find(m => m.id === ps.materialId), [materials, ps.materialId]);
+  const selectedEquipment = useMemo(() => equipment.find(e => e.id === ps.equipmentId), [equipment, ps.equipmentId]);
+
+  const availableEquipment = useMemo(() => {
+    if (!ps.categoryName) return equipment;
+    const catEq = getEquipmentForCategory(ps.categoryName);
+    return catEq.length > 0 ? catEq : equipment;
+  }, [ps.categoryName, equipment, getEquipmentForCategory]);
+
+  const availableMaterials = useMemo(() => {
+    if (ps.finalWidth <= 0 || ps.finalHeight <= 0) return materials;
+    return materials.filter(m => {
+      return (m.sizeWidth >= ps.finalWidth && m.sizeHeight >= ps.finalHeight) ||
+        (m.sizeHeight >= ps.finalWidth && m.sizeWidth >= ps.finalHeight);
+    });
+  }, [materials, ps.finalWidth, ps.finalHeight]);
+
+  const suggestions = useMemo(() => {
+    if (!productQuery.trim() || productQuery.length < 1) return [];
+    return searchProducts(productQuery).slice(0, 6);
+  }, [productQuery, searchProducts]);
+
+  // ── Imposition ────────────────────────────────────────────────────────
+  const imposition = useMemo(() => {
+    if (!selectedMaterial || ps.finalWidth <= 0 || ps.finalHeight <= 0)
+      return { upsAcross: 0, upsDown: 0, totalUps: 0, sheetsNeeded: 0, cutsPerSheet: 0 };
+    const r = calculateImposition(ps.finalWidth, ps.finalHeight, selectedMaterial.sizeWidth, selectedMaterial.sizeHeight);
+    const sheetsNeeded = r.totalUps > 0 ? Math.ceil(ps.quantity / r.totalUps) : 0;
+    const cutsPerSheet = r.upsAcross + r.upsDown;
+    return { ...r, sheetsNeeded, cutsPerSheet };
+  }, [selectedMaterial, ps.finalWidth, ps.finalHeight, ps.quantity, calculateImposition]);
+
+  // ── Price Calculation ─────────────────────────────────────────────────
+  const computeServiceLines = useCallback((): PricingServiceLine[] => {
+    const lines: PricingServiceLine[] = [];
+
+    // MATERIAL
+    if (selectedMaterial && imposition.sheetsNeeded > 0) {
+      const costPerSheet = selectedMaterial.pricePerM / 1000;
+      const totalCost = imposition.sheetsNeeded * costPerSheet;
+      const markup = selectedMaterial.markup;
+      lines.push({
+        id: slId(), service: 'Material',
+        description: `${selectedMaterial.name} (${selectedMaterial.size}) — ${imposition.sheetsNeeded} sheets`,
+        quantity: imposition.sheetsNeeded, unit: 'sheets', unitCost: costPerSheet,
+        totalCost, markupPercent: markup, sellPrice: totalCost * (1 + markup / 100), editable: true,
+      });
+    }
+
+    // PRINTING
+    if (selectedEquipment) {
+      if (selectedEquipment.costUnit === 'per_click') {
+        const totalClicks = imposition.sheetsNeeded * (ps.sides === 'Double' ? 2 : 1);
+        const costPerClick = selectedEquipment.unitCost;
+        const totalCost = totalClicks * costPerClick;
+        const sellPerClick = lookupClickPrice(selectedEquipment.id, totalClicks, ps.colorMode);
+        const totalSell = totalClicks * sellPerClick;
+        const markupPct = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
+        lines.push({
+          id: slId(), service: 'Printing',
+          description: `${selectedEquipment.name} — ${totalClicks} clicks (${ps.colorMode}, ${ps.sides === 'Double' ? '2-sided' : '1-sided'}) @ ${fmt(sellPerClick)}/click`,
+          quantity: totalClicks, unit: 'clicks', unitCost: costPerClick,
+          totalCost, markupPercent: markupPct, sellPrice: totalSell, editable: true,
+        });
+      } else if (selectedEquipment.costUnit === 'per_sqft') {
+        const sqft = (ps.finalWidth * ps.finalHeight * ps.quantity) / 144;
+        const costPerSqft = selectedEquipment.unitCost;
+        const totalCost = sqft * costPerSqft;
+        const mult = selectedEquipment.markupMultiplier || 1;
+        const totalSell = sqft * costPerSqft * mult;
+        const markupPct = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
+        lines.push({
+          id: slId(), service: 'Printing',
+          description: `${selectedEquipment.name} — ${sqft.toFixed(1)} sqft @ ${fmt(costPerSqft * mult)}/sqft`,
+          quantity: parseFloat(sqft.toFixed(1)), unit: 'sqft', unitCost: costPerSqft,
+          totalCost, markupPercent: markupPct, sellPrice: totalSell, editable: true,
+        });
+      }
+      if (selectedEquipment.initialSetupFee > 0) {
+        lines.push({
+          id: slId(), service: 'Setup',
+          description: `${selectedEquipment.name} — Setup fee`,
+          quantity: 1, unit: 'flat', unitCost: selectedEquipment.initialSetupFee,
+          totalCost: selectedEquipment.initialSetupFee, markupPercent: 0,
+          sellPrice: selectedEquipment.initialSetupFee, editable: true,
+        });
+      }
+    }
+
+    // CUTTING
+    if (ps.cuttingEnabled && imposition.sheetsNeeded > 0 && imposition.cutsPerSheet > 0) {
+      const cutSvc = finishing.find(f => f.service === 'Cut');
+      if (cutSvc) {
+        const totalStacks = Math.ceil(imposition.sheetsNeeded / ps.sheetsPerCutStack);
+        const totalCuts = imposition.cutsPerSheet * totalStacks;
+        const hours = totalCuts / cutSvc.outputPerHour;
+        const totalCost = hours * cutSvc.hourlyCost;
+        const markup = cutSvc.timeCostMarkup;
+        lines.push({
+          id: slId(), service: 'Cutting',
+          description: `${totalCuts} cuts (${imposition.cutsPerSheet}/sheet × ${totalStacks} stacks) — ${(hours * 60).toFixed(0)} min`,
+          quantity: totalCuts, unit: 'cuts', unitCost: cutSvc.hourlyCost / cutSvc.outputPerHour,
+          totalCost, markupPercent: markup, sellPrice: totalCost * (1 + markup / 100), editable: true,
+        });
+      }
+    }
+
+    // FOLDING
+    if (ps.foldingType) {
+      const fSvc = finishing.find(f => f.service === 'Fold' && f.subservice?.toLowerCase().replace('-', '') === ps.foldingType.toLowerCase().replace('-', ''));
+      if (fSvc) {
+        const hours = ps.quantity / fSvc.outputPerHour;
+        const totalCost = hours * fSvc.hourlyCost;
+        lines.push({
+          id: slId(), service: 'Folding',
+          description: `${ps.foldingType} — ${ps.quantity} pcs @ ${fSvc.outputPerHour}/hr`,
+          quantity: ps.quantity, unit: 'pcs', unitCost: fSvc.hourlyCost / fSvc.outputPerHour,
+          totalCost, markupPercent: fSvc.timeCostMarkup, sellPrice: totalCost * (1 + fSvc.timeCostMarkup / 100), editable: true,
+        });
+      }
+    }
+
+    // DRILLING
+    if (ps.drillingType) {
+      const dSvc = finishing.find(f => f.service === 'Drill' && f.subservice === ps.drillingType);
+      if (dSvc) {
+        const hours = ps.quantity / dSvc.outputPerHour;
+        const totalCost = hours * dSvc.hourlyCost;
+        lines.push({
+          id: slId(), service: 'Drilling',
+          description: `${ps.drillingType} — ${ps.quantity} pcs @ ${dSvc.outputPerHour}/hr`,
+          quantity: ps.quantity, unit: 'pcs', unitCost: dSvc.hourlyCost / dSvc.outputPerHour,
+          totalCost, markupPercent: dSvc.timeCostMarkup, sellPrice: totalCost * (1 + dSvc.timeCostMarkup / 100), editable: true,
+        });
+      }
+    }
+
+    return lines;
+  }, [selectedMaterial, selectedEquipment, imposition, ps, finishing, lookupClickPrice]);
+
+  // Recompute and sync to parent
+  useEffect(() => {
+    const lines = computeServiceLines();
+    onUpdatePricing({ serviceLines: lines });
+
+    const totalCost = lines.reduce((s, l) => s + l.totalCost, 0);
+    const totalSell = lines.reduce((s, l) => s + l.sellPrice, 0);
+    const overallMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
+
+    // Map to QuoteLineItem fields
+    const matLine = lines.find(l => l.service === 'Material');
+    const printLine = lines.find(l => l.service === 'Printing');
+    const setupLine = lines.find(l => l.service === 'Setup');
+    const finishingCost = lines.filter(l => ['Cutting', 'Folding', 'Drilling'].includes(l.service)).reduce((s, l) => s + l.totalCost, 0);
+
+    onUpdateItem({
+      description: ps.productName || item.description,
+      quantity: ps.quantity || item.quantity,
+      width: ps.finalWidth || undefined,
+      height: ps.finalHeight || undefined,
+      materialId: ps.materialId || undefined,
+      materialName: selectedMaterial?.name,
+      materialCost: matLine?.totalCost || 0,
+      equipmentId: ps.equipmentId || undefined,
+      equipmentName: selectedEquipment?.name,
+      equipmentCost: printLine?.totalCost || 0,
+      laborCost: finishingCost,
+      setupCost: setupLine?.totalCost || 0,
+      totalCost,
+      markup: Math.round(overallMarkup),
+      sellPrice: totalSell,
+      upsPerSheet: imposition.totalUps || undefined,
+      sheetSize: selectedMaterial?.size,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computeServiceLines]);
+
+  // ── Select product from search ────────────────────────────────────────
+  const selectProduct = (product: PricingProduct) => {
+    setProductQuery(product.name);
+    setShowSuggestions(false);
+    const cat = categories.find(c => c.id === product.categoryId);
+
+    // Find a matching material
+    const matMatch = materials.find(m =>
+      m.name.toLowerCase().includes((product.defaultMaterialName || '').toLowerCase().split(' ').slice(-2).join(' '))
+    );
+
+    onUpdatePricing({
+      productId: product.id,
+      productName: product.name,
+      categoryName: cat?.name || '',
+      quantity: product.defaultQuantity,
+      finalWidth: product.defaultFinalWidth,
+      finalHeight: product.defaultFinalHeight,
+      materialId: matMatch?.id || '',
+      equipmentId: product.defaultEquipmentId || '',
+      colorMode: product.defaultColor === 'Black' ? 'Black' : 'Color',
+      sides: product.defaultSides,
+      foldingType: product.defaultFolding || '',
+      drillingType: '',
+      cuttingEnabled: true,
+      sheetsPerCutStack: 500,
+    });
+    onUpdateItem({ description: product.name, quantity: product.defaultQuantity });
+  };
+
+  // ── Inline edit service line ──────────────────────────────────────────
+  const applyEditLine = () => {
+    if (!editingLineId) return;
+    const updatedLines = ps.serviceLines.map(l => {
+      if (l.id !== editingLineId) return l;
+      const cost = editValues.totalCost ?? l.totalCost;
+      const markup = editValues.markupPercent ?? l.markupPercent;
+      return { ...l, totalCost: cost, markupPercent: markup, sellPrice: cost * (1 + markup / 100) };
+    });
+    onUpdatePricing({ serviceLines: updatedLines });
+
+    // Recalc item totals from edited lines
+    const totalCost = updatedLines.reduce((s, l) => s + l.totalCost, 0);
+    const totalSell = updatedLines.reduce((s, l) => s + l.sellPrice, 0);
+    const overallMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
+    onUpdateItem({ totalCost, sellPrice: totalSell, markup: Math.round(overallMarkup) });
+
+    setEditingLineId(null);
+    setEditValues({});
+  };
+
+  // Finishing options from pricing store
+  const foldingOptions = finishing.filter(f => f.service === 'Fold').map(f => f.subservice || '');
+  const drillingOptions = finishing.filter(f => f.service === 'Drill').map(f => f.subservice || '');
+
+  // ═══ RENDER LINE ITEM ═════════════════════════════════════════════════
 
   return (
     <Card className={`overflow-hidden transition-all ${isExpanded ? 'ring-2 ring-blue-500' : ''}`}>
-      {/* Header row */}
+      {/* Collapsed header */}
       <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50" onClick={onToggle}>
         <span className="w-5 h-5 bg-gray-100 rounded text-xs font-bold text-gray-500 flex items-center justify-center flex-shrink-0">{index + 1}</span>
-        {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+        {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900 truncate">{item.description || <span className="text-gray-400">Untitled line item</span>}</p>
-          <p className="text-xs text-gray-400">{familyLabel?.icon} {familyLabel?.label} · {item.quantity} {item.unit}</p>
+          <p className="text-sm font-medium text-gray-900 truncate">{item.description || <span className="text-gray-400">New line item — search a product</span>}</p>
+          <p className="text-xs text-gray-400">
+            {ps.categoryName && <><Badge color="blue" className="mr-1">{ps.categoryName}</Badge></>}
+            {ps.quantity > 0 && `${ps.quantity.toLocaleString()} pcs`}
+            {ps.finalWidth > 0 && ps.finalHeight > 0 && ` · ${ps.finalWidth}" × ${ps.finalHeight}"`}
+          </p>
         </div>
         <div className="flex items-center gap-4 flex-shrink-0">
-          <div className="text-right hidden md:block">
-            <p className="text-xs text-gray-400">Cost: {formatCurrency(item.totalCost || 0)}</p>
-            <p className="text-xs text-gray-500">Markup: {item.markup}%</p>
-          </div>
-          <p className="text-sm font-bold text-gray-900">{formatCurrency(item.sellPrice || 0)}</p>
+          {item.totalCost > 0 && (
+            <div className="text-right hidden md:block">
+              <p className="text-xs text-gray-400">Cost: {fmt(item.totalCost)}</p>
+            </div>
+          )}
+          <p className="text-sm font-bold text-gray-900">{fmt(item.sellPrice || 0)}</p>
           <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
             <button onClick={onDuplicate} className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600"><Copy className="w-3.5 h-3.5" /></button>
             <button onClick={onRemove} className="p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -583,89 +669,267 @@ const LineItemRow: React.FC<LineItemRowProps> = ({ item, index, isExpanded, onTo
         </div>
       </div>
 
-      {/* Expanded form */}
+      {/* Expanded pricing form */}
       {isExpanded && (
-        <div className="px-4 pb-4 border-t border-gray-50 pt-4 space-y-4">
-          {/* Product family */}
+        <div className="px-4 pb-5 border-t border-gray-50 pt-4 space-y-4">
+          {/* ── Product Search ──────────────────────────────────────── */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Product Type</label>
-            <div className="grid grid-cols-4 gap-1.5 md:grid-cols-6">
-              {PRODUCT_FAMILIES.map(f => (
-                <button key={f.id} onClick={() => onUpdate({ productFamily: f.id })}
-                  className={`flex flex-col items-center gap-1 p-2 rounded-lg border text-xs transition-all ${item.productFamily === f.id ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-100 hover:border-gray-200 text-gray-600'}`}>
-                  <span>{f.icon}</span>
-                  <span className="font-medium leading-tight text-center">{f.label.split(' ')[0]}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-3">
-              <Input label="Description" value={item.description} onChange={e => onUpdate({ description: e.target.value })} placeholder="Describe this product or service..." />
-            </div>
-            <Input label="Quantity" type="number" value={item.quantity} onChange={e => onUpdate({ quantity: parseFloat(e.target.value) || 1 })} />
-            <Select label="Unit" value={item.unit} onChange={e => onUpdate({ unit: e.target.value as QuoteLineItem['unit'] })}
-              options={['each', 'sqft', 'sqin', 'linear_ft', 'sheet', 'hour', 'piece', 'roll', 'lb', 'set'].map(u => ({ value: u, label: u }))} />
-            {(item.productFamily === 'digital_print' || item.productFamily === 'offset_print' || item.productFamily === 'wide_format' || item.productFamily === 'rigid_sign' || item.productFamily === 'roll_sign' || item.productFamily === 'label') && (
-              <>
-                <Input label="Width (in)" type="number" value={item.width || ''} onChange={e => onUpdate({ width: parseFloat(e.target.value) || undefined })} placeholder="e.g. 8.5" />
-                <Input label="Height (in)" type="number" value={item.height || ''} onChange={e => onUpdate({ height: parseFloat(e.target.value) || undefined })} placeholder="e.g. 11" />
-              </>
-            )}
-          </div>
-
-          {/* Costing section */}
-          <div className="bg-gray-50 rounded-xl p-4">
-            <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Cost Breakdown</h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <div>
-                <Select label="Material" value={item.materialId || ''} onChange={e => {
-                  const mat = materials.find(m => m.id === e.target.value);
-                  onUpdate({ materialId: e.target.value || undefined, materialName: mat?.name });
-                }}
-                  options={[{ value: '', label: 'None' }, ...materials.map(m => ({ value: m.id, label: m.name }))]} />
-              </div>
-              <Input label="Material Cost ($)" type="number" value={item.materialCost || ''} onChange={e => onUpdate({ materialCost: parseFloat(e.target.value) || 0 })} prefix="$" />
-              <div>
-                <Select label="Equipment" value={item.equipmentId || ''} onChange={e => {
-                  const eq = equipment.find(x => x.id === e.target.value);
-                  onUpdate({ equipmentId: e.target.value || undefined, equipmentName: eq?.name });
-                }}
-                  options={[{ value: '', label: 'None' }, ...equipment.map(eq => ({ value: eq.id, label: eq.name }))]} />
-              </div>
-              <Input label="Equipment Cost ($)" type="number" value={item.equipmentCost || ''} onChange={e => onUpdate({ equipmentCost: parseFloat(e.target.value) || 0 })} prefix="$" />
-              <Input label="Labor Hours" type="number" value={item.laborHours || ''} onChange={e => onUpdate({ laborHours: parseFloat(e.target.value) || 0 })} />
-              <Input label="Labor Rate ($/hr)" type="number" value={item.laborRate || 45} onChange={e => onUpdate({ laborRate: parseFloat(e.target.value) || 45 })} prefix="$" />
-              <Input label="Setup Cost ($)" type="number" value={item.setupCost || ''} onChange={e => onUpdate({ setupCost: parseFloat(e.target.value) || 0 })} prefix="$" />
-              <Input label="Vendor Cost ($)" type="number" value={item.vendorCost || ''} onChange={e => onUpdate({ vendorCost: parseFloat(e.target.value) || 0 })} prefix="$" />
-              <Input label="Additional ($)" type="number" value={item.additionalCost || ''} onChange={e => onUpdate({ additionalCost: parseFloat(e.target.value) || 0 })} prefix="$" />
-            </div>
-          </div>
-
-          {/* Pricing */}
-          <div className="grid grid-cols-3 gap-4 bg-blue-50 rounded-xl p-4">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Total Cost</p>
-              <p className="text-lg font-bold text-gray-900">{formatCurrency(item.totalCost || 0)}</p>
-            </div>
-            <Input label="Markup %" type="number" value={item.markup} onChange={e => onUpdate({ markup: parseFloat(e.target.value) || 0 })} suffix="%" className="bg-white" />
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Sell Price</p>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Product</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
-                type="number" value={(item.sellPrice || 0).toFixed(2)}
-                onChange={e => {
-                  const sp = parseFloat(e.target.value) || 0;
-                  const cost = item.totalCost || 0;
-                  const markup = cost > 0 ? ((sp - cost) / cost) * 100 : 0;
-                  onUpdate({ sellPrice: sp, markup: Math.round(markup) });
-                }}
-                className="w-full px-3 py-2 text-lg font-bold text-blue-700 bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                type="text" value={productQuery}
+                onChange={e => { setProductQuery(e.target.value); setShowSuggestions(true); if (!e.target.value.trim()) onUpdatePricing({ productId: '', productName: '' }); }}
+                onFocus={() => productQuery && setShowSuggestions(true)}
+                placeholder="Type product name (Business Cards, Postcards, Trifold, Brochures...)"
+                className="w-full pl-9 pr-8 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
               />
+              {productQuery && (
+                <button onClick={() => { setProductQuery(''); onUpdatePricing({ productId: '', productName: '', categoryName: '' }); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 rounded-full">
+                  <X className="w-3.5 h-3.5 text-gray-400" />
+                </button>
+              )}
+              {showSuggestions && suggestions.length > 0 && !ps.productId && (
+                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+                  {suggestions.map(p => {
+                    const cat = categories.find(c => c.id === p.categoryId);
+                    return (
+                      <button key={p.id} onClick={() => selectProduct(p)}
+                        className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0">
+                        <div>
+                          <span className="text-sm font-medium text-gray-900">{p.name}</span>
+                          {p.aliases.length > 0 && <span className="text-xs text-gray-400 ml-2">aka {p.aliases.slice(0, 3).join(', ')}</span>}
+                        </div>
+                        <Badge color="gray">{cat?.name}</Badge>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
-          <Input label="Line Item Notes" value={item.notes || ''} onChange={e => onUpdate({ notes: e.target.value })} placeholder="Notes for this item..." />
+          {/* ── Configuration Grid ─────────────────────────────────── */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Quantity</label>
+              <input type="number" value={ps.quantity} min={1}
+                onChange={e => onUpdatePricing({ quantity: parseInt(e.target.value) || 0 })}
+                className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Width (in)</label>
+              <input type="number" step="0.125" value={ps.finalWidth} min={0}
+                onChange={e => onUpdatePricing({ finalWidth: parseFloat(e.target.value) || 0 })}
+                className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Height (in)</label>
+              <input type="number" step="0.125" value={ps.finalHeight} min={0}
+                onChange={e => onUpdatePricing({ finalHeight: parseFloat(e.target.value) || 0 })}
+                className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Color</label>
+              <select value={ps.colorMode} onChange={e => onUpdatePricing({ colorMode: e.target.value as 'Color' | 'Black' })}
+                className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
+                <option value="Color">Color</option>
+                <option value="Black">Black & White</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Sides</label>
+              <select value={ps.sides} onChange={e => onUpdatePricing({ sides: e.target.value as 'Single' | 'Double' })}
+                className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
+                <option value="Single">Single Sided</option>
+                <option value="Double">Double Sided</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Equipment</label>
+              <select value={ps.equipmentId} onChange={e => onUpdatePricing({ equipmentId: e.target.value })}
+                className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
+                <option value="">— Select —</option>
+                {availableEquipment.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Material</label>
+              <select value={ps.materialId} onChange={e => onUpdatePricing({ materialId: e.target.value })}
+                className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
+                <option value="">— Select material —</option>
+                {availableMaterials.map(m => <option key={m.id} value={m.id}>{m.name} ({m.size}) — {fmt(m.pricePerM)}/M</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* ── Imposition ─────────────────────────────────────────── */}
+          {selectedMaterial && imposition.totalUps > 0 && (
+            <div className="bg-blue-50/50 rounded-xl p-4">
+              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <Grid3X3 className="w-3.5 h-3.5 text-blue-500" /> Imposition
+              </h4>
+              <div className="grid grid-cols-5 gap-2">
+                <div className="bg-white rounded-lg p-2 text-center border border-blue-100">
+                  <p className="text-[10px] text-blue-600 font-medium">Parent</p>
+                  <p className="text-sm font-bold text-blue-900">{selectedMaterial.size}</p>
+                </div>
+                <div className="bg-white rounded-lg p-2 text-center border border-emerald-100">
+                  <p className="text-[10px] text-emerald-600 font-medium">Ups</p>
+                  <p className="text-sm font-bold text-emerald-900">{imposition.totalUps}</p>
+                </div>
+                <div className="bg-white rounded-lg p-2 text-center border border-purple-100">
+                  <p className="text-[10px] text-purple-600 font-medium">Layout</p>
+                  <p className="text-sm font-bold text-purple-900">{imposition.upsAcross}×{imposition.upsDown}</p>
+                </div>
+                <div className="bg-white rounded-lg p-2 text-center border border-amber-100">
+                  <p className="text-[10px] text-amber-600 font-medium">Sheets</p>
+                  <p className="text-sm font-bold text-amber-900">{imposition.sheetsNeeded.toLocaleString()}</p>
+                </div>
+                <div className="bg-white rounded-lg p-2 text-center border border-gray-200">
+                  <p className="text-[10px] text-gray-500 font-medium">Cuts/Sheet</p>
+                  <p className="text-sm font-bold text-gray-900">{imposition.cutsPerSheet}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Finishing ──────────────────────────────────────────── */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className={`rounded-xl border p-3 transition-all ${ps.cuttingEnabled ? 'border-blue-200 bg-blue-50/30' : 'border-gray-100'}`}>
+              <label className="flex items-center gap-1.5 cursor-pointer mb-2">
+                <input type="checkbox" checked={ps.cuttingEnabled} onChange={e => onUpdatePricing({ cuttingEnabled: e.target.checked })}
+                  className="w-3.5 h-3.5 text-blue-600 rounded" />
+                <Scissors className="w-3.5 h-3.5 text-gray-500" />
+                <span className="text-xs font-semibold text-gray-700">Cutting</span>
+              </label>
+              {ps.cuttingEnabled && (
+                <input type="number" value={ps.sheetsPerCutStack} min={1} placeholder="Sheets/stack"
+                  onChange={e => onUpdatePricing({ sheetsPerCutStack: parseInt(e.target.value) || 1 })}
+                  className="w-full px-2 py-1 text-xs bg-white border border-gray-200 rounded-lg" />
+              )}
+            </div>
+            <div className={`rounded-xl border p-3 transition-all ${ps.foldingType ? 'border-blue-200 bg-blue-50/30' : 'border-gray-100'}`}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <FoldVertical className="w-3.5 h-3.5 text-gray-500" />
+                <span className="text-xs font-semibold text-gray-700">Folding</span>
+              </div>
+              <select value={ps.foldingType} onChange={e => onUpdatePricing({ foldingType: e.target.value })}
+                className="w-full px-2 py-1 text-xs bg-white border border-gray-200 rounded-lg appearance-none">
+                <option value="">None</option>
+                {foldingOptions.map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </div>
+            <div className={`rounded-xl border p-3 transition-all ${ps.drillingType ? 'border-blue-200 bg-blue-50/30' : 'border-gray-100'}`}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <CircleDot className="w-3.5 h-3.5 text-gray-500" />
+                <span className="text-xs font-semibold text-gray-700">Drilling</span>
+              </div>
+              <select value={ps.drillingType} onChange={e => onUpdatePricing({ drillingType: e.target.value })}
+                className="w-full px-2 py-1 text-xs bg-white border border-gray-200 rounded-lg appearance-none">
+                <option value="">None</option>
+                {drillingOptions.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* ── Price Breakdown Table ─────────────────────────────── */}
+          {ps.serviceLines.length > 0 && (
+            <div className="bg-gray-50 rounded-xl overflow-hidden">
+              <div className="px-4 py-2.5 flex items-center justify-between border-b border-gray-200/60">
+                <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center gap-1.5">
+                  <DollarSign className="w-3.5 h-3.5 text-gray-400" /> Price Breakdown
+                </h4>
+                <span className="text-[10px] text-gray-400">Click row to edit</span>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-200/60">
+                    <th className="text-left py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Service</th>
+                    <th className="text-left py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Description</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Cost</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Markup</th>
+                    <th className="text-right py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Sell Price</th>
+                    <th className="w-8"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {ps.serviceLines.map(line => {
+                    const isEditing = editingLineId === line.id;
+                    return (
+                      <tr key={line.id}
+                        className={`transition-colors ${isEditing ? 'bg-blue-50' : 'hover:bg-white cursor-pointer'}`}
+                        onClick={() => { if (!isEditing) { setEditingLineId(line.id); setEditValues({ totalCost: line.totalCost, markupPercent: line.markupPercent }); } }}>
+                        <td className="py-2 px-4">
+                          <div className="flex items-center gap-1.5">
+                            {line.service === 'Material' && <Package className="w-3 h-3 text-amber-500" />}
+                            {line.service === 'Printing' && <Printer className="w-3 h-3 text-blue-500" />}
+                            {line.service === 'Setup' && <Settings2 className="w-3 h-3 text-gray-400" />}
+                            {line.service === 'Cutting' && <Scissors className="w-3 h-3 text-purple-500" />}
+                            {line.service === 'Folding' && <FoldVertical className="w-3 h-3 text-emerald-500" />}
+                            {line.service === 'Drilling' && <CircleDot className="w-3 h-3 text-orange-500" />}
+                            <span className="font-medium text-gray-800">{line.service}</span>
+                          </div>
+                        </td>
+                        <td className="py-2 px-4 text-gray-500 max-w-[200px] truncate">{line.description}</td>
+                        <td className="py-2 px-4 text-right font-mono">
+                          {isEditing ? (
+                            <input type="number" step="0.01" value={editValues.totalCost ?? line.totalCost}
+                              onChange={e => setEditValues(v => ({ ...v, totalCost: parseFloat(e.target.value) || 0 }))}
+                              onClick={e => e.stopPropagation()}
+                              className="w-20 px-1.5 py-0.5 text-right text-xs border border-blue-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                          ) : fmt(line.totalCost)}
+                        </td>
+                        <td className="py-2 px-4 text-right font-mono">
+                          {isEditing ? (
+                            <div className="flex items-center justify-end gap-0.5">
+                              <input type="number" step="0.1" value={editValues.markupPercent ?? line.markupPercent}
+                                onChange={e => setEditValues(v => ({ ...v, markupPercent: parseFloat(e.target.value) || 0 }))}
+                                onClick={e => e.stopPropagation()}
+                                className="w-16 px-1.5 py-0.5 text-right text-xs border border-blue-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                              <span className="text-gray-400">%</span>
+                            </div>
+                          ) : (
+                            <span className={line.markupPercent > 0 ? 'text-emerald-600' : 'text-gray-400'}>{fmtPct(line.markupPercent)}</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-4 text-right font-mono font-semibold text-gray-900">
+                          {isEditing
+                            ? fmt((editValues.totalCost ?? line.totalCost) * (1 + (editValues.markupPercent ?? line.markupPercent) / 100))
+                            : fmt(line.sellPrice)
+                          }
+                        </td>
+                        <td className="py-2 px-1">
+                          {isEditing ? (
+                            <div className="flex items-center gap-0.5">
+                              <button onClick={e => { e.stopPropagation(); applyEditLine(); }}
+                                className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded"><Check className="w-3 h-3" /></button>
+                              <button onClick={e => { e.stopPropagation(); setEditingLineId(null); }}
+                                className="p-0.5 text-red-500 hover:bg-red-50 rounded"><X className="w-3 h-3" /></button>
+                            </div>
+                          ) : <Edit3 className="w-3 h-3 text-gray-300" />}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {/* Line totals */}
+              <div className="px-4 py-2.5 border-t border-gray-200/60 flex items-center justify-between bg-white">
+                <div className="flex items-center gap-4">
+                  <span className="text-xs text-gray-500">Cost: <b className="text-gray-700">{fmt(item.totalCost)}</b></span>
+                  <span className="text-xs text-gray-500">Margin: <b className={item.sellPrice > 0 && ((item.sellPrice - item.totalCost) / item.sellPrice) * 100 >= 30 ? 'text-emerald-600' : 'text-amber-600'}>
+                    {item.sellPrice > 0 ? fmtPct(((item.sellPrice - item.totalCost) / item.sellPrice) * 100) : '0%'}
+                  </b></span>
+                </div>
+                <span className="text-sm font-bold text-blue-700">Sell: {fmt(item.sellPrice)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Notes */}
+          <Input label="Line Item Notes" value={item.notes || ''} onChange={e => onUpdateItem({ notes: e.target.value })} placeholder="Notes for this item..." />
         </div>
       )}
     </Card>

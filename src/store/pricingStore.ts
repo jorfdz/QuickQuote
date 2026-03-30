@@ -253,7 +253,18 @@ export const usePricingStore = create<PricingStore>()(
     }),
     {
       name: 'quikquote-pricing-storage',
-      version: 1,
+      version: 2,
+      migrate: () => {
+        // Version bump: reset to fresh defaults so all Excel data is loaded
+        return {
+          categories: defaultCategories,
+          products: defaultProducts,
+          equipment: defaultPricingEquipment,
+          finishing: defaultFinishing,
+          materials: defaultPricingMaterials,
+          templates: defaultPricingTemplates,
+        };
+      },
     }
   )
 );
