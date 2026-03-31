@@ -189,6 +189,8 @@ export interface MaterialChangeRecord {
   materialName: string;
   action: 'created' | 'updated' | 'deleted';
   changes: MaterialFieldChange[];
+  userId: string;
+  userName: string;
   timestamp: string;
 }
 
