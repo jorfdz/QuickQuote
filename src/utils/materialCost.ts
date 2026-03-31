@@ -5,8 +5,7 @@ import { MATERIAL_TYPE_LABELS } from '../types/pricing';
  * Returns the "unit cost" for display, depending on pricing model.
  * - cost_per_m:        pricePerM / 1000  (cost per sheet)
  * - cost_per_unit:     costPerUnit
- * - cost_per_sqft:     costPerSqft
- * - roll_cost_length:  derived costPerSqft = rollCost / (rollLength * (sizeWidth / 12))
+ * - cost_per_sqft:     costPerSqft  (for roll media, this may have been auto-derived from roll cost + length)
  */
 export const getUnitCost = (m: PricingMaterial): number => {
   const model = m.pricingModel || 'cost_per_m';
@@ -17,13 +16,15 @@ export const getUnitCost = (m: PricingMaterial): number => {
       return m.costPerUnit ?? 0;
     case 'cost_per_sqft':
       return m.costPerSqft ?? 0;
-    case 'roll_cost_length': {
-      const rollSqft = (m.rollLength ?? 0) * ((m.sizeWidth ?? 0) / 12);
-      return rollSqft > 0 ? (m.rollCost ?? 0) / rollSqft : 0;
-    }
     default:
       return 0;
   }
+};
+
+/** Derive cost per sqft from roll cost, roll length, and roll width */
+export const deriveRollCostPerSqft = (rollCost: number, rollLength: number, rollWidthInches: number): number => {
+  const rollSqft = rollLength * (rollWidthInches / 12);
+  return rollSqft > 0 ? rollCost / rollSqft : 0;
 };
 
 /** Human-readable unit label for the pricing model */
@@ -33,7 +34,6 @@ export const getUnitLabel = (m: PricingMaterial): string => {
     case 'cost_per_m':        return '/sheet';
     case 'cost_per_unit':     return '/unit';
     case 'cost_per_sqft':     return '/sqft';
-    case 'roll_cost_length':  return '/sqft';
     default:                  return '';
   }
 };

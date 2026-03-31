@@ -202,8 +202,9 @@ export type MaterialType = 'paper' | 'roll_media' | 'rigid_substrate' | 'blanks'
 export type MaterialPricingModel =
   | 'cost_per_m'          // Cost per 1,000 (paper, rigid, blanks)
   | 'cost_per_unit'       // Cost per single unit (paper, rigid, blanks)
-  | 'cost_per_sqft'       // Cost per square foot (roll media, rigid)
-  | 'roll_cost_length';   // Cost of roll + length -> system derives $/sqft (roll media only)
+  | 'cost_per_sqft';      // Cost per square foot (roll media, rigid)
+                           // For roll media: user may optionally enter roll cost + length
+                           // to auto-derive cost/sqft, or enter cost/sqft directly.
 
 export const MATERIAL_TYPE_LABELS: Record<MaterialType, string> = {
   paper: 'Paper',
@@ -216,13 +217,12 @@ export const PRICING_MODEL_LABELS: Record<MaterialPricingModel, string> = {
   cost_per_m: 'Cost per Thousand',
   cost_per_unit: 'Cost per Unit',
   cost_per_sqft: 'Cost per Square Foot',
-  roll_cost_length: 'Cost of Roll + Length',
 };
 
 /** Which pricing models are available for each material type */
 export const MATERIAL_TYPE_PRICING_MODELS: Record<MaterialType, MaterialPricingModel[]> = {
   paper:            ['cost_per_m', 'cost_per_unit'],
-  roll_media:       ['cost_per_sqft', 'roll_cost_length'],
+  roll_media:       ['cost_per_sqft'],
   rigid_substrate:  ['cost_per_m', 'cost_per_unit', 'cost_per_sqft'],
   blanks:           ['cost_per_unit', 'cost_per_m'],
 };
@@ -241,8 +241,8 @@ export interface PricingMaterial {
   pricePerM: number;               // price per 1,000 (when pricingModel = 'cost_per_m')
   costPerUnit?: number;            // cost per unit (when pricingModel = 'cost_per_unit')
   costPerSqft?: number;            // cost per sqft (when pricingModel = 'cost_per_sqft')
-  rollCost?: number;               // full roll cost (when pricingModel = 'roll_cost_length')
-  rollLength?: number;             // roll length in feet (when pricingModel = 'roll_cost_length')
+  rollCost?: number;               // full roll cost — reference field for roll media, auto-derives costPerSqft
+  rollLength?: number;             // roll length in feet — reference field for roll media, auto-derives costPerSqft
   minimumCharge: number;           // minimum charge floor — 0 means no minimum
   markup: number;                  // percentage markup (70 = 70%)
   materialGroupIds: string[];       // which material groups it belongs to
