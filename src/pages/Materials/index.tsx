@@ -64,7 +64,7 @@ export const Materials: React.FC = () => {
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const productSearchRef = useRef<HTMLInputElement>(null);
   const productDropdownRef = useRef<HTMLDivElement>(null);
-  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Filtered products for the dropdown (search within available products)
   const filteredProducts = useMemo(() => {
