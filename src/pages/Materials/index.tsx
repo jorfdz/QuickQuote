@@ -1293,7 +1293,7 @@ export const Materials: React.FC = () => {
               {editingId ? 'Save Changes' : 'Add Material'}
             </Button>
           </div>
-        </div>
+        </div>}
       </Modal>
 
       {/* Material Groups Manager Modal */}
