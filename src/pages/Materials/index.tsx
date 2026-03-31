@@ -20,6 +20,8 @@ const emptyForm = {
   materialGroupId: '',
   categoryIds: [] as string[],
   productIds: [] as string[],
+  favoriteProductIds: [] as string[],
+  favoriteCategoryIds: [] as string[],
   isFavorite: false,
   vendorName: '',
   vendorId: '',
@@ -108,6 +110,9 @@ export const Materials: React.FC = () => {
       categoryIds: f.categoryIds.includes(catId)
         ? f.categoryIds.filter(id => id !== catId)
         : [...f.categoryIds, catId],
+      favoriteCategoryIds: f.categoryIds.includes(catId)
+        ? f.favoriteCategoryIds.filter(id => id !== catId)
+        : f.favoriteCategoryIds,
     }));
   }, []);
 
@@ -124,6 +129,25 @@ export const Materials: React.FC = () => {
     setForm(f => ({
       ...f,
       productIds: f.productIds.filter(id => id !== prodId),
+      favoriteProductIds: f.favoriteProductIds.filter(id => id !== prodId),
+    }));
+  }, []);
+
+  const toggleProductFavorite = useCallback((prodId: string) => {
+    setForm(f => ({
+      ...f,
+      favoriteProductIds: f.favoriteProductIds.includes(prodId)
+        ? f.favoriteProductIds.filter(id => id !== prodId)
+        : [...f.favoriteProductIds, prodId],
+    }));
+  }, []);
+
+  const toggleCategoryFavorite = useCallback((catId: string) => {
+    setForm(f => ({
+      ...f,
+      favoriteCategoryIds: f.favoriteCategoryIds.includes(catId)
+        ? f.favoriteCategoryIds.filter(id => id !== catId)
+        : [...f.favoriteCategoryIds, catId],
     }));
   }, []);
 
@@ -235,6 +259,8 @@ export const Materials: React.FC = () => {
       materialGroupId: form.materialGroupId || undefined,
       categoryIds: form.categoryIds,
       productIds: form.productIds,
+      favoriteProductIds: form.favoriteProductIds,
+      favoriteCategoryIds: form.favoriteCategoryIds,
       isFavorite: form.isFavorite,
       vendorName: form.vendorName || undefined,
       vendorId: form.vendorId || undefined,
@@ -259,6 +285,8 @@ export const Materials: React.FC = () => {
       materialGroupId: m.materialGroupId || '',
       categoryIds: m.categoryIds || [],
       productIds: m.productIds || [],
+      favoriteProductIds: m.favoriteProductIds || [],
+      favoriteCategoryIds: m.favoriteCategoryIds || [],
       isFavorite: m.isFavorite,
       vendorName: m.vendorName || '',
       vendorId: m.vendorId || '',
@@ -283,6 +311,8 @@ export const Materials: React.FC = () => {
       materialGroupId: form.materialGroupId || undefined,
       categoryIds: form.categoryIds,
       productIds: form.productIds,
+      favoriteProductIds: form.favoriteProductIds,
+      favoriteCategoryIds: form.favoriteCategoryIds,
       isFavorite: form.isFavorite,
       vendorName: form.vendorName || undefined,
       vendorId: form.vendorId || undefined,
@@ -306,6 +336,8 @@ export const Materials: React.FC = () => {
       materialGroupId: m.materialGroupId || '',
       categoryIds: m.categoryIds || [],
       productIds: m.productIds || [],
+      favoriteProductIds: m.favoriteProductIds || [],
+      favoriteCategoryIds: m.favoriteCategoryIds || [],
       isFavorite: m.isFavorite,
       vendorName: m.vendorName || '',
       vendorId: m.vendorId || '',
@@ -722,11 +754,94 @@ export const Materials: React.FC = () => {
                 {/* Expanded assignments panel */}
                 {!assignmentsCollapsed && (
                   <div className="mt-3 border border-gray-200 rounded-lg overflow-hidden">
-                    {/* Two-column layout: left = browser, right = selected */}
+                    {/* Two-column layout: left = related items, right = browser */}
                     <div className="flex" style={{ minHeight: '320px' }}>
 
-                      {/* Left panel — browse & search */}
-                      <div className="flex-1 border-r border-gray-200 flex flex-col">
+                      {/* Left panel — Related Products & Categories */}
+                      <div className="w-80 flex flex-col border-r border-gray-200">
+                        <div className="px-3 py-2.5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Related Products &amp; Categories</span>
+                          {totalSelected > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setForm(f => ({ ...f, categoryIds: [], productIds: [], favoriteProductIds: [], favoriteCategoryIds: [] }))}
+                              className="text-[10px] text-red-400 hover:text-red-600 font-medium transition-colors"
+                            >
+                              Clear all
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-2">
+                          {totalSelected === 0 ? (
+                            <div className="text-center py-8 text-xs text-gray-400">
+                              <p>No items selected</p>
+                              <p className="mt-1 text-[10px]">Browse or search to add from the right panel</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              {form.categoryIds.map(cid => {
+                                const cat = categories.find(c => c.id === cid);
+                                if (!cat) return null;
+                                const isCatFav = form.favoriteCategoryIds.includes(cid);
+                                return (
+                                  <div key={`sel-cat-${cid}`} className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-purple-50 group">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleCategoryFavorite(cid)}
+                                      className="p-0.5 flex-shrink-0 transition-colors"
+                                      title={isCatFav ? 'Remove from favorites' : 'Mark as favorite'}
+                                    >
+                                      <Star className={`w-3.5 h-3.5 ${isCatFav ? 'fill-amber-400 text-amber-400' : 'text-gray-300 hover:text-amber-300'}`} />
+                                    </button>
+                                    <Layers className="w-3 h-3 text-purple-500 flex-shrink-0" />
+                                    <span className="text-xs font-medium text-purple-700 flex-1 truncate">{cat.name}</span>
+                                    <span className="text-[9px] text-purple-400 uppercase mr-1">Cat</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleFormCategory(cid)}
+                                      className="p-0.5 rounded hover:bg-purple-200 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                      <X className="w-3 h-3 text-purple-500" />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                              {form.productIds.map(pid => {
+                                const prod = products.find(p => p.id === pid);
+                                if (!prod) return null;
+                                const isProdFav = form.favoriteProductIds.includes(pid);
+                                return (
+                                  <div key={`sel-prod-${pid}`} className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-blue-50 group">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleProductFavorite(pid)}
+                                      className="p-0.5 flex-shrink-0 transition-colors"
+                                      title={isProdFav ? 'Remove from favorites' : 'Mark as favorite'}
+                                    >
+                                      <Star className={`w-3.5 h-3.5 ${isProdFav ? 'fill-amber-400 text-amber-400' : 'text-gray-300 hover:text-amber-300'}`} />
+                                    </button>
+                                    <Package className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                                    <span className="text-xs font-medium text-blue-700 flex-1 truncate">{prod.name}</span>
+                                    {prod.aliases.length > 0 && (
+                                      <span className="text-[9px] text-blue-400 font-mono mr-1">{prod.aliases[0]}</span>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => removeFormProduct(pid)}
+                                      className="p-0.5 rounded hover:bg-blue-200 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                      <X className="w-3 h-3 text-blue-500" />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right panel — browse & search */}
+                      <div className="flex-1 flex flex-col">
                         {/* Search + category filter bar */}
                         <div className="p-3 border-b border-gray-100 space-y-2 bg-gray-50/50">
                           <div className="relative">
@@ -799,9 +914,6 @@ export const Materials: React.FC = () => {
                                     </button>
                                     <Layers className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
                                     <span className="text-xs font-semibold text-purple-700 flex-1">{cat.name}</span>
-                                    {cat.description && (
-                                      <span className="text-[10px] text-gray-400 truncate max-w-[200px]">{cat.description}</span>
-                                    )}
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -824,7 +936,7 @@ export const Materials: React.FC = () => {
                                         key={p.id}
                                         type="button"
                                         onClick={() => toggleFormProduct(p.id)}
-                                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-gray-50 ${
+                                        className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-left transition-colors border-b border-gray-50 ${
                                           isSelected ? 'bg-blue-50/60 hover:bg-blue-50' : 'hover:bg-gray-50'
                                         }`}
                                       >
@@ -834,23 +946,22 @@ export const Materials: React.FC = () => {
                                           {isSelected && <Check className="w-3 h-3 text-white" />}
                                         </div>
                                         <Package className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-2">
-                                            <p className={`text-sm ${isSelected ? 'text-blue-700 font-semibold' : 'text-gray-800 font-medium'}`}>
-                                              {p.name}
-                                            </p>
-                                            {p.aliases.length > 0 && (
-                                              <span className="text-[10px] text-gray-400 font-mono">{p.aliases[0]}</span>
-                                            )}
-                                          </div>
-                                          <p className="text-[10px] text-gray-400 truncate">
+                                        <div className="flex-1 min-w-0 flex items-center gap-2 truncate">
+                                          <p className={`text-sm whitespace-nowrap ${isSelected ? 'text-blue-700 font-semibold' : 'text-gray-800 font-medium'}`}>
+                                            {p.name}
+                                          </p>
+                                          {p.aliases.length > 0 && (
+                                            <span className="text-[10px] text-gray-400 font-mono whitespace-nowrap">{p.aliases[0]}</span>
+                                          )}
+                                          <span className="text-[10px] text-gray-300 mx-0.5">|</span>
+                                          <span className="text-[10px] text-gray-400 truncate">
                                             {[
                                               p.defaultFinalSize && `Size: ${p.defaultFinalSize}`,
                                               p.defaultColor,
                                               p.defaultSides && `${p.defaultSides}-sided`,
                                               p.defaultEquipmentName && `on ${p.defaultEquipmentName}`,
                                             ].filter(Boolean).join(' · ')}
-                                          </p>
+                                          </span>
                                         </div>
                                       </button>
                                     );
@@ -875,7 +986,7 @@ export const Materials: React.FC = () => {
                                       key={p.id}
                                       type="button"
                                       onClick={() => toggleFormProduct(p.id)}
-                                      className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-gray-50 ${
+                                      className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-left transition-colors border-b border-gray-50 ${
                                         isSelected ? 'bg-blue-50/60 hover:bg-blue-50' : 'hover:bg-gray-50'
                                       }`}
                                     >
@@ -885,23 +996,22 @@ export const Materials: React.FC = () => {
                                         {isSelected && <Check className="w-3 h-3 text-white" />}
                                       </div>
                                       <Package className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                          <p className={`text-sm ${isSelected ? 'text-blue-700 font-semibold' : 'text-gray-800 font-medium'}`}>
-                                            {p.name}
-                                          </p>
-                                          {p.aliases.length > 0 && (
-                                            <span className="text-[10px] text-gray-400 font-mono">{p.aliases[0]}</span>
-                                          )}
-                                        </div>
-                                        <p className="text-[10px] text-gray-400 truncate">
+                                      <div className="flex-1 min-w-0 flex items-center gap-2 truncate">
+                                        <p className={`text-sm whitespace-nowrap ${isSelected ? 'text-blue-700 font-semibold' : 'text-gray-800 font-medium'}`}>
+                                          {p.name}
+                                        </p>
+                                        {p.aliases.length > 0 && (
+                                          <span className="text-[10px] text-gray-400 font-mono whitespace-nowrap">{p.aliases[0]}</span>
+                                        )}
+                                        <span className="text-[10px] text-gray-300 mx-0.5">|</span>
+                                        <span className="text-[10px] text-gray-400 truncate">
                                           {[
                                             p.defaultFinalSize && `Size: ${p.defaultFinalSize}`,
                                             p.defaultColor,
                                             p.defaultSides && `${p.defaultSides}-sided`,
                                             p.defaultEquipmentName && `on ${p.defaultEquipmentName}`,
                                           ].filter(Boolean).join(' · ')}
-                                        </p>
+                                        </span>
                                       </div>
                                     </button>
                                   );
@@ -912,71 +1022,6 @@ export const Materials: React.FC = () => {
                           {browseFilteredProducts.length === 0 && (
                             <div className="px-3 py-8 text-center text-xs text-gray-400">
                               {productSearch ? `No products match "${productSearch}"` : 'No products available'}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Right panel — selected items summary */}
-                      <div className="w-64 flex flex-col bg-gray-50/30">
-                        <div className="px-3 py-2.5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
-                          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Selected</span>
-                          {totalSelected > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => setForm(f => ({ ...f, categoryIds: [], productIds: [] }))}
-                              className="text-[10px] text-red-400 hover:text-red-600 font-medium transition-colors"
-                            >
-                              Clear all
-                            </button>
-                          )}
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-2">
-                          {totalSelected === 0 ? (
-                            <div className="text-center py-8 text-xs text-gray-400">
-                              <p>No items selected</p>
-                              <p className="mt-1 text-[10px]">Browse or search to add</p>
-                            </div>
-                          ) : (
-                            <div className="space-y-1">
-                              {form.categoryIds.map(cid => {
-                                const cat = categories.find(c => c.id === cid);
-                                if (!cat) return null;
-                                return (
-                                  <div key={`sel-cat-${cid}`} className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-purple-50 group">
-                                    <Layers className="w-3 h-3 text-purple-500 flex-shrink-0" />
-                                    <span className="text-xs font-medium text-purple-700 flex-1 truncate">{cat.name}</span>
-                                    <span className="text-[9px] text-purple-400 uppercase mr-1">Cat</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleFormCategory(cid)}
-                                      className="p-0.5 rounded hover:bg-purple-200 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    >
-                                      <X className="w-3 h-3 text-purple-500" />
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                              {form.productIds.map(pid => {
-                                const prod = products.find(p => p.id === pid);
-                                if (!prod) return null;
-                                return (
-                                  <div key={`sel-prod-${pid}`} className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-blue-50 group">
-                                    <Package className="w-3 h-3 text-blue-500 flex-shrink-0" />
-                                    <span className="text-xs font-medium text-blue-700 flex-1 truncate">{prod.name}</span>
-                                    {prod.aliases.length > 0 && (
-                                      <span className="text-[9px] text-blue-400 font-mono mr-1">{prod.aliases[0]}</span>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => removeFormProduct(pid)}
-                                      className="p-0.5 rounded hover:bg-blue-200 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    >
-                                      <X className="w-3 h-3 text-blue-500" />
-                                    </button>
-                                  </div>
-                                );
-                              })}
                             </div>
                           )}
                         </div>

@@ -70,6 +70,7 @@ export interface PricingEquipment {
   unitCost: number;                // base cost per unit (click or sqft)
   colorTiers?: EquipmentPricingTier[];
   blackTiers?: EquipmentPricingTier[];
+  sqftTiers?: EquipmentPricingTier[];   // tiered pricing for per_sqft cost unit
   initialSetupFee: number;
   unitsPerHour?: number;
   timeCostPerHour?: number;
@@ -186,6 +187,8 @@ export interface PricingMaterial {
   materialGroupId?: string;        // which material group it belongs to
   categoryIds: string[];           // direct product-category assignments
   productIds: string[];            // direct product assignments
+  favoriteProductIds: string[];    // products marked as favorites for this material
+  favoriteCategoryIds: string[];   // categories marked as favorites for this material
   isFavorite: boolean;             // for starring/favoriting
   // Vendor information
   vendorName?: string;             // vendor company name
