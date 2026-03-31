@@ -12,13 +12,13 @@ export const Header: React.FC = () => {
       <div className="flex items-center gap-3">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-          <input placeholder="Quick search..." className="pl-8 pr-3 py-1 text-sm bg-gray-50 border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent w-56 placeholder-gray-400" />
+          <input placeholder="Quick search..." className="pl-8 pr-3 py-1 text-sm bg-gray-50 border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent w-56 placeholder-gray-400" />
         </div>
       </div>
       <div className="flex items-center gap-2">
         <button
           onClick={() => navigate('/quotes/new')}
-          className="flex items-center gap-1.5 px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-white text-xs font-medium rounded-lg transition-colors" style={{ backgroundColor: '#F890E7' }}
         >
           <Plus className="w-3.5 h-3.5" />
           New Quote
