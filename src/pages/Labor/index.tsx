@@ -83,6 +83,11 @@ export const Labor: React.FC = () => {
       initialSetupFee: l.initialSetupFee,
       markupPercent: l.markupPercent,
       categoryIds: l.categoryIds || [],
+      isFixedCharge: l.isFixedCharge ?? false,
+      fixedChargeAmount: l.fixedChargeAmount ?? 0,
+      fixedChargeCost: l.fixedChargeCost ?? 0,
+      minimumCharge: l.minimumCharge ?? 0,
+      outputPerHour: l.outputPerHour ?? 1,
       notes: l.notes || '',
     });
     setShowModal(true);
@@ -101,6 +106,11 @@ export const Labor: React.FC = () => {
       initialSetupFee: form.initialSetupFee,
       markupPercent: form.markupPercent,
       categoryIds: form.categoryIds,
+      isFixedCharge: form.isFixedCharge,
+      fixedChargeAmount: form.fixedChargeAmount,
+      fixedChargeCost: form.fixedChargeCost,
+      minimumCharge: form.minimumCharge,
+      outputPerHour: form.outputPerHour,
       notes: form.notes || undefined,
     };
     if (editingId) {
@@ -119,6 +129,11 @@ export const Labor: React.FC = () => {
       initialSetupFee: l.initialSetupFee,
       markupPercent: l.markupPercent,
       categoryIds: l.categoryIds || [],
+      isFixedCharge: l.isFixedCharge ?? false,
+      fixedChargeAmount: l.fixedChargeAmount ?? 0,
+      fixedChargeCost: l.fixedChargeCost ?? 0,
+      minimumCharge: l.minimumCharge ?? 0,
+      outputPerHour: l.outputPerHour ?? 1,
       notes: l.notes,
     });
   };

@@ -370,6 +370,8 @@ export const defaultPricingMaterials: PricingMaterial[] = rawMaterials.map((m, i
     materialGroupId: m.materialGroupId,
     categoryIds: [],
     productIds: [],
+    favoriteProductIds: [],
+    favoriteCategoryIds: [],
     isFavorite: m.isFavorite,
     createdAt: '2024-01-01',
   };

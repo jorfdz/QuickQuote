@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Printer, Receipt, KanbanSquare, Edit, Trash2, CheckCircle, ChevronDown, ChevronUp, Copy, ArrowRight } from 'lucide-react';
+import { Printer, Receipt, KanbanSquare, Edit, Trash2, CheckCircle, ChevronDown, ChevronUp, Copy, ArrowRight, ShoppingCart } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Badge, Card, PageHeader, Select, Tabs, Modal, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
@@ -10,7 +10,7 @@ import { nanoid } from '../../utils/nanoid';
 export const OrderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { orders, updateOrder, deleteOrder, addInvoice, nextInvoiceNumber, invoiceCount, workflows, users, equipment } = useStore();
+  const { orders, updateOrder, deleteOrder, addInvoice, nextInvoiceNumber, invoiceCount, workflows, users, equipment, purchaseOrders, vendors } = useStore();
   const [activeTab, setActiveTab] = useState('overview');
   const [showDelete, setShowDelete] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -34,6 +34,7 @@ export const OrderDetail: React.FC = () => {
   const currentStage = workflow?.stages.find(s => s.id === order.currentStageId);
   const csr = users.find(u => u.id === order.csrId);
   const salesRep = users.find(u => u.id === order.salesId);
+  const linkedPurchaseOrders = purchaseOrders.filter((po) => po.orderId === order.id || (order.purchaseOrderIds || []).includes(po.id));
 
   const createInvoice = () => {
     const number = nextInvoiceNumber();
@@ -69,6 +70,7 @@ export const OrderDetail: React.FC = () => {
             <Button variant="ghost" size="sm" onClick={() => setShowStatusModal(true)}>Status</Button>
             <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />}>Work Order</Button>
             <Button variant="secondary" size="sm" icon={<KanbanSquare className="w-4 h-4" />} onClick={() => navigate('/tracker')}>Tracker</Button>
+            <Button variant="secondary" size="sm" icon={<ShoppingCart className="w-4 h-4" />} onClick={() => navigate(`/purchase-orders/new?orderId=${order.id}`)}>Create PO</Button>
             {/* Convert to... dropdown */}
             <div className="relative" ref={convertRef}>
               <Button variant="primary" icon={<ArrowRight className="w-4 h-4" />} onClick={() => setConvertOpen(!convertOpen)}>
@@ -258,8 +260,29 @@ export const OrderDetail: React.FC = () => {
                 <div className="flex justify-between"><dt className="text-gray-500">Due Date</dt><dd className={order.dueDate && new Date(order.dueDate) < new Date() && order.status === 'in_progress' ? 'text-red-500 font-medium' : ''}>{order.dueDate ? formatDate(order.dueDate) : '—'}</dd></div>
                 {order.quoteNumber && <div className="flex justify-between"><dt className="text-gray-500">From Quote</dt><dd><button onClick={() => navigate(`/quotes/${order.quoteId}`)} className="text-blue-600 hover:underline">{order.quoteNumber}</button></dd></div>}
                 {order.invoiceId && <div className="flex justify-between"><dt className="text-gray-500">Invoice</dt><dd className="text-emerald-600 font-medium">{order.invoiceId} ✓</dd></div>}
+                <div className="flex justify-between"><dt className="text-gray-500">Purchase Orders</dt><dd>{linkedPurchaseOrders.length || '—'}</dd></div>
               </dl>
             </Card>
+            {linkedPurchaseOrders.length > 0 && (
+              <Card className="p-5">
+                <h3 className="font-semibold text-gray-900 mb-3 text-sm">Linked Purchase Orders</h3>
+                <div className="space-y-3">
+                  {linkedPurchaseOrders.map((po) => {
+                    const vendor = vendors.find((item) => item.id === po.vendorId);
+                    return (
+                      <button key={po.id} onClick={() => navigate(`/purchase-orders/${po.id}`)} className="w-full text-left border border-gray-100 rounded-lg p-3 hover:border-blue-200 hover:bg-blue-50/40 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-gray-900">{po.number}</span>
+                          <Badge label={po.status} />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">{vendor?.name || 'Unknown vendor'}</p>
+                        <p className="text-xs text-gray-400 mt-1">{formatCurrency(po.total)}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
             <div className="flex gap-2">
               <Button variant="ghost" size="sm" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setShowDelete(true)} className="flex-1 justify-center">Delete</Button>
             </div>
