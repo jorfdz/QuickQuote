@@ -1,7 +1,17 @@
 import type {
   PricingCategory, PricingProduct, PricingEquipment,
-  PricingFinishing, PricingMaterial, ProductPricingTemplate
+  PricingFinishing, PricingMaterial, ProductPricingTemplate,
+  MaterialGroup,
 } from '../types/pricing';
+
+// ─── MATERIAL GROUPS ──────────────────────────────────────────────────────────
+
+export const defaultMaterialGroups: MaterialGroup[] = [
+  { id: 'mg1', name: 'Digital Press', description: 'Papers for digital presses', categoryIds: ['pc1'], createdAt: '2024-01-01' },
+  { id: 'mg2', name: 'Wide-Format Rolls', description: 'Roll media for wide-format printers', categoryIds: ['pc2'], createdAt: '2024-01-01' },
+  { id: 'mg3', name: 'Wide-Format Rigids', description: 'Rigid substrates for sign production', categoryIds: ['pc2'], createdAt: '2024-01-01' },
+  { id: 'mg4', name: 'Envelopes', description: 'Envelope stocks', categoryIds: ['pc1'], createdAt: '2024-01-01' },
+];
 
 // ─── CATEGORIES (from Excel tabs) ───────────────────────────────────────────
 
@@ -23,6 +33,7 @@ export const defaultProducts: PricingProduct[] = [
     defaultFinalSize: '3.5x2', defaultFinalWidth: 3.5, defaultFinalHeight: 2,
     defaultEquipmentId: 'pe1', defaultEquipmentName: 'Ricoh 9200',
     defaultColor: 'Color', defaultSides: 'Double',
+    isTemplate: false,
     createdAt: '2024-01-01',
   },
   {
@@ -33,6 +44,7 @@ export const defaultProducts: PricingProduct[] = [
     defaultFinalSize: '5x7', defaultFinalWidth: 5, defaultFinalHeight: 7,
     defaultEquipmentId: 'pe1', defaultEquipmentName: 'Ricoh 9200',
     defaultColor: 'Color', defaultSides: 'Double',
+    isTemplate: false,
     createdAt: '2024-01-01',
   },
   {
@@ -43,6 +55,7 @@ export const defaultProducts: PricingProduct[] = [
     defaultFinalSize: '8.5x11', defaultFinalWidth: 8.5, defaultFinalHeight: 11,
     defaultEquipmentId: 'pe1', defaultEquipmentName: 'Ricoh 9200',
     defaultColor: 'Color', defaultSides: 'Single',
+    isTemplate: false,
     createdAt: '2024-01-01',
   },
   {
@@ -54,6 +67,7 @@ export const defaultProducts: PricingProduct[] = [
     defaultEquipmentId: 'pe1', defaultEquipmentName: 'Ricoh 9200',
     defaultColor: 'Color', defaultSides: 'Double',
     defaultFolding: 'Tri-Fold',
+    isTemplate: false,
     createdAt: '2024-01-01',
   },
   {
@@ -64,6 +78,7 @@ export const defaultProducts: PricingProduct[] = [
     defaultFinalSize: '4x9', defaultFinalWidth: 4, defaultFinalHeight: 9,
     defaultEquipmentId: 'pe2', defaultEquipmentName: 'IJET',
     defaultColor: 'Color', defaultSides: 'Single',
+    isTemplate: false,
     createdAt: '2024-01-01',
   },
   {
@@ -74,6 +89,7 @@ export const defaultProducts: PricingProduct[] = [
     defaultFinalSize: '4x9', defaultFinalWidth: 4, defaultFinalHeight: 9,
     defaultEquipmentId: 'pe1', defaultEquipmentName: 'Ricoh 9200',
     defaultColor: 'Color', defaultSides: 'Double',
+    isTemplate: false,
     createdAt: '2024-01-01',
   },
 ];
@@ -107,6 +123,7 @@ export const defaultPricingEquipment: PricingEquipment[] = [
       { minQty: 5000, pricePerUnit: 0.03 },
     ],
     initialSetupFee: 0,
+    markupType: 'multiplier',
     createdAt: '2024-01-01',
   },
   {
@@ -135,6 +152,7 @@ export const defaultPricingEquipment: PricingEquipment[] = [
       { minQty: 5000, pricePerUnit: 0.03 },
     ],
     initialSetupFee: 0,
+    markupType: 'multiplier',
     createdAt: '2024-01-01',
   },
   {
@@ -147,6 +165,7 @@ export const defaultPricingEquipment: PricingEquipment[] = [
     markupMultiplier: 7,
     unitCost: 0.50,
     initialSetupFee: 0,
+    markupType: 'multiplier',
     createdAt: '2024-01-01',
   },
 ];
@@ -157,27 +176,33 @@ export const defaultFinishing: PricingFinishing[] = [
   {
     id: 'pf1', service: 'Cut', costType: 'time_only',
     outputPerHour: 150, hourlyCost: 40, timeCostMarkup: 0,
+    categoryIds: ['pc1'], unitBasis: 'per_cut',
+    sheetsPerCutStack: 500, cutsPerHour: 150,
     notes: 'Ask how many sheets per cut stack. Default 500. Determine cuts from layout.',
     createdAt: '2024-01-01',
   },
   {
     id: 'pf2', service: 'Fold', subservice: 'Tri-Fold', costType: 'time_only',
     outputPerHour: 5000, hourlyCost: 40, timeCostMarkup: 0,
+    categoryIds: ['pc1'], unitBasis: 'per_unit',
     createdAt: '2024-01-01',
   },
   {
     id: 'pf3', service: 'Fold', subservice: 'Bi-Fold', costType: 'time_only',
     outputPerHour: 5000, hourlyCost: 40, timeCostMarkup: 0,
+    categoryIds: ['pc1'], unitBasis: 'per_unit',
     createdAt: '2024-01-01',
   },
   {
     id: 'pf4', service: 'Drill', subservice: '1 Hole', costType: 'time_only',
     outputPerHour: 5000, hourlyCost: 40, timeCostMarkup: 0,
+    categoryIds: ['pc1'], unitBasis: 'per_unit',
     createdAt: '2024-01-01',
   },
   {
     id: 'pf5', service: 'Drill', subservice: '2 Holes', costType: 'time_only',
     outputPerHour: 5000, hourlyCost: 40, timeCostMarkup: 0,
+    categoryIds: ['pc1'], unitBasis: 'per_unit',
     createdAt: '2024-01-01',
   },
 ];
@@ -190,57 +215,57 @@ function parseSize(s: string): { w: number; h: number } {
   return { w: parseFloat(parts[0]) || 0, h: parseFloat(parts[1]) || 0 };
 }
 
-const rawMaterials: { name: string; size: string; pricePerM: number; markup: number }[] = [
-  { name: '18PT White C2S Digital Cover - Tango', size: '13x19', pricePerM: 198.30, markup: 70 },
-  { name: '20# Exact Color Multipurpose', size: '8.5x11', pricePerM: 18.73, markup: 70 },
-  { name: '65# Colored Cover Astrobrights', size: '8.5x11', pricePerM: 56.00, markup: 70 },
-  { name: '80# Classic Linen Text', size: '23x35', pricePerM: 357.00, markup: 70 },
-  { name: 'Chipboard Point #90 Item 073630', size: '12x18', pricePerM: 120.00, markup: 70 },
-  { name: 'Gloss Cover 100# 13x19', size: '26x40', pricePerM: 360.00, markup: 70 },
-  { name: 'Gloss Cover 100# 26x40', size: '13x19', pricePerM: 118.75, markup: 70 },
-  { name: 'Gloss Cover 130# 13x19', size: '26x40', pricePerM: 67.26, markup: 70 },
-  { name: 'Gloss Cover 130# WHITE 26x40 - McGregor', size: '13x19', pricePerM: 102.60, markup: 70 },
-  { name: 'Gloss Cover 80# 13x19', size: '13x19', pricePerM: 65.00, markup: 70 },
-  { name: 'Gloss Text 100# 13x19', size: '13x19', pricePerM: 56.18, markup: 70 },
-  { name: 'Gloss Text 80# 13x19', size: '13x19', pricePerM: 128.25, markup: 70 },
-  { name: 'Matte 100# Cover 13x19', size: '13x19', pricePerM: 70.20, markup: 70 },
-  { name: 'Matte 100# Text 13x19', size: '12x19', pricePerM: 720.00, markup: 70 },
-  { name: 'Mohawk Superfine White Smooth Finish 150# Cover', size: '19x13', pricePerM: 95.00, markup: 70 },
-  { name: 'Satin 80# Cover 19x13 - Coronet Paper', size: '13x19', pricePerM: 75.00, markup: 70 },
-  { name: 'Satin Text 100# 13x19', size: '13x19', pricePerM: 196.00, markup: 70 },
-  { name: 'Uncoated Accent Cover 120# Opaque Smooth', size: '13x19', pricePerM: 342.90, markup: 70 },
-  { name: 'Uncoated Cougar Cover 130# Super Smooth', size: '13x19', pricePerM: 167.00, markup: 70 },
-  { name: 'Uncoated Opaque Cover 130# 13x19', size: '13x19', pricePerM: 102.40, markup: 70 },
-  { name: 'Uncoated Opaque Cover 80# 13x19', size: '8.5x11', pricePerM: 103.90, markup: 70 },
-  { name: 'ZAPCO SECURITY GUARD+ BLUE(VD)', size: '8.5x11', pricePerM: 10.00, markup: 70 },
-  { name: '20# Bond White Multiuse 067333', size: '11x17', pricePerM: 18.00, markup: 70 },
-  { name: '20# Bond White QuickCopy 066000', size: '8.5x11', pricePerM: 13.00, markup: 70 },
-  { name: '20# Colored Bond Earthchoice Colors (500ct)', size: '11x17', pricePerM: 26.00, markup: 70 },
-  { name: '20# Colored Bond Earthchoice Colors (250ct)', size: '11x17', pricePerM: 57.27, markup: 70 },
-  { name: 'NCR 2 Part 11x17', size: '11x17', pricePerM: 66.00, markup: 70 },
-  { name: 'NCR 4 Part 8.5x11', size: '8.5x11', pricePerM: 18.00, markup: 70 },
-  { name: 'Laser House Sheet 60# Accent 068543', size: '12x18', pricePerM: 38.75, markup: 70 },
-  { name: 'Laser House Sheet 60# 11x17', size: '11x17', pricePerM: 23.00, markup: 70 },
-  { name: '60# Offset White Husky 065990', size: '13x19', pricePerM: 59.60, markup: 70 },
-  { name: '60# Offset White Text Smooth Husky Digital 068794', size: '12x18', pricePerM: 52.00, markup: 70 },
-  { name: 'Linen 100# Cover Sundance 063135', size: '12x18', pricePerM: 332.00, markup: 70 },
-  { name: 'Uncoated 80# Cover 12x18', size: '12x18', pricePerM: 89.10, markup: 70 },
-  { name: 'Uncoated 100# Cover Lynx N45715', size: '12x18', pricePerM: 110.00, markup: 70 },
-  { name: 'Uncoated 120# Cover Lynx 068823', size: '12x18', pricePerM: 140.00, markup: 70 },
-  { name: 'Gloss 80# Gloss Text 12x18', size: '12x18', pricePerM: 59.80, markup: 70 },
-  { name: 'Gloss 100# Gloss Text 12x18', size: '12x18', pricePerM: 59.80, markup: 70 },
-  { name: 'Gloss 80# Cover 12x18', size: '12x18', pricePerM: 89.10, markup: 70 },
-  { name: 'Gloss 100# Cover Blazer N64750', size: '12x18', pricePerM: 85.00, markup: 70 },
-  { name: 'Gloss 130# Cover Blazer 065024', size: '12x18', pricePerM: 109.00, markup: 70 },
-  { name: 'Satin 110# Cover Blazer 064932', size: '12x18', pricePerM: 94.00, markup: 70 },
-  { name: '60# Self-Adhesive Gloss Starboard 092512 12x18', size: '12x18', pricePerM: 350.00, markup: 70 },
-  { name: '60# Self-Adhesive Gloss Starboard 092512 8.5x11', size: '8.5x11', pricePerM: 210.00, markup: 70 },
-  { name: 'NCR 2 Part 8.5x11', size: '8.5x11', pricePerM: 17.00, markup: 70 },
-  { name: 'NCR 3 Part 11x17', size: '11x17', pricePerM: 69.93, markup: 70 },
-  { name: 'NCR 3 Part 8.5x11', size: '8.5x11', pricePerM: 19.00, markup: 70 },
-  { name: 'Acetate Front Cover', size: '8.5x11', pricePerM: 200.00, markup: 70 },
-  { name: 'Back Vinyl Covers (Blue or Black)', size: '8.5x11', pricePerM: 300.00, markup: 70 },
-  { name: 'Tabs Our Stock', size: '8.5x11', pricePerM: 80.00, markup: 70 },
+const rawMaterials: { name: string; size: string; pricePerM: number; markup: number; materialGroupId: string; isFavorite: boolean }[] = [
+  { name: '18PT White C2S Digital Cover - Tango', size: '13x19', pricePerM: 198.30, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: '20# Exact Color Multipurpose', size: '8.5x11', pricePerM: 18.73, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: '65# Colored Cover Astrobrights', size: '8.5x11', pricePerM: 56.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: '80# Classic Linen Text', size: '23x35', pricePerM: 357.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Chipboard Point #90 Item 073630', size: '12x18', pricePerM: 120.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Gloss Cover 100# 13x19', size: '26x40', pricePerM: 360.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Gloss Cover 100# 26x40', size: '13x19', pricePerM: 118.75, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Gloss Cover 130# 13x19', size: '26x40', pricePerM: 67.26, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Gloss Cover 130# WHITE 26x40 - McGregor', size: '13x19', pricePerM: 102.60, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Gloss Cover 80# 13x19', size: '13x19', pricePerM: 65.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Gloss Text 100# 13x19', size: '13x19', pricePerM: 56.18, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Gloss Text 80# 13x19', size: '13x19', pricePerM: 128.25, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Matte 100# Cover 13x19', size: '13x19', pricePerM: 70.20, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Matte 100# Text 13x19', size: '12x19', pricePerM: 720.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Mohawk Superfine White Smooth Finish 150# Cover', size: '19x13', pricePerM: 95.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Satin 80# Cover 19x13 - Coronet Paper', size: '13x19', pricePerM: 75.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Satin Text 100# 13x19', size: '13x19', pricePerM: 196.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Uncoated Accent Cover 120# Opaque Smooth', size: '13x19', pricePerM: 342.90, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Uncoated Cougar Cover 130# Super Smooth', size: '13x19', pricePerM: 167.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Uncoated Opaque Cover 130# 13x19', size: '13x19', pricePerM: 102.40, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Uncoated Opaque Cover 80# 13x19', size: '8.5x11', pricePerM: 103.90, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'ZAPCO SECURITY GUARD+ BLUE(VD)', size: '8.5x11', pricePerM: 10.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: '20# Bond White Multiuse 067333', size: '11x17', pricePerM: 18.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: '20# Bond White QuickCopy 066000', size: '8.5x11', pricePerM: 13.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: '20# Colored Bond Earthchoice Colors (500ct)', size: '11x17', pricePerM: 26.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: '20# Colored Bond Earthchoice Colors (250ct)', size: '11x17', pricePerM: 57.27, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'NCR 2 Part 11x17', size: '11x17', pricePerM: 66.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'NCR 4 Part 8.5x11', size: '8.5x11', pricePerM: 18.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Laser House Sheet 60# Accent 068543', size: '12x18', pricePerM: 38.75, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Laser House Sheet 60# 11x17', size: '11x17', pricePerM: 23.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: '60# Offset White Husky 065990', size: '13x19', pricePerM: 59.60, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: '60# Offset White Text Smooth Husky Digital 068794', size: '12x18', pricePerM: 52.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Linen 100# Cover Sundance 063135', size: '12x18', pricePerM: 332.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Uncoated 80# Cover 12x18', size: '12x18', pricePerM: 89.10, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Uncoated 100# Cover Lynx N45715', size: '12x18', pricePerM: 110.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Uncoated 120# Cover Lynx 068823', size: '12x18', pricePerM: 140.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Gloss 80# Gloss Text 12x18', size: '12x18', pricePerM: 59.80, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Gloss 100# Gloss Text 12x18', size: '12x18', pricePerM: 59.80, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Gloss 80# Cover 12x18', size: '12x18', pricePerM: 89.10, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Gloss 100# Cover Blazer N64750', size: '12x18', pricePerM: 85.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Gloss 130# Cover Blazer 065024', size: '12x18', pricePerM: 109.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Satin 110# Cover Blazer 064932', size: '12x18', pricePerM: 94.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: '60# Self-Adhesive Gloss Starboard 092512 12x18', size: '12x18', pricePerM: 350.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: '60# Self-Adhesive Gloss Starboard 092512 8.5x11', size: '8.5x11', pricePerM: 210.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'NCR 2 Part 8.5x11', size: '8.5x11', pricePerM: 17.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'NCR 3 Part 11x17', size: '11x17', pricePerM: 69.93, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'NCR 3 Part 8.5x11', size: '8.5x11', pricePerM: 19.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Acetate Front Cover', size: '8.5x11', pricePerM: 200.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Back Vinyl Covers (Blue or Black)', size: '8.5x11', pricePerM: 300.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
+  { name: 'Tabs Our Stock', size: '8.5x11', pricePerM: 80.00, markup: 70, materialGroupId: 'mg1', isFavorite: false },
 ];
 
 export const defaultPricingMaterials: PricingMaterial[] = rawMaterials.map((m, i) => {
@@ -253,6 +278,8 @@ export const defaultPricingMaterials: PricingMaterial[] = rawMaterials.map((m, i
     sizeHeight: h,
     pricePerM: m.pricePerM,
     markup: m.markup,
+    materialGroupId: m.materialGroupId,
+    isFavorite: m.isFavorite,
     createdAt: '2024-01-01',
   };
 });

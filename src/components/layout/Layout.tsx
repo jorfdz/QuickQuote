@@ -10,8 +10,8 @@ export const Layout: React.FC = () => {
     <div className="min-h-screen bg-gray-50">
       <Sidebar />
       <Header />
-      <main className={`transition-all duration-300 pt-14 ${sidebarCollapsed ? 'ml-16' : 'ml-56'}`}>
-        <div className="p-6 max-w-[1600px]">
+      <main className={`transition-all duration-300 pt-12 ${sidebarCollapsed ? 'ml-16' : 'ml-56'}`}>
+        <div className="p-5 max-w-[1600px]">
           <Outlet />
         </div>
       </main>

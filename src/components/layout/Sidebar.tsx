@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, ClipboardList, KanbanSquare, History,
   Receipt, Users, UserCheck, Truck, ShoppingCart, Package, Settings,
-  Zap, HelpCircle, ChevronLeft, ChevronRight, Layers, Wrench, Grid3X3
+  Zap, HelpCircle, ChevronLeft, ChevronRight, Layers, Wrench, Scissors
 } from 'lucide-react';
 import { useStore } from '../../store';
 
@@ -25,8 +25,8 @@ const navItems = [
   { divider: 'SETUP' },
   { path: '/materials', icon: Package, label: 'Materials' },
   { path: '/equipment', icon: Wrench, label: 'Equipment' },
+  { path: '/finishing', icon: Scissors, label: 'Finishing' },
   { path: '/templates', icon: Layers, label: 'Templates' },
-  { path: '/imposition', icon: Grid3X3, label: 'Imposition Calc' },
   { divider: 'SYSTEM' },
   { path: '/users', icon: UserCheck, label: 'Users & Roles' },
   { path: '/settings', icon: Settings, label: 'Settings' },
@@ -40,13 +40,16 @@ export const Sidebar: React.FC = () => {
   return (
     <aside className={`fixed left-0 top-0 h-screen bg-gray-950 text-white flex flex-col transition-all duration-300 z-30 ${sidebarCollapsed ? 'w-16' : 'w-56'}`}>
       {/* Logo */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
         {!sidebarCollapsed && (
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-xs">QQ</span>
             </div>
-            <span className="font-bold text-white text-sm tracking-tight">QuikQuote</span>
+            <div>
+              <span className="font-bold text-white text-sm tracking-tight">QuikQuote</span>
+              <p className="text-[9px] text-gray-500 leading-none mt-0.5">V2 3/30/26 9:32PM</p>
+            </div>
           </div>
         )}
         {sidebarCollapsed && (
@@ -73,13 +76,13 @@ export const Sidebar: React.FC = () => {
       )}
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+      <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-px">
         {navItems.map((item, i) => {
           if ('divider' in item) {
             return sidebarCollapsed ? (
-              <div key={i} className="border-t border-white/10 my-2" />
+              <div key={i} className="border-t border-white/5 my-1.5" />
             ) : (
-              <p key={i} className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest px-2 pt-4 pb-1">{item.divider}</p>
+              <p key={i} className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest px-2 pt-3 pb-1">{item.divider}</p>
             );
           }
           const Icon = item.icon;
@@ -89,12 +92,12 @@ export const Sidebar: React.FC = () => {
               to={item.path}
               end={item.exact}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-all group ${isActive ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`
+                `flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] transition-all group ${isActive ? 'bg-white/10 text-white font-medium' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'}`
               }
               title={sidebarCollapsed ? item.label : undefined}
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
-              {!sidebarCollapsed && <span className="font-medium">{item.label}</span>}
+              {!sidebarCollapsed && <span>{item.label}</span>}
             </NavLink>
           );
         })}

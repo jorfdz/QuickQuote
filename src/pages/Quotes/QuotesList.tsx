@@ -64,7 +64,9 @@ export const QuotesList: React.FC = () => {
           <Table headers={['Quote #', 'Title', 'Customer', 'Status', 'Total', 'Created', 'Valid Until', '']}>
             {filtered.map(quote => (
               <tr key={quote.id} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => navigate(`/quotes/${quote.id}`)}>
-                <td className="py-3 px-4 font-mono text-xs font-semibold text-gray-500">{quote.number}</td>
+                <td className="py-3 px-4">
+                  <span className="font-mono text-sm font-bold text-gray-900">{quote.number}</span>
+                </td>
                 <td className="py-3 px-4">
                   <p className="text-sm font-medium text-gray-900">{quote.title}</p>
                   {quote.convertedToOrderId && <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-medium">Converted to Order</span>}

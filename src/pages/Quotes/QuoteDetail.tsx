@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Edit, ArrowRight, Printer, Copy, Trash2, CheckCircle } from 'lucide-react';
+import { Edit, ArrowRight, Printer, Copy, Trash2, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Badge, Card, PageHeader, Modal, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
@@ -9,12 +9,27 @@ import type { QuoteStatus } from '../../types';
 export const QuoteDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { quotes, updateQuote, deleteQuote } = useStore();
+  const { quotes, updateQuote, deleteQuote, users } = useStore();
   const [showDelete, setShowDelete] = useState(false);
   const [statusModal, setStatusModal] = useState(false);
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
+  const convertRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (convertRef.current && !convertRef.current.contains(e.target as Node)) setConvertOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const quote = quotes.find(q => q.id === id);
   if (!quote) return <div className="text-center py-16 text-gray-400">Quote not found</div>;
+
+  const csr = users.find(u => u.id === quote.csrId);
+  const salesRep = users.find(u => u.id === quote.salesId);
 
   const statuses: { value: QuoteStatus; label: string }[] = [
     { value: 'pending', label: 'Pending' }, { value: 'hot', label: 'Hot 🔥' },
@@ -31,15 +46,83 @@ export const QuoteDetail: React.FC = () => {
           <>
             <Button variant="ghost" size="sm" onClick={() => setStatusModal(true)}>Change Status</Button>
             <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />} onClick={() => window.open(`/quotes/${id}/print`, '_blank')}>Print PDF</Button>
-            {!quote.convertedToOrderId && (
-              <Button variant="primary" icon={<ArrowRight className="w-4 h-4" />}
-                onClick={() => { updateQuote(id!, { status: 'won' }); navigate(`/orders/new?quoteId=${quote.id}`); }}>
-                Convert to Order
+            {/* Convert to... dropdown */}
+            <div className="relative" ref={convertRef}>
+              <Button variant="primary" icon={<ArrowRight className="w-4 h-4" />} onClick={() => setConvertOpen(!convertOpen)}>
+                Convert to...
+                <ChevronDown className="w-3.5 h-3.5 ml-1" />
               </Button>
-            )}
+              {convertOpen && (
+                <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50">
+                  <button
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                    onClick={() => { setConvertOpen(false); navigate(`/quotes/new?cloneId=${quote.id}`); }}
+                  >
+                    <Copy className="w-4 h-4 text-gray-400" />
+                    Clone as New Quote
+                  </button>
+                  {!quote.convertedToOrderId && (
+                    <button
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                      onClick={() => { setConvertOpen(false); updateQuote(id!, { status: 'won' }); navigate(`/orders/new?quoteId=${quote.id}`); }}
+                    >
+                      <ArrowRight className="w-4 h-4 text-gray-400" />
+                      Convert to Order
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </>
         }
       />
+
+      {/* Prominent Quote Number + Collapsible Header */}
+      <Card className="mb-6">
+        <div
+          className="px-5 py-4 flex items-center justify-between cursor-pointer select-none"
+          onClick={() => setHeaderCollapsed(!headerCollapsed)}
+        >
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-bold text-gray-900 font-mono">{quote.number}</h1>
+            <span className="text-sm text-gray-500">{quote.customerName || 'No customer'}</span>
+            <Badge label={quote.status} />
+          </div>
+          <button className="p-1 hover:bg-gray-100 rounded-lg transition-colors text-gray-400">
+            {headerCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+          </button>
+        </div>
+        {!headerCollapsed && (
+          <div className="px-5 pb-4 pt-0 border-t border-gray-100">
+            <div className="grid grid-cols-3 gap-4 mt-4">
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Account Name</p>
+                <p className="text-sm font-medium text-gray-900 mt-1">{quote.customerName || '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Contact</p>
+                <p className="text-sm font-medium text-gray-900 mt-1">{quote.contactName || '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</p>
+                <div className="mt-1"><Badge label={quote.status} /></div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Date</p>
+                <p className="text-sm font-medium text-gray-900 mt-1">{formatDate(quote.createdAt)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">CSR</p>
+                <p className="text-sm font-medium text-gray-900 mt-1">{csr?.name || '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Sales Rep</p>
+                <p className="text-sm font-medium text-gray-900 mt-1">{salesRep?.name || '—'}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </Card>
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 space-y-4">
@@ -55,7 +138,7 @@ export const QuoteDetail: React.FC = () => {
             )}
             <div className="ml-auto flex gap-2">
               <Button variant="ghost" size="sm" icon={<Edit className="w-3.5 h-3.5" />} onClick={() => navigate(`/quotes/${id}/edit`)}>Edit</Button>
-              <Button variant="ghost" size="sm" icon={<Copy className="w-3.5 h-3.5" />}>Clone</Button>
+              <Button variant="ghost" size="sm" icon={<Copy className="w-3.5 h-3.5" />} onClick={() => navigate(`/quotes/new?cloneId=${quote.id}`)}>Clone</Button>
               <Button variant="ghost" size="sm" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setShowDelete(true)}>Delete</Button>
             </div>
           </Card>

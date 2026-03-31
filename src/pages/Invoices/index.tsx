@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, DollarSign } from 'lucide-react';
+import { Plus, DollarSign, ExternalLink } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, SearchInput, Badge, Table, PageHeader, Card } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
@@ -8,7 +8,7 @@ import { formatCurrency, formatDate } from '../../data/mockData';
 const STATUS_FILTERS = [{ id: 'all', label: 'All' }, { id: 'draft', label: 'Draft' }, { id: 'sent', label: 'Sent' }, { id: 'posted', label: 'Posted' }, { id: 'paid', label: 'Paid' }, { id: 'overdue', label: 'Overdue' }];
 
 export const Invoices: React.FC = () => {
-  const { invoices, updateInvoice } = useStore();
+  const { invoices, updateInvoice, orders } = useStore();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -21,6 +21,14 @@ export const Invoices: React.FC = () => {
 
   const totalPaid = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.total, 0);
   const totalPending = invoices.filter(i => ['draft', 'sent', 'posted'].includes(i.status)).reduce((s, i) => s + i.total, 0);
+
+  // Helper to find source order for an invoice
+  const getSourceOrder = (inv: typeof invoices[0]) => {
+    if (inv.orderIds && inv.orderIds.length > 0) {
+      return orders.find(o => o.id === inv.orderIds[0]);
+    }
+    return undefined;
+  };
 
   return (
     <div>
@@ -39,21 +47,39 @@ export const Invoices: React.FC = () => {
         </div>
       </div></Card>
       <Card>
-        <Table headers={['Invoice #', 'Customer', 'Status', 'Total', 'Due Date', 'Paid Date', '']}>
-          {filtered.map(inv => (
-            <tr key={inv.id} className="hover:bg-gray-50 cursor-pointer transition-colors">
-              <td className="py-3 px-4 font-mono text-xs font-semibold text-gray-500">{inv.number}</td>
-              <td className="py-3 px-4 text-sm font-medium text-gray-900">{inv.customerName}</td>
-              <td className="py-3 px-4"><Badge label={inv.status} /></td>
-              <td className="py-3 px-4 text-sm font-bold text-gray-900">{formatCurrency(inv.total)}</td>
-              <td className="py-3 px-4 text-sm text-gray-500">{inv.dueDate ? formatDate(inv.dueDate) : '—'}</td>
-              <td className="py-3 px-4 text-sm text-emerald-600">{inv.paidDate ? formatDate(inv.paidDate) : '—'}</td>
-              <td className="py-3 px-4 flex gap-2">
-                {inv.status === 'draft' && <Button size="sm" variant="primary" onClick={() => updateInvoice(inv.id, { status: 'sent' })}>Send</Button>}
-                {['sent', 'posted'].includes(inv.status) && <Button size="sm" variant="success" onClick={() => updateInvoice(inv.id, { status: 'paid', paidDate: new Date().toISOString().split('T')[0], paidAmount: inv.total })}>Mark Paid</Button>}
-              </td>
-            </tr>
-          ))}
+        <Table headers={['Invoice #', 'Customer', 'Status', 'Total', 'Due Date', 'Paid Date', 'Source Order', '']}>
+          {filtered.map(inv => {
+            const sourceOrder = getSourceOrder(inv);
+            return (
+              <tr key={inv.id} className="hover:bg-gray-50 cursor-pointer transition-colors">
+                <td className="py-3 px-4">
+                  <span className="font-mono text-sm font-bold text-gray-900">{inv.number}</span>
+                </td>
+                <td className="py-3 px-4 text-sm font-medium text-gray-900">{inv.customerName}</td>
+                <td className="py-3 px-4"><Badge label={inv.status} /></td>
+                <td className="py-3 px-4 text-sm font-bold text-gray-900">{formatCurrency(inv.total)}</td>
+                <td className="py-3 px-4 text-sm text-gray-500">{inv.dueDate ? formatDate(inv.dueDate) : '—'}</td>
+                <td className="py-3 px-4 text-sm text-emerald-600">{inv.paidDate ? formatDate(inv.paidDate) : '—'}</td>
+                <td className="py-3 px-4">
+                  {sourceOrder ? (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); navigate(`/orders/${sourceOrder.id}`); }}
+                      className="text-xs text-blue-600 hover:underline flex items-center gap-1 font-medium"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      {sourceOrder.number}
+                    </button>
+                  ) : (
+                    <span className="text-xs text-gray-400">—</span>
+                  )}
+                </td>
+                <td className="py-3 px-4 flex gap-2">
+                  {inv.status === 'draft' && <Button size="sm" variant="primary" onClick={() => updateInvoice(inv.id, { status: 'sent' })}>Send</Button>}
+                  {['sent', 'posted'].includes(inv.status) && <Button size="sm" variant="success" onClick={() => updateInvoice(inv.id, { status: 'paid', paidDate: new Date().toISOString().split('T')[0], paidAmount: inv.total })}>Mark Paid</Button>}
+                </td>
+              </tr>
+            );
+          })}
         </Table>
       </Card>
     </div>

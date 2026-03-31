@@ -1,26 +1,56 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { RotateCcw, Copy } from 'lucide-react';
 import { useStore } from '../../store';
-import { Card, PageHeader, Table, Badge } from '../../components/ui';
+import { Button, Card, PageHeader, Table, Badge } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
 
 export const History: React.FC = () => {
   const { orders } = useStore();
+  const navigate = useNavigate();
   const completed = orders.filter(o => ['completed', 'canceled'].includes(o.status));
+
   return (
     <div>
       <PageHeader title="Job History" subtitle="Completed and canceled orders" />
       <Card>
-        <Table headers={['Order #', 'Title', 'Customer', 'Status', 'Total', 'Date', 'Invoice']}>
-          {completed.length === 0 ? <tr><td colSpan={7} className="py-12 text-center text-sm text-gray-400">No completed orders yet</td></tr> :
+        <Table headers={['Order #', 'Title', 'Customer', 'Status', 'Total', 'Date', 'Invoice', 'Actions']}>
+          {completed.length === 0 ? <tr><td colSpan={8} className="py-12 text-center text-sm text-gray-400">No completed orders yet</td></tr> :
             completed.map(o => (
-              <tr key={o.id} className="hover:bg-gray-50 transition-colors">
-                <td className="py-3 px-4 font-mono text-xs font-semibold text-gray-500">{o.number}</td>
+              <tr
+                key={o.id}
+                className="hover:bg-gray-50 cursor-pointer transition-colors"
+                onClick={() => navigate(`/orders/${o.id}`)}
+              >
+                <td className="py-3 px-4">
+                  <span className="font-mono text-sm font-bold text-gray-900">{o.number}</span>
+                </td>
                 <td className="py-3 px-4 text-sm font-medium text-gray-900">{o.title}</td>
                 <td className="py-3 px-4 text-sm text-gray-600">{o.customerName || '—'}</td>
                 <td className="py-3 px-4"><Badge label={o.status} /></td>
                 <td className="py-3 px-4 text-sm font-bold">{formatCurrency(o.total)}</td>
                 <td className="py-3 px-4 text-sm text-gray-500">{formatDate(o.updatedAt)}</td>
                 <td className="py-3 px-4">{o.invoiceId ? <span className="text-xs text-emerald-600 font-mono font-medium">{o.invoiceId} ✓</span> : '—'}</td>
+                <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => navigate(`/orders/new?cloneOrderId=${o.id}`)}
+                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline px-2 py-1 rounded-md hover:bg-blue-50 transition-colors font-medium"
+                      title="Re-order"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      Re-order
+                    </button>
+                    <button
+                      onClick={() => navigate(`/quotes/new?cloneId=${o.id}&source=order`)}
+                      className="inline-flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 hover:underline px-2 py-1 rounded-md hover:bg-violet-50 transition-colors font-medium"
+                      title="Clone as Quote"
+                    >
+                      <Copy className="w-3 h-3" />
+                      Clone as Quote
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
         </Table>

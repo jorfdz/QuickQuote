@@ -3,11 +3,12 @@ import { persist } from 'zustand/middleware';
 import type {
   PricingCategory, PricingProduct, PricingEquipment,
   PricingFinishing, PricingMaterial, ProductPricingTemplate,
-  EquipmentPricingTier,
+  EquipmentPricingTier, MaterialGroup,
 } from '../types/pricing';
 import {
   defaultCategories, defaultProducts, defaultPricingEquipment,
   defaultFinishing, defaultPricingMaterials, defaultPricingTemplates,
+  defaultMaterialGroups,
 } from '../data/pricingData';
 
 // ─── HELPER: Generate IDs ──────────────────────────────────────────────────
@@ -25,6 +26,7 @@ interface PricingStore {
   finishing: PricingFinishing[];
   materials: PricingMaterial[];
   templates: ProductPricingTemplate[];
+  materialGroups: MaterialGroup[];
 
   // Categories CRUD
   addCategory: (c: Omit<PricingCategory, 'id' | 'createdAt'>) => PricingCategory;
@@ -51,17 +53,28 @@ interface PricingStore {
   updateMaterial: (id: string, m: Partial<PricingMaterial>) => void;
   deleteMaterial: (id: string) => void;
 
+  // Material Groups CRUD
+  addMaterialGroup: (g: Omit<MaterialGroup, 'id' | 'createdAt'>) => MaterialGroup;
+  updateMaterialGroup: (id: string, g: Partial<MaterialGroup>) => void;
+  deleteMaterialGroup: (id: string) => void;
+
   // Templates CRUD
   addTemplate: (t: Omit<ProductPricingTemplate, 'id' | 'createdAt' | 'usageCount'>) => ProductPricingTemplate;
   updateTemplate: (id: string, t: Partial<ProductPricingTemplate>) => void;
   deleteTemplate: (id: string) => void;
   incrementTemplateUsage: (id: string) => void;
 
+  // Toggle helpers
+  toggleMaterialFavorite: (id: string) => void;
+  toggleProductTemplate: (id: string) => void;
+
   // Search helpers
   findProductByNameOrAlias: (query: string) => PricingProduct | undefined;
   searchProducts: (query: string) => PricingProduct[];
   getEquipmentForCategory: (categoryName: string) => PricingEquipment[];
   getMaterialsBySize: (minWidth: number, minHeight: number) => PricingMaterial[];
+  getMaterialsForCategory: (categoryName: string) => PricingMaterial[];
+  getFinishingForCategory: (categoryName: string) => PricingFinishing[];
 
   // Pricing calculations
   lookupClickPrice: (equipmentId: string, totalClicks: number, colorMode: 'Color' | 'Black') => number;
@@ -81,6 +94,7 @@ export const usePricingStore = create<PricingStore>()(
       finishing: defaultFinishing,
       materials: defaultPricingMaterials,
       templates: defaultPricingTemplates,
+      materialGroups: defaultMaterialGroups,
 
       // ── Categories ──────────────────────────────────────────────────────
       addCategory: (c) => {
@@ -145,6 +159,31 @@ export const usePricingStore = create<PricingStore>()(
       })),
       deleteMaterial: (id) => set((s) => ({
         materials: s.materials.filter((x) => x.id !== id),
+      })),
+
+      // ── Material Groups ──────────────────────────────────────────────────
+      addMaterialGroup: (g) => {
+        const item: MaterialGroup = { ...g, id: uid(), createdAt: new Date().toISOString() };
+        set((s) => ({ materialGroups: [...s.materialGroups, item] }));
+        return item;
+      },
+      updateMaterialGroup: (id, g) => set((s) => ({
+        materialGroups: s.materialGroups.map((x) => (x.id === id ? { ...x, ...g } : x)),
+      })),
+      deleteMaterialGroup: (id) => set((s) => ({
+        materialGroups: s.materialGroups.filter((x) => x.id !== id),
+      })),
+
+      // ── Toggle helpers ─────────────────────────────────────────────────
+      toggleMaterialFavorite: (id) => set((s) => ({
+        materials: s.materials.map((x) =>
+          x.id === id ? { ...x, isFavorite: !x.isFavorite } : x
+        ),
+      })),
+      toggleProductTemplate: (id) => set((s) => ({
+        products: s.products.map((x) =>
+          x.id === id ? { ...x, isTemplate: !x.isTemplate } : x
+        ),
       })),
 
       // ── Templates ──────────────────────────────────────────────────────
@@ -212,6 +251,36 @@ export const usePricingStore = create<PricingStore>()(
         );
       },
 
+      getMaterialsForCategory: (categoryName: string) => {
+        const { categories, materialGroups, materials } = get();
+        // Find the category by name
+        const category = categories.find(
+          (c) => c.name.toLowerCase() === categoryName.toLowerCase()
+        );
+        if (!category) return [];
+        // Find material groups that include this category
+        const matchingGroupIds = materialGroups
+          .filter((g) => g.categoryIds.includes(category.id))
+          .map((g) => g.id);
+        // Return materials in those groups
+        return materials.filter(
+          (m) => m.materialGroupId && matchingGroupIds.includes(m.materialGroupId)
+        );
+      },
+
+      getFinishingForCategory: (categoryName: string) => {
+        const { categories, finishing } = get();
+        // Find the category by name
+        const category = categories.find(
+          (c) => c.name.toLowerCase() === categoryName.toLowerCase()
+        );
+        if (!category) return [];
+        // Return finishing services that include this category in their categoryIds
+        return finishing.filter(
+          (f) => f.categoryIds.includes(category.id)
+        );
+      },
+
       // ── Pricing calculations ───────────────────────────────────────────
 
       lookupClickPrice: (equipmentId: string, totalClicks: number, colorMode: 'Color' | 'Black') => {
@@ -253,9 +322,9 @@ export const usePricingStore = create<PricingStore>()(
     }),
     {
       name: 'quikquote-pricing-storage',
-      version: 2,
+      version: 3,
       migrate: () => {
-        // Version bump: reset to fresh defaults so all Excel data is loaded
+        // Version bump: reset to fresh defaults so all data including materialGroups is loaded
         return {
           categories: defaultCategories,
           products: defaultProducts,
@@ -263,6 +332,7 @@ export const usePricingStore = create<PricingStore>()(
           finishing: defaultFinishing,
           materials: defaultPricingMaterials,
           templates: defaultPricingTemplates,
+          materialGroups: defaultMaterialGroups,
         };
       },
     }

@@ -17,6 +17,7 @@ import { Vendors } from './pages/Vendors';
 import { PurchaseOrders } from './pages/PurchaseOrders';
 import { Materials } from './pages/Materials';
 import { Equipment } from './pages/Equipment';
+import { Finishing } from './pages/Finishing';
 import { Users } from './pages/Users';
 import { Settings } from './pages/Settings';
 import { Integrations } from './pages/Integrations';
@@ -54,6 +55,7 @@ function App() {
           <Route path="/purchase-orders" element={<PurchaseOrders />} />
           <Route path="/materials" element={<Materials />} />
           <Route path="/equipment" element={<Equipment />} />
+          <Route path="/finishing" element={<Finishing />} />
           <Route path="/templates" element={<Templates />} />
           <Route path="/users" element={<Users />} />
           <Route path="/settings" element={<Settings />} />

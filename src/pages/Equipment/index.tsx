@@ -1,16 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
-  Plus, Trash2, Edit3, X, Search, Wrench, Scissors,
-  ChevronDown, ChevronUp
+  Plus, Trash2, Edit3, X, Search, Copy, Info,
+  ChevronDown, ChevronUp, Globe, Camera, Image as ImageIcon, Loader2
 } from 'lucide-react';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Table, Modal, Input } from '../../components/ui';
 import type {
-  PricingEquipment, PricingFinishing, EquipmentPricingTier, EquipmentCostUnit
+  PricingEquipment, EquipmentPricingTier, EquipmentCostUnit
 } from '../../types/pricing';
-
-// ─── Tab type ────────────────────────────────────────────────────────────────
-type TabKey = 'equipment' | 'finishing';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const formatCurrency = (n: number) => `$${n.toFixed(n < 1 ? 3 : 2)}`;
@@ -23,6 +20,7 @@ const emptyEquipmentForm = {
   costUnit: 'per_click' as EquipmentCostUnit,
   costType: 'cost_only' as PricingEquipment['costType'],
   markupMultiplier: undefined as number | undefined,
+  markupType: 'multiplier' as PricingEquipment['markupType'],
   unitCost: 0,
   colorTiers: [] as EquipmentPricingTier[],
   blackTiers: [] as EquipmentPricingTier[],
@@ -30,16 +28,52 @@ const emptyEquipmentForm = {
   unitsPerHour: undefined as number | undefined,
   timeCostPerHour: undefined as number | undefined,
   timeCostMarkup: undefined as number | undefined,
+  imageUrl: '' as string | undefined,
 };
 
-const emptyFinishingForm = {
-  service: '',
-  subservice: '',
-  costType: 'time_only' as PricingFinishing['costType'],
-  outputPerHour: 0,
-  hourlyCost: 0,
-  timeCostMarkup: 0,
-  notes: '',
+// ─── Web Search Suggestion Logic ────────────────────────────────────────────
+type WebSearchState = 'idle' | 'searching' | 'done';
+
+interface WebSearchSuggestion {
+  message: string;
+  costUnit?: EquipmentCostUnit;
+  categoryApplies?: string;
+  type?: string;
+}
+
+const getWebSearchSuggestion = (name: string): WebSearchSuggestion | null => {
+  const lower = name.toLowerCase();
+  if (lower.includes('hp latex') || lower.includes('hp designjet')) {
+    return {
+      message: 'Based on the name, this appears to be a wide-format printer. Common specs for similar models have been suggested below.',
+      costUnit: 'per_sqft',
+      categoryApplies: 'Signs',
+      type: 'wide-format printer',
+    };
+  }
+  if (lower.includes('epson') && (lower.includes('sure') || lower.includes('wide') || lower.includes('p'))) {
+    return {
+      message: 'Based on the name, this appears to be a wide-format printer. Common specs for similar models have been suggested below.',
+      costUnit: 'per_sqft',
+      categoryApplies: 'Signs',
+      type: 'wide-format printer',
+    };
+  }
+  if (lower.includes('ricoh') || lower.includes('xerox') || lower.includes('canon') || lower.includes('konica')) {
+    return {
+      message: 'Based on the name, this appears to be a digital press. Common specs for similar models have been suggested below.',
+      costUnit: 'per_click',
+      categoryApplies: 'Digital Press',
+      type: 'digital press',
+    };
+  }
+  if (lower.includes('hp') || lower.includes('epson')) {
+    return {
+      message: 'Based on the name, this appears to be a printer. Enter the details below for accurate pricing.',
+      type: 'printer',
+    };
+  }
+  return null;
 };
 
 // ─── Tier Editor Sub-Component ───────────────────────────────────────────────
@@ -80,11 +114,9 @@ const TierEditor: React.FC<{
 export const Equipment: React.FC = () => {
   const {
     equipment, addEquipment, updateEquipment, deleteEquipment,
-    finishing, addFinishing, updateFinishing, deleteFinishing,
     categories,
   } = usePricingStore();
 
-  const [tab, setTab] = useState<TabKey>('equipment');
   const [search, setSearch] = useState('');
 
   // ── Equipment state ──
@@ -94,18 +126,18 @@ export const Equipment: React.FC = () => {
   const [equipForm, setEquipForm] = useState(emptyEquipmentForm);
   const [deleteEquipConfirm, setDeleteEquipConfirm] = useState<string | null>(null);
 
-  // ── Finishing state ──
-  const [showNewFinish, setShowNewFinish] = useState(false);
-  const [editingFinishId, setEditingFinishId] = useState<string | null>(null);
-  const [finishForm, setFinishForm] = useState(emptyFinishingForm);
-  const [deleteFinishConfirm, setDeleteFinishConfirm] = useState<string | null>(null);
+  // ── Web Search state (Item 21) ──
+  const [webSearchState, setWebSearchState] = useState<WebSearchState>('idle');
+  const [webSearchResult, setWebSearchResult] = useState<string>('');
+  const [webSearchSuggestion, setWebSearchSuggestion] = useState<WebSearchSuggestion | null>(null);
+  const [showWebSearchPanel, setShowWebSearchPanel] = useState(false);
 
-  // ── Filtered lists ──
+  // ── Image preview error state (Item 22) ──
+  const [imageError, setImageError] = useState(false);
+
+  // ── Filtered list ──
   const filteredEquipment = equipment.filter(e =>
     !search || e.name.toLowerCase().includes(search.toLowerCase()) || e.categoryApplies.toLowerCase().includes(search.toLowerCase())
-  );
-  const filteredFinishing = finishing.filter(f =>
-    !search || f.service.toLowerCase().includes(search.toLowerCase()) || (f.subservice || '').toLowerCase().includes(search.toLowerCase())
   );
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -120,6 +152,7 @@ export const Equipment: React.FC = () => {
       costUnit: equipForm.costUnit,
       costType: equipForm.costType,
       markupMultiplier: equipForm.markupMultiplier,
+      markupType: equipForm.markupType,
       unitCost: equipForm.unitCost,
       colorTiers: equipForm.colorTiers,
       blackTiers: equipForm.blackTiers,
@@ -127,10 +160,53 @@ export const Equipment: React.FC = () => {
       unitsPerHour: equipForm.unitsPerHour,
       timeCostPerHour: equipForm.timeCostPerHour,
       timeCostMarkup: equipForm.timeCostMarkup,
+      imageUrl: equipForm.imageUrl || undefined,
     });
     setShowNewEquip(false);
     setEquipForm(emptyEquipmentForm);
+    resetWebSearch();
   };
+
+  const resetWebSearch = () => {
+    setWebSearchState('idle');
+    setWebSearchResult('');
+    setWebSearchSuggestion(null);
+    setShowWebSearchPanel(false);
+    setImageError(false);
+  };
+
+  const handleWebSearch = useCallback(() => {
+    if (!equipForm.name.trim()) {
+      setShowWebSearchPanel(true);
+      setWebSearchResult('Enter the model name above, then click Search to look up equipment specs online.');
+      return;
+    }
+    setShowWebSearchPanel(true);
+    setWebSearchState('searching');
+    setWebSearchResult('');
+    setWebSearchSuggestion(null);
+
+    setTimeout(() => {
+      const suggestion = getWebSearchSuggestion(equipForm.name);
+      const baseMessage = `For best results, search for '${equipForm.name}' specs on the manufacturer's website and enter the details below.`;
+
+      if (suggestion) {
+        setWebSearchSuggestion(suggestion);
+        setWebSearchResult(suggestion.message);
+        // Auto-apply suggestions
+        if (suggestion.costUnit || suggestion.categoryApplies) {
+          setEquipForm(f => ({
+            ...f,
+            ...(suggestion.costUnit ? { costUnit: suggestion.costUnit } : {}),
+            ...(suggestion.categoryApplies ? { categoryApplies: suggestion.categoryApplies } : {}),
+          }));
+        }
+      } else {
+        setWebSearchResult(baseMessage);
+      }
+      setWebSearchState('done');
+    }, 1000);
+  }, [equipForm.name]);
 
   const handleStartEditEquip = (e: PricingEquipment) => {
     setEditingEquipId(e.id);
@@ -141,6 +217,7 @@ export const Equipment: React.FC = () => {
       costUnit: e.costUnit,
       costType: e.costType,
       markupMultiplier: e.markupMultiplier,
+      markupType: e.markupType || 'multiplier',
       unitCost: e.unitCost,
       colorTiers: e.colorTiers || [],
       blackTiers: e.blackTiers || [],
@@ -148,7 +225,9 @@ export const Equipment: React.FC = () => {
       unitsPerHour: e.unitsPerHour,
       timeCostPerHour: e.timeCostPerHour,
       timeCostMarkup: e.timeCostMarkup,
+      imageUrl: e.imageUrl || '',
     });
+    resetWebSearch();
   };
 
   const handleSaveEditEquip = () => {
@@ -160,6 +239,7 @@ export const Equipment: React.FC = () => {
       costUnit: equipForm.costUnit,
       costType: equipForm.costType,
       markupMultiplier: equipForm.markupMultiplier,
+      markupType: equipForm.markupType,
       unitCost: equipForm.unitCost,
       colorTiers: equipForm.colorTiers,
       blackTiers: equipForm.blackTiers,
@@ -167,54 +247,41 @@ export const Equipment: React.FC = () => {
       unitsPerHour: equipForm.unitsPerHour,
       timeCostPerHour: equipForm.timeCostPerHour,
       timeCostMarkup: equipForm.timeCostMarkup,
+      imageUrl: equipForm.imageUrl || undefined,
     });
     setEditingEquipId(null);
+    resetWebSearch();
   };
 
-  // ══════════════════════════════════════════════════════════════════════════════
-  //  FINISHING HANDLERS
-  // ══════════════════════════════════════════════════════════════════════════════
-
-  const handleAddFinish = () => {
-    addFinishing({
-      service: finishForm.service,
-      subservice: finishForm.subservice || undefined,
-      costType: finishForm.costType,
-      outputPerHour: finishForm.outputPerHour,
-      hourlyCost: finishForm.hourlyCost,
-      timeCostMarkup: finishForm.timeCostMarkup,
-      notes: finishForm.notes || undefined,
-    });
-    setShowNewFinish(false);
-    setFinishForm(emptyFinishingForm);
-  };
-
-  const handleStartEditFinish = (f: PricingFinishing) => {
-    setEditingFinishId(f.id);
-    setFinishForm({
-      service: f.service,
-      subservice: f.subservice || '',
-      costType: f.costType,
-      outputPerHour: f.outputPerHour,
-      hourlyCost: f.hourlyCost,
-      timeCostMarkup: f.timeCostMarkup,
-      notes: f.notes || '',
+  const handleCloneEquip = (eq: PricingEquipment) => {
+    addEquipment({
+      name: `Clone of ${eq.name}`,
+      categoryApplies: eq.categoryApplies,
+      colorCapability: eq.colorCapability,
+      costUnit: eq.costUnit,
+      costType: eq.costType,
+      markupMultiplier: eq.markupMultiplier,
+      markupType: eq.markupType || 'multiplier',
+      unitCost: eq.unitCost,
+      colorTiers: eq.colorTiers ? [...eq.colorTiers.map(t => ({ ...t }))] : [],
+      blackTiers: eq.blackTiers ? [...eq.blackTiers.map(t => ({ ...t }))] : [],
+      initialSetupFee: eq.initialSetupFee,
+      unitsPerHour: eq.unitsPerHour,
+      timeCostPerHour: eq.timeCostPerHour,
+      timeCostMarkup: eq.timeCostMarkup,
+      imageUrl: eq.imageUrl,
     });
   };
 
-  const handleSaveEditFinish = () => {
-    if (!editingFinishId) return;
-    updateFinishing(editingFinishId, {
-      service: finishForm.service,
-      subservice: finishForm.subservice || undefined,
-      costType: finishForm.costType,
-      outputPerHour: finishForm.outputPerHour,
-      hourlyCost: finishForm.hourlyCost,
-      timeCostMarkup: finishForm.timeCostMarkup,
-      notes: finishForm.notes || undefined,
-    });
-    setEditingFinishId(null);
-  };
+  // Helper: should we show time fields in the modal?
+  const showTimeFields = equipForm.costType === 'time_only' || equipForm.costType === 'cost_plus_time';
+  const showUnitCost = equipForm.costType === 'cost_only' || equipForm.costType === 'cost_plus_time';
+
+  // Helper: which tier columns to show for a given equipment
+  const showColorTiers = (eq: PricingEquipment) =>
+    eq.colorCapability === 'Color' || eq.colorCapability === 'Color and Black';
+  const showBlackTiers = (eq: PricingEquipment) =>
+    eq.colorCapability === 'Black' || eq.colorCapability === 'Color and Black';
 
   // ══════════════════════════════════════════════════════════════════════════════
   //  RENDER
@@ -223,210 +290,228 @@ export const Equipment: React.FC = () => {
   return (
     <div>
       <PageHeader
-        title="Equipment & Finishing"
-        subtitle={`${equipment.length} equipment items, ${finishing.length} finishing services`}
+        title="Equipment"
+        subtitle={`${equipment.length} equipment item${equipment.length !== 1 ? 's' : ''}`}
         actions={
-          tab === 'equipment' ? (
-            <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEquipForm(emptyEquipmentForm); setShowNewEquip(true); }}>
-              Add Equipment
-            </Button>
-          ) : (
-            <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setFinishForm(emptyFinishingForm); setShowNewFinish(true); }}>
-              Add Finishing
-            </Button>
-          )
+          <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEquipForm(emptyEquipmentForm); setShowNewEquip(true); }}>
+            Add Equipment
+          </Button>
         }
       />
 
-      {/* Tabs + Search */}
+      {/* Search */}
       <Card className="mb-4">
         <div className="flex items-center gap-4 px-4 py-3 flex-wrap">
-          <div className="flex border border-gray-200 rounded-lg p-0.5">
-            <button
-              onClick={() => { setTab('equipment'); setSearch(''); }}
-              className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${tab === 'equipment' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
-            >
-              <Wrench className="w-3.5 h-3.5" /> Equipment ({equipment.length})
-            </button>
-            <button
-              onClick={() => { setTab('finishing'); setSearch(''); }}
-              className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${tab === 'finishing' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
-            >
-              <Scissors className="w-3.5 h-3.5" /> Finishing ({finishing.length})
-            </button>
-          </div>
           <div className="relative flex-1 max-w-sm">
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder={`Search ${tab}...`}
+              placeholder="Search equipment..."
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>
       </Card>
 
-      {/* ═══════════════ EQUIPMENT TAB ═══════════════ */}
-      {tab === 'equipment' && (
-        <Card>
-          <Table headers={['Equipment', 'Category', 'Cost Model', 'Unit Cost', 'Setup Fee', 'Markup', 'Tiers', 'Actions']}>
-            {filteredEquipment.map(eq => {
-              const isExpanded = expandedEquipId === eq.id;
-              const colorTierCount = (eq.colorTiers || []).length;
-              const blackTierCount = (eq.blackTiers || []).length;
-              const totalTiers = colorTierCount + blackTierCount;
+      {/* Equipment Table */}
+      <Card>
+        <Table headers={['Equipment', 'Category', 'Cost Model', 'Unit Cost', 'Setup Fee', 'Markup', 'Tiers', 'Actions']}>
+          {filteredEquipment.map(eq => {
+            const isExpanded = expandedEquipId === eq.id;
+            const colorTierCount = showColorTiers(eq) ? (eq.colorTiers || []).length : 0;
+            const blackTierCount = showBlackTiers(eq) ? (eq.blackTiers || []).length : 0;
+            const totalTiers = colorTierCount + blackTierCount;
 
-              return (
-                <React.Fragment key={eq.id}>
-                  <tr className="hover:bg-gray-50 transition-colors">
-                    <td className="py-3 px-4">
-                      <p className="text-sm font-semibold text-gray-900">{eq.name}</p>
-                      <p className="text-xs text-gray-400">{eq.colorCapability}</p>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{eq.categoryApplies}</span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${eq.costUnit === 'per_click' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
-                        {eq.costUnit === 'per_click' ? 'Per Click' : 'Per Sq Ft'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-sm font-medium text-gray-700">{formatCurrency(eq.unitCost)}</td>
-                    <td className="py-3 px-4 text-sm text-gray-500">{formatCurrency(eq.initialSetupFee)}</td>
-                    <td className="py-3 px-4 text-sm text-gray-500">
-                      {eq.markupMultiplier ? `${eq.markupMultiplier}x` : '—'}
-                    </td>
-                    <td className="py-3 px-4">
-                      {totalTiers > 0 ? (
-                        <button onClick={() => setExpandedEquipId(isExpanded ? null : eq.id)}
-                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
-                          {totalTiers} tiers
-                          {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                        </button>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex gap-1">
-                        <button onClick={() => handleStartEditEquip(eq)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        {deleteEquipConfirm === eq.id ? (
-                          <div className="flex gap-1 items-center">
-                            <button onClick={() => { deleteEquipment(eq.id); setDeleteEquipConfirm(null); }} className="px-2 py-0.5 text-xs bg-red-600 text-white rounded">Delete</button>
-                            <button onClick={() => setDeleteEquipConfirm(null)} className="px-2 py-0.5 text-xs text-gray-500">Cancel</button>
-                          </div>
-                        ) : (
-                          <button onClick={() => setDeleteEquipConfirm(eq.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                  {/* Expanded tiers row */}
-                  {isExpanded && (
-                    <tr>
-                      <td colSpan={8} className="px-4 py-3 bg-gray-50 border-t border-gray-100">
-                        <div className="grid grid-cols-2 gap-4 max-w-2xl">
-                          {colorTierCount > 0 && (
-                            <div>
-                              <p className="text-xs font-semibold text-gray-600 mb-2 uppercase">Color Tiers</p>
-                              <table className="w-full text-xs">
-                                <thead><tr className="text-gray-400"><th className="text-left py-1">Min Qty</th><th className="text-right py-1">Price/Unit</th></tr></thead>
-                                <tbody>
-                                  {(eq.colorTiers || []).map((t, i) => (
-                                    <tr key={i} className="border-t border-gray-100">
-                                      <td className="py-1">{t.minQty.toLocaleString()}</td>
-                                      <td className="text-right font-medium">{formatCurrency(t.pricePerUnit)}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                          {blackTierCount > 0 && (
-                            <div>
-                              <p className="text-xs font-semibold text-gray-600 mb-2 uppercase">Black Tiers</p>
-                              <table className="w-full text-xs">
-                                <thead><tr className="text-gray-400"><th className="text-left py-1">Min Qty</th><th className="text-right py-1">Price/Unit</th></tr></thead>
-                                <tbody>
-                                  {(eq.blackTiers || []).map((t, i) => (
-                                    <tr key={i} className="border-t border-gray-100">
-                                      <td className="py-1">{t.minQty.toLocaleString()}</td>
-                                      <td className="text-right font-medium">{formatCurrency(t.pricePerUnit)}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </Table>
-          {filteredEquipment.length === 0 && (
-            <div className="text-center py-12 text-gray-400"><p className="text-sm">No equipment found</p></div>
-          )}
-        </Card>
-      )}
-
-      {/* ═══════════════ FINISHING TAB ═══════════════ */}
-      {tab === 'finishing' && (
-        <Card>
-          <Table headers={['Service', 'Sub-Service', 'Output/Hour', 'Hourly Cost', 'Cost/Unit', 'Markup %', 'Notes', 'Actions']}>
-            {filteredFinishing.map(f => {
-              const costPerUnit = f.outputPerHour > 0 ? f.hourlyCost / f.outputPerHour : 0;
-
-              return (
-                <tr key={f.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="py-3 px-4 text-sm font-semibold text-gray-900">{f.service}</td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{f.subservice || '—'}</td>
-                  <td className="py-3 px-4 text-sm text-gray-700 font-medium">{f.outputPerHour.toLocaleString()}/hr</td>
-                  <td className="py-3 px-4 text-sm text-gray-700">{formatCurrency(f.hourlyCost)}/hr</td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{costPerUnit > 0 ? formatCurrency(costPerUnit) : '—'}</td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{f.timeCostMarkup}%</td>
-                  <td className="py-3 px-4 text-xs text-gray-400 max-w-[150px] truncate">{f.notes || '—'}</td>
+            return (
+              <React.Fragment key={eq.id}>
+                <tr
+                  className="hover:bg-gray-50 transition-colors cursor-pointer"
+                  onClick={() => handleStartEditEquip(eq)}
+                >
                   <td className="py-3 px-4">
+                    <div className="flex items-center gap-3">
+                      {eq.imageUrl ? (
+                        <img
+                          src={eq.imageUrl}
+                          alt={eq.name}
+                          className="w-8 h-8 rounded-lg object-cover border border-gray-200 flex-shrink-0"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
+                        />
+                      ) : null}
+                      {!eq.imageUrl && (
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                          <Camera className="w-3.5 h-3.5 text-gray-400" />
+                        </div>
+                      )}
+                      {eq.imageUrl && (
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 border border-gray-200 items-center justify-center flex-shrink-0 hidden">
+                          <Camera className="w-3.5 h-3.5 text-gray-400" />
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{eq.name}</p>
+                        <p className="text-xs text-gray-400">{eq.colorCapability}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{eq.categoryApplies}</span>
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${eq.costUnit === 'per_click' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {eq.costUnit === 'per_click' ? 'Per Click' : 'Per Sq Ft'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-sm font-medium text-gray-700">{formatCurrency(eq.unitCost)}</td>
+                  <td className="py-3 px-4 text-sm text-gray-500">{formatCurrency(eq.initialSetupFee)}</td>
+                  <td className="py-3 px-4 text-sm text-gray-500">
+                    {eq.markupMultiplier
+                      ? (eq.markupType === 'percent' ? `${eq.markupMultiplier}%` : `${eq.markupMultiplier}x`)
+                      : '—'}
+                  </td>
+                  <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
+                    {totalTiers > 0 ? (
+                      <button onClick={() => setExpandedEquipId(isExpanded ? null : eq.id)}
+                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
+                        {totalTiers} tiers
+                        {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-1">
-                      <button onClick={() => handleStartEditFinish(f)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
+                      <button onClick={() => handleStartEditEquip(eq)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
-                      {deleteFinishConfirm === f.id ? (
+                      <button onClick={() => handleCloneEquip(eq)} className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded" title="Clone">
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                      {deleteEquipConfirm === eq.id ? (
                         <div className="flex gap-1 items-center">
-                          <button onClick={() => { deleteFinishing(f.id); setDeleteFinishConfirm(null); }} className="px-2 py-0.5 text-xs bg-red-600 text-white rounded">Delete</button>
-                          <button onClick={() => setDeleteFinishConfirm(null)} className="px-2 py-0.5 text-xs text-gray-500">Cancel</button>
+                          <button onClick={() => { deleteEquipment(eq.id); setDeleteEquipConfirm(null); }} className="px-2 py-0.5 text-xs bg-red-600 text-white rounded">Delete</button>
+                          <button onClick={() => setDeleteEquipConfirm(null)} className="px-2 py-0.5 text-xs text-gray-500">Cancel</button>
                         </div>
                       ) : (
-                        <button onClick={() => setDeleteFinishConfirm(f.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete">
+                        <button onClick={() => setDeleteEquipConfirm(eq.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
                   </td>
                 </tr>
-              );
-            })}
-          </Table>
-          {filteredFinishing.length === 0 && (
-            <div className="text-center py-12 text-gray-400"><p className="text-sm">No finishing services found</p></div>
-          )}
-        </Card>
-      )}
+                {/* Expanded tiers row - only show relevant color capability tiers */}
+                {isExpanded && (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+                      <div className="grid grid-cols-2 gap-4 max-w-2xl">
+                        {showColorTiers(eq) && colorTierCount > 0 && (
+                          <div>
+                            <p className="text-xs font-semibold text-gray-600 mb-2 uppercase">Color Tiers</p>
+                            <table className="w-full text-xs">
+                              <thead><tr className="text-gray-400"><th className="text-left py-1">Min Qty</th><th className="text-right py-1">Price/Unit</th></tr></thead>
+                              <tbody>
+                                {(eq.colorTiers || []).map((t, i) => (
+                                  <tr key={i} className="border-t border-gray-100">
+                                    <td className="py-1">{t.minQty.toLocaleString()}</td>
+                                    <td className="text-right font-medium">{formatCurrency(t.pricePerUnit)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                        {showBlackTiers(eq) && blackTierCount > 0 && (
+                          <div>
+                            <p className="text-xs font-semibold text-gray-600 mb-2 uppercase">Black Tiers</p>
+                            <table className="w-full text-xs">
+                              <thead><tr className="text-gray-400"><th className="text-left py-1">Min Qty</th><th className="text-right py-1">Price/Unit</th></tr></thead>
+                              <tbody>
+                                {(eq.blackTiers || []).map((t, i) => (
+                                  <tr key={i} className="border-t border-gray-100">
+                                    <td className="py-1">{t.minQty.toLocaleString()}</td>
+                                    <td className="text-right font-medium">{formatCurrency(t.pricePerUnit)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </Table>
+        {filteredEquipment.length === 0 && (
+          <div className="text-center py-12 text-gray-400"><p className="text-sm">No equipment found</p></div>
+        )}
+      </Card>
 
-      {/* ═══════════════ ADD EQUIPMENT MODAL ═══════════════ */}
-      <Modal isOpen={showNewEquip || editingEquipId !== null} onClose={() => { setShowNewEquip(false); setEditingEquipId(null); }}
+      {/* ═══════════════ ADD / EDIT EQUIPMENT MODAL ═══════════════ */}
+      <Modal isOpen={showNewEquip || editingEquipId !== null} onClose={() => { setShowNewEquip(false); setEditingEquipId(null); resetWebSearch(); }}
         title={editingEquipId ? 'Edit Equipment' : 'Add Equipment'} size="lg">
         <div className="space-y-4">
+
+          {/* Equipment Photo Section (Item 22) */}
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Photo</label>
+              <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
+                {equipForm.imageUrl && !imageError ? (
+                  <img
+                    src={equipForm.imageUrl}
+                    alt="Equipment"
+                    className="w-full h-full object-cover rounded-xl"
+                    onError={() => setImageError(true)}
+                  />
+                ) : (
+                  <Camera className="w-6 h-6 text-gray-300" />
+                )}
+              </div>
+            </div>
+            <div className="flex-1 space-y-2">
+              <Input
+                label="Image URL"
+                value={equipForm.imageUrl || ''}
+                onChange={e => { setEquipForm(f => ({ ...f, imageUrl: e.target.value })); setImageError(false); }}
+                placeholder="https://example.com/equipment-photo.jpg"
+                prefix={<ImageIcon className="w-3.5 h-3.5" />}
+              />
+              <p className="text-xs text-gray-400">Paste a URL to an image of this equipment for quick identification.</p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Equipment Name" value={equipForm.name} onChange={e => setEquipForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="e.g. Ricoh 9200" />
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Equipment Name</label>
+              <div className="flex gap-2">
+                <input
+                  value={equipForm.name}
+                  onChange={e => setEquipForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Ricoh 9200"
+                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+                />
+                <button
+                  type="button"
+                  onClick={handleWebSearch}
+                  disabled={webSearchState === 'searching'}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-50"
+                  title="Search web for equipment specs"
+                >
+                  {webSearchState === 'searching' ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Globe className="w-3.5 h-3.5" />
+                  )}
+                  Search
+                </button>
+              </div>
+            </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Category</label>
               <select value={equipForm.categoryApplies} onChange={e => setEquipForm(f => ({ ...f, categoryApplies: e.target.value }))}
@@ -436,6 +521,48 @@ export const Equipment: React.FC = () => {
               </select>
             </div>
           </div>
+
+          {/* Web Search Result Panel (Item 21) */}
+          {showWebSearchPanel && (
+            <div className={`rounded-lg border p-3 text-sm ${
+              webSearchState === 'searching'
+                ? 'bg-blue-50 border-blue-200 text-blue-700'
+                : webSearchSuggestion
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                  : 'bg-amber-50 border-amber-200 text-amber-700'
+            }`}>
+              <div className="flex items-start gap-2">
+                {webSearchState === 'searching' ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin flex-shrink-0 mt-0.5" />
+                    <span>Searching for equipment specs...</span>
+                  </>
+                ) : (
+                  <>
+                    <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p>{webSearchResult}</p>
+                      {webSearchSuggestion && (webSearchSuggestion.costUnit || webSearchSuggestion.categoryApplies) && (
+                        <p className="mt-1 text-xs opacity-75">
+                          Suggested: {webSearchSuggestion.costUnit && `Cost unit = ${webSearchSuggestion.costUnit === 'per_sqft' ? 'Per Sq Ft' : 'Per Click'}`}
+                          {webSearchSuggestion.costUnit && webSearchSuggestion.categoryApplies && ', '}
+                          {webSearchSuggestion.categoryApplies && `Category = ${webSearchSuggestion.categoryApplies}`}
+                          {' (applied)'}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setShowWebSearchPanel(false)}
+                      className="ml-auto p-0.5 opacity-50 hover:opacity-100 flex-shrink-0"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Color Capability</label>
@@ -454,64 +581,99 @@ export const Equipment: React.FC = () => {
                 <option value="per_sqft">Per Sq Ft</option>
               </select>
             </div>
-            <Input label="Unit Cost ($)" type="number" value={equipForm.unitCost || ''}
-              onChange={e => setEquipForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Setup Fee ($)" type="number" value={equipForm.initialSetupFee || ''}
-              onChange={e => setEquipForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
-            <Input label="Markup Multiplier" type="number" value={equipForm.markupMultiplier || ''}
-              onChange={e => setEquipForm(f => ({ ...f, markupMultiplier: parseFloat(e.target.value) || undefined }))} placeholder="e.g. 7" />
-            <Input label="Units/Hour" type="number" value={equipForm.unitsPerHour || ''}
-              onChange={e => setEquipForm(f => ({ ...f, unitsPerHour: parseInt(e.target.value) || undefined }))} />
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Cost Type
+              </label>
+              <select value={equipForm.costType} onChange={e => setEquipForm(f => ({ ...f, costType: e.target.value as PricingEquipment['costType'] }))}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="cost_only">Cost Only</option>
+                <option value="cost_plus_time">Cost + Time</option>
+                <option value="time_only">Time Only</option>
+              </select>
+            </div>
           </div>
 
-          {/* Tier editors */}
-          {equipForm.costUnit === 'per_click' && (
-            <div className="grid grid-cols-2 gap-4">
-              <TierEditor label="Color Tiers" tiers={equipForm.colorTiers} onChange={tiers => setEquipForm(f => ({ ...f, colorTiers: tiers }))} />
-              <TierEditor label="Black Tiers" tiers={equipForm.blackTiers} onChange={tiers => setEquipForm(f => ({ ...f, blackTiers: tiers }))} />
+          {/* Unit cost - hidden when time_only */}
+          {showUnitCost && (
+            <div className="grid grid-cols-3 gap-4">
+              <Input label="Unit Cost ($)" type="number" value={equipForm.unitCost || ''}
+                onChange={e => setEquipForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
+              <Input label="Setup Fee ($)" type="number" value={equipForm.initialSetupFee || ''}
+                onChange={e => setEquipForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Markup Type</label>
+                <select value={equipForm.markupType} onChange={e => setEquipForm(f => ({ ...f, markupType: e.target.value as PricingEquipment['markupType'] }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="multiplier">Multiplier (e.g. 7x)</option>
+                  <option value="percent">Percent (e.g. 70%)</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {showUnitCost && (
+            <div className="grid grid-cols-3 gap-4">
+              <Input
+                label={equipForm.markupType === 'percent' ? 'Markup %' : 'Markup Multiplier'}
+                type="number"
+                value={equipForm.markupMultiplier || ''}
+                onChange={e => setEquipForm(f => ({ ...f, markupMultiplier: parseFloat(e.target.value) || undefined }))}
+                placeholder={equipForm.markupType === 'percent' ? 'e.g. 70' : 'e.g. 7'}
+                suffix={equipForm.markupType === 'percent' ? '%' : 'x'}
+              />
+            </div>
+          )}
+
+          {/* Time fields - shown when cost_plus_time or time_only */}
+          {showTimeFields && (
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <div className="flex items-center gap-1 mb-1.5">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Units/Hour</label>
+                  <div className="group relative">
+                    <Info className="w-3 h-3 text-gray-400" />
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                      Units = sheets or pieces ran through equipment
+                    </div>
+                  </div>
+                </div>
+                <input type="number" value={equipForm.unitsPerHour || ''} onChange={e => setEquipForm(f => ({ ...f, unitsPerHour: parseInt(e.target.value) || undefined }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <Input label="Time Cost/Hour ($)" type="number" value={equipForm.timeCostPerHour || ''}
+                onChange={e => setEquipForm(f => ({ ...f, timeCostPerHour: parseFloat(e.target.value) || undefined }))} prefix="$" />
+              <Input label="Time Cost Markup %" type="number" value={equipForm.timeCostMarkup || ''}
+                onChange={e => setEquipForm(f => ({ ...f, timeCostMarkup: parseFloat(e.target.value) || undefined }))} suffix="%" />
+            </div>
+          )}
+
+          {/* Setup fee for time_only */}
+          {!showUnitCost && (
+            <div className="grid grid-cols-3 gap-4">
+              <Input label="Setup Fee ($)" type="number" value={equipForm.initialSetupFee || ''}
+                onChange={e => setEquipForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
+            </div>
+          )}
+
+          {/* Tier editors - only show relevant ones based on colorCapability */}
+          {equipForm.costUnit === 'per_click' && showUnitCost && (
+            <div className={`grid gap-4 ${
+              equipForm.colorCapability === 'Color and Black' ? 'grid-cols-2' : 'grid-cols-1'
+            }`}>
+              {(equipForm.colorCapability === 'Color' || equipForm.colorCapability === 'Color and Black') && (
+                <TierEditor label="Color Tiers" tiers={equipForm.colorTiers} onChange={tiers => setEquipForm(f => ({ ...f, colorTiers: tiers }))} />
+              )}
+              {(equipForm.colorCapability === 'Black' || equipForm.colorCapability === 'Color and Black') && (
+                <TierEditor label="Black Tiers" tiers={equipForm.blackTiers} onChange={tiers => setEquipForm(f => ({ ...f, blackTiers: tiers }))} />
+              )}
             </div>
           )}
 
           <div className="flex gap-3 justify-end pt-2">
-            <Button variant="secondary" onClick={() => { setShowNewEquip(false); setEditingEquipId(null); }}>Cancel</Button>
+            <Button variant="secondary" onClick={() => { setShowNewEquip(false); setEditingEquipId(null); resetWebSearch(); }}>Cancel</Button>
             <Button variant="primary" onClick={editingEquipId ? handleSaveEditEquip : handleAddEquip} disabled={!equipForm.name}>
               {editingEquipId ? 'Save Changes' : 'Add Equipment'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* ═══════════════ ADD / EDIT FINISHING MODAL ═══════════════ */}
-      <Modal isOpen={showNewFinish || editingFinishId !== null} onClose={() => { setShowNewFinish(false); setEditingFinishId(null); }}
-        title={editingFinishId ? 'Edit Finishing Service' : 'Add Finishing Service'}>
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Service" value={finishForm.service} onChange={e => setFinishForm(f => ({ ...f, service: e.target.value }))}
-              placeholder="e.g. Cut, Fold, Drill" />
-            <Input label="Sub-Service (optional)" value={finishForm.subservice} onChange={e => setFinishForm(f => ({ ...f, subservice: e.target.value }))}
-              placeholder="e.g. Tri-Fold, 1 Hole" />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Output/Hour" type="number" value={finishForm.outputPerHour || ''} onChange={e => setFinishForm(f => ({ ...f, outputPerHour: parseInt(e.target.value) || 0 }))}
-              placeholder="e.g. 150" />
-            <Input label="Hourly Cost ($)" type="number" value={finishForm.hourlyCost || ''} onChange={e => setFinishForm(f => ({ ...f, hourlyCost: parseFloat(e.target.value) || 0 }))}
-              prefix="$" />
-            <Input label="Markup %" type="number" value={finishForm.timeCostMarkup || ''} onChange={e => setFinishForm(f => ({ ...f, timeCostMarkup: parseFloat(e.target.value) || 0 }))}
-              suffix="%" />
-          </div>
-          {finishForm.outputPerHour > 0 && finishForm.hourlyCost > 0 && (
-            <div className="bg-gray-50 rounded-lg p-3 text-sm">
-              <div className="flex justify-between"><span className="text-gray-500">Cost per unit:</span><span className="font-medium">{formatCurrency(finishForm.hourlyCost / finishForm.outputPerHour)}</span></div>
-            </div>
-          )}
-          <Input label="Notes (optional)" value={finishForm.notes} onChange={e => setFinishForm(f => ({ ...f, notes: e.target.value }))}
-            placeholder="Any additional notes" />
-          <div className="flex gap-3 justify-end pt-2">
-            <Button variant="secondary" onClick={() => { setShowNewFinish(false); setEditingFinishId(null); }}>Cancel</Button>
-            <Button variant="primary" onClick={editingFinishId ? handleSaveEditFinish : handleAddFinish} disabled={!finishForm.service || finishForm.outputPerHour <= 0}>
-              {editingFinishId ? 'Save Changes' : 'Add Finishing'}
             </Button>
           </div>
         </div>

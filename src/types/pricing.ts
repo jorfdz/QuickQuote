@@ -1,5 +1,15 @@
 // ─── PRICING TOOL TYPES ─────────────────────────────────────────────────────
 
+// ─── MATERIAL GROUPS ───────────────────────────────────────────────────────
+
+export interface MaterialGroup {
+  id: string;
+  name: string;
+  description?: string;
+  categoryIds: string[];  // which categories this group is assigned to
+  createdAt: string;
+}
+
 // ─── CATEGORIES & PRODUCTS ──────────────────────────────────────────────────
 
 export interface PricingCategory {
@@ -26,6 +36,7 @@ export interface PricingProduct {
   defaultColor: 'Color' | 'Black' | 'Color & Black';
   defaultSides: 'Single' | 'Double';
   defaultFolding?: string;         // e.g. "Tri-Fold", "Bi-Fold"
+  isTemplate: boolean;             // whether this product is starred as a template
   createdAt: string;
 }
 
@@ -54,6 +65,8 @@ export interface PricingEquipment {
   unitsPerHour?: number;
   timeCostPerHour?: number;
   timeCostMarkup?: number;
+  imageUrl?: string;               // equipment photo URL
+  markupType: 'multiplier' | 'percent';  // how markup is applied
   createdAt: string;
 }
 
@@ -67,6 +80,10 @@ export interface PricingFinishing {
   outputPerHour: number;           // units per hour
   hourlyCost: number;              // $ per hour of operation
   timeCostMarkup: number;          // markup on time cost (as %)
+  categoryIds: string[];           // which categories this finish applies to
+  unitBasis: 'per_unit' | 'per_sqft' | 'per_hour' | 'per_cut';  // what the finish is based on
+  sheetsPerCutStack?: number;      // for cut services (default 500)
+  cutsPerHour?: number;            // for cut services (default 150)
   notes?: string;
   createdAt: string;
 }
@@ -81,6 +98,8 @@ export interface PricingMaterial {
   sizeHeight: number;              // inches (parsed)
   pricePerM: number;               // price per 1,000 sheets
   markup: number;                  // percentage markup (70 = 70%)
+  materialGroupId?: string;        // which material group it belongs to
+  isFavorite: boolean;             // for starring/favoriting
   createdAt: string;
 }
 

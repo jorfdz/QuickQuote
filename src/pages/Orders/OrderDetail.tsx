@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Printer, Receipt, KanbanSquare, Edit, Trash2, CheckCircle } from 'lucide-react';
+import { Printer, Receipt, KanbanSquare, Edit, Trash2, CheckCircle, ChevronDown, ChevronUp, Copy, ArrowRight } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Badge, Card, PageHeader, Select, Tabs, Modal, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
@@ -10,16 +10,30 @@ import { nanoid } from '../../utils/nanoid';
 export const OrderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { orders, updateOrder, deleteOrder, addInvoice, nextInvoiceNumber, invoiceCount, workflows, users } = useStore();
+  const { orders, updateOrder, deleteOrder, addInvoice, nextInvoiceNumber, invoiceCount, workflows, users, equipment } = useStore();
   const [activeTab, setActiveTab] = useState('overview');
   const [showDelete, setShowDelete] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
+  const convertRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (convertRef.current && !convertRef.current.contains(e.target as Node)) setConvertOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const order = orders.find(o => o.id === id);
   if (!order) return <div className="text-center py-16 text-gray-400">Order not found</div>;
 
   const workflow = workflows.find(w => w.id === order.workflowId) || workflows[0];
   const currentStage = workflow?.stages.find(s => s.id === order.currentStageId);
+  const csr = users.find(u => u.id === order.csrId);
+  const salesRep = users.find(u => u.id === order.salesId);
 
   const createInvoice = () => {
     const number = nextInvoiceNumber();
@@ -55,15 +69,92 @@ export const OrderDetail: React.FC = () => {
             <Button variant="ghost" size="sm" onClick={() => setShowStatusModal(true)}>Status</Button>
             <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />}>Work Order</Button>
             <Button variant="secondary" size="sm" icon={<KanbanSquare className="w-4 h-4" />} onClick={() => navigate('/tracker')}>Tracker</Button>
-            {!order.invoiceId && order.status === 'completed' && (
-              <Button variant="primary" icon={<Receipt className="w-4 h-4" />} onClick={createInvoice}>Create Invoice</Button>
-            )}
-            {!order.invoiceId && order.status !== 'completed' && (
-              <Button variant="success" icon={<CheckCircle className="w-4 h-4" />} onClick={() => { updateOrder(id!, { status: 'completed' }); setTimeout(createInvoice, 100); }}>Complete & Invoice</Button>
-            )}
+            {/* Convert to... dropdown */}
+            <div className="relative" ref={convertRef}>
+              <Button variant="primary" icon={<ArrowRight className="w-4 h-4" />} onClick={() => setConvertOpen(!convertOpen)}>
+                Convert to...
+                <ChevronDown className="w-3.5 h-3.5 ml-1" />
+              </Button>
+              {convertOpen && (
+                <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50">
+                  <button
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                    onClick={() => { setConvertOpen(false); navigate(`/quotes/new?cloneId=${order.id}&source=order`); }}
+                  >
+                    <Copy className="w-4 h-4 text-gray-400" />
+                    Clone as New Quote
+                  </button>
+                  <button
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                    onClick={() => { setConvertOpen(false); navigate(`/orders/new?cloneOrderId=${order.id}`); }}
+                  >
+                    <Copy className="w-4 h-4 text-gray-400" />
+                    Clone as New Order
+                  </button>
+                  {!order.invoiceId && (
+                    <button
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                      onClick={() => { setConvertOpen(false); createInvoice(); }}
+                    >
+                      <Receipt className="w-4 h-4 text-gray-400" />
+                      Create Invoice
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </>
         }
       />
+
+      {/* Prominent Order Number + Collapsible Header */}
+      <Card className="mb-6">
+        <div
+          className="px-5 py-4 flex items-center justify-between cursor-pointer select-none"
+          onClick={() => setHeaderCollapsed(!headerCollapsed)}
+        >
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-bold text-gray-900 font-mono">{order.number}</h1>
+            <span className="text-sm text-gray-500">{order.customerName || 'No customer'}</span>
+            <Badge label={order.status} />
+          </div>
+          <button className="p-1 hover:bg-gray-100 rounded-lg transition-colors text-gray-400">
+            {headerCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+          </button>
+        </div>
+        {!headerCollapsed && (
+          <div className="px-5 pb-4 pt-0 border-t border-gray-100">
+            <div className="grid grid-cols-3 gap-4 mt-4">
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Account Name</p>
+                <p className="text-sm font-medium text-gray-900 mt-1">{order.customerName || '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Contact</p>
+                <p className="text-sm font-medium text-gray-900 mt-1">{order.contactName || '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</p>
+                <div className="mt-1"><Badge label={order.status} /></div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Due Date</p>
+                <p className={`text-sm font-medium mt-1 ${order.dueDate && new Date(order.dueDate) < new Date() && order.status === 'in_progress' ? 'text-red-500' : 'text-gray-900'}`}>
+                  {order.dueDate ? formatDate(order.dueDate) : '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">CSR</p>
+                <p className="text-sm font-medium text-gray-900 mt-1">{csr?.name || '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Sales Rep</p>
+                <p className="text-sm font-medium text-gray-900 mt-1">{salesRep?.name || '—'}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </Card>
 
       {/* Progress bar */}
       {workflow && (
@@ -110,26 +201,35 @@ export const OrderDetail: React.FC = () => {
                 <h2 className="font-semibold text-gray-900">Line Items</h2>
               </div>
               <div className="divide-y divide-gray-50">
-                {order.lineItems.map((item, i) => (
-                  <div key={item.id} className="px-5 py-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="text-xs font-semibold text-gray-400 mr-2">#{i + 1}</span>
-                        <span className="text-sm font-medium text-gray-900">{item.description}</span>
-                        <p className="text-xs text-gray-500 mt-1">{item.quantity} {item.unit}</p>
-                        {item.productionNotes && <p className="text-xs text-amber-600 mt-1 italic">📝 {item.productionNotes}</p>}
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-gray-900">{formatCurrency(item.sellPrice)}</p>
-                        {item.workflowStageId && (
-                          <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                            {workflow?.stages.find(s => s.id === item.workflowStageId)?.name || 'In Progress'}
-                          </span>
-                        )}
+                {order.lineItems.map((item, i) => {
+                  const eq = equipment.find(e => e.id === (item as any).equipmentId);
+                  return (
+                    <div key={item.id} className="px-5 py-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <span className="text-xs font-semibold text-gray-400 mr-2">#{i + 1}</span>
+                          <span className="text-sm font-medium text-gray-900">{item.description}</span>
+                          <p className="text-xs text-gray-500 mt-1">{item.quantity} {item.unit}</p>
+                          {eq && (
+                            <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                              <span className="inline-block w-3 h-3 rounded bg-blue-100 text-center text-[8px] leading-3">E</span>
+                              {eq.name}
+                            </p>
+                          )}
+                          {item.productionNotes && <p className="text-xs text-amber-600 mt-1 italic">📝 {item.productionNotes}</p>}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-gray-900">{formatCurrency(item.sellPrice)}</p>
+                          {item.workflowStageId && (
+                            <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                              {workflow?.stages.find(s => s.id === item.workflowStageId)?.name || 'In Progress'}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </Card>
             {(order.notes || order.internalNotes) && (

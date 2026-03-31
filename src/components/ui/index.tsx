@@ -19,13 +19,13 @@ export const Button: React.FC<ButtonProps> = ({ variant = 'secondary', size = 'm
     success: 'bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-500 border border-emerald-600',
   };
   const sizes = {
-    sm: 'px-3 py-1.5 text-xs rounded-md',
-    md: 'px-4 py-2 text-sm rounded-lg',
-    lg: 'px-5 py-2.5 text-sm rounded-lg',
+    sm: 'px-2.5 py-1 text-xs rounded-md',
+    md: 'px-3.5 py-1.5 text-sm rounded-md',
+    lg: 'px-4 py-2 text-sm rounded-md',
   };
   return (
     <button
-      className={`inline-flex items-center gap-2 font-medium transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`inline-flex items-center gap-1.5 font-medium transition-all duration-150 focus:outline-none focus:ring-1 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
       disabled={loading || props.disabled}
       {...props}
     >
@@ -50,7 +50,7 @@ export const Input: React.FC<InputProps> = ({ label, error, prefix, suffix, clas
     <div className="relative">
       {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{prefix}</span>}
       <input
-        className={`w-full px-3 py-2 text-sm bg-white border ${error ? 'border-red-400' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 transition-all ${prefix ? 'pl-8' : ''} ${suffix ? 'pr-8' : ''} ${className}`}
+        className={`w-full px-3 py-1.5 text-sm bg-white border ${error ? 'border-red-400' : 'border-gray-150'} rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 transition-all ${prefix ? 'pl-8' : ''} ${suffix ? 'pr-8' : ''} ${className}`}
         {...props}
       />
       {suffix && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{suffix}</span>}
@@ -67,7 +67,7 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 export const Textarea: React.FC<TextareaProps> = ({ label, className = '', ...props }) => (
   <div>
     {label && <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{label}</label>}
-    <textarea className={`w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 transition-all resize-none ${className}`} {...props} />
+    <textarea className={`w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 transition-all resize-none ${className}`} {...props} />
   </div>
 );
 
@@ -81,7 +81,7 @@ export const Select: React.FC<SelectProps> = ({ label, options, className = '', 
   <div>
     {label && <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{label}</label>}
     <div className="relative">
-      <select className={`w-full px-3 py-2 pr-8 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none ${className}`} {...props}>
+      <select className={`w-full px-3 py-1.5 pr-8 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent appearance-none ${className}`} {...props}>
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
       <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -134,7 +134,7 @@ export const Badge: React.FC<BadgeProps> = ({ label, children, color, className 
     ? (colorMap[color] || color)
     : (statusColors[text.toLowerCase().replace(/ /g, '_')] || 'bg-gray-100 text-gray-600 border border-gray-200');
   const display = children ?? text.replace(/_/g, ' ');
-  return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${cls} ${className}`}>{display}</span>;
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium capitalize ${cls} ${className}`}>{display}</span>;
 };
 
 // ─── MODAL ───────────────────────────────────────────────────────────────────
@@ -145,13 +145,13 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
   const sizes = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-3xl', '2xl': 'max-w-5xl' };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative bg-white rounded-2xl shadow-2xl w-full ${sizes[size]} max-h-[90vh] flex flex-col`}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-5 h-5 text-gray-400" /></button>
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className={`relative bg-white rounded-xl shadow-xl w-full ${sizes[size]} max-h-[90vh] flex flex-col`}>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md transition-colors"><X className="w-4 h-4 text-gray-400" /></button>
         </div>
-        <div className="overflow-y-auto flex-1 px-6 py-4">{children}</div>
+        <div className="overflow-y-auto flex-1 px-5 py-3.5">{children}</div>
       </div>
     </div>
   );
@@ -160,7 +160,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
 // ─── CARD ────────────────────────────────────────────────────────────────────
 
 export const Card: React.FC<{ children: React.ReactNode; className?: string; onClick?: () => void }> = ({ children, className = '', onClick }) => (
-  <div className={`bg-white border border-gray-100 rounded-xl shadow-sm ${onClick ? 'cursor-pointer hover:shadow-md hover:border-gray-200 transition-all' : ''} ${className}`} onClick={onClick}>{children}</div>
+  <div className={`bg-white border border-gray-100 rounded-lg ${onClick ? 'cursor-pointer hover:border-gray-200 transition-all' : ''} ${className}`} onClick={onClick}>{children}</div>
 );
 
 // ─── SEARCH INPUT ────────────────────────────────────────────────────────────
@@ -170,7 +170,7 @@ export const SearchInput: React.FC<{ value: string; onChange: (v: string) => voi
     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
     <input
       type="text" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-      className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64 placeholder-gray-400"
+      className="pl-9 pr-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent w-56 placeholder-gray-400"
     />
   </div>
 );
@@ -178,15 +178,15 @@ export const SearchInput: React.FC<{ value: string; onChange: (v: string) => voi
 // ─── STAT CARD ───────────────────────────────────────────────────────────────
 
 export const StatCard: React.FC<{ title: string; value: string; subtitle?: string; icon: React.ReactNode; color: string; trend?: string }> = ({ title, value, subtitle, icon, color, trend }) => (
-  <Card className="p-5">
+  <Card className="p-4">
     <div className="flex items-start justify-between">
       <div>
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{title}</p>
-        <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
-        {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
-        {trend && <p className="text-xs text-emerald-600 font-medium mt-1">↑ {trend}</p>}
+        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">{title}</p>
+        <p className="text-xl font-bold text-gray-900 mt-0.5">{value}</p>
+        {subtitle && <p className="text-[11px] text-gray-500 mt-0.5">{subtitle}</p>}
+        {trend && <p className="text-[11px] text-emerald-600 font-medium mt-0.5">{trend}</p>}
       </div>
-      <div className={`p-3 rounded-xl ${color}`}>{icon}</div>
+      <div className={`p-2.5 rounded-lg ${color}`}>{icon}</div>
     </div>
   </Card>
 );
@@ -222,7 +222,7 @@ export const Table: React.FC<{ headers: string[]; children: React.ReactNode; cla
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-gray-100">
-          {headers.map((h, i) => <th key={i} className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>)}
+          {headers.map((h, i) => <th key={i} className="text-left py-2.5 px-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>)}
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-50">{children}</tbody>
@@ -245,16 +245,16 @@ export const Checkbox: React.FC<CheckboxProps> = ({ checked, onChange, label }) 
 // ─── PAGE HEADER ─────────────────────────────────────────────────────────────
 
 export const PageHeader: React.FC<{ title: string; subtitle?: string; actions?: React.ReactNode; back?: () => void }> = ({ title, subtitle, actions, back }) => (
-  <div className="flex items-center justify-between mb-6">
-    <div className="flex items-center gap-3">
+  <div className="flex items-center justify-between mb-4">
+    <div className="flex items-center gap-2.5">
       {back && (
-        <button onClick={back} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+        <button onClick={back} className="p-1 hover:bg-gray-100 rounded-md transition-colors text-gray-400 hover:text-gray-600">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
         </button>
       )}
       <div>
-        <h1 className="text-xl font-bold text-gray-900">{title}</h1>
-        {subtitle && <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>}
+        <h1 className="text-lg font-bold text-gray-900">{title}</h1>
+        {subtitle && <p className="text-[13px] text-gray-500 mt-0.5">{subtitle}</p>}
       </div>
     </div>
     {actions && <div className="flex items-center gap-2">{actions}</div>}
@@ -265,10 +265,10 @@ export const PageHeader: React.FC<{ title: string; subtitle?: string; actions?: 
 
 interface TabsProps { tabs: { id: string; label: string; count?: number }[]; active: string; onChange: (id: string) => void; }
 export const Tabs: React.FC<TabsProps> = ({ tabs, active, onChange }) => (
-  <div className="flex gap-1 border-b border-gray-100 mb-6">
+  <div className="flex gap-1 border-b border-gray-100 mb-4">
     {tabs.map(tab => (
       <button key={tab.id} onClick={() => onChange(tab.id)}
-        className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-all -mb-px ${active === tab.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+        className={`flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-medium border-b-2 transition-all -mb-px ${active === tab.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
         {tab.label}
         {tab.count !== undefined && <span className={`text-xs px-1.5 py-0.5 rounded-full ${active === tab.id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>{tab.count}</span>}
       </button>

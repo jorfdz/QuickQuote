@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, ClipboardList, Receipt, TrendingUp, Clock, AlertCircle, CheckCircle, Users } from 'lucide-react';
+import { FileText, ClipboardList, Receipt, TrendingUp, Clock, AlertCircle, CheckCircle, Users, Package, BarChart3, UserPlus, Layers } from 'lucide-react';
 import { useStore } from '../../store';
 import { StatCard, Card, Badge } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
@@ -18,13 +18,13 @@ export const Dashboard: React.FC = () => {
   return (
     <div>
       {/* Welcome */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Good morning, {currentUser.name.split(' ')[0]} 👋</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Here's what's happening at your shop today.</p>
+      <div className="mb-5">
+        <h1 className="text-xl font-bold text-gray-900">Good morning, {currentUser.name.split(' ')[0]}</h1>
+        <p className="text-[13px] text-gray-500 mt-0.5">Here's what's happening at your shop today.</p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <StatCard title="Open Quotes" value={String(openQuotes.length)} subtitle={formatCurrency(totalQuoteValue) + ' total value'} icon={<FileText className="w-5 h-5 text-blue-600" />} color="bg-blue-50" trend="3 new this week" />
         <StatCard title="Active Orders" value={String(activeOrders.length)} subtitle={overdueOrders.length > 0 ? `${overdueOrders.length} overdue` : 'All on track'} icon={<ClipboardList className="w-5 h-5 text-violet-600" />} color="bg-violet-50" />
         <StatCard title="Pending Invoices" value={formatCurrency(pendingInvoiceValue)} subtitle="Awaiting payment" icon={<Receipt className="w-5 h-5 text-amber-600" />} color="bg-amber-50" />
@@ -32,17 +32,17 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Main content grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Open Quotes */}
         <div className="lg:col-span-2">
           <Card>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2"><FileText className="w-4 h-4 text-blue-500" /> Open Quotes</h2>
-              <button onClick={() => navigate('/quotes')} className="text-xs text-blue-600 hover:underline font-medium">View all</button>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-50">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2"><FileText className="w-3.5 h-3.5 text-blue-500" /> Open Quotes</h2>
+              <button onClick={() => navigate('/quotes')} className="text-[11px] text-blue-600 hover:underline font-medium">View all</button>
             </div>
             <div className="divide-y divide-gray-50">
               {openQuotes.slice(0, 5).map(quote => (
-                <div key={quote.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => navigate(`/quotes/${quote.id}`)}>
+                <div key={quote.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => navigate(`/quotes/${quote.id}`)}>
                   <div className="flex items-center gap-3 min-w-0">
                     <div>
                       <div className="flex items-center gap-2">
@@ -63,16 +63,16 @@ export const Dashboard: React.FC = () => {
           </Card>
 
           {/* Active Orders */}
-          <Card className="mt-4">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2"><ClipboardList className="w-4 h-4 text-violet-500" /> Active Orders</h2>
-              <button onClick={() => navigate('/orders')} className="text-xs text-blue-600 hover:underline font-medium">View all</button>
+          <Card className="mt-3">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-50">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2"><ClipboardList className="w-3.5 h-3.5 text-violet-500" /> Active Orders</h2>
+              <button onClick={() => navigate('/orders')} className="text-[11px] text-blue-600 hover:underline font-medium">View all</button>
             </div>
             <div className="divide-y divide-gray-50">
               {activeOrders.slice(0, 4).map(order => {
                 const isOverdue = order.dueDate && new Date(order.dueDate) < new Date();
                 return (
-                  <div key={order.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => navigate(`/orders/${order.id}`)}>
+                  <div key={order.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => navigate(`/orders/${order.id}`)}>
                     <div className="flex items-center gap-3">
                       <div className={`w-2 h-2 rounded-full ${isOverdue ? 'bg-red-500' : 'bg-emerald-500'}`} />
                       <div>
@@ -96,24 +96,24 @@ export const Dashboard: React.FC = () => {
         </div>
 
         {/* Right column */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* Quick Actions */}
           <Card>
-            <div className="px-5 py-4 border-b border-gray-50">
-              <h2 className="font-semibold text-gray-900">Quick Actions</h2>
+            <div className="px-5 py-3 border-b border-gray-50">
+              <h2 className="text-sm font-semibold text-gray-900">Quick Actions</h2>
             </div>
-            <div className="p-4 grid grid-cols-2 gap-2">
+            <div className="p-3 grid grid-cols-2 gap-2">
               {[
-                { label: 'New Quote', icon: '📋', path: '/quotes/new', color: 'bg-blue-50 hover:bg-blue-100 text-blue-700' },
-                { label: 'New Order', icon: '📦', path: '/orders/new', color: 'bg-violet-50 hover:bg-violet-100 text-violet-700' },
-                { label: 'New Invoice', icon: '🧾', path: '/invoices/new', color: 'bg-amber-50 hover:bg-amber-100 text-amber-700' },
-                { label: 'Add Customer', icon: '👤', path: '/customers/new', color: 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700' },
-                { label: 'Track Orders', icon: '📊', path: '/tracker', color: 'bg-rose-50 hover:bg-rose-100 text-rose-700' },
-                { label: 'Add Material', icon: '🧱', path: '/materials', color: 'bg-orange-50 hover:bg-orange-100 text-orange-700' },
+                { label: 'New Quote', icon: <FileText className="w-4 h-4" />, path: '/quotes/new', color: 'bg-blue-50 hover:bg-blue-100 text-blue-700' },
+                { label: 'New Order', icon: <ClipboardList className="w-4 h-4" />, path: '/orders/new', color: 'bg-violet-50 hover:bg-violet-100 text-violet-700' },
+                { label: 'New Invoice', icon: <Receipt className="w-4 h-4" />, path: '/invoices/new', color: 'bg-amber-50 hover:bg-amber-100 text-amber-700' },
+                { label: 'Add Customer', icon: <UserPlus className="w-4 h-4" />, path: '/customers/new', color: 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700' },
+                { label: 'Track Orders', icon: <BarChart3 className="w-4 h-4" />, path: '/tracker', color: 'bg-rose-50 hover:bg-rose-100 text-rose-700' },
+                { label: 'Add Material', icon: <Layers className="w-4 h-4" />, path: '/materials', color: 'bg-orange-50 hover:bg-orange-100 text-orange-700' },
               ].map(action => (
                 <button key={action.path} onClick={() => navigate(action.path)}
-                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl text-xs font-semibold transition-all ${action.color}`}>
-                  <span className="text-lg">{action.icon}</span>
+                  className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg text-[11px] font-medium transition-all ${action.color}`}>
+                  {action.icon}
                   {action.label}
                 </button>
               ))}
@@ -122,10 +122,10 @@ export const Dashboard: React.FC = () => {
 
           {/* Performance snapshot */}
           <Card>
-            <div className="px-5 py-4 border-b border-gray-50">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-emerald-500" /> This Month</h2>
+            <div className="px-5 py-3 border-b border-gray-50">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2"><TrendingUp className="w-3.5 h-3.5 text-emerald-500" /> This Month</h2>
             </div>
-            <div className="p-5 space-y-4">
+            <div className="p-4 space-y-3">
               {[
                 { label: 'Quotes Created', value: '12', change: '+3', up: true },
                 { label: 'Orders Placed', value: '8', change: '+1', up: true },
@@ -133,10 +133,10 @@ export const Dashboard: React.FC = () => {
                 { label: 'Win Rate', value: '68%', change: '+5%', up: true },
               ].map(m => (
                 <div key={m.label} className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">{m.label}</span>
+                  <span className="text-[13px] text-gray-600">{m.label}</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-gray-900">{m.value}</span>
-                    <span className={`text-xs font-medium ${m.up ? 'text-emerald-600' : 'text-red-500'}`}>{m.change}</span>
+                    <span className="text-[13px] font-bold text-gray-900">{m.value}</span>
+                    <span className={`text-[11px] font-medium ${m.up ? 'text-emerald-600' : 'text-red-500'}`}>{m.change}</span>
                   </div>
                 </div>
               ))}
@@ -145,10 +145,10 @@ export const Dashboard: React.FC = () => {
 
           {/* Recent activity */}
           <Card>
-            <div className="px-5 py-4 border-b border-gray-50">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2"><Clock className="w-4 h-4 text-gray-400" /> Recent Activity</h2>
+            <div className="px-5 py-3 border-b border-gray-50">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-gray-400" /> Recent Activity</h2>
             </div>
-            <div className="p-4 space-y-3">
+            <div className="p-3.5 space-y-2.5">
               {[
                 { icon: <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />, text: 'Q000003 converted to order', time: '2h ago' },
                 { icon: <FileText className="w-3.5 h-3.5 text-blue-500" />, text: 'New quote Q000005 created', time: '4h ago' },
