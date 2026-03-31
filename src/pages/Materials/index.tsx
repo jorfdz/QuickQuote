@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown, Clock, ArrowRight, ImageIcon, User, Truck } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
@@ -104,7 +104,21 @@ export const Materials: React.FC = () => {
   const [productSearch, setProductSearch] = useState('');
   const [assignmentsCollapsed, setAssignmentsCollapsed] = useState(false);
   const [browseCategoryFilter, setBrowseCategoryFilter] = useState<string>('all');
+  const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
+  const groupDropdownRef = useRef<HTMLDivElement>(null);
   const productSearchRef = useRef<HTMLInputElement>(null);
+
+  // Close material groups dropdown on outside click
+  useEffect(() => {
+    if (!groupDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (groupDropdownRef.current && !groupDropdownRef.current.contains(e.target as Node)) {
+        setGroupDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [groupDropdownOpen]);
 
   // Filtered categories for the browser panel (search matching)
   const browseFilteredCategories = useMemo(() => {
@@ -806,7 +820,7 @@ export const Materials: React.FC = () => {
 
       {/* Add / Edit Material Modal */}
       <Modal isOpen={showNew || editingId !== null} onClose={() => { setShowNew(false); setEditingId(null); }}
-        title={editingId ? 'Edit Material' : 'Add Material'} size="full">
+        title={editingId ? 'Edit Material' : 'Add Material'} size="half">
         {/* Tab Bar */}
         <div className="flex border-b border-gray-200 mb-4 -mt-1">
           <button
@@ -1049,47 +1063,81 @@ export const Materials: React.FC = () => {
                 <div className="flex-[2]">
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                     Material Groups
-                    {form.materialGroupIds.length > 0 && (
-                      <span className="ml-1.5 text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
-                        {form.materialGroupIds.length}
-                      </span>
-                    )}
                   </label>
-                  <div className="border border-gray-200 rounded-lg max-h-[120px] overflow-y-auto">
-                    {materialGroups.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-gray-400">No material groups available</div>
-                    ) : (
-                      materialGroups.map(g => {
-                        const isChecked = form.materialGroupIds.includes(g.id);
-                        return (
-                          <label
-                            key={g.id}
-                            className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
-                              isChecked ? 'bg-blue-50' : 'hover:bg-gray-50'
-                            }`}
-                          >
-                            <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
-                              isChecked ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
-                            }`}>
-                              {isChecked && <Check className="w-3 h-3 text-white" />}
-                            </div>
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => setForm(f => ({
-                                ...f,
-                                materialGroupIds: isChecked
-                                  ? f.materialGroupIds.filter(id => id !== g.id)
-                                  : [...f.materialGroupIds, g.id],
-                              }))}
-                              className="sr-only"
-                            />
-                            <span className={`text-sm ${isChecked ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
-                              {g.name}
-                            </span>
-                          </label>
-                        );
-                      })
+                  <div className="relative" ref={groupDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setGroupDropdownOpen(o => !o)}
+                      className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                    >
+                      {form.materialGroupIds.length === 0 ? (
+                        <span className="text-gray-400">Select groups…</span>
+                      ) : (
+                        <span className="flex-1 flex flex-wrap gap-1 min-w-0">
+                          {form.materialGroupIds.map(gid => {
+                            const g = materialGroups.find(mg => mg.id === gid);
+                            if (!g) return null;
+                            return (
+                              <span
+                                key={gid}
+                                className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-medium max-w-[140px]"
+                              >
+                                <span className="truncate">{g.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setForm(f => ({ ...f, materialGroupIds: f.materialGroupIds.filter(id => id !== gid) }));
+                                  }}
+                                  className="flex-shrink-0 p-0.5 rounded-full hover:bg-blue-100 transition-colors"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                            );
+                          })}
+                        </span>
+                      )}
+                      <ChevronDown className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform ${groupDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {groupDropdownOpen && (
+                      <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 max-h-[180px] overflow-y-auto">
+                        {materialGroups.length === 0 ? (
+                          <div className="px-3 py-2 text-xs text-gray-400">No groups available</div>
+                        ) : (
+                          materialGroups.map(g => {
+                            const isChecked = form.materialGroupIds.includes(g.id);
+                            return (
+                              <label
+                                key={g.id}
+                                className={`flex items-center gap-2.5 px-3 py-1.5 cursor-pointer transition-colors ${
+                                  isChecked ? 'bg-blue-50/60' : 'hover:bg-gray-50'
+                                }`}
+                              >
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                  isChecked ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
+                                }`}>
+                                  {isChecked && <Check className="w-3 h-3 text-white" />}
+                                </div>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => setForm(f => ({
+                                    ...f,
+                                    materialGroupIds: isChecked
+                                      ? f.materialGroupIds.filter(id => id !== g.id)
+                                      : [...f.materialGroupIds, g.id],
+                                  }))}
+                                  className="sr-only"
+                                />
+                                <span className={`text-sm ${isChecked ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
+                                  {g.name}
+                                </span>
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1438,28 +1486,34 @@ export const Materials: React.FC = () => {
             );
           })()}
 
-          {/* ── Material Type selector ── */}
-          <div className="max-w-xs">
+          {/* ── Material Type toggle ── */}
+          <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Material Type</label>
-            <select
-              value={form.materialType}
-              onChange={e => {
-                const type = e.target.value as MaterialType;
-                const allowedModels = MATERIAL_TYPE_PRICING_MODELS[type];
-                setForm(f => ({
-                  ...f,
-                  materialType: type,
-                  pricingModel: allowedModels.includes(f.pricingModel) ? f.pricingModel : allowedModels[0],
-                  ...(type === 'blanks' ? { sizeWidth: 0, sizeHeight: 0, size: '' } : {}),
-                  ...(type === 'roll_media' ? { sizeHeight: 0, size: '' } : {}),
-                }));
-              }}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
+            <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
               {(['paper', 'roll_media', 'rigid_substrate', 'blanks'] as MaterialType[]).map(type => (
-                <option key={type} value={type}>{MATERIAL_TYPE_LABELS[type]}</option>
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => {
+                    const allowedModels = MATERIAL_TYPE_PRICING_MODELS[type];
+                    setForm(f => ({
+                      ...f,
+                      materialType: type,
+                      pricingModel: allowedModels.includes(f.pricingModel) ? f.pricingModel : allowedModels[0],
+                      ...(type === 'blanks' ? { sizeWidth: 0, sizeHeight: 0, size: '' } : {}),
+                      ...(type === 'roll_media' ? { sizeHeight: 0, size: '' } : {}),
+                    }));
+                  }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    form.materialType === type
+                      ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {MATERIAL_TYPE_LABELS[type]}
+                </button>
               ))}
-            </select>
+            </div>
           </div>
 
           {/* ── Dimensions (conditional by type) ── */}
