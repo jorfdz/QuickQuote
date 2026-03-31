@@ -37,6 +37,18 @@ export const PurchaseOrderDetail: React.FC = () => {
     ...po,
     items: po.items.map((item) => ({ ...item, receivedQuantity: receipts[item.id] ?? item.receivedQuantity ?? 0 })),
   }) : { ordered: 0, received: 0, allReceived: false, anyReceived: false }), [po, receipts]);
+  const printHtml = useMemo(() => {
+    if (!po) {
+      return '';
+    }
+
+    return buildPurchaseOrderTemplateHtml({
+      template: documentTemplates.purchaseOrder,
+      company: companySettings,
+      purchaseOrder: po,
+      vendor: vendor || null,
+    });
+  }, [companySettings, documentTemplates.purchaseOrder, po, vendor]);
 
   if (!po) return <div className="text-center py-16 text-gray-400">Purchase order not found</div>;
 
@@ -86,20 +98,6 @@ export const PurchaseOrderDetail: React.FC = () => {
   };
 
   const openPrintWindow = () => {
-    let printHtml = '';
-
-    try {
-      printHtml = buildPurchaseOrderTemplateHtml({
-        template: documentTemplates.purchaseOrder,
-        company: companySettings,
-        purchaseOrder: po,
-        vendor: vendor || null,
-      });
-    } catch (error) {
-      console.error('Failed to build purchase order print HTML', error);
-      return;
-    }
-
     const blob = new Blob([printHtml], { type: 'text/html' });
     const printUrl = URL.createObjectURL(blob);
     const printWindow = window.open(printUrl, '_blank');
@@ -131,7 +129,7 @@ export const PurchaseOrderDetail: React.FC = () => {
         actions={
           <>
             <Button variant="secondary" onClick={saveHeader}>Save</Button>
-            <Button variant="secondary" icon={<Printer className="w-4 h-4" />} onClick={openPrintWindow}>Print PDF</Button>
+            <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />} onClick={openPrintWindow}>Print PDF</Button>
             {po.status === 'draft' && <Button variant="primary" icon={<Send className="w-4 h-4" />} onClick={() => updateStatus('sent')}>Mark Sent</Button>}
             {po.status === 'sent' && <Button variant="primary" icon={<CheckCircle2 className="w-4 h-4" />} onClick={() => updateStatus('acknowledged')}>Acknowledge</Button>}
             {(po.status === 'sent' || po.status === 'acknowledged' || po.status === 'partial') && <Button variant="success" icon={<PackageCheck className="w-4 h-4" />} onClick={saveReceiving}>Post Receipt</Button>}
