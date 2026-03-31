@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { CheckCircle2, PackageCheck, Send, Undo2, XCircle } from 'lucide-react';
+import { CheckCircle2, PackageCheck, Printer, Send, Undo2, XCircle } from 'lucide-react';
 import { useStore } from '../../store';
 import { Badge, Button, Card, Input, PageHeader, Textarea } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
 import type { PurchaseOrder } from '../../types';
+import { buildPurchaseOrderTemplateHtml } from '../../utils/documentTemplates';
 import { getPOStatusFromItems, getVendorWorkflowStageId, summarizePOReceiving } from '../../utils/purchaseOrders';
 
 export const PurchaseOrderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { purchaseOrders, vendors, orders, updatePurchaseOrder, updateOrder, workflows } = useStore();
+  const { purchaseOrders, vendors, orders, updatePurchaseOrder, updateOrder, workflows, companySettings, documentTemplates } = useStore();
 
   const po = purchaseOrders.find((item) => item.id === id);
   const vendor = vendors.find((item) => item.id === po?.vendorId);
@@ -38,6 +39,13 @@ export const PurchaseOrderDetail: React.FC = () => {
   }) : { ordered: 0, received: 0, allReceived: false, anyReceived: false }), [po, receipts]);
 
   if (!po) return <div className="text-center py-16 text-gray-400">Purchase order not found</div>;
+
+  const printHtml = buildPurchaseOrderTemplateHtml({
+    template: documentTemplates.purchaseOrder,
+    company: companySettings,
+    purchaseOrder: po,
+    vendor: vendor || null,
+  });
 
   const syncOrderStage = (status: PurchaseOrder['status']) => {
     if (!linkedOrder) return;
@@ -84,6 +92,29 @@ export const PurchaseOrderDetail: React.FC = () => {
     syncOrderStage(nextStatus);
   };
 
+  const openPrintWindow = () => {
+    const blob = new Blob([printHtml], { type: 'text/html' });
+    const printUrl = URL.createObjectURL(blob);
+    const printWindow = window.open(printUrl, '_blank');
+
+    if (!printWindow) {
+      URL.revokeObjectURL(printUrl);
+      return;
+    }
+
+    const cleanup = () => {
+      URL.revokeObjectURL(printUrl);
+    };
+
+    printWindow.addEventListener('load', () => {
+      printWindow.focus();
+      window.setTimeout(() => {
+        printWindow.print();
+      }, 150);
+      window.setTimeout(cleanup, 60000);
+    }, { once: true });
+  };
+
   return (
     <div>
       <PageHeader
@@ -93,6 +124,7 @@ export const PurchaseOrderDetail: React.FC = () => {
         actions={
           <>
             <Button variant="secondary" onClick={saveHeader}>Save</Button>
+            <Button variant="secondary" icon={<Printer className="w-4 h-4" />} onClick={openPrintWindow}>Print PDF</Button>
             {po.status === 'draft' && <Button variant="primary" icon={<Send className="w-4 h-4" />} onClick={() => updateStatus('sent')}>Mark Sent</Button>}
             {po.status === 'sent' && <Button variant="primary" icon={<CheckCircle2 className="w-4 h-4" />} onClick={() => updateStatus('acknowledged')}>Acknowledge</Button>}
             {(po.status === 'sent' || po.status === 'acknowledged' || po.status === 'partial') && <Button variant="success" icon={<PackageCheck className="w-4 h-4" />} onClick={saveReceiving}>Post Receipt</Button>}
