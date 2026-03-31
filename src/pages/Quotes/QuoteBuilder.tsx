@@ -73,13 +73,15 @@ export const QuoteBuilder: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { customers, contacts, addQuote, nextQuoteNumber, currentUser, users, addCustomer, addContact } = useStore();
   const pricing = usePricingStore();
+  const initialCustomerId = searchParams.get('customerId') || '';
+  const initialContactId = searchParams.get('contactId') || '';
 
   // ── Generate quote number immediately on mount ───────────────────────
   const [quoteNumber] = useState(() => nextQuoteNumber());
 
   // ── Quote-level state ─────────────────────────────────────────────────
   const [form, setForm] = useState({
-    title: '', customerId: '', contactId: '', status: 'pending' as Quote['status'],
+    title: '', customerId: initialCustomerId, contactId: initialContactId, status: 'pending' as Quote['status'],
     taxRate: 7, validUntil: daysFromNow(45), notes: '', internalNotes: '',
     csrId: currentUser.id, salesId: currentUser.id,
     dueDate: '',
