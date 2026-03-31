@@ -661,19 +661,19 @@ export const Equipment: React.FC = () => {
                     const newUnit = e.target.value as EquipmentCostUnit;
                     setEquipForm(f => {
                       const updates: Partial<typeof f> = { costUnit: newUnit };
-                      // Auto-populate default sqft tiers (1, 10, 50) when switching to per_sqft with empty tiers
+                      const defaultSqftTiers: EquipmentPricingTier[] = [
+                        { minQty: 1, pricePerUnit: 0 },
+                        { minQty: 10, pricePerUnit: 0 },
+                        { minQty: 50, pricePerUnit: 0 },
+                      ];
                       if (newUnit === 'per_sqft') {
-                        const defaultSqftTiers = [
-                          { minQty: 1, pricePerUnit: 0 },
-                          { minQty: 10, pricePerUnit: 0 },
-                          { minQty: 50, pricePerUnit: 0 },
-                        ];
-                        if (f.colorTiers.length === 0 && (f.colorCapability === 'Color' || f.colorCapability === 'Color and Black')) {
-                          updates.colorTiers = defaultSqftTiers.map(t => ({ ...t }));
-                        }
-                        if (f.blackTiers.length === 0 && (f.colorCapability === 'Black' || f.colorCapability === 'Color and Black')) {
-                          updates.blackTiers = defaultSqftTiers.map(t => ({ ...t }));
-                        }
+                        // Switching to per_sqft: always reset tiers to sqft defaults
+                        updates.colorTiers = defaultSqftTiers.map(t => ({ ...t }));
+                        updates.blackTiers = defaultSqftTiers.map(t => ({ ...t }));
+                      } else {
+                        // Switching back to per_click: restore stored tiers from the saved record, or empty for new
+                        updates.colorTiers = editingEquipment?.colorTiers ? [...editingEquipment.colorTiers.map(t => ({ ...t }))] : [];
+                        updates.blackTiers = editingEquipment?.blackTiers ? [...editingEquipment.blackTiers.map(t => ({ ...t }))] : [];
                       }
                       return { ...f, ...updates };
                     });
