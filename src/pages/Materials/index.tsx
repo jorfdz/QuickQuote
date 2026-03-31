@@ -303,7 +303,7 @@ export const Materials: React.FC = () => {
         subtitle={`${materials.length} materials in catalog`}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" icon={<Settings className="w-4 h-4" />} onClick={() => setShowGroupManager(true)}>
+            <Button variant="secondary" icon={<Settings className="w-4 h-4" />} onClick={() => setShowGroupManager(true)}>
               Material Groups
             </Button>
             <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={handleOpenNew}>
