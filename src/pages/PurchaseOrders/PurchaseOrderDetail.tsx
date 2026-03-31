@@ -79,8 +79,15 @@ export const PurchaseOrderDetail: React.FC = () => {
   });
 
   const saveReceiving = () => {
+    const hasManualReceiptChanges = po.items.some((item) => (
+      (receipts[item.id] ?? item.receivedQuantity ?? 0) !== (item.receivedQuantity ?? 0)
+    ));
+
     const nextItems = po.items.map((item) => {
-      const nextReceived = Math.max(0, Math.min(receipts[item.id] ?? 0, item.quantity));
+      const candidateReceived = hasManualReceiptChanges
+        ? (receipts[item.id] ?? item.receivedQuantity ?? 0)
+        : item.quantity;
+      const nextReceived = Math.max(0, Math.min(candidateReceived, item.quantity));
       return { ...item, receivedQuantity: nextReceived };
     });
     const nextStatus = getPOStatusFromItems({ ...po, items: nextItems });
