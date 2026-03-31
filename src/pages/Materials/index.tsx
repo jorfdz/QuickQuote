@@ -1536,9 +1536,9 @@ export const Materials: React.FC = () => {
             </div>
           )}
 
-          {/* ── Pricing Model selector ── */}
+          {/* ── Cost Unit selector ── */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Pricing Model</label>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Cost Unit</label>
             <div className="flex gap-2 flex-wrap">
               {MATERIAL_TYPE_PRICING_MODELS[form.materialType].map(model => (
                 <button

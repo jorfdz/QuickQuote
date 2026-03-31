@@ -33,7 +33,7 @@ const MATERIAL_FIELD_LABELS: Record<string, string> = {
   size: 'Sheet Size',
   sizeWidth: 'Width (in)',
   sizeHeight: 'Height (in)',
-  pricingModel: 'Pricing Model',
+  pricingModel: 'Cost Unit',
   pricePerM: 'Price per M',
   costPerUnit: 'Cost per Unit',
   costPerSqft: 'Cost per Sq Ft',
