@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Plus, Mail, Phone } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../../store';
 import { Button, SearchInput, Card, PageHeader, Table, Modal, Input, Select } from '../../components/ui';
 import { nanoid } from '../../utils/nanoid';
 
 export const Contacts: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { contacts, customers, addContact } = useStore();
   const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [showNew, setShowNew] = useState(false);
@@ -31,7 +32,7 @@ export const Contacts: React.FC = () => {
           {filtered.map(c => {
             const company = customers.find(cu => cu.id === c.customerId);
             return (
-              <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+              <tr key={c.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => navigate(`/contacts/${c.id}`)}>
                 <td className="py-3 px-4 font-medium text-sm text-gray-900">{c.firstName} {c.lastName}</td>
                 <td className="py-3 px-4 text-sm text-gray-500">{c.title || '—'}</td>
                 <td className="py-3 px-4 text-sm text-blue-600">{company?.name || '—'}</td>

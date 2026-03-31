@@ -13,6 +13,7 @@ import { InvoiceDetail } from './pages/Invoices/InvoiceDetail';
 import { Customers } from './pages/Customers';
 import { CustomerDetail } from './pages/Customers/CustomerDetail';
 import { Contacts } from './pages/Contacts';
+import { ContactDetail } from './pages/Contacts/ContactDetail';
 import { Vendors } from './pages/Vendors';
 import { PurchaseOrders } from './pages/PurchaseOrders';
 import { NewPurchaseOrder } from './pages/PurchaseOrders/NewPurchaseOrder';
@@ -57,6 +58,7 @@ function App() {
           <Route path="/customers/new" element={<Customers />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />
           <Route path="/contacts" element={<Contacts />} />
+          <Route path="/contacts/:id" element={<ContactDetail />} />
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/purchase-orders" element={<PurchaseOrders />} />
           <Route path="/purchase-orders/new" element={<NewPurchaseOrder />} />

@@ -73,6 +73,8 @@ export const NewOrder: React.FC = () => {
   // ── Pre-fill from quote if quoteId param ─────────────────────────────
   const quoteId = searchParams.get('quoteId');
   const sourceQuote = quotes.find(q => q.id === quoteId);
+  const initialCustomerId = searchParams.get('customerId') || '';
+  const initialContactId = searchParams.get('contactId') || '';
 
   // ── Generate order number immediately on mount ──────────────────────
   const [orderNumber] = useState(() => nextOrderNumber());
@@ -80,8 +82,8 @@ export const NewOrder: React.FC = () => {
   // ── Order-level state ────────────────────────────────────────────────
   const [form, setForm] = useState({
     title: sourceQuote?.title || '',
-    customerId: sourceQuote?.customerId || '',
-    contactId: sourceQuote?.contactId || '',
+    customerId: sourceQuote?.customerId || initialCustomerId,
+    contactId: sourceQuote?.contactId || initialContactId,
     status: 'in_progress' as Order['status'],
     taxRate: sourceQuote?.taxRate ?? 7,
     dueDate: '',

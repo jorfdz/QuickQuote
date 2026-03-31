@@ -259,7 +259,7 @@ export const CustomerDetail: React.FC = () => {
                   <Button size="sm" variant="ghost" onClick={() => setActiveTab('Contacts')}>All</Button>
                 </div>
                 {primaryContact ? (
-                  <div className="flex items-start gap-3">
+                  <div onClick={() => navigate(`/contacts/${primaryContact.id}`)} className="flex items-start gap-3 hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors cursor-pointer">
                     <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-sm font-semibold">
                       {primaryContact.firstName.charAt(0)}{primaryContact.lastName.charAt(0)}
                     </div>
@@ -429,7 +429,7 @@ export const CustomerDetail: React.FC = () => {
           ) : (
             <div className="grid grid-cols-2 gap-4 p-4">
               {custContacts.map(c => (
-                <div key={c.id} className="border border-gray-200 rounded-xl p-4 hover:border-brand-300 transition-colors">
+                <div key={c.id} onClick={() => navigate(`/contacts/${c.id}`)} className="border border-gray-200 rounded-xl p-4 hover:border-brand-300 transition-colors text-left cursor-pointer">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-semibold text-sm">
