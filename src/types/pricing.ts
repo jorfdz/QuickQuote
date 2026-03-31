@@ -100,6 +100,13 @@ export interface PricingMaterial {
   markup: number;                  // percentage markup (70 = 70%)
   materialGroupId?: string;        // which material group it belongs to
   isFavorite: boolean;             // for starring/favoriting
+  // Vendor information
+  vendorName?: string;             // vendor company name
+  vendorId?: string;               // vendor ID / account number
+  vendorMaterialId?: string;       // vendor's material ID / SKU
+  vendorContactName?: string;      // primary contact person name
+  vendorContactTitle?: string;     // primary contact person title
+  vendorSalesRep?: string;         // sales rep / account manager
   createdAt: string;
 }
 
