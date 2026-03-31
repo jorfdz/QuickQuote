@@ -3,7 +3,7 @@ import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, Chev
 import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Modal, Input, Checkbox } from '../../components/ui';
-import { ImageUploadCropper } from '../../components/ui/ImageUploadCropper';
+
 import type { PricingMaterial, MaterialGroup, MaterialChangeRecord, MaterialType, MaterialPricingModel } from '../../types/pricing';
 import { MATERIAL_TYPE_LABELS, PRICING_MODEL_LABELS, MATERIAL_TYPE_PRICING_MODELS } from '../../types/pricing';
 import { getUnitCost, getUnitLabel, getUnitSell } from '../../utils/materialCost';
@@ -469,19 +469,6 @@ export const Materials: React.FC = () => {
     setDeleteConfirm(null);
   };
 
-  const parseSizeInput = (val: string) => {
-    const match = val.match(/^(\d+\.?\d*)\s*[xX\u00d7]\s*(\d+\.?\d*)$/);
-    if (match) {
-      setForm(f => ({
-        ...f,
-        size: val,
-        sizeWidth: parseFloat(match[1]),
-        sizeHeight: parseFloat(match[2]),
-      }));
-    } else {
-      setForm(f => ({ ...f, size: val }));
-    }
-  };
 
   const formatCurrency = (n: number) => `$${n.toFixed(2)}`;
 
@@ -1052,15 +1039,6 @@ export const Materials: React.FC = () => {
         {/* ── Details Tab ── */}
         {modalTab === 'details' && <div className="space-y-4">
           <div className="flex items-start gap-4">
-            {/* Photo upload */}
-            <div className="flex-shrink-0">
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Photo</label>
-              <ImageUploadCropper
-                value={form.imageUrl || ''}
-                onChange={(url) => setForm(f => ({ ...f, imageUrl: url || undefined }))}
-                size={80}
-              />
-            </div>
             {/* Name, Group, Description */}
             <div className="flex-1 space-y-3">
               <div className="flex items-center gap-3">
@@ -1461,47 +1439,32 @@ export const Materials: React.FC = () => {
           })()}
 
           {/* ── Material Type selector ── */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Material Type</label>
-            <div className="grid grid-cols-4 gap-2">
+          <div className="max-w-xs">
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Material Type</label>
+            <select
+              value={form.materialType}
+              onChange={e => {
+                const type = e.target.value as MaterialType;
+                const allowedModels = MATERIAL_TYPE_PRICING_MODELS[type];
+                setForm(f => ({
+                  ...f,
+                  materialType: type,
+                  pricingModel: allowedModels.includes(f.pricingModel) ? f.pricingModel : allowedModels[0],
+                  ...(type === 'blanks' ? { sizeWidth: 0, sizeHeight: 0, size: '' } : {}),
+                  ...(type === 'roll_media' ? { sizeHeight: 0, size: '' } : {}),
+                }));
+              }}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
               {(['paper', 'roll_media', 'rigid_substrate', 'blanks'] as MaterialType[]).map(type => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => {
-                    const allowedModels = MATERIAL_TYPE_PRICING_MODELS[type];
-                    setForm(f => ({
-                      ...f,
-                      materialType: type,
-                      pricingModel: allowedModels.includes(f.pricingModel) ? f.pricingModel : allowedModels[0],
-                      ...(type === 'blanks' ? { sizeWidth: 0, sizeHeight: 0, size: '' } : {}),
-                      ...(type === 'roll_media' ? { sizeHeight: 0, size: '' } : {}),
-                    }));
-                  }}
-                  className={`px-3 py-2.5 text-sm rounded-lg border-2 transition-all ${
-                    form.materialType === type
-                      ? 'border-blue-600 bg-blue-50 text-blue-700 font-semibold shadow-sm'
-                      : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  {MATERIAL_TYPE_LABELS[type]}
-                </button>
+                <option key={type} value={type}>{MATERIAL_TYPE_LABELS[type]}</option>
               ))}
-            </div>
+            </select>
           </div>
 
           {/* ── Dimensions (conditional by type) ── */}
           {form.materialType !== 'blanks' && (
-            <div className={`grid gap-4 ${form.materialType === 'roll_media' ? 'grid-cols-1 max-w-xs' : 'grid-cols-3'}`}>
-              {form.materialType !== 'roll_media' && (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Sheet Size</label>
-                  <input value={form.size} onChange={e => parseSizeInput(e.target.value)}
-                    placeholder="e.g. 13x19"
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  <p className="text-[10px] text-gray-400 mt-1">Type "13x19" to auto-fill W/H</p>
-                </div>
-              )}
+            <div className={`grid gap-4 ${form.materialType === 'roll_media' ? 'grid-cols-1 max-w-xs' : 'grid-cols-2 max-w-sm'}`}>
               <Input label={form.materialType === 'roll_media' ? 'Roll Width (in)' : 'Width (in)'} type="number" value={form.sizeWidth || ''} onChange={e => setForm(f => ({ ...f, sizeWidth: parseFloat(e.target.value) || 0 }))} />
               {form.materialType !== 'roll_media' && (
                 <Input label="Height (in)" type="number" value={form.sizeHeight || ''} onChange={e => setForm(f => ({ ...f, sizeHeight: parseFloat(e.target.value) || 0 }))} />
