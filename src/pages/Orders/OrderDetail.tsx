@@ -6,11 +6,12 @@ import { Button, Badge, Card, PageHeader, Select, Tabs, Modal, ConfirmDialog } f
 import { formatCurrency, formatDate } from '../../data/mockData';
 import type { OrderStatus } from '../../types';
 import { nanoid } from '../../utils/nanoid';
+import { buildWorkOrderTemplateHtml } from '../../utils/documentTemplates';
 
 export const OrderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { orders, invoices, updateOrder, deleteOrder, addInvoice, nextInvoiceNumber, invoiceCount, workflows, users, equipment, purchaseOrders, vendors } = useStore();
+  const { orders, invoices, updateOrder, deleteOrder, addInvoice, nextInvoiceNumber, invoiceCount, workflows, users, equipment, purchaseOrders, vendors, customers, contacts, companySettings, documentTemplates } = useStore();
   const [activeTab, setActiveTab] = useState('overview');
   const [showDelete, setShowDelete] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -34,8 +35,46 @@ export const OrderDetail: React.FC = () => {
   const currentStage = workflow?.stages.find(s => s.id === order.currentStageId);
   const csr = users.find(u => u.id === order.csrId);
   const salesRep = users.find(u => u.id === order.salesId);
+  const customer = customers.find(c => c.id === order.customerId) || null;
+  const primaryContact = contacts.find(c => c.customerId === order.customerId && c.isPrimary)
+    || contacts.find(c => c.customerId === order.customerId)
+    || null;
   const linkedPurchaseOrders = purchaseOrders.filter((po) => po.orderId === order.id || (order.purchaseOrderIds || []).includes(po.id));
   const linkedInvoice = invoices.find((invoice) => invoice.orderIds.includes(order.id) || invoice.number === order.invoiceId);
+
+  const workOrderHtml = buildWorkOrderTemplateHtml({
+    template: documentTemplates.workOrder,
+    company: companySettings,
+    order,
+    customer,
+    contact: primaryContact,
+    csr: csr || null,
+    salesRep: salesRep || null,
+    qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=84x84&data=${encodeURIComponent(`${window.location.origin}/OrderTracker/${order.number}`)}`,
+  });
+
+  const openWorkOrderPrintWindow = () => {
+    const blob = new Blob([workOrderHtml], { type: 'text/html' });
+    const printUrl = URL.createObjectURL(blob);
+    const printWindow = window.open(printUrl, '_blank');
+
+    if (!printWindow) {
+      URL.revokeObjectURL(printUrl);
+      return;
+    }
+
+    const cleanup = () => {
+      URL.revokeObjectURL(printUrl);
+    };
+
+    printWindow.addEventListener('load', () => {
+      printWindow.focus();
+      window.setTimeout(() => {
+        printWindow.print();
+      }, 150);
+      window.setTimeout(cleanup, 60000);
+    }, { once: true });
+  };
 
   const createInvoice = () => {
     const number = nextInvoiceNumber();
@@ -69,7 +108,7 @@ export const OrderDetail: React.FC = () => {
         actions={
           <>
             <Button variant="ghost" size="sm" onClick={() => setShowStatusModal(true)}>Status</Button>
-            <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />}>Work Order</Button>
+            <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />} onClick={openWorkOrderPrintWindow}>Work Order</Button>
             <Button variant="secondary" size="sm" icon={<KanbanSquare className="w-4 h-4" />} onClick={() => navigate('/tracker')}>Tracker</Button>
             <Button variant="secondary" size="sm" icon={<ShoppingCart className="w-4 h-4" />} onClick={() => navigate(`/purchase-orders/new?orderId=${order.id}`)}>Create PO</Button>
             {/* Convert to... dropdown */}

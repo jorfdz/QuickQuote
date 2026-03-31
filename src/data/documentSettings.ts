@@ -171,6 +171,11 @@ export const DEFAULT_WORK_ORDER_TEMPLATE = `<!DOCTYPE html>
     .company-info { font-size: 13px; color: #6b7280; margin-top: 4px; }
     .doc-title { font-size: 28px; font-weight: bold; color: #1f2937; text-align: right; }
     .doc-number { font-size: 16px; font-weight: 600; color: #0f766e; text-align: right; margin-top: 4px; }
+    .header-right { display: flex; align-items: flex-start; gap: 18px; }
+    .header-copy { text-align: right; }
+    .qr-box { width: 84px; text-align: center; }
+    .qr-box img { width: 84px; height: 84px; display: block; border: 1px solid #e5e7eb; border-radius: 8px; }
+    .qr-caption { font-size: 9px; color: #94a3b8; margin-top: 6px; letter-spacing: 0.06em; text-transform: uppercase; }
     .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-bottom: 28px; }
     .section { margin-bottom: 24px; }
     .section-label { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
@@ -196,9 +201,15 @@ export const DEFAULT_WORK_ORDER_TEMPLATE = `<!DOCTYPE html>
       <div class="company-name">{{companyName}}</div>
       <div class="company-info">{{companyAddress}}<br>{{companyPhone}} &middot; {{companyEmail}}</div>
     </div>
-    <div>
+    <div class="header-right">
+      <div class="header-copy">
       <div class="doc-title">WORK ORDER</div>
       <div class="doc-number">{{orderNumber}}</div>
+      </div>
+      <div class="qr-box">
+        <img src="{{qrCodeUrl}}" alt="Work order QR code" />
+        <div class="qr-caption">Tracker Link</div>
+      </div>
     </div>
   </div>
 

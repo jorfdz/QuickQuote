@@ -177,6 +177,7 @@ export const Settings: React.FC = () => {
           <td>Final size 18 x 24<br>Color: Double-sided<br>Equipment: Flatbed UV</td>
           <td>Material: 4mm White Coroplast<br>Finishing: Trim to size<br>Services: Bundle by route</td>
         </tr>`,
+      '{{qrCodeUrl}}': 'https://api.qrserver.com/v1/create-qr-code/?size=84x84&data=http%3A%2F%2Flocalhost%3A5173%2FOrderTracker%2FO000045',
       '{{subtotal}}': '$542.50',
       '{{tax}}': '$37.98',
       '{{total}}': '$580.48',
@@ -806,6 +807,7 @@ export const Settings: React.FC = () => {
               <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded text-[10px]">{'{{orderDescription}}'}</code>{' '}
               <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded text-[10px]">{'{{workOrderItems}}'}</code>{' '}
               <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded text-[10px]">{'{{internalNotes}}'}</code>{' '}
+              <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded text-[10px]">{'{{qrCodeUrl}}'}</code>{' '}
               <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded text-[10px]">{'{{csrName}}'}</code>{' '}
               <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded text-[10px]">{'{{salesName}}'}</code>
             </p>

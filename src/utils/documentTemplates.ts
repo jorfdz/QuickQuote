@@ -1,6 +1,6 @@
 import { formatCurrency, formatDate } from '../data/mockData';
 import { DEFAULT_DOCUMENT_TEMPLATES } from '../data/documentSettings';
-import type { CompanySettings, Contact, Customer, DocumentTemplates, Invoice, PurchaseOrder, Quote, User, Vendor } from '../types';
+import type { CompanySettings, Contact, Customer, DocumentTemplates, Invoice, Order, PurchaseOrder, Quote, User, Vendor } from '../types';
 
 const escapeHtml = (value: string): string => value
   .replace(/&/g, '&amp;')
@@ -83,6 +83,32 @@ const buildPurchaseOrderLineItemsHtml = (purchaseOrder: PurchaseOrder): string =
     <td style="text-align:right;">${escapeHtml(formatCurrency(item.total))}</td>
   </tr>`
 )).join('');
+
+const buildWorkOrderItemsHtml = (order: Order): string => order.lineItems.map((item, index) => {
+  const productionDetails = [
+    item.width && item.height ? `Final size: ${item.width}" x ${item.height}"` : '',
+    item.productFamily ? `Family: ${item.productFamily.replace(/_/g, ' ')}` : '',
+    item.equipmentName ? `Equipment: ${item.equipmentName}` : '',
+    item.runTime ? `Runtime: ${item.runTime} hr` : '',
+  ].filter(Boolean).join('<br>');
+
+  const materialsAndServices = [
+    item.materialName ? `Material: ${item.materialName}` : '',
+    item.vendorCost ? `Outside service: ${formatCurrency(item.vendorCost)}` : '',
+    item.laborHours ? `Labor: ${item.laborHours} hr @ ${item.laborRate ? formatCurrency(item.laborRate) : 'Assigned rate'}` : '',
+    item.additionalCost ? `Additional service notes required` : '',
+    item.notes ? `Notes: ${escapeHtml(item.notes)}` : '',
+  ].filter(Boolean).join('<br>');
+
+  return `<tr${index % 2 === 1 ? ' style="background:#f9fafb"' : ''}>
+    <td>
+      <div class="item-title">${escapeHtml(item.description)}</div>
+      <span class="item-meta">Qty ${escapeHtml(String(item.quantity))} ${escapeHtml(item.unit)}</span>
+    </td>
+    <td>${productionDetails || '&mdash;'}</td>
+    <td>${materialsAndServices || '&mdash;'}</td>
+  </tr>`;
+}).join('');
 
 export const buildQuoteTemplateHtml = ({
   template,
@@ -217,5 +243,48 @@ export const buildPurchaseOrderTemplateHtml = ({
     '{{tax}}': escapeHtml(formatCurrency(purchaseOrder.tax || 0)),
     '{{total}}': escapeHtml(formatCurrency(purchaseOrder.total)),
     '{{lineItems}}': buildPurchaseOrderLineItemsHtml(purchaseOrder),
+  }));
+};
+
+export const buildWorkOrderTemplateHtml = ({
+  template,
+  company,
+  order,
+  customer,
+  contact,
+  csr,
+  salesRep,
+  qrCodeUrl,
+}: {
+  template: DocumentTemplates['workOrder'];
+  company: CompanySettings;
+  order: Order;
+  customer: Customer | null;
+  contact: Contact | null;
+  csr: User | null;
+  salesRep: User | null;
+  qrCodeUrl: string;
+}): string => {
+  const effectiveTemplate = template || DEFAULT_DOCUMENT_TEMPLATES.workOrder;
+  const companyAddress = buildCompanyAddress(company);
+  const contactName = contact ? `${contact.firstName} ${contact.lastName}`.trim() : '';
+
+  return ensureHtmlDocument(replaceTokens(effectiveTemplate, {
+    '{{companyName}}': escapeHtml(company.name),
+    '{{companyAddress}}': escapeHtml(companyAddress),
+    '{{companyPhone}}': escapeHtml(company.phone),
+    '{{companyEmail}}': escapeHtml(company.email),
+    '{{orderNumber}}': escapeHtml(order.number),
+    '{{orderDate}}': escapeHtml(formatDate(order.createdAt)),
+    '{{dueDate}}': escapeHtml(order.dueDate ? formatDate(order.dueDate) : 'TBD'),
+    '{{customerName}}': escapeHtml(customer?.name || order.customerName || 'Unknown Customer'),
+    '{{contactName}}': escapeHtml(contactName || order.contactName || ''),
+    '{{csrName}}': escapeHtml(csr?.name || ''),
+    '{{salesName}}': escapeHtml(salesRep?.name || ''),
+    '{{orderTitle}}': escapeHtml(order.title || ''),
+    '{{orderDescription}}': escapeHtml(order.description || ''),
+    '{{internalNotes}}': escapeHtml(order.internalNotes || order.notes || ''),
+    '{{workOrderItems}}': buildWorkOrderItemsHtml(order),
+    '{{qrCodeUrl}}': escapeHtml(qrCodeUrl),
   }));
 };
