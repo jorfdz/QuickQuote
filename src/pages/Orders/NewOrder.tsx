@@ -4,11 +4,11 @@ import {
   Plus, Trash2, ChevronDown, ChevronRight, ChevronUp, Calculator, Copy,
   ArrowRight, Search, X, Scissors, FoldVertical, CircleDot, Printer,
   Package, DollarSign, Grid3X3, Edit3, Check, Star, Settings2,
-  FileText, Calendar, AlertTriangle,
+  FileText, Calendar,
 } from 'lucide-react';
 import { useStore } from '../../store';
 import { usePricingStore } from '../../store/pricingStore';
-import { Button, Input, Select, Textarea, Card, Badge, Modal } from '../../components/ui';
+import { Button, Input, Textarea, Card, Badge, Modal } from '../../components/ui';
 import type { QuoteLineItem, Order, OrderItem } from '../../types';
 import type { PricingProduct, PricingServiceLine } from '../../types/pricing';
 import { formatCurrency } from '../../data/mockData';
@@ -74,6 +74,9 @@ export const NewOrder: React.FC = () => {
   const quoteId = searchParams.get('quoteId');
   const sourceQuote = quotes.find(q => q.id === quoteId);
 
+  // ── Generate order number immediately on mount ──────────────────────
+  const [orderNumber] = useState(() => nextOrderNumber());
+
   // ── Order-level state ────────────────────────────────────────────────
   const [form, setForm] = useState({
     title: sourceQuote?.title || '',
@@ -88,6 +91,7 @@ export const NewOrder: React.FC = () => {
     salesId: sourceQuote?.salesId || '',
     notes: sourceQuote?.notes || '',
     internalNotes: sourceQuote?.internalNotes || '',
+    shipToAddress: '',
   });
 
   // Build initial line items: either from source quote or one empty item
@@ -127,6 +131,7 @@ export const NewOrder: React.FC = () => {
   const [showTemplates, setShowTemplates] = useState(!sourceQuote);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showShipToModal, setShowShipToModal] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
   // ── Customer search state ────────────────────────────────────────────
@@ -248,7 +253,7 @@ export const NewOrder: React.FC = () => {
   // ── Save ──────────────────────────────────────────────────────────────
   const handleSave = async (andCreateInvoice = false) => {
     setSaving(true);
-    const number = nextOrderNumber();
+    const number = orderNumber;
     const selectedWorkflow = workflows.find(w => w.id === form.workflowId);
 
     const order: Order = {
@@ -331,7 +336,7 @@ export const NewOrder: React.FC = () => {
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
             <button onClick={handleCancel} className="hover:text-blue-600">Orders</button>
             <span>/</span>
-            <span className="text-gray-900 font-medium">New Order</span>
+            <span className="text-gray-900 font-medium">{orderNumber}</span>
           </div>
           <h1 className="text-xl font-bold text-gray-900">
             Build Order
@@ -374,139 +379,186 @@ export const NewOrder: React.FC = () => {
               </div>
             </button>
             {!headerCollapsed && (
-              <div className="px-5 pb-5 border-t border-gray-50 pt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Title - full width */}
-                  <div className="col-span-2">
-                    <Input
-                      label="Order Title"
-                      value={form.title}
-                      onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                      placeholder="e.g., Spring Marketing Package for Acme Corp"
-                    />
-                  </div>
+              <div className="px-5 pb-4 border-t border-gray-50 pt-3 space-y-2.5">
+                {/* Line 1: Order Title */}
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Order Title</label>
+                  <input
+                    type="text" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                    placeholder="e.g., Spring Marketing Package for Acme Corp"
+                    className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+                  />
+                </div>
 
-                  {/* Searchable Customer */}
+                {/* Line 2: Customer + Contact */}
+                <div className="grid grid-cols-2 gap-3">
                   <div ref={customerRef}>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Customer</label>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                      Customer
+                      {selectedCustomer && (
+                        <button
+                          onClick={() => window.open(`/customers/${selectedCustomer.id}`, '_blank')}
+                          className="ml-2 text-[10px] text-blue-600 hover:text-blue-800 font-medium normal-case"
+                        >
+                          {selectedCustomer.name} &#8599;
+                        </button>
+                      )}
+                    </label>
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
                       <input
                         type="text"
                         value={form.customerId ? (selectedCustomer?.name || '') : customerQuery}
                         onChange={e => {
                           setCustomerQuery(e.target.value);
                           setShowCustomerDropdown(true);
-                          if (form.customerId) {
-                            setForm(f => ({ ...f, customerId: '', contactId: '' }));
-                          }
+                          if (form.customerId) setForm(f => ({ ...f, customerId: '', contactId: '' }));
                         }}
                         onFocus={() => setShowCustomerDropdown(true)}
                         placeholder="Search customers..."
-                        className="w-full pl-9 pr-8 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+                        className="w-full pl-8 pr-7 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
                       />
                       {form.customerId && (
                         <button onClick={() => { setForm(f => ({ ...f, customerId: '', contactId: '' })); setCustomerQuery(''); }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 rounded-full">
-                          <X className="w-3.5 h-3.5 text-gray-400" />
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 hover:bg-gray-100 rounded-full">
+                          <X className="w-3 h-3 text-gray-400" />
                         </button>
                       )}
                       {showCustomerDropdown && !form.customerId && (
-                        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
-                          {filteredCustomers.length > 0 ? filteredCustomers.map(c => (
-                            <button key={c.id} onClick={() => {
-                              setForm(f => ({ ...f, customerId: c.id, contactId: '' }));
-                              setCustomerQuery('');
-                              setShowCustomerDropdown(false);
-                            }}
-                              className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0">
-                              <div>
-                                <span className="text-sm font-medium text-gray-900">{c.name}</span>
-                                {c.email && <span className="text-xs text-gray-400 ml-2">{c.email}</span>}
-                              </div>
-                            </button>
-                          )) : (
+                        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                          {filteredCustomers.length === 0 ? (
                             <div className="px-4 py-3 text-sm text-gray-400">No customers found</div>
-                          )}
+                          ) : filteredCustomers.map(c => (
+                            <button key={c.id}
+                              onClick={() => { setForm(f => ({ ...f, customerId: c.id, contactId: '' })); setCustomerQuery(''); setShowCustomerDropdown(false); }}
+                              className="w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors text-sm border-b border-gray-50 last:border-0">
+                              <span className="font-medium text-gray-900">{c.name}</span>
+                              {c.email && <span className="text-xs text-gray-400 ml-2">{c.email}</span>}
+                            </button>
+                          ))}
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Contact */}
-                  <Select
-                    label="Contact"
-                    value={form.contactId}
-                    onChange={e => setForm(f => ({ ...f, contactId: e.target.value }))}
-                    options={[{ value: '', label: 'Select contact...' }, ...customerContacts.map(c => ({ value: c.id, label: `${c.firstName} ${c.lastName}` }))]}
-                    disabled={!form.customerId}
-                  />
-
-                  {/* Due Date (required, prominent) */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                      Contact
+                      {form.contactId && (() => {
+                        const ct = contacts.find(c => c.id === form.contactId);
+                        return ct ? (
+                          <button
+                            onClick={() => window.open(`/customers/${form.customerId}`, '_blank')}
+                            className="ml-2 text-[10px] text-blue-600 hover:text-blue-800 font-medium normal-case"
+                          >
+                            {ct.firstName} {ct.lastName} &#8599;
+                          </button>
+                        ) : null;
+                      })()}
+                    </label>
+                    <select
+                      value={form.contactId}
+                      onChange={e => setForm(f => ({ ...f, contactId: e.target.value }))}
+                      disabled={!form.customerId}
+                      className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+                    >
+                      <option value="">Select contact...</option>
+                      {customerContacts.map(c => (
+                        <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Line 3: Ship To, Status, Due Date, PO # */}
+                <div className="grid grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Ship To</label>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-gray-500 truncate flex-1">
+                        {form.shipToAddress || 'Same as billing'}
+                      </span>
+                      <button
+                        onClick={() => setShowShipToModal(true)}
+                        className="text-[10px] text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Status</label>
+                    <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as Order['status'] }))}
+                      className="w-full px-2 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="in_progress">In Progress</option>
+                      <option value="on_hold">On Hold</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
                       Due Date <span className="text-red-400">*</span>
                     </label>
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="date"
-                        value={form.dueDate}
-                        onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
-                        className={`w-full pl-9 pr-3 py-2 text-sm bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          !form.dueDate ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'
-                        }`}
-                      />
-                    </div>
-                    {!form.dueDate && (
-                      <p className="mt-1 text-xs text-amber-600 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" /> Due date is required for production scheduling
-                      </p>
-                    )}
+                    <input type="date" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+                      className={`w-full px-2 py-1.5 text-sm bg-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        !form.dueDate ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'
+                      }`} />
                   </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Customer PO #</label>
+                    <input type="text" value={form.poNumber} onChange={e => setForm(f => ({ ...f, poNumber: e.target.value }))}
+                      placeholder="PO number"
+                      className="w-full px-2 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400" />
+                  </div>
+                </div>
 
-                  {/* Customer PO # */}
-                  <Input
-                    label="Customer PO #"
-                    value={form.poNumber}
-                    onChange={e => setForm(f => ({ ...f, poNumber: e.target.value }))}
-                    placeholder="Customer's PO number"
-                  />
+                {/* Line 4: Workflow, CSR, Sales Rep */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Production Workflow</label>
+                    <select value={form.workflowId} onChange={e => setForm(f => ({ ...f, workflowId: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      {workflows.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">CSR</label>
+                    <select value={form.csrId} onChange={e => setForm(f => ({ ...f, csrId: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">Select CSR...</option>
+                      {users.filter(u => u.active).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sales Rep</label>
+                    <select value={form.salesId} onChange={e => setForm(f => ({ ...f, salesId: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">Select Sales Rep...</option>
+                      {users.filter(u => u.active).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
 
-                  {/* Workflow */}
-                  <Select
-                    label="Production Workflow"
-                    value={form.workflowId}
-                    onChange={e => setForm(f => ({ ...f, workflowId: e.target.value }))}
-                    options={workflows.map(w => ({ value: w.id, label: w.name }))}
+            {/* Ship To Address Modal */}
+            {showShipToModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/30" onClick={() => setShowShipToModal(false)} />
+                <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md p-5">
+                  <h3 className="font-semibold text-gray-900 mb-3">Ship To Address</h3>
+                  <textarea
+                    value={form.shipToAddress}
+                    onChange={e => setForm(f => ({ ...f, shipToAddress: e.target.value }))}
+                    placeholder="Enter shipping address... (leave empty for same as billing)"
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
                   />
-
-                  {/* Status */}
-                  <Select
-                    label="Status"
-                    value={form.status}
-                    onChange={e => setForm(f => ({ ...f, status: e.target.value as Order['status'] }))}
-                    options={[
-                      { value: 'in_progress', label: 'In Progress' },
-                      { value: 'on_hold', label: 'On Hold' },
-                    ]}
-                  />
-
-                  {/* CSR */}
-                  <Select
-                    label="CSR"
-                    value={form.csrId}
-                    onChange={e => setForm(f => ({ ...f, csrId: e.target.value }))}
-                    options={[{ value: '', label: 'Select CSR...' }, ...users.filter(u => u.active).map(u => ({ value: u.id, label: u.name }))]}
-                  />
-
-                  {/* Sales Rep */}
-                  <Select
-                    label="Sales Rep"
-                    value={form.salesId}
-                    onChange={e => setForm(f => ({ ...f, salesId: e.target.value }))}
-                    options={[{ value: '', label: 'Select Sales Rep...' }, ...users.filter(u => u.active).map(u => ({ value: u.id, label: u.name }))]}
-                  />
+                  <div className="flex justify-end gap-2 mt-3">
+                    <button onClick={() => { setForm(f => ({ ...f, shipToAddress: '' })); setShowShipToModal(false); }}
+                      className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Reset to Billing</button>
+                    <button onClick={() => setShowShipToModal(false)}
+                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Done</button>
+                  </div>
                 </div>
               </div>
             )}
@@ -651,24 +703,6 @@ export const NewOrder: React.FC = () => {
             </div>
           </Card>
 
-          {/* Product templates */}
-          <Card className="overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100">
-              <h3 className="text-sm font-semibold text-gray-700">Product Templates</h3>
-            </div>
-            <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
-              {sortedTemplates.map(t => (
-                <button key={t.id} onClick={() => addFromTemplate(t.id)}
-                  className="w-full text-left px-4 py-2.5 hover:bg-blue-50/50 transition-colors text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-gray-900">{t.name}</span>
-                    {t.isFavorite && <Star className="w-3 h-3 text-amber-400 fill-amber-400" />}
-                  </div>
-                  <span className="text-gray-400">{t.categoryName} · {t.quantity.toLocaleString()} pcs</span>
-                </button>
-              ))}
-            </div>
-          </Card>
         </div>
       </div>
 

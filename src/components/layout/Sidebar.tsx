@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, ClipboardList, KanbanSquare, History,
   Receipt, Users, UserCheck, Truck, ShoppingCart, Package, Settings,
-  Zap, HelpCircle, ChevronLeft, ChevronRight, Layers, Wrench, Scissors
+  Zap, HelpCircle, ChevronLeft, ChevronRight, Layers, Wrench, Scissors, BookOpen
 } from 'lucide-react';
 import { useStore } from '../../store';
 
@@ -23,6 +23,7 @@ const navItems = [
   { path: '/vendors', icon: Truck, label: 'Vendors' },
   { path: '/purchase-orders', icon: ShoppingCart, label: 'Purchase Orders' },
   { divider: 'SETUP' },
+  { path: '/catalog', icon: BookOpen, label: 'Catalog' },
   { path: '/materials', icon: Package, label: 'Materials' },
   { path: '/equipment', icon: Wrench, label: 'Equipment' },
   { path: '/finishing', icon: Scissors, label: 'Finishing' },

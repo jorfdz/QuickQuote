@@ -25,6 +25,7 @@ import { Help } from './pages/Help';
 import { Templates } from './pages/Templates';
 import { History } from './pages/History';
 import { Imposition } from './pages/Imposition';
+import { Catalog } from './pages/Catalog';
 import { Onboarding } from './pages/Onboarding';
 
 function App() {
@@ -53,6 +54,7 @@ function App() {
           <Route path="/contacts" element={<Contacts />} />
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/purchase-orders" element={<PurchaseOrders />} />
+          <Route path="/catalog" element={<Catalog />} />
           <Route path="/materials" element={<Materials />} />
           <Route path="/equipment" element={<Equipment />} />
           <Route path="/finishing" element={<Finishing />} />
