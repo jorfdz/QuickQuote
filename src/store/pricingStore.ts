@@ -3,7 +3,11 @@ import { persist } from 'zustand/middleware';
 import type {
   PricingCategory, PricingProduct, PricingEquipment,
   PricingFinishing, PricingMaterial, ProductPricingTemplate,
+<<<<<<< HEAD
   EquipmentPricingTier, MaterialGroup, FinishingGroup, PricingLabor, PricingBrokered,
+=======
+  EquipmentPricingTier, MaterialGroup, MaintenanceRecord,PricingLabor, PricingBrokered,
+>>>>>>> 643d6dd583b1af20b2f832a0dbde9080601c5303
 } from '../types/pricing';
 import {
   defaultCategories, defaultProducts, defaultPricingEquipment,
@@ -42,9 +46,14 @@ interface PricingStore {
   deleteProduct: (id: string) => void;
 
   // Equipment CRUD
-  addEquipment: (e: Omit<PricingEquipment, 'id' | 'createdAt'>) => PricingEquipment;
+  addEquipment: (e: Omit<PricingEquipment, 'id' | 'createdAt' | 'maintenanceHistory'>) => PricingEquipment;
   updateEquipment: (id: string, e: Partial<PricingEquipment>) => void;
   deleteEquipment: (id: string) => void;
+
+  // Equipment Maintenance
+  addMaintenanceRecord: (equipmentId: string, record: Omit<MaintenanceRecord, 'id' | 'createdAt' | 'equipmentId'>) => MaintenanceRecord;
+  updateMaintenanceRecord: (equipmentId: string, recordId: string, data: Partial<MaintenanceRecord>) => void;
+  deleteMaintenanceRecord: (equipmentId: string, recordId: string) => void;
 
   // Finishing CRUD
   addFinishing: (f: Omit<PricingFinishing, 'id' | 'createdAt'>) => PricingFinishing;
@@ -145,7 +154,7 @@ export const usePricingStore = create<PricingStore>()(
 
       // ── Equipment ───────────────────────────────────────────────────────
       addEquipment: (e) => {
-        const item: PricingEquipment = { ...e, id: uid(), createdAt: new Date().toISOString() };
+        const item: PricingEquipment = { ...e, id: uid(), maintenanceHistory: [], createdAt: new Date().toISOString() };
         set((s) => ({ equipment: [...s.equipment, item] }));
         return item;
       },
@@ -154,6 +163,43 @@ export const usePricingStore = create<PricingStore>()(
       })),
       deleteEquipment: (id) => set((s) => ({
         equipment: s.equipment.filter((x) => x.id !== id),
+      })),
+
+      // ── Equipment Maintenance ─────────────────────────────────────────
+      addMaintenanceRecord: (equipmentId, record) => {
+        const item: MaintenanceRecord = {
+          ...record,
+          id: uid(),
+          equipmentId,
+          createdAt: new Date().toISOString(),
+        };
+        set((s) => ({
+          equipment: s.equipment.map((eq) =>
+            eq.id === equipmentId
+              ? { ...eq, maintenanceHistory: [...(eq.maintenanceHistory || []), item] }
+              : eq
+          ),
+        }));
+        return item;
+      },
+      updateMaintenanceRecord: (equipmentId, recordId, data) => set((s) => ({
+        equipment: s.equipment.map((eq) =>
+          eq.id === equipmentId
+            ? {
+                ...eq,
+                maintenanceHistory: (eq.maintenanceHistory || []).map((r) =>
+                  r.id === recordId ? { ...r, ...data } : r
+                ),
+              }
+            : eq
+        ),
+      })),
+      deleteMaintenanceRecord: (equipmentId, recordId) => set((s) => ({
+        equipment: s.equipment.map((eq) =>
+          eq.id === equipmentId
+            ? { ...eq, maintenanceHistory: (eq.maintenanceHistory || []).filter((r) => r.id !== recordId) }
+            : eq
+        ),
       })),
 
       // ── Finishing ───────────────────────────────────────────────────────
