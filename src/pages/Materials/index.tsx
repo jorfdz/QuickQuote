@@ -1561,8 +1561,8 @@ export const Materials: React.FC = () => {
             </div>
           </div>
 
-          {/* ── Base cost + roll reference (inline) ── */}
-          <div className="flex gap-3 items-start">
+          {/* ── Base cost + roll reference (single row) ── */}
+          <div className="flex gap-3 items-end">
             {/* Primary cost input */}
             <div className="w-36">
               {form.pricingModel === 'cost_per_m' && (
@@ -1575,42 +1575,36 @@ export const Materials: React.FC = () => {
                 <Input label="Cost per Sq Ft" type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
               )}
             </div>
-            {/* Roll reference calculator (compact, inline with cost) */}
+            {/* Roll reference calculator (flat row, aligned with cost input) */}
             {form.materialType === 'roll_media' && (
-              <div className="bg-amber-50/70 border border-amber-200 rounded-lg px-2.5 py-2">
-                <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide mb-1.5">Roll Calculator</p>
-                <div className="flex gap-2">
-                  <div className="w-20">
-                    <label className="block text-[10px] text-amber-500 mb-0.5">Roll $</label>
-                    <input type="number" value={form.rollCost || ''} placeholder="0"
-                      className="w-full px-2 py-1 text-xs border border-amber-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
-                      onChange={e => {
-                        const rollCost = parseFloat(e.target.value) || 0;
-                        setForm(f => {
-                          const derived = rollCost > 0 && f.rollLength > 0 && f.sizeWidth > 0
-                            ? deriveRollCostPerSqft(rollCost, f.rollLength, f.sizeWidth) : null;
-                          return { ...f, rollCost, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
-                        });
-                      }} />
-                  </div>
-                  <div className="w-20">
-                    <label className="block text-[10px] text-amber-500 mb-0.5">Length (ft)</label>
-                    <input type="number" value={form.rollLength || ''} placeholder="0"
-                      className="w-full px-2 py-1 text-xs border border-amber-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
-                      onChange={e => {
-                        const rollLength = parseFloat(e.target.value) || 0;
-                        setForm(f => {
-                          const derived = f.rollCost > 0 && rollLength > 0 && f.sizeWidth > 0
-                            ? deriveRollCostPerSqft(f.rollCost, rollLength, f.sizeWidth) : null;
-                          return { ...f, rollLength, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
-                        });
-                      }} />
-                  </div>
+              <div className="flex items-end gap-2">
+                <span className="text-[10px] text-amber-600 font-semibold pb-1.5">←</span>
+                <div className="w-20">
+                  <Input label="Roll $" type="number" value={form.rollCost || ''} prefix="$"
+                    onChange={e => {
+                      const rollCost = parseFloat(e.target.value) || 0;
+                      setForm(f => {
+                        const derived = rollCost > 0 && f.rollLength > 0 && f.sizeWidth > 0
+                          ? deriveRollCostPerSqft(rollCost, f.rollLength, f.sizeWidth) : null;
+                        return { ...f, rollCost, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
+                      });
+                    }} />
+                </div>
+                <div className="w-20">
+                  <Input label="Length (ft)" type="number" value={form.rollLength || ''} suffix="ft"
+                    onChange={e => {
+                      const rollLength = parseFloat(e.target.value) || 0;
+                      setForm(f => {
+                        const derived = f.rollCost > 0 && rollLength > 0 && f.sizeWidth > 0
+                          ? deriveRollCostPerSqft(f.rollCost, rollLength, f.sizeWidth) : null;
+                        return { ...f, rollLength, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
+                      });
+                    }} />
                 </div>
                 {form.rollCost > 0 && form.rollLength > 0 && form.sizeWidth > 0 && (
-                  <p className="text-[10px] text-amber-600 mt-1">
-                    {(form.rollLength * (form.sizeWidth / 12)).toFixed(0)} sqft → <span className="font-semibold">{formatCurrency(deriveRollCostPerSqft(form.rollCost, form.rollLength, form.sizeWidth))}/sqft</span>
-                  </p>
+                  <span className="text-[10px] text-amber-600 pb-1.5 whitespace-nowrap">
+                    = {(form.rollLength * (form.sizeWidth / 12)).toFixed(0)} sqft → <span className="font-semibold">{formatCurrency(deriveRollCostPerSqft(form.rollCost, form.rollLength, form.sizeWidth))}/sqft</span>
+                  </span>
                 )}
               </div>
             )}
