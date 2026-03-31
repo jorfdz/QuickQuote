@@ -174,6 +174,24 @@ export interface PricingBrokered {
   createdAt: string;
 }
 
+// ─── MATERIAL CHANGE HISTORY ────────────────────────────────────────────────
+
+export interface MaterialFieldChange {
+  field: string;
+  fieldLabel: string;
+  oldValue: string | number | boolean | string[] | null;
+  newValue: string | number | boolean | string[] | null;
+}
+
+export interface MaterialChangeRecord {
+  id: string;
+  materialId: string;
+  materialName: string;
+  action: 'created' | 'updated' | 'deleted';
+  changes: MaterialFieldChange[];
+  timestamp: string;
+}
+
 // ─── MATERIALS ──────────────────────────────────────────────────────────────
 
 export interface PricingMaterial {
@@ -190,6 +208,9 @@ export interface PricingMaterial {
   favoriteProductIds: string[];    // products marked as favorites for this material
   favoriteCategoryIds: string[];   // categories marked as favorites for this material
   isFavorite: boolean;             // for starring/favoriting
+  // Photo & description
+  imageUrl?: string;               // material photo URL or base64 data URL
+  description?: string;            // material description / notes
   // Vendor information
   vendorName?: string;             // vendor company name
   vendorId?: string;               // vendor ID / account number

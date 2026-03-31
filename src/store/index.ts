@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
   Customer, Contact, Quote, Order, Invoice,
-  Material, Equipment, Vendor, PurchaseOrder, User, Workflow, ProductTemplate
+  Material, Equipment, Vendor, PurchaseOrder, User, Workflow, ProductTemplate,
+  CompanySettings, DocumentTemplates,
 } from '../types';
 import {
   mockQuotes, mockOrders, mockInvoices,
@@ -10,6 +11,7 @@ import {
   mockUsers, mockWorkflows, mockTemplates, currentUser
 } from '../data/mockData';
 import { realCustomers, realContacts, realOrders } from '../data/realData';
+import { DEFAULT_COMPANY_SETTINGS, DEFAULT_DOCUMENT_TEMPLATES } from '../data/documentSettings';
 
 // Merge real data with mock data (deduplicate by id)
 const allCustomers = realCustomers;
@@ -36,6 +38,8 @@ interface AppStore {
   users: User[];
   workflows: Workflow[];
   templates: ProductTemplate[];
+  companySettings: CompanySettings;
+  documentTemplates: DocumentTemplates;
 
   // Counters for ID generation
   quoteCount: number;
@@ -97,6 +101,8 @@ interface AppStore {
   addTemplate: (t: ProductTemplate) => void;
   updateTemplate: (id: string, t: Partial<ProductTemplate>) => void;
   deleteTemplate: (id: string) => void;
+  updateCompanySettings: (settings: Partial<CompanySettings>) => void;
+  updateDocumentTemplates: (templates: Partial<DocumentTemplates>) => void;
 }
 
 export const useStore = create<AppStore>()(
@@ -115,6 +121,8 @@ export const useStore = create<AppStore>()(
       users: mockUsers,
       workflows: mockWorkflows,
       templates: mockTemplates,
+      companySettings: DEFAULT_COMPANY_SETTINGS,
+      documentTemplates: DEFAULT_DOCUMENT_TEMPLATES,
       quoteCount: 5,
       orderCount: allOrders.length,
       invoiceCount: 1,
@@ -173,7 +181,25 @@ export const useStore = create<AppStore>()(
       addTemplate: (t) => set((s) => ({ templates: [t, ...s.templates] })),
       updateTemplate: (id, t) => set((s) => ({ templates: s.templates.map(x => x.id === id ? { ...x, ...t } : x) })),
       deleteTemplate: (id) => set((s) => ({ templates: s.templates.filter(x => x.id !== id) })),
+      updateCompanySettings: (settings) => set((s) => ({ companySettings: { ...s.companySettings, ...settings } })),
+      updateDocumentTemplates: (templates) => set((s) => ({ documentTemplates: { ...s.documentTemplates, ...templates } })),
     }),
-    { name: 'quikquote-storage', version: 2 }
+    {
+      name: 'quikquote-storage',
+      version: 3,
+      migrate: (persistedState) => {
+        const state = persistedState as Partial<AppStore> | undefined;
+
+        if (!state) {
+          return state;
+        }
+
+        return {
+          ...state,
+          companySettings: { ...DEFAULT_COMPANY_SETTINGS, ...state.companySettings },
+          documentTemplates: { ...DEFAULT_DOCUMENT_TEMPLATES, ...state.documentTemplates },
+        };
+      },
+    }
   )
 );

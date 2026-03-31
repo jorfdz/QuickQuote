@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown } from 'lucide-react';
+import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown, Clock, ArrowRight } from 'lucide-react';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Modal, Input, Checkbox } from '../../components/ui';
-import type { PricingMaterial, MaterialGroup } from '../../types/pricing';
+import { ImageUploadCropper } from '../../components/ui/ImageUploadCropper';
+import type { PricingMaterial, MaterialGroup, MaterialChangeRecord } from '../../types/pricing';
 
 // ─── Sort / Pagination types ────────────────────────────────────────────────
 
@@ -23,6 +24,8 @@ const emptyForm = {
   favoriteProductIds: [] as string[],
   favoriteCategoryIds: [] as string[],
   isFavorite: false,
+  imageUrl: '' as string | undefined,
+  description: '',
   vendorName: '',
   vendorId: '',
   vendorMaterialId: '',
@@ -42,6 +45,7 @@ export const Materials: React.FC = () => {
     materials, addMaterial, updateMaterial, deleteMaterial, toggleMaterialFavorite,
     materialGroups, addMaterialGroup, updateMaterialGroup, deleteMaterialGroup,
     categories, products,
+    getMaterialHistory, clearMaterialHistory,
   } = usePricingStore();
 
   const [search, setSearch] = useState('');
@@ -81,20 +85,36 @@ export const Materials: React.FC = () => {
   const [groupForm, setGroupForm] = useState(emptyGroupForm);
   const [deleteGroupConfirm, setDeleteGroupConfirm] = useState<string | null>(null);
 
+  // Modal tab state: 'details' or 'history'
+  const [modalTab, setModalTab] = useState<'details' | 'history'>('details');
+
   // Product & category assignment state
   const [productSearch, setProductSearch] = useState('');
   const [assignmentsCollapsed, setAssignmentsCollapsed] = useState(false);
   const [browseCategoryFilter, setBrowseCategoryFilter] = useState<string>('all');
   const productSearchRef = useRef<HTMLInputElement>(null);
 
+  // Filtered categories for the browser panel (search matching)
+  const browseFilteredCategories = useMemo(() => {
+    const q = productSearch.toLowerCase().trim();
+    if (!q) return categories;
+    return categories.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      (c.description && c.description.toLowerCase().includes(q))
+    );
+  }, [categories, productSearch]);
+
   // Filtered products for the browser panel (search + category filter)
   const browseFilteredProducts = useMemo(() => {
     let result = products;
     const q = productSearch.toLowerCase().trim();
     if (q) {
+      // Include products that match by name/alias OR belong to a matching category
+      const matchingCatIds = browseFilteredCategories.map(c => c.id);
       result = result.filter(
         p => p.name.toLowerCase().includes(q) ||
-             p.aliases.some(a => a.toLowerCase().includes(q))
+             p.aliases.some(a => a.toLowerCase().includes(q)) ||
+             p.categoryIds.some(cid => matchingCatIds.includes(cid))
       );
     }
     if (browseCategoryFilter !== 'all') {
@@ -240,9 +260,49 @@ export const Materials: React.FC = () => {
       : <ChevronDown className="w-3 h-3 text-blue-600 ml-1 inline-block" />;
   };
 
+  const PaginationBar: React.FC = () => (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-gray-500">Rows per page:</span>
+        <select
+          value={pageSize}
+          onChange={e => setPageSize(Number(e.target.value) as PageSize)}
+          className="px-2 py-1 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value={50}>50</option>
+          <option value={100}>100</option>
+          <option value={200}>200</option>
+        </select>
+      </div>
+      <span className="text-xs text-gray-500">
+        {sorted.length === 0 ? '0 of 0' : `${(safePage - 1) * pageSize + 1}\u2013${Math.min(safePage * pageSize, sorted.length)} of ${sorted.length}`}
+      </span>
+      <div className="flex items-center gap-1">
+        <button onClick={() => setCurrentPage(1)} disabled={safePage <= 1}
+          className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="First page">
+          <ChevronsLeft className="w-4 h-4 text-gray-600" />
+        </button>
+        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage <= 1}
+          className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Previous page">
+          <ChevronLeft className="w-4 h-4 text-gray-600" />
+        </button>
+        <span className="text-xs text-gray-600 font-medium px-2">Page {safePage} of {totalPages}</span>
+        <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
+          className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Next page">
+          <ChevronRight className="w-4 h-4 text-gray-600" />
+        </button>
+        <button onClick={() => setCurrentPage(totalPages)} disabled={safePage >= totalPages}
+          className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Last page">
+          <ChevronsRight className="w-4 h-4 text-gray-600" />
+        </button>
+      </div>
+    </div>
+  );
+
   const handleOpenNew = () => {
     setForm(emptyForm);
     setProductSearch('');
+    setModalTab('details');
     setShowNew(true);
   };
 
@@ -262,6 +322,8 @@ export const Materials: React.FC = () => {
       favoriteProductIds: form.favoriteProductIds,
       favoriteCategoryIds: form.favoriteCategoryIds,
       isFavorite: form.isFavorite,
+      imageUrl: form.imageUrl || undefined,
+      description: form.description || undefined,
       vendorName: form.vendorName || undefined,
       vendorId: form.vendorId || undefined,
       vendorMaterialId: form.vendorMaterialId || undefined,
@@ -288,6 +350,8 @@ export const Materials: React.FC = () => {
       favoriteProductIds: m.favoriteProductIds || [],
       favoriteCategoryIds: m.favoriteCategoryIds || [],
       isFavorite: m.isFavorite,
+      imageUrl: m.imageUrl || '',
+      description: m.description || '',
       vendorName: m.vendorName || '',
       vendorId: m.vendorId || '',
       vendorMaterialId: m.vendorMaterialId || '',
@@ -296,6 +360,7 @@ export const Materials: React.FC = () => {
       vendorSalesRep: m.vendorSalesRep || '',
     });
     setProductSearch('');
+    setModalTab('details');
   };
 
   const handleSaveEdit = () => {
@@ -314,6 +379,8 @@ export const Materials: React.FC = () => {
       favoriteProductIds: form.favoriteProductIds,
       favoriteCategoryIds: form.favoriteCategoryIds,
       isFavorite: form.isFavorite,
+      imageUrl: form.imageUrl || undefined,
+      description: form.description || undefined,
       vendorName: form.vendorName || undefined,
       vendorId: form.vendorId || undefined,
       vendorMaterialId: form.vendorMaterialId || undefined,
@@ -339,6 +406,8 @@ export const Materials: React.FC = () => {
       favoriteProductIds: m.favoriteProductIds || [],
       favoriteCategoryIds: m.favoriteCategoryIds || [],
       isFavorite: m.isFavorite,
+      imageUrl: m.imageUrl || '',
+      description: m.description || '',
       vendorName: m.vendorName || '',
       vendorId: m.vendorId || '',
       vendorMaterialId: m.vendorMaterialId || '',
@@ -372,6 +441,39 @@ export const Materials: React.FC = () => {
   const formatCurrency = (n: number) => `$${n.toFixed(2)}`;
   const costPerSheet = (m: PricingMaterial) => m.pricePerM / 1000;
   const sellPerSheet = (m: PricingMaterial) => costPerSheet(m) * (1 + m.markup / 100);
+
+  // ── Change History helpers ──
+  const formatChangeValue = useCallback((field: string, value: unknown): string => {
+    if (value === null || value === undefined || value === '') return '(empty)';
+    if (Array.isArray(value)) {
+      if (value.length === 0) return '(none)';
+      if (field === 'categoryIds' || field === 'favoriteCategoryIds') {
+        return value.map(id => categories.find(c => c.id === id)?.name || id).join(', ');
+      }
+      if (field === 'productIds' || field === 'favoriteProductIds') {
+        return value.map(id => products.find(p => p.id === id)?.name || id).join(', ');
+      }
+      return value.join(', ');
+    }
+    if (field === 'materialGroupId') {
+      return materialGroups.find(g => g.id === value)?.name || String(value);
+    }
+    if (field === 'pricePerM') return `$${Number(value).toFixed(2)}`;
+    if (field === 'markup') return `${value}%`;
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    return String(value);
+  }, [categories, products, materialGroups]);
+
+  const formatTimestamp = (iso: string): string => {
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+      ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  };
+
+  const historyRecords = useMemo(() => {
+    if (!editingId) return [];
+    return getMaterialHistory(editingId);
+  }, [editingId, getMaterialHistory]);
 
   // ── Material Group management helpers ──
   const handleOpenGroupForm = (group?: MaterialGroup) => {
@@ -504,7 +606,8 @@ export const Materials: React.FC = () => {
 
       {/* Sortable Table */}
       <Card>
-        <div className="overflow-x-auto">
+        {sorted.length > 0 && <PaginationBar />}
+        <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
@@ -539,17 +642,61 @@ export const Materials: React.FC = () => {
                   className="hover:bg-gray-50 transition-colors cursor-pointer"
                   onClick={() => handleStartEdit(m)}
                 >
-                  <td className="py-3 px-2 w-8" onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={() => toggleMaterialFavorite(m.id)}
-                      className="p-1 hover:bg-amber-50 rounded transition-colors"
-                      title={m.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                    >
-                      <Star className={`w-4 h-4 ${m.isFavorite ? 'fill-amber-400 text-amber-400' : 'text-gray-300 hover:text-amber-300'}`} />
-                    </button>
+                  <td className="py-3 px-2 w-8">
+                    {(() => {
+                      const favCats = (m.favoriteCategoryIds || []).map(id => categories.find(c => c.id === id)).filter(Boolean);
+                      const favProds = (m.favoriteProductIds || []).map(id => products.find(p => p.id === id)).filter(Boolean);
+                      const hasFavItems = favCats.length > 0 || favProds.length > 0;
+                      return (
+                        <div className="relative group/fav">
+                          <div className="p-1">
+                            <Star className={`w-4 h-4 ${hasFavItems ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}`} />
+                          </div>
+                          {hasFavItems && (
+                            <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover/fav:block">
+                              <div className="bg-gray-900 text-white rounded-lg shadow-xl px-3 py-2.5 text-xs whitespace-nowrap min-w-[200px] max-w-[300px]">
+                                {/* Arrow */}
+                                <div className="absolute bottom-full left-3 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[6px] border-b-gray-900" />
+                                <p className="text-[10px] font-semibold text-amber-400 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                                  <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                                  Favorite Assignments
+                                </p>
+                                {favCats.length > 0 && (
+                                  <div className={favProds.length > 0 ? 'mb-2 pb-2 border-b border-gray-700' : ''}>
+                                    <p className="text-[10px] text-gray-400 font-medium mb-1">Categories ({favCats.length})</p>
+                                    {favCats.map(cat => (
+                                      <div key={cat!.id} className="flex items-center gap-1.5 py-0.5">
+                                        <Layers className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                                        <span className="text-gray-100 truncate">{cat!.name}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {favProds.length > 0 && (
+                                  <div>
+                                    <p className="text-[10px] text-gray-400 font-medium mb-1">Products ({favProds.length})</p>
+                                    {favProds.map(prod => (
+                                      <div key={prod!.id} className="flex items-center gap-1.5 py-0.5">
+                                        <Package className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                                        <span className="text-gray-100 truncate">{prod!.name}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="py-3 px-4">
-                    <p className="text-sm font-semibold text-gray-900">{m.name}</p>
+                    <div className="flex items-center gap-2.5">
+                      {m.imageUrl ? (
+                        <img src={m.imageUrl} alt={m.name} className="w-8 h-8 rounded object-cover flex-shrink-0 border border-gray-200" />
+                      ) : null}
+                      <p className="text-sm font-semibold text-gray-900">{m.name}</p>
+                    </div>
                   </td>
                   <td className="py-3 px-4 text-sm text-gray-500">{getGroupName(m.materialGroupId)}</td>
                   <td className="py-3 px-4 text-sm text-gray-500 truncate max-w-[120px]" title={m.vendorName || '--'}>{m.vendorName || '--'}</td>
@@ -602,104 +749,179 @@ export const Materials: React.FC = () => {
           </div>
         )}
 
-        {/* Pagination footer */}
-        {sorted.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-            {/* Left: page size selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">Rows per page:</span>
-              <select
-                value={pageSize}
-                onChange={e => setPageSize(Number(e.target.value) as PageSize)}
-                className="px-2 py-1 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-                <option value={200}>200</option>
-              </select>
-            </div>
-
-            {/* Center: showing info */}
-            <span className="text-xs text-gray-500">
-              {sorted.length === 0 ? '0 of 0' : `${(safePage - 1) * pageSize + 1}–${Math.min(safePage * pageSize, sorted.length)} of ${sorted.length}`}
-            </span>
-
-            {/* Right: page navigation */}
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setCurrentPage(1)}
-                disabled={safePage <= 1}
-                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                title="First page"
-              >
-                <ChevronsLeft className="w-4 h-4 text-gray-600" />
-              </button>
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={safePage <= 1}
-                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                title="Previous page"
-              >
-                <ChevronLeft className="w-4 h-4 text-gray-600" />
-              </button>
-              <span className="text-xs text-gray-600 font-medium px-2">
-                Page {safePage} of {totalPages}
-              </span>
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={safePage >= totalPages}
-                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                title="Next page"
-              >
-                <ChevronRight className="w-4 h-4 text-gray-600" />
-              </button>
-              <button
-                onClick={() => setCurrentPage(totalPages)}
-                disabled={safePage >= totalPages}
-                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                title="Last page"
-              >
-                <ChevronsRight className="w-4 h-4 text-gray-600" />
-              </button>
-            </div>
-          </div>
-        )}
+        {sorted.length > 0 && <PaginationBar />}
       </Card>
 
       {/* Add / Edit Material Modal */}
       <Modal isOpen={showNew || editingId !== null} onClose={() => { setShowNew(false); setEditingId(null); }}
         title={editingId ? 'Edit Material' : 'Add Material'} size="full">
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="flex-[3]">
-              <Input label="Material Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. 100lb Gloss Cover" />
+        {/* Tab Bar (only show History tab when editing an existing material) */}
+        {editingId && (
+          <div className="flex border-b border-gray-200 mb-4 -mt-1">
+            <button
+              type="button"
+              onClick={() => setModalTab('details')}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                modalTab === 'details'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Details
+            </button>
+            <button
+              type="button"
+              onClick={() => setModalTab('history')}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                modalTab === 'history'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              Change History
+              {historyRecords.length > 0 && (
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                  modalTab === 'history' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {historyRecords.length}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* ── Change History Tab ── */}
+        {modalTab === 'history' && editingId && (
+          <div className="space-y-3">
+            {historyRecords.length === 0 ? (
+              <div className="text-center py-16">
+                <Clock className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+                <p className="text-sm text-gray-400 font-medium">No changes recorded yet</p>
+                <p className="text-xs text-gray-300 mt-1">Changes to this material will be tracked here automatically</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-500">{historyRecords.length} change{historyRecords.length !== 1 ? 's' : ''} recorded</p>
+                  <button
+                    type="button"
+                    onClick={() => { if (editingId) clearMaterialHistory(editingId); }}
+                    className="text-[10px] text-red-400 hover:text-red-600 font-medium transition-colors"
+                  >
+                    Clear history
+                  </button>
+                </div>
+                <div className="relative">
+                  {/* Timeline line */}
+                  <div className="absolute left-[15px] top-2 bottom-2 w-px bg-gray-200" />
+
+                  <div className="space-y-0">
+                    {historyRecords.map((record: MaterialChangeRecord, idx: number) => (
+                      <div key={record.id} className="relative flex gap-3 py-3">
+                        {/* Timeline dot */}
+                        <div className={`relative z-10 flex-shrink-0 w-[31px] h-[31px] rounded-full flex items-center justify-center ${
+                          record.action === 'created'
+                            ? 'bg-green-100'
+                            : record.action === 'deleted'
+                            ? 'bg-red-100'
+                            : 'bg-blue-100'
+                        }`}>
+                          {record.action === 'created' && <Plus className="w-3.5 h-3.5 text-green-600" />}
+                          {record.action === 'updated' && <Edit3 className="w-3.5 h-3.5 text-blue-600" />}
+                          {record.action === 'deleted' && <Trash2 className="w-3.5 h-3.5 text-red-600" />}
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-semibold uppercase tracking-wide ${
+                              record.action === 'created'
+                                ? 'text-green-700'
+                                : record.action === 'deleted'
+                                ? 'text-red-700'
+                                : 'text-blue-700'
+                            }`}>
+                              {record.action === 'created' ? 'Material Created' : record.action === 'deleted' ? 'Material Deleted' : 'Material Updated'}
+                            </span>
+                            <span className="text-[10px] text-gray-400">{formatTimestamp(record.timestamp)}</span>
+                          </div>
+
+                          {/* Field changes */}
+                          {record.changes.length > 0 && (
+                            <div className="mt-2 space-y-1.5">
+                              {record.changes.map((change, cIdx) => (
+                                <div key={cIdx} className="flex items-start gap-2 text-xs bg-gray-50 rounded-md px-3 py-2">
+                                  <span className="font-semibold text-gray-600 whitespace-nowrap min-w-[120px]">
+                                    {change.fieldLabel}
+                                  </span>
+                                  <span className="text-gray-400 line-through truncate max-w-[200px]" title={formatChangeValue(change.field, change.oldValue)}>
+                                    {formatChangeValue(change.field, change.oldValue)}
+                                  </span>
+                                  <ArrowRight className="w-3 h-3 text-gray-300 flex-shrink-0 mt-0.5" />
+                                  <span className="text-gray-800 font-medium truncate max-w-[200px]" title={formatChangeValue(change.field, change.newValue)}>
+                                    {formatChangeValue(change.field, change.newValue)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Separator between entries */}
+                          {idx < historyRecords.length - 1 && <div className="border-b border-gray-100 mt-3" />}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── Details Tab ── */}
+        {modalTab === 'details' && <div className="space-y-4">
+          <div className="flex items-start gap-4">
+            {/* Photo upload */}
+            <div className="flex-shrink-0">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Photo</label>
+              <ImageUploadCropper
+                value={form.imageUrl || ''}
+                onChange={(url) => setForm(f => ({ ...f, imageUrl: url || undefined }))}
+                size={80}
+              />
             </div>
-            <div className="flex-[1]">
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Material Group</label>
-              <select
-                value={form.materialGroupId}
-                onChange={e => setForm(f => ({ ...f, materialGroupId: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">None</option>
-                {materialGroups.map(g => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="pt-5">
-              <button
-                onClick={() => setForm(f => ({ ...f, isFavorite: !f.isFavorite }))}
-                className={`p-2 rounded-lg border transition-colors ${
-                  form.isFavorite
-                    ? 'bg-amber-50 border-amber-300 text-amber-500'
-                    : 'border-gray-200 text-gray-300 hover:text-amber-300 hover:border-amber-200'
-                }`}
-                title={form.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-              >
-                <Star className={`w-5 h-5 ${form.isFavorite ? 'fill-amber-400 text-amber-400' : ''}`} />
-              </button>
+            {/* Name, Group, Favorite, Description */}
+            <div className="flex-1 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="flex-[3]">
+                  <Input label="Material Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. 100lb Gloss Cover" />
+                </div>
+                <div className="flex-[1]">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Material Group</label>
+                  <select
+                    value={form.materialGroupId}
+                    onChange={e => setForm(f => ({ ...f, materialGroupId: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">None</option>
+                    {materialGroups.map(g => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Description</label>
+                <textarea
+                  value={form.description}
+                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="Optional notes about this material (e.g. finish, weight, best uses...)"
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
             </div>
           </div>
           {/* ── Product & Category Assignments (collapsible) ── */}
@@ -890,8 +1112,9 @@ export const Materials: React.FC = () => {
                             .filter(c => browseCategoryFilter === 'all' || browseCategoryFilter === c.id)
                             .map(cat => {
                               const catProducts = browseFilteredProducts.filter(p => p.categoryIds.includes(cat.id));
-                              if (catProducts.length === 0 && !productSearch) return null;
-                              if (catProducts.length === 0) return null;
+                              const catMatchesSearch = browseFilteredCategories.some(c => c.id === cat.id);
+                              // Show category if it has products, or if the category name matches the search
+                              if (catProducts.length === 0 && !catMatchesSearch) return null;
                               const allCatProductIds = products.filter(p => p.categoryIds.includes(cat.id)).map(p => p.id);
                               const allCatSelected = allCatProductIds.length > 0 && allCatProductIds.every(id => form.productIds.includes(id));
                               const someCatSelected = allCatProductIds.some(id => form.productIds.includes(id));
@@ -1084,7 +1307,7 @@ export const Materials: React.FC = () => {
               {editingId ? 'Save Changes' : 'Add Material'}
             </Button>
           </div>
-        </div>
+        </div>}
       </Modal>
 
       {/* Material Groups Manager Modal */}
