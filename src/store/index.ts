@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import type {
   Customer, Contact, Quote, Order, Invoice,
   Material, Equipment, Vendor, PurchaseOrder, User, Workflow, ProductTemplate,
-  CompanySettings, DocumentTemplates,
+  CompanySettings, DocumentTemplates, TrackingDevice,
 } from '../types';
 import {
   mockQuotes, mockOrders, mockInvoices,
@@ -37,6 +37,7 @@ interface AppStore {
   purchaseOrders: PurchaseOrder[];
   users: User[];
   workflows: Workflow[];
+  trackingDevices: TrackingDevice[];
   templates: ProductTemplate[];
   companySettings: CompanySettings;
   documentTemplates: DocumentTemplates;
@@ -104,6 +105,10 @@ interface AppStore {
   addWorkflow: (workflow: Workflow) => void;
   updateWorkflow: (id: string, workflow: Partial<Workflow>) => void;
   deleteWorkflow: (id: string) => void;
+  addTrackingDevice: (device: TrackingDevice) => void;
+  updateTrackingDevice: (id: string, device: Partial<TrackingDevice>) => void;
+  deleteTrackingDevice: (id: string) => void;
+  processTrackingDeviceScan: (deviceId: string, orderItemId: string) => void;
   updateCompanySettings: (settings: Partial<CompanySettings>) => void;
   updateDocumentTemplates: (templates: Partial<DocumentTemplates>) => void;
 }
@@ -123,6 +128,7 @@ export const useStore = create<AppStore>()(
       purchaseOrders: mockPurchaseOrders,
       users: mockUsers,
       workflows: mockWorkflows,
+      trackingDevices: [],
       templates: mockTemplates,
       companySettings: DEFAULT_COMPANY_SETTINGS,
       documentTemplates: DEFAULT_DOCUMENT_TEMPLATES,
@@ -197,18 +203,48 @@ export const useStore = create<AppStore>()(
       })),
       deleteWorkflow: (id) => set((s) => ({
         workflows: s.workflows.filter((item) => item.id !== id),
+        trackingDevices: s.trackingDevices.filter((device) => device.workflowId !== id),
         orders: s.orders.map((order) => (
           order.workflowId === id
             ? { ...order, workflowId: undefined, currentStageId: undefined, updatedAt: new Date().toISOString() }
             : order
         )),
       })),
+      addTrackingDevice: (device) => set((s) => ({ trackingDevices: [device, ...s.trackingDevices] })),
+      updateTrackingDevice: (id, device) => set((s) => ({
+        trackingDevices: s.trackingDevices.map((item) => item.id === id ? { ...item, ...device } : item),
+      })),
+      deleteTrackingDevice: (id) => set((s) => ({ trackingDevices: s.trackingDevices.filter((item) => item.id !== id) })),
+      processTrackingDeviceScan: (deviceId, orderItemId) => set((s) => {
+        const device = s.trackingDevices.find((item) => item.id === deviceId && item.isActive);
+        if (!device) return {};
+
+        const now = new Date().toISOString();
+        return {
+          orders: s.orders.map((order) => {
+            const lineItemIndex = order.lineItems.findIndex((item) => item.id === orderItemId);
+            if (lineItemIndex < 0) return order;
+
+            return {
+              ...order,
+              workflowId: device.workflowId,
+              currentStageId: device.stageId,
+              updatedAt: now,
+              lineItems: order.lineItems.map((item) => (
+                item.id === orderItemId
+                  ? { ...item, workflowStageId: device.stageId }
+                  : item
+              )),
+            };
+          }),
+        };
+      }),
       updateCompanySettings: (settings) => set((s) => ({ companySettings: { ...s.companySettings, ...settings } })),
       updateDocumentTemplates: (templates) => set((s) => ({ documentTemplates: { ...s.documentTemplates, ...templates } })),
     }),
     {
       name: 'quikquote-storage',
-      version: 5,
+      version: 6,
       migrate: (persistedState) => {
         const state = persistedState as Partial<AppStore> | undefined;
 
@@ -226,6 +262,7 @@ export const useStore = create<AppStore>()(
               isActive: nextWorkflow.isActive ?? true,
             };
           }),
+          trackingDevices: state.trackingDevices || [],
           companySettings: { ...DEFAULT_COMPANY_SETTINGS, ...state.companySettings },
           documentTemplates: { ...DEFAULT_DOCUMENT_TEMPLATES, ...state.documentTemplates },
         };

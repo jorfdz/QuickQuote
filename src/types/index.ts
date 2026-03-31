@@ -381,6 +381,17 @@ export interface Workflow {
   createdAt: string;
 }
 
+export interface TrackingDevice {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  workflowId: string;
+  stageId: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
 // ─── PRODUCT TEMPLATE ────────────────────────────────────────────────────────
 
 export interface ProductTemplate {
