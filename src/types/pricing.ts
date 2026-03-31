@@ -114,7 +114,7 @@ export interface PricingFinishing {
 
   // Pricing model
   costType: 'cost_only' | 'cost_plus_time' | 'time_only';
-  chargeBasis: 'per_unit' | 'per_sqft' | 'per_hour' | 'per_stack_pass' | 'flat';
+  chargeBasis: 'per_unit' | 'per_sqft' | 'per_hour' | 'per_stack' | 'flat';
 
   // Cost fields
   unitCost: number;                // cost per unit/sqft/pass/flat (used for cost_only or cost_plus_time)
@@ -122,10 +122,14 @@ export interface PricingFinishing {
   outputPerHour: number;           // units processed per hour (for time-based)
   initialSetupFee: number;         // one-time setup fee
   markupPercent: number;           // markup as percentage
+  minimumCharge: number;            // minimum amount to charge regardless of calculated price (0 = no minimum)
+  isFixedCharge: boolean;           // if true, charge a fixed amount instead of calculated
+  fixedChargeAmount: number;        // the fixed amount to charge (only used if isFixedCharge)
+  fixedChargeCost: number;          // cost basis for the fixed charge (for margin tracking)
 
-  // Stack/batch processing (for per_stack_pass — cutting, drilling, etc.)
+  // Stack/batch processing (for per_stack — cutting, drilling, etc.)
   sheetsPerStack?: number;         // how many sheets can be processed at once (default 500)
-  passesPerHour?: number;          // how many stack passes per hour (default 150)
+  stacksPerHour?: number;          // how many stacks can be processed per hour (default 150)
 
   notes?: string;
   createdAt: string;
@@ -141,6 +145,11 @@ export interface PricingLabor {
   initialSetupFee: number;         // one-time setup fee
   markupPercent: number;           // markup as percentage
   categoryIds: string[];           // which categories this labor applies to
+  isFixedCharge: boolean;           // if true, charge a fixed amount
+  fixedChargeAmount: number;        // fixed amount to charge
+  fixedChargeCost: number;          // cost basis for fixed charge
+  minimumCharge: number;            // minimum charge amount
+  outputPerHour: number;            // units per hour for time calculation
   notes?: string;
   createdAt: string;
 }
@@ -233,7 +242,7 @@ export interface PricingJob {
   folding?: string;
   drilling?: string;
   cuttingEnabled: boolean;
-  sheetsPerCutStack: number;       // default 500
+  sheetsPerStack: number;          // default 500
   // Computed lines
   serviceLines: PricingServiceLine[];
   totalCost: number;

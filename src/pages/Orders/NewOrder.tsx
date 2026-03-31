@@ -36,7 +36,7 @@ interface LineItemPricingState {
   foldingType: string;
   drillingType: string;
   cuttingEnabled: boolean;
-  sheetsPerCutStack: number;
+  sheetsPerStack: number;
   serviceLines: PricingServiceLine[];
 }
 
@@ -46,7 +46,7 @@ const DEFAULT_PRICING_STATE = (): LineItemPricingState => ({
   materialId: '', equipmentId: '',
   colorMode: 'Color', sides: 'Double',
   foldingType: '', drillingType: '',
-  cuttingEnabled: true, sheetsPerCutStack: 500,
+  cuttingEnabled: true, sheetsPerStack: 500,
   serviceLines: [],
 });
 
@@ -238,7 +238,7 @@ export const NewOrder: React.FC = () => {
         sides: tmpl.sides,
         foldingType: tmpl.folding || '',
         cuttingEnabled: true,
-        sheetsPerCutStack: 500,
+        sheetsPerStack: 500,
       },
     }));
     setExpandedItem(item.id);
@@ -911,7 +911,7 @@ const PricingLineItemRow: React.FC<PricingLineItemRowProps> = ({
     if (ps.cuttingEnabled && imposition.sheetsNeeded > 0 && imposition.cutsPerSheet > 0) {
       const cutSvc = finishing.find(f => f.name === 'Cut');
       if (cutSvc) {
-        const totalStacks = Math.ceil(imposition.sheetsNeeded / ps.sheetsPerCutStack);
+        const totalStacks = Math.ceil(imposition.sheetsNeeded / ps.sheetsPerStack);
         const totalCuts = imposition.cutsPerSheet * totalStacks;
         const hours = totalCuts / cutSvc.outputPerHour;
         const totalCost = hours * cutSvc.hourlyCost;
@@ -1020,7 +1020,7 @@ const PricingLineItemRow: React.FC<PricingLineItemRowProps> = ({
       foldingType: product.defaultFolding || '',
       drillingType: '',
       cuttingEnabled: true,
-      sheetsPerCutStack: 500,
+      sheetsPerStack: 500,
     });
     onUpdateItem({ description: product.name, quantity: product.defaultQuantity });
   };
@@ -1216,8 +1216,8 @@ const PricingLineItemRow: React.FC<PricingLineItemRowProps> = ({
                 <span className="text-xs font-semibold text-gray-700">Cutting</span>
               </label>
               {ps.cuttingEnabled && (
-                <input type="number" value={ps.sheetsPerCutStack} min={1} placeholder="Sheets/stack"
-                  onChange={e => onUpdatePricing({ sheetsPerCutStack: parseInt(e.target.value) || 1 })}
+                <input type="number" value={ps.sheetsPerStack} min={1} placeholder="Sheets/stack"
+                  onChange={e => onUpdatePricing({ sheetsPerStack: parseInt(e.target.value) || 1 })}
                   className="w-full px-2 py-1 text-xs bg-white border border-gray-200 rounded-lg" />
               )}
             </div>

@@ -17,6 +17,11 @@ const emptyLaborForm = {
   initialSetupFee: 0,
   markupPercent: 0,
   categoryIds: [] as string[],
+  isFixedCharge: false,
+  fixedChargeAmount: 0,
+  fixedChargeCost: 0,
+  minimumCharge: 0,
+  outputPerHour: 1,
   notes: '',
 };
 
