@@ -615,12 +615,10 @@ export const Equipment: React.FC = () => {
 
         {/* ═══════════ DETAILS TAB ═══════════ */}
         {(modalTab === 'details' || !editingEquipId) && (
-          <div className="space-y-5">
+          <div className="space-y-4">
 
-            {/* ── Section 1: Equipment Identity ────────────────────────────────── */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Equipment Identity</h3>
-              <div className="flex items-start gap-5">
+            {/* ── Equipment Identity ──────────────────────────────────────────── */}
+            <div className="flex items-start gap-5">
                 <div className="flex-shrink-0">
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Photo</label>
                   <ImageUploadCropper
@@ -657,15 +655,10 @@ export const Equipment: React.FC = () => {
                     </select>
                   </div>
                 </div>
-              </div>
             </div>
 
-            <hr className="border-gray-100" />
-
-            {/* ── Section 2: Pricing Model ─────────────────────────────────────── */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Pricing Model</h3>
-              <div className="grid grid-cols-3 gap-4">
+            {/* ── Pricing Model ───────────────────────────────────────────────── */}
+            <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost Unit</label>
                   <select value={equipForm.costUnit} onChange={e => {
@@ -725,16 +718,11 @@ export const Equipment: React.FC = () => {
                 </div>
                 <Input label="Setup Fee ($)" type="number" value={equipForm.initialSetupFee || ''}
                   onChange={e => setEquipForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
-              </div>
             </div>
 
-            <hr className="border-gray-100" />
-
-            {/* ── Section 3: Cost & Markup ─────────────────────────────────────── */}
+            {/* ── Cost & Markup ───────────────────────────────────────────────── */}
             {showUnitCost && (
-              <div>
-                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Cost & Markup</h3>
-                <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                   <Input label="Unit Cost ($)" type="number" value={equipForm.unitCost || ''}
                     onChange={e => setEquipForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
                   <div>
@@ -753,15 +741,12 @@ export const Equipment: React.FC = () => {
                     placeholder={equipForm.markupType === 'percent' ? 'e.g. 70' : 'e.g. 7'}
                     suffix={equipForm.markupType === 'percent' ? '%' : 'x'}
                   />
-                </div>
               </div>
             )}
 
-            {/* ── Section 4: Time-Based Costs ─────────────────────────────────── */}
+            {/* ── Time-Based Costs ────────────────────────────────────────────── */}
             {showTimeFields && (
-              <div>
-                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Time-Based Costs</h3>
-                <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                   <div>
                     <div className="flex items-center gap-1 mb-1.5">
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Units/Hour</label>
@@ -779,17 +764,12 @@ export const Equipment: React.FC = () => {
                     onChange={e => setEquipForm(f => ({ ...f, timeCostPerHour: parseFloat(e.target.value) || undefined }))} prefix="$" />
                   <Input label="Time Cost Markup %" type="number" value={equipForm.timeCostMarkup || ''}
                     onChange={e => setEquipForm(f => ({ ...f, timeCostMarkup: parseFloat(e.target.value) || undefined }))} suffix="%" />
-                </div>
               </div>
             )}
 
-            {(showUnitCost || showTimeFields) && <hr className="border-gray-100" />}
-
-            {/* ── Section 5: Volume Pricing Tiers ─────────────────────────────── */}
+            {/* ── Volume Pricing Tiers ────────────────────────────────────────── */}
             {showUnitCost && (
-              <div>
-                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Volume Pricing Tiers</h3>
-                <div className={`grid gap-4 ${
+              <div className={`grid gap-4 ${
                   equipForm.colorCapability === 'Color and Black' ? 'grid-cols-2' : 'grid-cols-1'
                 }`}>
                   {(equipForm.colorCapability === 'Color' || equipForm.colorCapability === 'Color and Black') && (
@@ -810,7 +790,6 @@ export const Equipment: React.FC = () => {
                       priceLabel={equipForm.costUnit === 'per_sqft' ? '$/sq ft' : '$/click'}
                     />
                   )}
-                </div>
               </div>
             )}
 
