@@ -218,7 +218,7 @@ export const OrderTracker: React.FC = () => {
               <button
                 key={board.id}
                 onClick={() => setActiveWorkflowId(board.id)}
-                className={`rounded-2xl border p-4 text-left transition-all ${selected ? 'text-white shadow-lg' : 'border-gray-200 bg-white hover:border-slate-300 hover:shadow-md'}`}
+                className={`rounded-xl border p-4 text-left transition-all ${selected ? 'text-white shadow-lg' : 'border-gray-200 bg-white hover:border-slate-300 hover:shadow-md'}`}
                 style={selected ? {
                   borderColor: withAlpha(brandColor, 0.8),
                   backgroundImage: `linear-gradient(135deg, ${withAlpha(brandColor, 0.96)}, ${withAlpha(brandColor, 0.72)})`,
@@ -255,7 +255,7 @@ export const OrderTracker: React.FC = () => {
         )}
       </section>
 
-      <section className="rounded-[28px] border border-gray-200 bg-white p-4 shadow-sm">
+      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="mb-5 flex flex-col gap-4 border-b border-white/80 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">{workflow.name}</h2>
@@ -319,7 +319,7 @@ const StageLane: React.FC<{
       </div>
       <div
         ref={setNodeRef}
-        className={`min-h-[420px] rounded-2xl border p-3 transition-colors ${isOver ? 'bg-white shadow-inner' : 'border-white/70 bg-white/72'}`}
+        className={`min-h-[420px] rounded-xl border p-3 transition-colors ${isOver ? 'bg-white shadow-inner' : 'border-white/70 bg-white/72'}`}
         style={isOver ? { borderColor: withAlpha(brandColor, 0.45), boxShadow: `inset 0 0 0 1px ${withAlpha(brandColor, 0.12)}` } : undefined}
       >
         <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
@@ -328,7 +328,7 @@ const StageLane: React.FC<{
               <SortableTrackerCard key={item.id} item={item} onNavigate={() => onNavigate(item.orderId)} />
             ))}
             {items.length === 0 && (
-              <div className="flex h-28 items-center justify-center rounded-xl border-2 border-dashed border-gray-200 text-xs text-gray-400">
+              <div className="flex h-28 items-center justify-center rounded-lg border-2 border-dashed border-gray-200 text-xs text-gray-400">
                 Drop item here
               </div>
             )}
@@ -373,7 +373,7 @@ const TrackerCard: React.FC<{
 
   return (
     <div
-      className={`group rounded-2xl border bg-white p-3 shadow-sm transition-all ${isDragging ? 'rotate-1 shadow-xl' : 'hover:-translate-y-0.5 hover:shadow-md'} ${isOverdue ? 'border-red-200' : 'border-gray-200'}`}
+      className={`group rounded-lg border bg-white p-3 shadow-sm transition-all ${isDragging ? 'rotate-1 shadow-xl' : 'hover:-translate-y-0.5 hover:shadow-md'} ${isOverdue ? 'border-red-200' : 'border-gray-200'}`}
     >
       <div className="mb-2 flex items-start justify-between gap-2">
         <div>
