@@ -799,9 +799,6 @@ export const Materials: React.FC = () => {
                                     </button>
                                     <Layers className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
                                     <span className="text-xs font-semibold text-purple-700 flex-1">{cat.name}</span>
-                                    {cat.description && (
-                                      <span className="text-[10px] text-gray-400 truncate max-w-[200px]">{cat.description}</span>
-                                    )}
                                     <button
                                       type="button"
                                       onClick={() => {
