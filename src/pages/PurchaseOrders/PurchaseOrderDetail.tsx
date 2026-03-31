@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CheckCircle2, PackageCheck, Send, Undo2, XCircle } from 'lucide-react';
 import { useStore } from '../../store';
@@ -21,6 +21,16 @@ export const PurchaseOrderDetail: React.FC = () => {
   const [receipts, setReceipts] = useState<Record<string, number>>(() => Object.fromEntries(
     (po?.items || []).map((item) => [item.id, item.receivedQuantity || 0])
   ));
+
+  useEffect(() => {
+    if (!po) return;
+
+    setNotes(po.notes || '');
+    setExpectedDate(po.expectedDate || '');
+    setReceipts(Object.fromEntries(
+      po.items.map((item) => [item.id, item.receivedQuantity || 0])
+    ));
+  }, [po]);
 
   const receiving = useMemo(() => (po ? summarizePOReceiving({
     ...po,
@@ -62,6 +72,9 @@ export const PurchaseOrderDetail: React.FC = () => {
     });
     const nextStatus = getPOStatusFromItems({ ...po, items: nextItems });
     const now = new Date().toISOString();
+    setReceipts(Object.fromEntries(
+      nextItems.map((item) => [item.id, item.receivedQuantity || 0])
+    ));
     updatePurchaseOrder(po.id, {
       items: nextItems,
       status: nextStatus,

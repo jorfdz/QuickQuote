@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Edit3 } from 'lucide-react';
+import { Plus, Edit3, FileText, Building2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
 import { Button, SearchInput, Card, PageHeader, Table, Modal, Input, Textarea, Checkbox, Badge } from '../../components/ui';
@@ -30,6 +30,7 @@ export const Vendors: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [modalTab, setModalTab] = useState<'details' | 'purchaseOrders'>('details');
 
   const filtered = vendors.filter(v => !search || v.name.toLowerCase().includes(search.toLowerCase()));
   const vendorPurchaseOrders = useMemo(() => {
@@ -43,6 +44,7 @@ export const Vendors: React.FC = () => {
   const handleOpenNew = () => {
     setEditingId(null);
     setForm(emptyForm);
+    setModalTab('details');
     setShowModal(true);
   };
 
@@ -62,12 +64,14 @@ export const Vendors: React.FC = () => {
       notes: v.notes || '',
       isOutsourcedProduction: v.isOutsourcedProduction,
     });
+    setModalTab('details');
     setShowModal(true);
   };
 
   const handleClose = () => {
     setShowModal(false);
     setEditingId(null);
+    setModalTab('details');
   };
 
   const handleSave = () => {
@@ -131,33 +135,74 @@ export const Vendors: React.FC = () => {
         )}
       </Card>
 
-      <Modal isOpen={showModal} onClose={handleClose} title={editingId ? 'Edit Vendor' : 'New Vendor'}>
-        <div className="space-y-4">
-          <Input label="Vendor Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-          <Checkbox
-            checked={form.isOutsourcedProduction}
-            onChange={v => setForm(f => ({ ...f, isOutsourcedProduction: v }))}
-            label="Outsourced Production Vendor (not just a supplier)"
-          />
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
-            <Input label="Phone" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+      <Modal isOpen={showModal} onClose={handleClose} title={editingId ? 'Edit Vendor' : 'New Vendor'} size="full">
+        {editingId && (
+          <div className="flex border-b border-gray-200 -mx-5 px-5 mb-5 -mt-1">
+            <button
+              onClick={() => setModalTab('details')}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                modalTab === 'details'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Building2 className="w-4 h-4" />
+              Vendor Details
+            </button>
+            <button
+              onClick={() => setModalTab('purchaseOrders')}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                modalTab === 'purchaseOrders'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              Purchase Orders
+              <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full font-medium">
+                {vendorPurchaseOrders.length}
+              </span>
+            </button>
           </div>
-          <Input label="Website" value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))} placeholder="https://..." />
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Account Number" value={form.accountNumber} onChange={e => setForm(f => ({ ...f, accountNumber: e.target.value }))} />
-            <Input label="Payment Terms" value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms: e.target.value }))} />
-          </div>
-          <Input label="Address" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="City" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} />
-            <Input label="State" value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))} />
-            <Input label="Zip" value={form.zip} onChange={e => setForm(f => ({ ...f, zip: e.target.value }))} />
-          </div>
-          <Textarea label="Notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
-          {editingId && (
-            <div className="pt-2 border-t border-gray-100">
-              <div className="flex items-center justify-between mb-3">
+        )}
+
+        <div className="min-h-[60vh]">
+          {(modalTab === 'details' || !editingId) && (
+            <div className="space-y-4">
+              <Input label="Vendor Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              <Checkbox
+                checked={form.isOutsourcedProduction}
+                onChange={v => setForm(f => ({ ...f, isOutsourcedProduction: v }))}
+                label="Outsourced Production Vendor (not just a supplier)"
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+                <Input label="Phone" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+              </div>
+              <Input label="Website" value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))} placeholder="https://..." />
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Account Number" value={form.accountNumber} onChange={e => setForm(f => ({ ...f, accountNumber: e.target.value }))} />
+                <Input label="Payment Terms" value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms: e.target.value }))} />
+              </div>
+              <Input label="Address" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
+              <div className="grid grid-cols-3 gap-4">
+                <Input label="City" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} />
+                <Input label="State" value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))} />
+                <Input label="Zip" value={form.zip} onChange={e => setForm(f => ({ ...f, zip: e.target.value }))} />
+              </div>
+              <Textarea label="Notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
+              <div className="flex gap-3 justify-end pt-2">
+                <Button variant="secondary" onClick={handleClose}>Cancel</Button>
+                <Button variant="primary" onClick={handleSave} disabled={!form.name}>
+                  {editingId ? 'Save Changes' : 'Add Vendor'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {editingId && modalTab === 'purchaseOrders' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900">Linked Purchase Orders</h3>
                   <p className="text-xs text-gray-500 mt-0.5">Sorted from most recent to least recent.</p>
@@ -168,11 +213,11 @@ export const Vendors: React.FC = () => {
               </div>
 
               {vendorPurchaseOrders.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-400">
+                <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-400">
                   No purchase orders linked to this vendor yet.
                 </div>
               ) : (
-                <div className="max-h-72 overflow-auto rounded-lg border border-gray-200">
+                <div className="rounded-lg border border-gray-200 overflow-hidden">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                       <tr>
@@ -211,12 +256,6 @@ export const Vendors: React.FC = () => {
               )}
             </div>
           )}
-          <div className="flex gap-3 justify-end pt-2">
-            <Button variant="secondary" onClick={handleClose}>Cancel</Button>
-            <Button variant="primary" onClick={handleSave} disabled={!form.name}>
-              {editingId ? 'Save Changes' : 'Add Vendor'}
-            </Button>
-          </div>
         </div>
       </Modal>
     </div>
