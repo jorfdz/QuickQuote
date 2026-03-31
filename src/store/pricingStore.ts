@@ -4,6 +4,7 @@ import type {
   PricingCategory, PricingProduct, PricingEquipment,
   PricingFinishing, PricingMaterial, ProductPricingTemplate,
   EquipmentPricingTier, MaterialGroup, MaintenanceRecord, FinishingGroup, PricingLabor, PricingBrokered,
+  MaterialChangeRecord, MaterialFieldChange,
 } from '../types/pricing';
 import {
   defaultCategories, defaultProducts, defaultPricingEquipment,
@@ -15,6 +16,34 @@ import {
 
 let _counter = Date.now();
 const uid = () => `p${_counter++}`;
+
+// ─── MATERIAL FIELD LABELS (for readable change history) ───────────────────
+
+const MATERIAL_FIELD_LABELS: Record<string, string> = {
+  name: 'Material Name',
+  size: 'Sheet Size',
+  sizeWidth: 'Width (in)',
+  sizeHeight: 'Height (in)',
+  pricePerM: 'Price per M',
+  markup: 'Markup %',
+  materialGroupId: 'Material Group',
+  categoryIds: 'Categories',
+  productIds: 'Products',
+  favoriteProductIds: 'Favorite Products',
+  favoriteCategoryIds: 'Favorite Categories',
+  isFavorite: 'Favorite',
+  imageUrl: 'Photo',
+  description: 'Description',
+  vendorName: 'Vendor Name',
+  vendorId: 'Vendor ID',
+  vendorMaterialId: 'Vendor Material ID',
+  vendorContactName: 'Contact Name',
+  vendorContactTitle: 'Contact Title',
+  vendorSalesRep: 'Sales Rep',
+};
+
+// Fields to skip tracking (internal or binary data)
+const SKIP_HISTORY_FIELDS = new Set(['id', 'createdAt', 'imageUrl']);
 
 // ─── STORE INTERFACE ────────────────────────────────────────────────────────
 
@@ -30,6 +59,7 @@ interface PricingStore {
   templates: ProductPricingTemplate[];
   materialGroups: MaterialGroup[];
   finishingGroups: FinishingGroup[];
+  materialChangeHistory: MaterialChangeRecord[];
 
   // Categories CRUD
   addCategory: (c: Omit<PricingCategory, 'id' | 'createdAt'>) => PricingCategory;
@@ -70,6 +100,10 @@ interface PricingStore {
   addMaterial: (m: Omit<PricingMaterial, 'id' | 'createdAt'>) => PricingMaterial;
   updateMaterial: (id: string, m: Partial<PricingMaterial>) => void;
   deleteMaterial: (id: string) => void;
+
+  // Material Change History
+  getMaterialHistory: (materialId: string) => MaterialChangeRecord[];
+  clearMaterialHistory: (materialId: string) => void;
 
   // Material Groups CRUD
   addMaterialGroup: (g: Omit<MaterialGroup, 'id' | 'createdAt'>) => MaterialGroup;
@@ -122,6 +156,7 @@ export const usePricingStore = create<PricingStore>()(
       templates: defaultPricingTemplates,
       materialGroups: defaultMaterialGroups,
       finishingGroups: defaultFinishingGroups,
+      materialChangeHistory: [] as MaterialChangeRecord[],
 
       // ── Categories ──────────────────────────────────────────────────────
       addCategory: (c) => {
@@ -238,17 +273,101 @@ export const usePricingStore = create<PricingStore>()(
         brokered: s.brokered.filter((x) => x.id !== id),
       })),
 
-      // ── Materials ───────────────────────────────────────────────────────
+      // ── Materials (with change history tracking) ────────────────────────
       addMaterial: (m) => {
         const item: PricingMaterial = { ...m, id: uid(), createdAt: new Date().toISOString() };
-        set((s) => ({ materials: [...s.materials, item] }));
+        const record: MaterialChangeRecord = {
+          id: uid(),
+          materialId: item.id,
+          materialName: item.name,
+          action: 'created',
+          changes: [],
+          timestamp: new Date().toISOString(),
+        };
+        set((s) => ({
+          materials: [...s.materials, item],
+          materialChangeHistory: [...(s.materialChangeHistory || []), record],
+        }));
         return item;
       },
-      updateMaterial: (id, m) => set((s) => ({
-        materials: s.materials.map((x) => (x.id === id ? { ...x, ...m } : x)),
-      })),
-      deleteMaterial: (id) => set((s) => ({
-        materials: s.materials.filter((x) => x.id !== id),
+      updateMaterial: (id, m) => {
+        const state = get();
+        const existing = state.materials.find((x) => x.id === id);
+        if (!existing) return;
+
+        // Build field-level diff
+        const changes: MaterialFieldChange[] = [];
+        for (const key of Object.keys(m) as (keyof PricingMaterial)[]) {
+          if (SKIP_HISTORY_FIELDS.has(key)) continue;
+          const oldVal = existing[key];
+          const newVal = m[key];
+          // Deep compare arrays
+          if (Array.isArray(oldVal) && Array.isArray(newVal)) {
+            const oldSorted = [...(oldVal as string[])].sort();
+            const newSorted = [...(newVal as string[])].sort();
+            if (JSON.stringify(oldSorted) === JSON.stringify(newSorted)) continue;
+          } else if (oldVal === newVal) continue;
+          // Normalize undefined vs empty
+          if ((oldVal === undefined || oldVal === '') && (newVal === undefined || newVal === '')) continue;
+          changes.push({
+            field: key,
+            fieldLabel: MATERIAL_FIELD_LABELS[key] || key,
+            oldValue: (oldVal === undefined ? null : oldVal) as MaterialFieldChange['oldValue'],
+            newValue: (newVal === undefined ? null : newVal) as MaterialFieldChange['newValue'],
+          });
+        }
+
+        // Only create a history record if something actually changed
+        if (changes.length > 0) {
+          const record: MaterialChangeRecord = {
+            id: uid(),
+            materialId: id,
+            materialName: m.name || existing.name,
+            action: 'updated',
+            changes,
+            timestamp: new Date().toISOString(),
+          };
+          set((s) => ({
+            materials: s.materials.map((x) => (x.id === id ? { ...x, ...m } : x)),
+            materialChangeHistory: [...(s.materialChangeHistory || []), record],
+          }));
+        } else {
+          set((s) => ({
+            materials: s.materials.map((x) => (x.id === id ? { ...x, ...m } : x)),
+          }));
+        }
+      },
+      deleteMaterial: (id) => {
+        const state = get();
+        const existing = state.materials.find((x) => x.id === id);
+        if (existing) {
+          const record: MaterialChangeRecord = {
+            id: uid(),
+            materialId: id,
+            materialName: existing.name,
+            action: 'deleted',
+            changes: [],
+            timestamp: new Date().toISOString(),
+          };
+          set((s) => ({
+            materials: s.materials.filter((x) => x.id !== id),
+            materialChangeHistory: [...(s.materialChangeHistory || []), record],
+          }));
+        } else {
+          set((s) => ({
+            materials: s.materials.filter((x) => x.id !== id),
+          }));
+        }
+      },
+
+      // ── Material Change History ────────────────────────────────────────
+      getMaterialHistory: (materialId: string) => {
+        return (get().materialChangeHistory || [])
+          .filter((r) => r.materialId === materialId)
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      },
+      clearMaterialHistory: (materialId: string) => set((s) => ({
+        materialChangeHistory: (s.materialChangeHistory || []).filter((r) => r.materialId !== materialId),
       })),
 
       // ── Material Groups ──────────────────────────────────────────────────
@@ -445,22 +564,22 @@ export const usePricingStore = create<PricingStore>()(
     }),
     {
       name: 'quikquote-pricing-storage',
-      version: 7,
-      migrate: () => {
-        // Version 7: renamed per_stack_pass→per_stack, passesPerHour→stacksPerHour,
-        // added minimumCharge/isFixedCharge/fixedChargeAmount/fixedChargeCost to finishing,
-        // added isFixedCharge/fixedChargeAmount/fixedChargeCost/minimumCharge/outputPerHour to labor
+      version: 8,
+      migrate: (_persisted: unknown) => {
+        // Version 8: added materialChangeHistory for field-level change tracking on materials
+        const prev = _persisted as Record<string, unknown> | null;
         return {
-          categories: defaultCategories,
-          products: defaultProducts,
-          equipment: defaultPricingEquipment,
-          finishing: defaultFinishing,
-          labor: defaultLabor,
-          brokered: defaultBrokered,
-          materials: defaultPricingMaterials,
-          templates: defaultPricingTemplates,
-          materialGroups: defaultMaterialGroups,
-          finishingGroups: defaultFinishingGroups,
+          categories: prev?.categories ?? defaultCategories,
+          products: prev?.products ?? defaultProducts,
+          equipment: prev?.equipment ?? defaultPricingEquipment,
+          finishing: prev?.finishing ?? defaultFinishing,
+          labor: prev?.labor ?? defaultLabor,
+          brokered: prev?.brokered ?? defaultBrokered,
+          materials: prev?.materials ?? defaultPricingMaterials,
+          templates: prev?.templates ?? defaultPricingTemplates,
+          materialGroups: prev?.materialGroups ?? defaultMaterialGroups,
+          finishingGroups: prev?.finishingGroups ?? defaultFinishingGroups,
+          materialChangeHistory: (prev?.materialChangeHistory as MaterialChangeRecord[]) ?? [],
         };
       },
     }
