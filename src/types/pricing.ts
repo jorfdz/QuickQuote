@@ -178,6 +178,8 @@ export interface PricingMaterial {
   materialGroupId?: string;        // which material group it belongs to
   categoryIds: string[];           // direct product-category assignments
   productIds: string[];            // direct product assignments
+  favoriteProductIds: string[];    // products marked as favorites for this material
+  favoriteCategoryIds: string[];   // categories marked as favorites for this material
   isFavorite: boolean;             // for starring/favoriting
   // Vendor information
   vendorName?: string;             // vendor company name
