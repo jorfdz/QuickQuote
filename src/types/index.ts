@@ -154,6 +154,7 @@ export interface PurchaseOrderItem {
   unitCost: number;
   total: number;
   orderItemId?: string;
+  receivedQuantity?: number;
 }
 
 export interface PurchaseOrder {
@@ -169,6 +170,8 @@ export interface PurchaseOrder {
   notes?: string;
   expectedDate?: string;
   receivedDate?: string;
+  sentAt?: string;
+  acknowledgedAt?: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

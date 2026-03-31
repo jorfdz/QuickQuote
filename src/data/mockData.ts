@@ -260,11 +260,12 @@ export const mockPurchaseOrders: PurchaseOrder[] = [
     id: 'po1', number: 'PO000001', vendorId: 'v1', orderId: 'o1',
     status: 'received',
     items: [
-      { id: 'poi1', description: '3M IJ180 White Vinyl - 54" x 25yd roll', quantity: 2, unit: 'roll', unitCost: 185, total: 370 },
+      { id: 'poi1', description: '3M IJ180 White Vinyl - 54" x 25yd roll', quantity: 2, unit: 'roll', unitCost: 185, total: 370, receivedQuantity: 2 },
     ],
     subtotal: 370, total: 370,
     notes: 'Rush order for 4eon booth wrap',
     expectedDate: '2026-03-20', receivedDate: '2026-03-19',
+    sentAt: '2026-03-13', acknowledgedAt: '2026-03-14',
     createdBy: 'u2',
     createdAt: '2026-03-13', updatedAt: '2026-03-19'
   },

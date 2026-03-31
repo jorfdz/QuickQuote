@@ -15,6 +15,8 @@ import { CustomerDetail } from './pages/Customers/CustomerDetail';
 import { Contacts } from './pages/Contacts';
 import { Vendors } from './pages/Vendors';
 import { PurchaseOrders } from './pages/PurchaseOrders';
+import { NewPurchaseOrder } from './pages/PurchaseOrders/NewPurchaseOrder';
+import { PurchaseOrderDetail } from './pages/PurchaseOrders/PurchaseOrderDetail';
 import { Materials } from './pages/Materials';
 import { Equipment } from './pages/Equipment';
 import { Finishing } from './pages/Finishing';
@@ -57,6 +59,8 @@ function App() {
           <Route path="/contacts" element={<Contacts />} />
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/purchase-orders" element={<PurchaseOrders />} />
+          <Route path="/purchase-orders/new" element={<NewPurchaseOrder />} />
+          <Route path="/purchase-orders/:id" element={<PurchaseOrderDetail />} />
           <Route path="/catalog" element={<Catalog />} />
           <Route path="/services" element={<Services />} />
           <Route path="/labor" element={<Labor />} />
