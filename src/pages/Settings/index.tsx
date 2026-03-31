@@ -1,16 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Building, CreditCard, Globe, Bell, Palette, Plus, Pencil, Trash2, Package, Layers, FileText, RotateCcw, Eye, Ruler } from 'lucide-react';
+import { Building, CreditCard, Globe, Bell, Palette, Plus, Pencil, Trash2, Package, Layers, FileText, RotateCcw, Eye, Ruler, Workflow as WorkflowIcon } from 'lucide-react';
 import { Card, PageHeader, Button, Input, Textarea, Tabs, Select, Table, Modal, ConfirmDialog } from '../../components/ui';
 import { DEFAULT_COMPANY_SETTINGS, DEFAULT_INVOICE_TEMPLATE, DEFAULT_ORDER_TEMPLATE, DEFAULT_PURCHASE_ORDER_TEMPLATE, DEFAULT_QUOTE_TEMPLATE } from '../../data/documentSettings';
 import { useStore } from '../../store';
 import { usePricingStore } from '../../store/pricingStore';
-import type { CompanySettings, DocumentTemplates } from '../../types';
+import { nanoid } from '../../utils/nanoid';
+import type { CompanySettings, DocumentTemplates, Workflow, WorkflowStage } from '../../types';
 import type { PricingCategory, PricingProduct } from '../../types/pricing';
 
 const TABS = [
   { id: 'company', label: 'Company' }, { id: 'branding', label: 'Branding' },
   { id: 'documents', label: 'Documents' },
   { id: 'defaults', label: 'Quote Defaults' }, { id: 'catalog', label: 'Catalog' },
+  { id: 'order-tracker', label: 'Order Tracker' },
   { id: 'notifications', label: 'Notifications' }, { id: 'billing', label: 'Billing' },
 ];
 
@@ -33,6 +35,29 @@ const blankProduct = (): Omit<PricingProduct, 'id' | 'createdAt'> => ({
   isTemplate: false,
 });
 
+const STAGE_COLORS = ['#6366f1', '#f59e0b', '#3b82f6', '#ec4899', '#8b5cf6', '#10b981', '#f97316', '#6b7280'];
+
+const blankStage = (workflowId = ''): WorkflowStage => ({
+  id: nanoid(),
+  workflowId,
+  name: '',
+  order: 1,
+  color: STAGE_COLORS[0],
+  isComplete: false,
+});
+
+const blankWorkflowForm = (): Omit<Workflow, 'id' | 'createdAt'> => ({
+  name: '',
+  description: '',
+  isActive: true,
+  productFamilies: [],
+  stages: [
+    { ...blankStage(), name: 'Order Received', order: 1, color: '#6366f1' },
+    { ...blankStage(), name: 'Completed', order: 2, color: '#10b981', isComplete: true },
+  ],
+  isDefault: false,
+});
+
 // ─── SETTINGS COMPONENT ───────────────────────────────────────────────────────
 
 export const Settings: React.FC = () => {
@@ -40,6 +65,11 @@ export const Settings: React.FC = () => {
   const {
     companySettings,
     documentTemplates,
+    workflows,
+    orders,
+    addWorkflow,
+    updateWorkflow,
+    deleteWorkflow,
     updateCompanySettings,
     updateDocumentTemplates,
   } = useStore();
@@ -150,6 +180,12 @@ export const Settings: React.FC = () => {
   const [prodDeleteConfirm, setProdDeleteConfirm] = useState<string | null>(null);
   const [prodCategoryFilter, setProdCategoryFilter] = useState('all');
 
+  // Order tracker board state
+  const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
+  const [workflowEditId, setWorkflowEditId] = useState<string | null>(null);
+  const [workflowForm, setWorkflowForm] = useState<Omit<Workflow, 'id' | 'createdAt'>>(blankWorkflowForm());
+  const [workflowDeleteConfirm, setWorkflowDeleteConfirm] = useState<string | null>(null);
+
   // Pricing store
   const {
     categories, products,
@@ -232,6 +268,117 @@ export const Settings: React.FC = () => {
   }, [products, prodCategoryFilter]);
 
   const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name || 'Unknown';
+
+  // ─── Workflow helpers ────────────────────────────────────────────────────
+
+  const openAddWorkflow = () => {
+    setWorkflowEditId(null);
+    setWorkflowForm(blankWorkflowForm());
+    setWorkflowModalOpen(true);
+  };
+
+  const openEditWorkflow = (workflow: Workflow) => {
+    setWorkflowEditId(workflow.id);
+    setWorkflowForm({
+      name: workflow.name,
+      description: workflow.description || '',
+      isActive: workflow.isActive,
+      productFamilies: workflow.productFamilies,
+      stages: workflow.stages
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map((stage) => ({ ...stage })),
+      isDefault: workflow.isDefault,
+    });
+    setWorkflowModalOpen(true);
+  };
+
+  const updateWorkflowStage = (stageId: string, changes: Partial<WorkflowStage>) => {
+    setWorkflowForm((current) => ({
+      ...current,
+      stages: current.stages.map((stage) => (stage.id === stageId ? { ...stage, ...changes } : stage)),
+    }));
+  };
+
+  const addWorkflowStage = () => {
+    setWorkflowForm((current) => ({
+      ...current,
+      stages: [
+        ...current.stages,
+        { ...blankStage(), order: current.stages.length + 1, color: STAGE_COLORS[current.stages.length % STAGE_COLORS.length] },
+      ],
+    }));
+  };
+
+  const removeWorkflowStage = (stageId: string) => {
+    setWorkflowForm((current) => ({
+      ...current,
+      stages: current.stages
+        .filter((stage) => stage.id !== stageId)
+        .map((stage, index) => ({ ...stage, order: index + 1 })),
+    }));
+  };
+
+  const moveWorkflowStage = (stageId: string, direction: 'up' | 'down') => {
+    setWorkflowForm((current) => {
+      const index = current.stages.findIndex((stage) => stage.id === stageId);
+      if (index < 0) return current;
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= current.stages.length) return current;
+      const nextStages = current.stages.slice();
+      [nextStages[index], nextStages[targetIndex]] = [nextStages[targetIndex], nextStages[index]];
+      return {
+        ...current,
+        stages: nextStages.map((stage, order) => ({ ...stage, order: order + 1 })),
+      };
+    });
+  };
+
+  const saveWorkflow = () => {
+    const cleanedName = workflowForm.name.trim();
+    const cleanedStages = workflowForm.stages
+      .map((stage, index) => ({
+        ...stage,
+        name: stage.name.trim(),
+        workflowId: workflowEditId || stage.workflowId,
+        order: index + 1,
+      }))
+      .filter((stage) => stage.name);
+
+    if (!cleanedName || cleanedStages.length === 0) return;
+
+    if (workflowEditId) {
+      updateWorkflow(workflowEditId, {
+        ...workflowForm,
+        name: cleanedName,
+        description: workflowForm.description?.trim() || '',
+        stages: cleanedStages.map((stage) => ({ ...stage, workflowId: workflowEditId! })),
+      });
+    } else {
+      const workflowId = nanoid();
+      addWorkflow({
+        id: workflowId,
+        name: cleanedName,
+        description: workflowForm.description?.trim() || '',
+        isActive: workflowForm.isActive,
+        productFamilies: workflowForm.productFamilies,
+        stages: cleanedStages.map((stage) => ({ ...stage, workflowId })),
+        isDefault: workflows.length === 0,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    setWorkflowModalOpen(false);
+  };
+
+  const workflowUsage = useMemo(() => {
+    const counts: Record<string, number> = {};
+    orders.forEach((order) => {
+      if (!order.workflowId) return;
+      counts[order.workflowId] = (counts[order.workflowId] || 0) + 1;
+    });
+    return counts;
+  }, [orders]);
 
   // ─── RENDER ──────────────────────────────────────────────────────────────
 
@@ -611,6 +758,72 @@ export const Settings: React.FC = () => {
         </div>
       )}
 
+      {/* ── ORDER TRACKER TAB ──────────────────────────────────────────── */}
+      {activeTab === 'order-tracker' && (
+        <div className="space-y-6">
+          <Card className="p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                  <WorkflowIcon className="w-4 h-4 text-blue-500" /> Order Tracker Boards
+                </h2>
+                <p className="text-sm text-gray-500 max-w-3xl">
+                  Define the boards and stages used by the Order Tracker page. Active boards are available to production for routing and status tracking.
+                </p>
+              </div>
+              <Button variant="primary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={openAddWorkflow}>
+                Add Board
+              </Button>
+            </div>
+          </Card>
+
+          <Card className="p-0">
+            <Table headers={['Board', 'Description', 'Stages', 'Orders', 'Status', 'Actions']}>
+              {workflows.map((workflow) => (
+                <tr key={workflow.id} className="hover:bg-gray-50/50">
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900">{workflow.name}</span>
+                      {workflow.isDefault && <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">Default</span>}
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-xs text-gray-500 max-w-sm">{workflow.description || '--'}</td>
+                  <td className="py-3 px-4">
+                    <div className="flex flex-wrap gap-1.5">
+                      {workflow.stages.slice().sort((a, b) => a.order - b.order).map((stage) => (
+                        <span key={stage.id} className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[11px] text-gray-600">
+                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                          {stage.name}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-gray-600">{workflowUsage[workflow.id] || 0}</td>
+                  <td className="py-3 px-4">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${workflow.isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
+                      {workflow.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => openEditWorkflow(workflow)} className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors text-gray-400 hover:text-blue-600">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => setWorkflowDeleteConfirm(workflow.id)} className="p-1.5 hover:bg-red-50 rounded-lg transition-colors text-gray-400 hover:text-red-600">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {workflows.length === 0 && (
+                <tr><td colSpan={6} className="py-12 text-center text-sm text-gray-400">No boards configured yet. Add one to start building your production workflow.</td></tr>
+              )}
+            </Table>
+          </Card>
+        </div>
+      )}
+
       {/* ── NOTIFICATIONS TAB ────────────────────────────────────────────── */}
       {activeTab === 'notifications' && (
         <Card className="p-6 max-w-2xl">
@@ -726,6 +939,101 @@ export const Settings: React.FC = () => {
         onConfirm={() => { if (prodDeleteConfirm) deleteProduct(prodDeleteConfirm); }}
         title="Delete Product"
         message="Are you sure you want to delete this product? This action cannot be undone."
+      />
+
+      {/* ── WORKFLOW MODAL ──────────────────────────────────────────────── */}
+      <Modal isOpen={workflowModalOpen} onClose={() => setWorkflowModalOpen(false)} title={workflowEditId ? 'Edit Order Tracker Board' : 'Add Order Tracker Board'} size="xl">
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Board Name"
+              value={workflowForm.name}
+              onChange={e => setWorkflowForm((current) => ({ ...current, name: e.target.value }))}
+              placeholder="e.g. Standard Print Workflow"
+            />
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Board Status</label>
+              <div className="flex gap-2">
+                <Button variant={workflowForm.isActive ? 'success' : 'secondary'} type="button" onClick={() => setWorkflowForm((current) => ({ ...current, isActive: true }))}>
+                  Active
+                </Button>
+                <Button variant={!workflowForm.isActive ? 'secondary' : 'ghost'} type="button" onClick={() => setWorkflowForm((current) => ({ ...current, isActive: false }))}>
+                  Inactive
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <Textarea
+            label="Description"
+            rows={3}
+            value={workflowForm.description || ''}
+            onChange={e => setWorkflowForm((current) => ({ ...current, description: e.target.value }))}
+            placeholder="Describe when this board should be used and what the workflow covers."
+          />
+
+          <div className="rounded-xl border border-gray-100 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Stages</h3>
+                <p className="text-xs text-gray-500">These stages will appear as columns on the Order Tracker board.</p>
+              </div>
+              <Button variant="secondary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} type="button" onClick={addWorkflowStage}>
+                Add Stage
+              </Button>
+            </div>
+
+            <div className="p-4 space-y-3">
+              {workflowForm.stages.map((stage, index) => (
+                <div key={stage.id} className="rounded-lg border border-gray-200 p-4 bg-white">
+                  <div className="grid grid-cols-[minmax(0,1fr)_160px_120px_auto] gap-3 items-end">
+                    <Input
+                      label={`Stage ${index + 1}`}
+                      value={stage.name}
+                      onChange={e => updateWorkflowStage(stage.id, { name: e.target.value })}
+                      placeholder="e.g. Prepress"
+                    />
+                    <Select
+                      label="Color"
+                      value={stage.color}
+                      onChange={e => updateWorkflowStage(stage.id, { color: e.target.value })}
+                      options={STAGE_COLORS.map((color, colorIndex) => ({ value: color, label: `Color ${colorIndex + 1}` }))}
+                    />
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Stage Type</label>
+                      <button
+                        type="button"
+                        onClick={() => updateWorkflowStage(stage.id, { isComplete: !stage.isComplete })}
+                        className={`w-full rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${stage.isComplete ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
+                      >
+                        {stage.isComplete ? 'Completion' : 'In Progress'}
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1 pb-0.5">
+                      <Button variant="ghost" size="sm" type="button" disabled={index === 0} onClick={() => moveWorkflowStage(stage.id, 'up')}>Up</Button>
+                      <Button variant="ghost" size="sm" type="button" disabled={index === workflowForm.stages.length - 1} onClick={() => moveWorkflowStage(stage.id, 'down')}>Down</Button>
+                      <Button variant="ghost" size="sm" type="button" disabled={workflowForm.stages.length <= 1} onClick={() => removeWorkflowStage(stage.id)}>Remove</Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-3 justify-end pt-2">
+            <Button variant="secondary" onClick={() => setWorkflowModalOpen(false)}>Cancel</Button>
+            <Button variant="primary" onClick={saveWorkflow}>{workflowEditId ? 'Save Board' : 'Create Board'}</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── WORKFLOW DELETE CONFIRM ─────────────────────────────────────── */}
+      <ConfirmDialog
+        isOpen={!!workflowDeleteConfirm}
+        onClose={() => setWorkflowDeleteConfirm(null)}
+        onConfirm={() => { if (workflowDeleteConfirm) deleteWorkflow(workflowDeleteConfirm); }}
+        title="Delete Order Tracker Board"
+        message="Are you sure you want to delete this board? Orders assigned to it will be unassigned from the tracker stages."
       />
 
       {/* ── TEMPLATE PREVIEW MODAL ──────────────────────────────────────── */}

@@ -101,6 +101,9 @@ interface AppStore {
   addTemplate: (t: ProductTemplate) => void;
   updateTemplate: (id: string, t: Partial<ProductTemplate>) => void;
   deleteTemplate: (id: string) => void;
+  addWorkflow: (workflow: Workflow) => void;
+  updateWorkflow: (id: string, workflow: Partial<Workflow>) => void;
+  deleteWorkflow: (id: string) => void;
   updateCompanySettings: (settings: Partial<CompanySettings>) => void;
   updateDocumentTemplates: (templates: Partial<DocumentTemplates>) => void;
 }
@@ -181,12 +184,31 @@ export const useStore = create<AppStore>()(
       addTemplate: (t) => set((s) => ({ templates: [t, ...s.templates] })),
       updateTemplate: (id, t) => set((s) => ({ templates: s.templates.map(x => x.id === id ? { ...x, ...t } : x) })),
       deleteTemplate: (id) => set((s) => ({ templates: s.templates.filter(x => x.id !== id) })),
+      addWorkflow: (workflow) => set((s) => ({ workflows: [...s.workflows, workflow] })),
+      updateWorkflow: (id, workflow) => set((s) => ({
+        workflows: s.workflows.map((item) => {
+          if (item.id !== id) return item;
+          return {
+            ...item,
+            ...workflow,
+            stages: workflow.stages || item.stages,
+          };
+        }),
+      })),
+      deleteWorkflow: (id) => set((s) => ({
+        workflows: s.workflows.filter((item) => item.id !== id),
+        orders: s.orders.map((order) => (
+          order.workflowId === id
+            ? { ...order, workflowId: undefined, currentStageId: undefined, updatedAt: new Date().toISOString() }
+            : order
+        )),
+      })),
       updateCompanySettings: (settings) => set((s) => ({ companySettings: { ...s.companySettings, ...settings } })),
       updateDocumentTemplates: (templates) => set((s) => ({ documentTemplates: { ...s.documentTemplates, ...templates } })),
     }),
     {
       name: 'quikquote-storage',
-      version: 4,
+      version: 5,
       migrate: (persistedState) => {
         const state = persistedState as Partial<AppStore> | undefined;
 
@@ -196,6 +218,14 @@ export const useStore = create<AppStore>()(
 
         return {
           ...state,
+          workflows: (state.workflows || mockWorkflows).map((workflow) => {
+            const nextWorkflow = workflow as Workflow & { description?: string; isActive?: boolean };
+            return {
+              ...nextWorkflow,
+              description: nextWorkflow.description || '',
+              isActive: nextWorkflow.isActive ?? true,
+            };
+          }),
           companySettings: { ...DEFAULT_COMPANY_SETTINGS, ...state.companySettings },
           documentTemplates: { ...DEFAULT_DOCUMENT_TEMPLATES, ...state.documentTemplates },
         };

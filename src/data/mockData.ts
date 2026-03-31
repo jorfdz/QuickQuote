@@ -58,6 +58,8 @@ export const mockVendors: Vendor[] = [
 export const mockWorkflows: Workflow[] = [
   {
     id: 'wf1', name: 'Standard Print Workflow', isDefault: true,
+    description: 'Core production flow for digital and offset print jobs from intake through completion.',
+    isActive: true,
     productFamilies: ['digital_print', 'offset_print'],
     stages: [
       { id: 's1', workflowId: 'wf1', name: 'Order Received', order: 1, color: '#6366f1', isComplete: false },
@@ -71,6 +73,8 @@ export const mockWorkflows: Workflow[] = [
   },
   {
     id: 'wf2', name: 'Sign & Wide Format', isDefault: false,
+    description: 'Handles wide format, rigid signage, and install-ready graphics with proofing and finishing stages.',
+    isActive: true,
     productFamilies: ['wide_format', 'rigid_sign', 'roll_sign'],
     stages: [
       { id: 's7', workflowId: 'wf2', name: 'Order Received', order: 1, color: '#6366f1', isComplete: false },
@@ -85,6 +89,8 @@ export const mockWorkflows: Workflow[] = [
   },
   {
     id: 'wf3', name: 'Vendor / Outsourced', isDefault: false,
+    description: 'Tracks externally produced jobs from vendor handoff through receipt and QC.',
+    isActive: true,
     productFamilies: ['outsourced', 'buyout'],
     stages: [
       { id: 's14', workflowId: 'wf3', name: 'PO Sent', order: 1, color: '#6366f1', isComplete: false },

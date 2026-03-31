@@ -373,6 +373,8 @@ export interface WorkflowStage {
 export interface Workflow {
   id: string;
   name: string;
+  description?: string;
+  isActive: boolean;
   productFamilies: ProductFamily[];
   stages: WorkflowStage[];
   isDefault: boolean;

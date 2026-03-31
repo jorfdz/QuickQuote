@@ -1,16 +1,24 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
-import { Card, Badge, PageHeader, Select } from '../../components/ui';
+import { Card, PageHeader, Select } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
 
 export const OrderTracker: React.FC = () => {
   const { orders, workflows, updateOrder } = useStore();
   const navigate = useNavigate();
-  const [activeWorkflow, setActiveWorkflow] = useState(workflows[0]?.id || '');
+  const availableWorkflows = workflows.filter((workflow) => workflow.isActive);
+  const [activeWorkflow, setActiveWorkflow] = useState(availableWorkflows[0]?.id || workflows[0]?.id || '');
 
-  const workflow = workflows.find(w => w.id === activeWorkflow) || workflows[0];
-  const relevantOrders = orders.filter(o => o.workflowId === activeWorkflow && o.status !== 'canceled' && o.status !== 'completed');
+  const workflow = availableWorkflows.find(w => w.id === activeWorkflow) || workflows.find(w => w.id === activeWorkflow) || availableWorkflows[0] || workflows[0];
+  const currentWorkflowId = workflow?.id || '';
+  const relevantOrders = orders.filter(o => o.workflowId === currentWorkflowId && o.status !== 'canceled' && o.status !== 'completed');
+
+  useEffect(() => {
+    if (workflow?.id && workflow.id !== activeWorkflow) {
+      setActiveWorkflow(workflow.id);
+    }
+  }, [activeWorkflow, workflow]);
 
   const getOrdersForStage = (stageId: string) => relevantOrders.filter(o => o.currentStageId === stageId);
   const getUnstartedOrders = () => relevantOrders.filter(o => !o.currentStageId);
@@ -19,10 +27,22 @@ export const OrderTracker: React.FC = () => {
     <div>
       <PageHeader title="Order Tracker" subtitle="Visual production board" actions={
         <Select value={activeWorkflow} onChange={e => setActiveWorkflow(e.target.value)}
-          options={workflows.map(w => ({ value: w.id, label: w.name }))}
+          options={(availableWorkflows.length > 0 ? availableWorkflows : workflows).map(w => ({ value: w.id, label: w.name }))}
           label="" />
       } />
 
+      {workflow?.description && (
+        <p className="mb-4 text-sm text-gray-500">{workflow.description}</p>
+      )}
+
+      {!workflow && (
+        <Card className="p-8 text-center text-sm text-gray-500">
+          No active Order Tracker boards are configured. Add one in Settings to start tracking production.
+        </Card>
+      )}
+
+      {workflow && (
+        <>
       <div className="flex gap-4 overflow-x-auto pb-4">
         {/* Unstarted column */}
         <div className="flex-shrink-0 w-64">
@@ -83,6 +103,8 @@ export const OrderTracker: React.FC = () => {
           );
         })}
       </div>
+        </>
+      )}
     </div>
   );
 };
@@ -99,7 +121,6 @@ interface KanbanCardProps {
 
 const KanbanCard: React.FC<KanbanCardProps> = ({ order, onNavigate, onMoveToStage, stages, currentStageColor }) => {
   const isOverdue = order.dueDate && new Date(order.dueDate) < new Date();
-  const [showMove, setShowMove] = useState(false);
 
   return (
     <div className={`bg-white rounded-xl border p-3 shadow-sm cursor-pointer hover:shadow-md transition-all ${isOverdue ? 'border-red-200' : 'border-gray-100'}`} onClick={onNavigate}>
