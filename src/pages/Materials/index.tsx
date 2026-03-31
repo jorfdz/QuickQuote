@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown, Clock, ArrowRight, ImageIcon, User, Truck } from 'lucide-react';
+import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown, Clock, ArrowRight, ImageIcon, User, Truck, FlaskConical } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Modal, Input, Checkbox } from '../../components/ui';
 
 import type { PricingMaterial, MaterialGroup, MaterialChangeRecord, MaterialType, MaterialPricingModel, MaterialMarkupType } from '../../types/pricing';
 import { MATERIAL_TYPE_LABELS, PRICING_MODEL_LABELS, MATERIAL_TYPE_PRICING_MODELS } from '../../types/pricing';
-import { getUnitCost, getUnitLabel, getUnitSell, deriveRollCostPerSqft } from '../../utils/materialCost';
+import { getUnitCost, getUnitLabel, getUnitSell, deriveRollCostPerSqft, getTierCost } from '../../utils/materialCost';
 
 // ─── Sort / Pagination types ────────────────────────────────────────────────
 
@@ -101,6 +101,10 @@ export const Materials: React.FC = () => {
 
   // Modal tab state: 'details' or 'history'
   const [modalTab, setModalTab] = useState<'details' | 'vendor' | 'photos' | 'history'>('details');
+
+  // Test pricing state
+  const [showTestPanel, setShowTestPanel] = useState(false);
+  const [testQty, setTestQty] = useState(1000);
 
   // Product & category assignment state
   const [productSearch, setProductSearch] = useState('');
@@ -1701,33 +1705,94 @@ export const Materials: React.FC = () => {
             </p>
           </div>
 
-          {/* ── Live cost preview ── */}
+          {/* ── Test Price Calculator ── */}
           {(() => {
             const preview = { ...form, materialType: form.materialType || 'paper', pricingModel: form.pricingModel || 'cost_per_m' } as PricingMaterial;
-            const cost = getUnitCost(preview);
-            const label = getUnitLabel(preview);
-            const sell = form.markupType === 'fixed' ? cost + (form.markup || 0) : cost * (1 + (form.markup || 0) / 100);
-            if (cost <= 0) return null;
+            const baseCost = getUnitCost(preview);
+            const unitLabel = getUnitLabel(preview);
+            if (baseCost <= 0 && !showTestPanel) return (
+              <button type="button" onClick={() => setShowTestPanel(true)}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:text-amber-900 transition-colors opacity-50 cursor-not-allowed" disabled>
+                <FlaskConical className="w-3.5 h-3.5" /> Test Price
+              </button>
+            );
+
+            // Compute test result
+            const tierCost = getTierCost(preview, testQty);
+            const effectiveCost = tierCost !== null ? tierCost : baseCost;
+            const markupAmt = form.markupType === 'fixed'
+              ? (form.markup || 0)
+              : effectiveCost * ((form.markup || 0) / 100);
+            const sellPerUnit = effectiveCost + markupAmt;
+            const totalCost = effectiveCost * testQty;
+            const totalSell = sellPerUnit * testQty;
+            const minApplied = form.minimumCharge > 0 && totalSell < form.minimumCharge;
+            const finalTotal = minApplied ? form.minimumCharge : totalSell;
+
             return (
-              <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Cost{label}:</span>
-                  <span className="font-medium">{formatCurrency(cost)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">+ Markup:</span>
-                  <span className="font-medium text-gray-600">
-                    {form.markupType === 'fixed' ? `$${form.markup.toFixed(2)}` : `${form.markup}%`}
-                  </span>
-                </div>
-                <div className="flex justify-between border-t border-gray-200 pt-1">
-                  <span className="text-gray-500">Sell{label}:</span>
-                  <span className="font-bold text-blue-700">{formatCurrency(sell)}</span>
-                </div>
-                {form.minimumCharge > 0 && (
-                  <div className="flex justify-between border-t border-gray-200 mt-1 pt-1">
-                    <span className="text-gray-500">Min Charge:</span>
-                    <span className="font-medium text-orange-600">{formatCurrency(form.minimumCharge)}</span>
+              <div className="space-y-2">
+                <button type="button" onClick={() => setShowTestPanel(p => !p)}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:text-amber-900 transition-colors">
+                  <FlaskConical className="w-3.5 h-3.5" />
+                  {showTestPanel ? 'Hide Test' : 'Test Price'}
+                </button>
+
+                {showTestPanel && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <FlaskConical className="w-3.5 h-3.5 text-amber-600" />
+                        <span className="text-[11px] font-semibold text-amber-800">Test Price Calculator</span>
+                      </div>
+                      <button type="button" onClick={() => setShowTestPanel(false)} className="p-0.5 hover:bg-amber-100 rounded">
+                        <X className="w-3.5 h-3.5 text-amber-500" />
+                      </button>
+                    </div>
+
+                    {/* Test quantity input */}
+                    <div className="flex items-center gap-2">
+                      <label className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide whitespace-nowrap">
+                        {form.pricingModel === 'cost_per_sqft' ? 'Test Sq Ft' : form.pricingModel === 'cost_per_m' ? 'Test Sheets' : 'Test Qty'}
+                      </label>
+                      <input type="number" value={testQty}
+                        onChange={e => setTestQty(parseInt(e.target.value) || 0)}
+                        className="w-28 px-2 py-1 text-sm bg-white border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                    </div>
+
+                    {/* Results */}
+                    <div className="bg-white/60 rounded-md px-3 py-2 space-y-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-gray-600">Base cost{unitLabel}:</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(baseCost)}</span>
+                      </div>
+                      {tierCost !== null && (
+                        <div className="flex justify-between text-[11px]">
+                          <span className="text-gray-500">Tier cost{unitLabel} (at {testQty.toLocaleString()}):</span>
+                          <span className="font-medium text-purple-700">{formatCurrency(tierCost)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-gray-500">+ Markup ({form.markupType === 'fixed' ? formatCurrency(form.markup) : `${form.markup}%`}):</span>
+                        <span className="font-medium text-gray-700">{formatCurrency(markupAmt)}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-gray-500">Sell{unitLabel}:</span>
+                        <span className="font-semibold text-blue-700">{formatCurrency(sellPerUnit)}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px] pt-1 border-t border-amber-200">
+                        <span className="text-gray-500">Total cost ({testQty.toLocaleString()}):</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(totalCost)}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="font-semibold text-amber-800">Total sell ({testQty.toLocaleString()}):</span>
+                        <span className="font-bold text-amber-900">{formatCurrency(finalTotal)}</span>
+                      </div>
+                      {minApplied && (
+                        <div className="text-[10px] text-amber-700 bg-amber-100 rounded px-2 py-1 mt-1">
+                          Subtotal {formatCurrency(totalSell)} is below minimum — minimum charge of {formatCurrency(form.minimumCharge)} applied
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
