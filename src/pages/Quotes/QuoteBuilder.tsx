@@ -809,19 +809,27 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [productQuery, setProductQuery] = useState(ps.productName || '');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<Partial<PricingServiceLine> & { sellPrice?: number }>({});
+  const [editValues, setEditValues] = useState<Partial<PricingServiceLine>>({});
   const [savedAsTemplate, setSavedAsTemplate] = useState(false);
   const [multiQtyInput, setMultiQtyInput] = useState(String(ps.quantity || 1000));
   const [autoDescribe, setAutoDescribe] = useState(true);
-  const [internalNotes, setInternalNotes] = useState('');
 
-  // Imposition calculator state (Rev 4/5)
-  const [showImpositionCalc, setShowImpositionCalc] = useState(false);
-  const [impositionBleed, setImpositionBleed] = useState(0.125);
-  const [impositionGutter, setImpositionGutter] = useState(0);
-
-  // Footer totals editing (Rev 9)
-  const [editingTotals, setEditingTotals] = useState<{ cost?: number; sell?: number } | null>(null);
+  // ── Multi-part state ───────────────────────────────────────────────
+  const [isMultiPart, setIsMultiPart] = useState(false);
+  const [parts, setParts] = useState<Array<{
+    id: string;
+    partName: string;
+    description: string;
+    materialId: string;
+    sides: 'Single' | 'Double';
+    colorMode: 'Color' | 'Black';
+    equipmentId: string;
+    foldingType: string;
+    drillingType: string;
+    cuttingEnabled: boolean;
+  }>>([]);
+  const [activePartIndex, setActivePartIndex] = useState(0);
+  const [globalDescription, setGlobalDescription] = useState(item.description || '');
 
   // ── Multi-material entries ────────────────────────────────────────────
   const [materialEntries, setMaterialEntries] = useState<Array<{
@@ -836,7 +844,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
     originals: 1,
   }]);
 
-  // ── Finishing groups expanded state (Rev 1: default collapsed) ────────
+  // ── Finishing groups expanded state ───────────────────────────────────
   const [expandedFinishingGroups, setExpandedFinishingGroups] = useState<Record<string, boolean>>({});
   const [selectedFinishingIds, setSelectedFinishingIds] = useState<string[]>(() => {
     const ids: string[] = [];
@@ -1160,18 +1168,11 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
     setMultiQtyInput(String(product.defaultQuantity));
   };
 
-  // ── Inline edit service line (Rev 9: supports sell price editing) ─────
+  // ── Inline edit service line ──────────────────────────────────────────
   const applyEditLine = () => {
     if (!editingLineId) return;
     const updatedLines = ps.serviceLines.map(l => {
       if (l.id !== editingLineId) return l;
-      // If sell price was directly edited, back-calculate markup
-      if (editValues.sellPrice !== undefined) {
-        const cost = editValues.totalCost ?? l.totalCost;
-        const sell = editValues.sellPrice;
-        const markup = cost > 0 ? ((sell - cost) / cost) * 100 : 0;
-        return { ...l, totalCost: cost, markupPercent: markup, sellPrice: sell };
-      }
       const cost = editValues.totalCost ?? l.totalCost;
       const markup = editValues.markupPercent ?? l.markupPercent;
       return { ...l, totalCost: cost, markupPercent: markup, sellPrice: cost * (1 + markup / 100) };
@@ -1187,49 +1188,12 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
     setEditValues({});
   };
 
-  // ── Apply footer total edits (Rev 9) ─────────────────────────────────
-  const applyTotalEdits = () => {
-    if (!editingTotals) return;
-    const lines = [...ps.serviceLines];
-    const currentTotalCost = lines.reduce((s, l) => s + l.totalCost, 0);
-    const currentTotalSell = lines.reduce((s, l) => s + l.sellPrice, 0);
-
-    if (editingTotals.sell !== undefined && currentTotalSell > 0) {
-      // Distribute sell price proportionally
-      const ratio = editingTotals.sell / currentTotalSell;
-      const updatedLines = lines.map(l => {
-        const newSell = l.sellPrice * ratio;
-        const newMarkup = l.totalCost > 0 ? ((newSell - l.totalCost) / l.totalCost) * 100 : 0;
-        return { ...l, sellPrice: newSell, markupPercent: newMarkup };
-      });
-      onUpdatePricing({ serviceLines: updatedLines });
-      const totalCost = updatedLines.reduce((s, l) => s + l.totalCost, 0);
-      const totalSell = updatedLines.reduce((s, l) => s + l.sellPrice, 0);
-      const overallMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
-      onUpdateItem({ totalCost, sellPrice: totalSell, markup: Math.round(overallMarkup) });
-    } else if (editingTotals.cost !== undefined && currentTotalCost > 0) {
-      // Distribute cost proportionally
-      const ratio = editingTotals.cost / currentTotalCost;
-      const updatedLines = lines.map(l => {
-        const newCost = l.totalCost * ratio;
-        return { ...l, totalCost: newCost, sellPrice: newCost * (1 + l.markupPercent / 100) };
-      });
-      onUpdatePricing({ serviceLines: updatedLines });
-      const totalCost = updatedLines.reduce((s, l) => s + l.totalCost, 0);
-      const totalSell = updatedLines.reduce((s, l) => s + l.sellPrice, 0);
-      const overallMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
-      onUpdateItem({ totalCost, sellPrice: totalSell, markup: Math.round(overallMarkup) });
-    }
-
-    setEditingTotals(null);
-  };
-
   // ── Save as template ──────────────────────────────────────────────────
   const handleSaveAsTemplate = () => {
     if (!ps.productName) return;
     pricing.addTemplate({
       name: ps.productName,
-      categoryId: categories.find(c => c.name === ps.categoryName)?.id || '',
+      categoryId: categories.find(c => c.name === ps.categoryName)?.id || '',  // template still uses single categoryId
       categoryName: ps.categoryName,
       productId: ps.productId,
       productName: ps.productName,
@@ -1249,8 +1213,73 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
     setTimeout(() => setSavedAsTemplate(false), 2000);
   };
 
+  // ── Multi-part handlers ────────────────────────────────────────────
+  const addPart = () => {
+    const newPart = {
+      id: nanoid(),
+      partName: parts.length === 0 ? 'Cover' : `Part ${parts.length + 1}`,
+      description: '',
+      materialId: ps.materialId || '',
+      sides: ps.sides,
+      colorMode: ps.colorMode,
+      equipmentId: ps.equipmentId || '',
+      foldingType: '',
+      drillingType: '',
+      cuttingEnabled: true,
+    };
+    setParts(prev => [...prev, newPart]);
+    setActivePartIndex(parts.length);
+  };
+
+  const updatePart = (idx: number, updates: Partial<typeof parts[0]>) => {
+    setParts(prev => prev.map((p, i) => i === idx ? { ...p, ...updates } : p));
+  };
+
+  const removePart = (idx: number) => {
+    setParts(prev => prev.filter((_, i) => i !== idx));
+    if (activePartIndex >= parts.length - 1) setActivePartIndex(Math.max(0, parts.length - 2));
+  };
+
+  // Sync active part to pricing state when switching parts
+  useEffect(() => {
+    if (isMultiPart && parts.length > 0 && parts[activePartIndex]) {
+      const part = parts[activePartIndex];
+      onUpdatePricing({
+        materialId: part.materialId,
+        sides: part.sides,
+        colorMode: part.colorMode,
+        equipmentId: part.equipmentId,
+        foldingType: part.foldingType,
+        drillingType: part.drillingType,
+        cuttingEnabled: part.cuttingEnabled,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePartIndex, isMultiPart]);
+
+  // When pricing fields change while in multi-part mode, save back to active part
+  useEffect(() => {
+    if (isMultiPart && parts.length > 0) {
+      updatePart(activePartIndex, {
+        materialId: ps.materialId,
+        sides: ps.sides,
+        colorMode: ps.colorMode,
+        equipmentId: ps.equipmentId,
+        foldingType: ps.foldingType,
+        drillingType: ps.drillingType,
+        cuttingEnabled: ps.cuttingEnabled,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ps.materialId, ps.sides, ps.colorMode, ps.equipmentId, ps.foldingType, ps.drillingType, ps.cuttingEnabled]);
+
+  // Finishing options from pricing store
+  const foldingOptions = finishing.filter(f => f.finishingGroupIds?.includes('fg2')).map(f => f.name);
+  const drillingOptions = finishing.filter(f => f.finishingGroupIds?.includes('fg3')).map(f => f.name);
+
   // Grouped finishing services for dynamic finishing UI
   const groupedFinishing = useMemo(() => {
+    // Filter finishing by current category if we have one
     const catId = categories.find(c => c.name === ps.categoryName)?.id;
     const relevantFinishing = catId
       ? finishing.filter(f => f.categoryIds.length === 0 || f.categoryIds.includes(catId))
@@ -1267,6 +1296,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
       }
     }
 
+    // Also add any finishing services not assigned to a group
     const ungrouped = relevantFinishing.filter(f => !assignedIds.has(f.id));
     if (ungrouped.length > 0) {
       groups.push({ group: { id: '_other', name: 'Other' }, services: ungrouped });
@@ -1305,13 +1335,57 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-5 h-5 text-gray-400" /></button>
         </div>
 
-        {/* Modal Body — Rev 8: reordered sections */}
+        {/* Modal Body */}
         <div className="overflow-y-auto flex-1 px-6 py-4">
+          {/* Multi-Part Toggle */}
+          <div className="flex items-center gap-3 mb-3 pb-3 border-b border-gray-100">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isMultiPart}
+                onChange={e => {
+                  const checked = e.target.checked;
+                  setIsMultiPart(checked);
+                  if (checked && parts.length === 0) {
+                    // Create first two parts from current item settings
+                    setParts([{
+                      id: nanoid(),
+                      partName: 'Cover',
+                      description: '',
+                      materialId: ps.materialId || '',
+                      sides: ps.sides,
+                      colorMode: ps.colorMode,
+                      equipmentId: ps.equipmentId || '',
+                      foldingType: ps.foldingType || '',
+                      drillingType: ps.drillingType || '',
+                      cuttingEnabled: ps.cuttingEnabled,
+                    }, {
+                      id: nanoid(),
+                      partName: 'Interior',
+                      description: '',
+                      materialId: '',
+                      sides: 'Double',
+                      colorMode: 'Color',
+                      equipmentId: ps.equipmentId || '',
+                      foldingType: '',
+                      drillingType: '',
+                      cuttingEnabled: false,
+                    }]);
+                    setActivePartIndex(0);
+                    setGlobalDescription(item.description || ps.productName || '');
+                  }
+                }}
+                className="w-3.5 h-3.5 rounded border-gray-300 text-[#F890E7] focus:ring-[#F890E7]"
+              />
+              <span className="text-xs font-semibold text-gray-600">Multi-Part Item</span>
+            </label>
+            <span className="text-[10px] text-gray-400">Enable for items with multiple parts (e.g., booklet cover + interior)</span>
+          </div>
+
           <div className="flex gap-6">
             {/* Main pricing form */}
-            <div className="flex-1 space-y-5 min-w-0">
-
-              {/* ── 1. Product Search + Description ────────────────────── */}
+            <div className="flex-1 space-y-4 min-w-0">
+              {/* ── Product Search ──────────────────────────────────────── */}
               <div>
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Product</label>
                 <div className="relative">
@@ -1349,6 +1423,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </div>
               </div>
 
+              {/* ── Item Description ─────────────────────────────────── */}
               <div>
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</label>
                 <input
@@ -1364,8 +1439,55 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </label>
               </div>
 
-              {/* ── 2. Quantity / Equipment (same row) ─────────────────── */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* ── Multi-Part Tabs ─────────────────────────────────── */}
+              {isMultiPart && (
+                <div className="flex items-center gap-1 border-b border-gray-100 mb-4">
+                  {parts.map((part, idx) => (
+                    <button
+                      key={part.id}
+                      onClick={() => setActivePartIndex(idx)}
+                      className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-all -mb-px ${
+                        activePartIndex === idx
+                          ? 'border-[#F890E7] text-[#F890E7]'
+                          : 'border-transparent text-gray-400 hover:text-gray-600'
+                      }`}
+                    >
+                      {part.partName || `Part ${idx + 1}`}
+                    </button>
+                  ))}
+                  <button
+                    onClick={addPart}
+                    className="px-2 py-1.5 text-xs text-gray-400 hover:text-[#F890E7] transition-colors flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" /> Add Part
+                  </button>
+                </div>
+              )}
+
+              {/* ── Multi-Part: Part Name & Description ──────────────── */}
+              {isMultiPart && parts.length > 0 && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Part Name</label>
+                    <input value={parts[activePartIndex]?.partName || ''}
+                      onChange={e => updatePart(activePartIndex, { partName: e.target.value })}
+                      className="w-full px-3 py-2 text-sm font-medium bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F890E7] focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Part Description</label>
+                    <input value={parts[activePartIndex]?.description || ''}
+                      onChange={e => updatePart(activePartIndex, { description: e.target.value })}
+                      placeholder="e.g., Cover stock, 4/4, laminated..."
+                      className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]" />
+                  </div>
+                </div>
+              )}
+
+              {/* ── SECTION: Equipment & Specs ─────────────────────────── */}
+              <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide pt-3 pb-1">Equipment & Specs</div>
+
+              {/* Row 1: Quantity, Width, Height */}
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Quantity</label>
                   <input type="text" value={multiQtyInput}
@@ -1376,177 +1498,113 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     }}
                     placeholder="e.g. 250, 500, 1000"
                     className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  <p className="text-[10px] text-gray-400 mt-0.5">Comma-separate for multi-qty pricing</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Separate with commas for multiple quantities</p>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Equipment</label>
-                  <select value={ps.equipmentId} onChange={e => onUpdatePricing({ equipmentId: e.target.value })}
-                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
-                    <option value="">-- Select --</option>
-                    {availableEquipment.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                  </select>
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Width (in)</label>
+                  <input type="number" step="0.125" value={ps.finalWidth} min={0}
+                    onChange={e => onUpdatePricing({ finalWidth: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Height (in)</label>
+                  <input type="number" step="0.125" value={ps.finalHeight} min={0}
+                    onChange={e => onUpdatePricing({ finalHeight: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
 
-              {/* ── 3. Materials (Rev 6/7: material + finish size + color + sides + orig + imposition below) ── */}
+              {/* Row 2: Equipment (full width) */}
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Equipment</label>
+                <select value={ps.equipmentId} onChange={e => onUpdatePricing({ equipmentId: e.target.value })}
+                  className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
+                  <option value="">-- Select --</option>
+                  {availableEquipment.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
+              </div>
+
+              {/* ── SECTION: Materials & Sides ─────────────────────────── */}
+              <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide pt-3 pb-1">Materials & Sides</div>
+
+              {/* Multi-material entries */}
               <div className="space-y-2">
-                {materialEntries.map((entry, idx) => {
-                  const entryMaterial = materials.find(m => m.id === entry.materialId);
-                  return (
-                    <div key={idx}>
-                      <div className="grid grid-cols-12 gap-2 items-end">
-                        {/* Material dropdown */}
-                        <div className="col-span-4">
-                          {idx === 0 && <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Material</label>}
-                          <select value={entry.materialId}
-                            onChange={e => {
-                              const updated = [...materialEntries];
-                              updated[idx] = { ...updated[idx], materialId: e.target.value };
-                              setMaterialEntries(updated);
-                            }}
-                            className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
-                            <option value="">-- Select --</option>
-                            {availableMaterials.map(m => <option key={m.id} value={m.id}>{m.name} ({m.size}) -- {fmt(m.pricePerM)}/M</option>)}
-                          </select>
-                        </div>
-                        {/* Color */}
-                        <div className="col-span-1">
-                          {idx === 0 && <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Color</label>}
-                          <select value={entry.colorMode}
-                            onChange={e => {
-                              const updated = [...materialEntries];
-                              updated[idx] = { ...updated[idx], colorMode: e.target.value as 'Color' | 'Black' };
-                              setMaterialEntries(updated);
-                            }}
-                            className="w-full px-1 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
-                            <option value="Color">Color</option>
-                            <option value="Black">B&W</option>
-                          </select>
-                        </div>
-                        {/* Sides */}
-                        <div className="col-span-2">
-                          {idx === 0 && <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sides</label>}
-                          <select value={entry.sides}
-                            onChange={e => {
-                              const updated = [...materialEntries];
-                              updated[idx] = { ...updated[idx], sides: e.target.value as 'Single' | 'Double' };
-                              setMaterialEntries(updated);
-                            }}
-                            className="w-full px-1 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
-                            <option value="Single">Single</option>
-                            <option value="Double">Double</option>
-                          </select>
-                        </div>
-                        {/* Originals */}
-                        <div className="col-span-1">
-                          {idx === 0 && (
-                            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1 flex items-center gap-1">
-                              Orig
-                              <span title="Number of originals/impressions per sheet.">
-                                <Info className="w-3 h-3 text-gray-400 inline" />
-                              </span>
-                            </label>
-                          )}
-                          <input type="number" min={1} value={entry.originals}
-                            onChange={e => {
-                              const updated = [...materialEntries];
-                              updated[idx] = { ...updated[idx], originals: parseInt(e.target.value) || 1 };
-                              setMaterialEntries(updated);
-                            }}
-                            className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                        </div>
-                        {/* Finish Size: W x H (Rev 6) */}
-                        <div className="col-span-3">
-                          {idx === 0 && <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Finish (W x H)</label>}
-                          <div className="flex items-center gap-1">
-                            <input type="number" step="0.125" value={ps.finalWidth} min={0}
-                              onChange={e => onUpdatePricing({ finalWidth: parseFloat(e.target.value) || 0 })}
-                              className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="W" />
-                            <span className="text-gray-400 text-xs flex-shrink-0">x</span>
-                            <input type="number" step="0.125" value={ps.finalHeight} min={0}
-                              onChange={e => onUpdatePricing({ finalHeight: parseFloat(e.target.value) || 0 })}
-                              className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="H" />
-                          </div>
-                        </div>
-                        {/* Remove button */}
-                        <div className="col-span-1 flex items-center justify-center">
-                          {idx > 0 ? (
-                            <button
-                              onClick={() => setMaterialEntries(prev => prev.filter((_, i) => i !== idx))}
-                              className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-500 transition-colors"
-                              title="Remove material"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          ) : <div className="w-3.5" />}
-                        </div>
-                      </div>
-
-                      {/* ── Imposition below first material (Rev 4/5) ─────── */}
-                      {idx === 0 && selectedMaterial && imposition.totalUps > 0 && (
-                        <div className="mt-1.5">
-                          {/* Compact imposition line */}
-                          <div
-                            className="bg-gray-50 rounded-lg px-3 py-2 flex items-center gap-4 text-[10px] text-gray-600 cursor-pointer hover:bg-gray-100 transition-colors"
-                            onClick={() => setShowImpositionCalc(!showImpositionCalc)}
-                          >
-                            <span>Sheet: <b className="text-gray-800">{selectedMaterial.size}</b></span>
-                            <span>Run: <b className="text-gray-800">{ps.finalWidth}x{ps.finalHeight}</b></span>
-                            <span>Ups: <b className="text-gray-800">{imposition.totalUps}</b></span>
-                            <span>Layout: <b className="text-gray-800">{imposition.upsAcross}x{imposition.upsDown}</b></span>
-                            <span>Sheets: <b className="text-gray-800">{imposition.sheetsNeeded.toLocaleString()}</b></span>
-                            <span>Cuts: <b className="text-gray-800">{imposition.cutsPerSheet}/sheet</b></span>
-                            {showImpositionCalc
-                              ? <ChevronUp className="w-3 h-3 text-gray-400 ml-auto" />
-                              : <ChevronDown className="w-3 h-3 text-gray-400 ml-auto" />
-                            }
-                          </div>
-
-                          {/* Expanded imposition calculator (Rev 5) */}
-                          {showImpositionCalc && (
-                            <div className="mt-1.5 bg-gray-50 rounded-lg p-3 border border-gray-100">
-                              <div className="grid grid-cols-5 gap-3">
-                                <div>
-                                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Parent Sheet</label>
-                                  <input type="text" readOnly
-                                    value={selectedMaterial ? `${selectedMaterial.sizeWidth}x${selectedMaterial.sizeHeight}` : ''}
-                                    className="w-full px-2 py-1.5 text-xs bg-gray-100 border border-gray-200 rounded-lg text-gray-600" />
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Finish Size</label>
-                                  <input type="text" readOnly
-                                    value={ps.finalWidth > 0 && ps.finalHeight > 0 ? `${ps.finalWidth}x${ps.finalHeight}` : ''}
-                                    className="w-full px-2 py-1.5 text-xs bg-gray-100 border border-gray-200 rounded-lg text-gray-600" />
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Bleed</label>
-                                  <input type="number" step="0.0625" value={impositionBleed} min={0}
-                                    onChange={e => setImpositionBleed(parseFloat(e.target.value) || 0)}
-                                    className="w-full px-2 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Gutter</label>
-                                  <input type="number" step="0.0625" value={impositionGutter} min={0}
-                                    onChange={e => setImpositionGutter(parseFloat(e.target.value) || 0)}
-                                    className="w-full px-2 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Orientation</label>
-                                  <div className="flex gap-1">
-                                    <button className="flex-1 px-2 py-1.5 text-[10px] rounded-lg border border-gray-200 bg-gray-100 text-gray-700 font-medium">Portrait</button>
-                                    <button className="flex-1 px-2 py-1.5 text-[10px] rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50">Landscape</button>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                {materialEntries.map((entry, idx) => (
+                  <div key={idx} className="grid grid-cols-12 gap-2 items-end">
+                    {/* Material dropdown - wider */}
+                    <div className="col-span-5">
+                      {idx === 0 && <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Material</label>}
+                      <select value={entry.materialId}
+                        onChange={e => {
+                          const updated = [...materialEntries];
+                          updated[idx] = { ...updated[idx], materialId: e.target.value };
+                          setMaterialEntries(updated);
+                        }}
+                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
+                        <option value="">-- Select material --</option>
+                        {availableMaterials.map(m => <option key={m.id} value={m.id}>{m.name} ({m.size}) -- {fmt(m.pricePerM)}/M</option>)}
+                      </select>
                     </div>
-                  );
-                })}
+                    {/* Sides */}
+                    <div className="col-span-2">
+                      {idx === 0 && <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sides</label>}
+                      <select value={entry.sides}
+                        onChange={e => {
+                          const updated = [...materialEntries];
+                          updated[idx] = { ...updated[idx], sides: e.target.value as 'Single' | 'Double' };
+                          setMaterialEntries(updated);
+                        }}
+                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
+                        <option value="Single">Single</option>
+                        <option value="Double">Double</option>
+                      </select>
+                    </div>
+                    {/* Color */}
+                    <div className="col-span-2">
+                      {idx === 0 && <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Color</label>}
+                      <select value={entry.colorMode}
+                        onChange={e => {
+                          const updated = [...materialEntries];
+                          updated[idx] = { ...updated[idx], colorMode: e.target.value as 'Color' | 'Black' };
+                          setMaterialEntries(updated);
+                        }}
+                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
+                        <option value="Color">Color</option>
+                        <option value="Black">B&W</option>
+                      </select>
+                    </div>
+                    {/* Originals */}
+                    <div className="col-span-2">
+                      {idx === 0 && (
+                        <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1 flex items-center gap-1">
+                          Originals
+                          <span title="Number of originals/impressions per sheet. Example: 2 originals for an 8-page booklet on 12x18.">
+                            <Info className="w-3 h-3 text-gray-400 inline" />
+                          </span>
+                        </label>
+                      )}
+                      <input type="number" min={1} value={entry.originals}
+                        onChange={e => {
+                          const updated = [...materialEntries];
+                          updated[idx] = { ...updated[idx], originals: parseInt(e.target.value) || 1 };
+                          setMaterialEntries(updated);
+                        }}
+                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    {/* Remove button (only for additional materials) */}
+                    <div className="col-span-1 flex items-center justify-center">
+                      {idx > 0 ? (
+                        <button
+                          onClick={() => setMaterialEntries(prev => prev.filter((_, i) => i !== idx))}
+                          className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-500 transition-colors"
+                          title="Remove material"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      ) : <div className="w-3.5" />}
+                    </div>
+                  </div>
+                ))}
 
                 {/* + Add Material button */}
                 <button
@@ -1562,27 +1620,62 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </button>
               </div>
 
-              {/* ── 4. Finishing (Rev 2: grid of compact boxes) ─────────── */}
-              <div className="grid grid-cols-3 gap-2">
+              {/* ── Imposition ─────────────────────────────────────────── */}
+              {selectedMaterial && imposition.totalUps > 0 && (
+                <div className="bg-blue-50/50 rounded-xl p-4">
+                  <h4 className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    <Grid3X3 className="w-3.5 h-3.5 text-blue-500" /> Imposition
+                  </h4>
+                  <div className="grid grid-cols-5 gap-2">
+                    <div className="bg-white rounded-lg p-2 text-center border border-blue-100">
+                      <p className="text-[10px] text-blue-600 font-medium">Parent</p>
+                      <p className="text-sm font-bold text-blue-900">{selectedMaterial.size}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-2 text-center border border-emerald-100">
+                      <p className="text-[10px] text-emerald-600 font-medium">Ups</p>
+                      <p className="text-sm font-bold text-emerald-900">{imposition.totalUps}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-2 text-center border border-purple-100">
+                      <p className="text-[10px] text-purple-600 font-medium">Layout</p>
+                      <p className="text-sm font-bold text-purple-900">{imposition.upsAcross}x{imposition.upsDown}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-2 text-center border border-amber-100">
+                      <p className="text-[10px] text-amber-600 font-medium">Sheets</p>
+                      <p className="text-sm font-bold text-amber-900">{imposition.sheetsNeeded.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-2 text-center border border-gray-200">
+                      <p className="text-[10px] text-gray-500 font-medium">Cuts/Sheet</p>
+                      <p className="text-sm font-bold text-gray-900">{imposition.cutsPerSheet}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── SECTION: Finishing ─────────────────────────────────── */}
+              <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide pt-3 pb-1">Finishing</div>
+
+              {/* Dynamic finishing groups */}
+              <div className="space-y-2">
                 {groupedFinishing.map(({ group, services }) => {
-                  const isExpanded = expandedFinishingGroups[group.id] === true; // Rev 1: default collapsed
+                  const isExpanded = expandedFinishingGroups[group.id] !== false; // default expanded
                   const selectedInGroup = services.filter(s => selectedFinishingIds.includes(s.id));
                   return (
-                    <div key={group.id} className="border border-gray-100 rounded-lg overflow-hidden">
+                    <div key={group.id} className="rounded-xl border border-gray-100 overflow-hidden">
                       <button
                         onClick={() => setExpandedFinishingGroups(prev => ({ ...prev, [group.id]: !isExpanded }))}
-                        className="w-full flex items-center justify-between px-2.5 py-2 hover:bg-gray-50 transition-colors"
+                        className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 transition-colors"
                       >
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          {isExpanded ? <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" /> : <ChevronRight className="w-3 h-3 text-gray-400 flex-shrink-0" />}
-                          <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide truncate">{group.name}</span>
+                        <div className="flex items-center gap-2">
+                          {isExpanded ? <ChevronDown className="w-3 h-3 text-gray-400" /> : <ChevronRight className="w-3 h-3 text-gray-400" />}
+                          <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">{group.name}</span>
                           {selectedInGroup.length > 0 && (
-                            <span className="flex-shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold">{selectedInGroup.length}</span>
+                            <Badge color="blue" className="text-[9px]">{selectedInGroup.length} selected</Badge>
                           )}
                         </div>
+                        <span className="text-[10px] text-gray-400">{services.length} services</span>
                       </button>
                       {isExpanded && (
-                        <div className="px-2.5 pb-2 flex flex-wrap gap-1">
+                        <div className="px-3 pb-2.5 flex flex-wrap gap-1.5">
                           {services.map(svc => {
                             const isSelected = selectedFinishingIds.includes(svc.id);
                             return (
@@ -1597,6 +1690,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                   }
                                   setSelectedFinishingIds(nextIds);
 
+                                  // Sync back to legacy pricing fields for calculation compatibility
                                   const selectedServices = finishing.filter(f => nextIds.includes(f.id));
                                   const hasCut = selectedServices.some(f => f.name === 'Cut');
                                   const fold = selectedServices.find(f => f.finishingGroupIds?.includes('fg2'));
@@ -1607,7 +1701,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                     drillingType: drill?.name || '',
                                   });
                                 }}
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-medium border transition-all ${
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-all ${
                                   isSelected
                                     ? 'border-blue-300 bg-blue-50 text-blue-700'
                                     : 'border-gray-200 bg-white text-gray-600 hover:border-blue-200 hover:bg-blue-50/50'
@@ -1623,6 +1717,16 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     </div>
                   );
                 })}
+
+                {/* Sheets per stack (visible when cutting is enabled) */}
+                {ps.cuttingEnabled && (
+                  <div className="flex items-center gap-2 pl-1">
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Sheets/Stack:</label>
+                    <input type="number" value={ps.sheetsPerStack} min={1}
+                      onChange={e => onUpdatePricing({ sheetsPerStack: parseInt(e.target.value) || 1 })}
+                      className="w-20 px-2 py-1 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                )}
               </div>
 
               {/* ── Multi-Quantity Price Table ────────────────────────── */}
@@ -1654,7 +1758,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </div>
               )}
 
-              {/* ── 5. Price Breakdown Table (Rev 9: editable sell price + footer) ── */}
+              {/* ── Price Breakdown Table ─────────────────────────────── */}
               {(ps.serviceLines.length > 0 || materialEntries.length > 1) && (
                 <div className="bg-gray-50 rounded-xl overflow-hidden">
                   <div className="px-4 py-2.5 flex items-center justify-between border-b border-gray-200/60">
@@ -1698,9 +1802,6 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       })}
                       {ps.serviceLines.map(line => {
                         const isEditing = editingLineId === line.id;
-                        const editSellPrice = editValues.sellPrice !== undefined
-                          ? editValues.sellPrice
-                          : (editValues.totalCost ?? line.totalCost) * (1 + (editValues.markupPercent ?? line.markupPercent) / 100);
                         return (
                           <tr key={line.id}
                             className={`transition-colors ${isEditing ? 'bg-blue-50' : 'hover:bg-white cursor-pointer'}`}
@@ -1720,7 +1821,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                             <td className="py-2 px-4 text-right font-mono">
                               {isEditing ? (
                                 <input type="number" step="0.01" value={editValues.totalCost ?? line.totalCost}
-                                  onChange={e => setEditValues(v => ({ ...v, totalCost: parseFloat(e.target.value) || 0, sellPrice: undefined }))}
+                                  onChange={e => setEditValues(v => ({ ...v, totalCost: parseFloat(e.target.value) || 0 }))}
                                   onClick={e => e.stopPropagation()}
                                   className="w-20 px-1.5 py-0.5 text-right text-xs border border-blue-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
                               ) : fmt(line.totalCost)}
@@ -1728,10 +1829,8 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                             <td className="py-2 px-4 text-right font-mono">
                               {isEditing ? (
                                 <div className="flex items-center justify-end gap-0.5">
-                                  <input type="number" step="0.1" value={editValues.sellPrice !== undefined
-                                      ? ((editValues.totalCost ?? line.totalCost) > 0 ? (((editValues.sellPrice) - (editValues.totalCost ?? line.totalCost)) / (editValues.totalCost ?? line.totalCost) * 100) : 0).toFixed(1)
-                                      : (editValues.markupPercent ?? line.markupPercent)}
-                                    onChange={e => setEditValues(v => ({ ...v, markupPercent: parseFloat(e.target.value) || 0, sellPrice: undefined }))}
+                                  <input type="number" step="0.1" value={editValues.markupPercent ?? line.markupPercent}
+                                    onChange={e => setEditValues(v => ({ ...v, markupPercent: parseFloat(e.target.value) || 0 }))}
                                     onClick={e => e.stopPropagation()}
                                     className="w-16 px-1.5 py-0.5 text-right text-xs border border-blue-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
                                   <span className="text-gray-400">%</span>
@@ -1741,22 +1840,17 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               )}
                             </td>
                             <td className="py-2 px-4 text-right font-mono font-semibold text-gray-900">
-                              {isEditing ? (
-                                <input type="number" step="0.01" value={editSellPrice.toFixed(2)}
-                                  onChange={e => {
-                                    const newSell = parseFloat(e.target.value) || 0;
-                                    setEditValues(v => ({ ...v, sellPrice: newSell }));
-                                  }}
-                                  onClick={e => e.stopPropagation()}
-                                  className="w-20 px-1.5 py-0.5 text-right text-xs border border-blue-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold" />
-                              ) : fmt(line.sellPrice)}
+                              {isEditing
+                                ? fmt((editValues.totalCost ?? line.totalCost) * (1 + (editValues.markupPercent ?? line.markupPercent) / 100))
+                                : fmt(line.sellPrice)
+                              }
                             </td>
                             <td className="py-2 px-1">
                               {isEditing ? (
                                 <div className="flex items-center gap-0.5">
                                   <button onClick={e => { e.stopPropagation(); applyEditLine(); }}
                                     className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded"><Check className="w-3 h-3" /></button>
-                                  <button onClick={e => { e.stopPropagation(); setEditingLineId(null); setEditValues({}); }}
+                                  <button onClick={e => { e.stopPropagation(); setEditingLineId(null); }}
                                     className="p-0.5 text-red-500 hover:bg-red-50 rounded"><X className="w-3 h-3" /></button>
                                 </div>
                               ) : <Edit3 className="w-3 h-3 text-gray-300" />}
@@ -1767,22 +1861,12 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     </tbody>
                   </table>
 
-                  {/* ── Cost / Markup / Margin Summary (Rev 9: editable footer) ── */}
+                  {/* ── Cost / Markup / Margin Summary (item 33) ──────── */}
                   <div className="px-4 py-3 border-t border-gray-200/60 bg-white">
                     <div className="grid grid-cols-3 gap-4">
                       <div className="text-center">
                         <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide">Total Cost</p>
-                        {editingTotals ? (
-                          <input type="number" step="0.01"
-                            value={editingTotals.cost ?? itemTotalCost}
-                            onChange={e => setEditingTotals(prev => ({ ...prev, cost: parseFloat(e.target.value) || 0 }))}
-                            className="w-24 mx-auto px-1.5 py-0.5 text-center text-sm font-bold border border-blue-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                        ) : (
-                          <p className="text-sm font-bold text-gray-700 cursor-pointer hover:text-blue-600"
-                            onClick={() => setEditingTotals({ cost: itemTotalCost, sell: itemTotalSell })}>
-                            {fmt(itemTotalCost)}
-                          </p>
-                        )}
+                        <p className="text-sm font-bold text-gray-700">{fmt(itemTotalCost)}</p>
                       </div>
                       <div className="text-center">
                         <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide">Total Markup</p>
@@ -1795,53 +1879,15 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         </p>
                       </div>
                     </div>
-                    <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-end gap-2">
-                      {editingTotals ? (
-                        <>
-                          <span className="text-sm font-bold text-gray-600">Sell Price:</span>
-                          <input type="number" step="0.01"
-                            value={editingTotals.sell ?? itemTotalSell}
-                            onChange={e => setEditingTotals(prev => ({ ...prev, sell: parseFloat(e.target.value) || 0 }))}
-                            className="w-28 px-1.5 py-0.5 text-right text-sm font-bold border border-blue-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                          <button onClick={applyTotalEdits}
-                            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check className="w-3.5 h-3.5" /></button>
-                          <button onClick={() => setEditingTotals(null)}
-                            className="p-1 text-red-500 hover:bg-red-50 rounded"><X className="w-3.5 h-3.5" /></button>
-                        </>
-                      ) : (
-                        <span className="text-sm font-bold text-blue-700 cursor-pointer hover:text-blue-900"
-                          onClick={() => setEditingTotals({ cost: itemTotalCost, sell: itemTotalSell })}>
-                          Sell Price: {fmt(itemTotalSell)}
-                        </span>
-                      )}
+                    <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">
+                      <span className="text-sm font-bold text-blue-700">Sell Price: {fmt(itemTotalSell)}</span>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* ── 6. Notes (Rev 3: customer + internal side by side) ── */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Customer Notes</label>
-                  <textarea
-                    rows={2}
-                    value={item.notes || ''}
-                    onChange={e => onUpdateItem({ notes: e.target.value })}
-                    placeholder="Notes visible to customer..."
-                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 resize-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Internal Notes</label>
-                  <textarea
-                    rows={2}
-                    value={internalNotes}
-                    onChange={e => setInternalNotes(e.target.value)}
-                    placeholder="Internal notes for your team..."
-                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 resize-none"
-                  />
-                </div>
-              </div>
+              {/* Notes */}
+              <Input label="Line Item Notes" value={item.notes || ''} onChange={e => onUpdateItem({ notes: e.target.value })} placeholder="Notes for this item..." />
             </div>
 
             {/* ── Right panel: Item Templates ──────────────────────────── */}
@@ -1871,8 +1917,18 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
         {/* Modal Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
-          <Button variant="danger" size="sm" onClick={onRemove} icon={<Trash2 className="w-3.5 h-3.5" />}>Remove Item</Button>
-          <Button variant="primary" onClick={onClose}>Done</Button>
+          <div className="flex items-center gap-2">
+            <Button variant="danger" size="sm" onClick={onRemove} icon={<Trash2 className="w-3.5 h-3.5" />}>Remove Item</Button>
+            {isMultiPart && parts.length > 1 && (
+              <Button variant="ghost" size="sm" onClick={() => removePart(activePartIndex)}>Remove Part</Button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {isMultiPart && (
+              <Button variant="secondary" size="sm" onClick={() => { addPart(); }} icon={<Plus className="w-3.5 h-3.5" />}>Save Part & Add Next</Button>
+            )}
+            <Button variant="primary" onClick={onClose}>Done</Button>
+          </div>
         </div>
       </div>
     </div>
