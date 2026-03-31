@@ -9,7 +9,7 @@ export const Header: React.FC = () => {
   const navigate = useNavigate();
   
   return (
-    <header className={`fixed top-0 right-0 h-14 bg-white border-b border-gray-100 grid grid-cols-[minmax(0,1fr)_minmax(320px,720px)_minmax(0,1fr)] items-center gap-4 px-5 z-20 transition-all duration-300 ${sidebarCollapsed ? 'left-16' : 'left-56'}`}>
+    <header className={`fixed top-0 right-0 h-16 bg-white border-b border-gray-100 grid grid-cols-[minmax(0,1fr)_minmax(320px,720px)_minmax(0,1fr)] items-center gap-4 px-5 z-20 transition-all duration-300 ${sidebarCollapsed ? 'left-16' : 'left-56'}`}>
       <div />
       <div className="justify-self-center w-full">
         <GlobalSearch />
