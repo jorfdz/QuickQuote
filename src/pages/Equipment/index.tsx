@@ -666,14 +666,36 @@ export const Equipment: React.FC = () => {
                         { minQty: 10, pricePerUnit: 0 },
                         { minQty: 50, pricePerUnit: 0 },
                       ];
+                      const defaultClickTiers: EquipmentPricingTier[] = [
+                        { minQty: 1, pricePerUnit: 0 },
+                        { minQty: 25, pricePerUnit: 0 },
+                        { minQty: 50, pricePerUnit: 0 },
+                        { minQty: 250, pricePerUnit: 0 },
+                        { minQty: 500, pricePerUnit: 0 },
+                        { minQty: 1750, pricePerUnit: 0 },
+                        { minQty: 3000, pricePerUnit: 0 },
+                        { minQty: 7500, pricePerUnit: 0 },
+                        { minQty: 10000, pricePerUnit: 0 },
+                      ];
+                      // When switching back to the saved record's original unit, restore its tiers;
+                      // otherwise use defaults for the new unit
+                      const savedUnit = editingEquipment?.costUnit;
                       if (newUnit === 'per_sqft') {
-                        // Switching to per_sqft: always reset tiers to sqft defaults
-                        updates.colorTiers = defaultSqftTiers.map(t => ({ ...t }));
-                        updates.blackTiers = defaultSqftTiers.map(t => ({ ...t }));
+                        if (savedUnit === 'per_sqft' && editingEquipment) {
+                          updates.colorTiers = editingEquipment.colorTiers?.map(t => ({ ...t })) || defaultSqftTiers.map(t => ({ ...t }));
+                          updates.blackTiers = editingEquipment.blackTiers?.map(t => ({ ...t })) || defaultSqftTiers.map(t => ({ ...t }));
+                        } else {
+                          updates.colorTiers = defaultSqftTiers.map(t => ({ ...t }));
+                          updates.blackTiers = defaultSqftTiers.map(t => ({ ...t }));
+                        }
                       } else {
-                        // Switching back to per_click: restore stored tiers from the saved record, or empty for new
-                        updates.colorTiers = editingEquipment?.colorTiers ? [...editingEquipment.colorTiers.map(t => ({ ...t }))] : [];
-                        updates.blackTiers = editingEquipment?.blackTiers ? [...editingEquipment.blackTiers.map(t => ({ ...t }))] : [];
+                        if (savedUnit === 'per_click' && editingEquipment) {
+                          updates.colorTiers = editingEquipment.colorTiers?.map(t => ({ ...t })) || defaultClickTiers.map(t => ({ ...t }));
+                          updates.blackTiers = editingEquipment.blackTiers?.map(t => ({ ...t })) || defaultClickTiers.map(t => ({ ...t }));
+                        } else {
+                          updates.colorTiers = defaultClickTiers.map(t => ({ ...t }));
+                          updates.blackTiers = defaultClickTiers.map(t => ({ ...t }));
+                        }
                       }
                       return { ...f, ...updates };
                     });
