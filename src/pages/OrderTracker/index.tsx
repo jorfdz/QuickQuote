@@ -140,10 +140,6 @@ export const OrderTracker: React.FC = () => {
   }, [activeBoards, orders]);
 
   const brandColor = companySettings.primaryBrandColor || '#2563eb';
-  const boardSurfaceStyle = useMemo(() => ({
-    backgroundImage: `radial-gradient(circle at top left, ${withAlpha(brandColor, 0.22)}, transparent 30%), radial-gradient(circle at top right, ${withAlpha(brandColor, 0.14)}, transparent 24%), linear-gradient(135deg, ${withAlpha(brandColor, 0.08)}, rgba(255,255,255,0.98) 42%, ${withAlpha(brandColor, 0.1)})`,
-  }), [brandColor]);
-
   const activeDragItem = trackerItems.find((item) => item.id === activeDragId) || null;
 
   const moveItemToStage = (itemId: string, stageId: string) => {
@@ -259,7 +255,7 @@ export const OrderTracker: React.FC = () => {
         )}
       </section>
 
-      <section className="rounded-[28px] border border-white/70 p-4 shadow-sm" style={boardSurfaceStyle}>
+      <section className="rounded-[28px] border border-gray-200 bg-white p-4 shadow-sm">
         <div className="mb-5 flex flex-col gap-4 border-b border-white/80 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">{workflow.name}</h2>
