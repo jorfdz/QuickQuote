@@ -191,7 +191,7 @@ export const OrderTracker: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex min-h-[calc(100vh-104px)] flex-col gap-6">
       <PageHeader title="Order Tracker" subtitle="Move production items across boards and stages in real time." />
 
       <section className="space-y-3">
@@ -255,7 +255,7 @@ export const OrderTracker: React.FC = () => {
         )}
       </section>
 
-      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <section className="flex min-h-0 flex-1 flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="mb-5 flex flex-col gap-4 border-b border-white/80 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">{workflow.name}</h2>
@@ -274,7 +274,7 @@ export const OrderTracker: React.FC = () => {
         </div>
 
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="flex gap-4 overflow-x-auto pb-3">
+          <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto pb-3">
             {columns.map((column) => (
               <StageLane
                 key={column.id}
@@ -306,7 +306,7 @@ const StageLane: React.FC<{
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
   return (
-    <div className="w-[320px] flex-shrink-0">
+    <div className="flex h-full w-[320px] flex-shrink-0 flex-col">
       <div className="mb-3 flex items-center gap-2 px-1">
         <span className="h-3 w-3 rounded-full" style={{ backgroundColor: column.color }} />
         <h3 className="text-sm font-semibold text-gray-800">{column.name}</h3>
@@ -319,7 +319,7 @@ const StageLane: React.FC<{
       </div>
       <div
         ref={setNodeRef}
-        className={`min-h-[420px] rounded-xl border p-3 transition-colors ${isOver ? 'bg-white shadow-inner' : 'border-white/70 bg-white/72'}`}
+        className={`min-h-0 flex-1 overflow-y-auto rounded-xl border p-3 transition-colors ${isOver ? 'bg-white shadow-inner' : 'border-white/70 bg-white/72'}`}
         style={isOver ? { borderColor: withAlpha(brandColor, 0.45), boxShadow: `inset 0 0 0 1px ${withAlpha(brandColor, 0.12)}` } : undefined}
       >
         <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
