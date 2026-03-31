@@ -1,7 +1,7 @@
 import type {
   PricingCategory, PricingProduct, PricingEquipment,
   PricingFinishing, PricingMaterial, ProductPricingTemplate,
-  MaterialGroup, PricingLabor, PricingBrokered,
+  MaterialGroup, FinishingGroup, PricingLabor, PricingBrokered,
 } from '../types/pricing';
 
 // ─── MATERIAL GROUPS ──────────────────────────────────────────────────────────
@@ -11,6 +11,17 @@ export const defaultMaterialGroups: MaterialGroup[] = [
   { id: 'mg2', name: 'Wide-Format Rolls', description: 'Roll media for wide-format printers', categoryIds: ['pc2'], createdAt: '2024-01-01' },
   { id: 'mg3', name: 'Wide-Format Rigids', description: 'Rigid substrates for sign production', categoryIds: ['pc2'], createdAt: '2024-01-01' },
   { id: 'mg4', name: 'Envelopes', description: 'Envelope stocks', categoryIds: ['pc1'], createdAt: '2024-01-01' },
+];
+
+// ─── FINISHING GROUPS ────────────────────────────────────────────────────────
+
+export const defaultFinishingGroups: FinishingGroup[] = [
+  { id: 'fg1', name: 'Cutting & Trimming', description: 'Paper cutting, trimming, die cutting', createdAt: '2024-01-01' },
+  { id: 'fg2', name: 'Folding', description: 'Mechanical and hand folding', createdAt: '2024-01-01' },
+  { id: 'fg3', name: 'Binding & Drilling', description: 'Drilling, stapling, binding', createdAt: '2024-01-01' },
+  { id: 'fg4', name: 'Laminating & Coating', description: 'Sheet lamination, roll lamination, UV coating', createdAt: '2024-01-01' },
+  { id: 'fg5', name: 'Mailing & Fulfillment', description: 'Inserting, addressing, tabbing, metering', createdAt: '2024-01-01' },
+  { id: 'fg6', name: 'Sign Finishing', description: 'Routing, mounting, grommeting, hemming', createdAt: '2024-01-01' },
 ];
 
 // ─── CATEGORIES (from Excel tabs) ───────────────────────────────────────────
@@ -173,38 +184,80 @@ export const defaultPricingEquipment: PricingEquipment[] = [
 // ─── FINISHING (from Excel) ─────────────────────────────────────────────────
 
 export const defaultFinishing: PricingFinishing[] = [
-  {
-    id: 'pf1', service: 'Cut', costType: 'time_only',
-    outputPerHour: 150, hourlyCost: 40, timeCostMarkup: 0,
-    categoryIds: ['pc1'], unitBasis: 'per_cut',
-    sheetsPerCutStack: 500, cutsPerHour: 150,
-    notes: 'Ask how many sheets per cut stack. Default 500. Determine cuts from layout.',
-    createdAt: '2024-01-01',
-  },
-  {
-    id: 'pf2', service: 'Fold', subservice: 'Tri-Fold', costType: 'time_only',
-    outputPerHour: 5000, hourlyCost: 40, timeCostMarkup: 0,
-    categoryIds: ['pc1'], unitBasis: 'per_unit',
-    createdAt: '2024-01-01',
-  },
-  {
-    id: 'pf3', service: 'Fold', subservice: 'Bi-Fold', costType: 'time_only',
-    outputPerHour: 5000, hourlyCost: 40, timeCostMarkup: 0,
-    categoryIds: ['pc1'], unitBasis: 'per_unit',
-    createdAt: '2024-01-01',
-  },
-  {
-    id: 'pf4', service: 'Drill', subservice: '1 Hole', costType: 'time_only',
-    outputPerHour: 5000, hourlyCost: 40, timeCostMarkup: 0,
-    categoryIds: ['pc1'], unitBasis: 'per_unit',
-    createdAt: '2024-01-01',
-  },
-  {
-    id: 'pf5', service: 'Drill', subservice: '2 Holes', costType: 'time_only',
-    outputPerHour: 5000, hourlyCost: 40, timeCostMarkup: 0,
-    categoryIds: ['pc1'], unitBasis: 'per_unit',
-    createdAt: '2024-01-01',
-  },
+  // Cutting & Trimming
+  { id: 'pf1', name: 'Cut', description: 'Standard paper cutting on guillotine cutter',
+    costType: 'time_only', chargeBasis: 'per_stack_pass',
+    unitCost: 0, hourlyCost: 40, outputPerHour: 150, initialSetupFee: 0, markupPercent: 0,
+    categoryIds: ['pc1'], finishingGroupIds: ['fg1'], productIds: [],
+    sheetsPerStack: 500, passesPerHour: 150,
+    notes: 'Batch cutting — 500 sheets per stack pass', createdAt: '2024-01-01' },
+
+  // Folding
+  { id: 'pf2', name: 'Tri-Fold', description: 'Letter-fold / tri-fold on folder',
+    costType: 'time_only', chargeBasis: 'per_unit',
+    unitCost: 0, hourlyCost: 40, outputPerHour: 5000, initialSetupFee: 0, markupPercent: 0,
+    categoryIds: ['pc1'], finishingGroupIds: ['fg2'], productIds: [],
+    createdAt: '2024-01-01' },
+  { id: 'pf3', name: 'Bi-Fold', description: 'Half-fold on folder',
+    costType: 'time_only', chargeBasis: 'per_unit',
+    unitCost: 0, hourlyCost: 40, outputPerHour: 5000, initialSetupFee: 0, markupPercent: 0,
+    categoryIds: ['pc1'], finishingGroupIds: ['fg2'], productIds: [],
+    createdAt: '2024-01-01' },
+
+  // Drilling
+  { id: 'pf4', name: 'Drill 1-Hole', description: 'Single hole drill',
+    costType: 'time_only', chargeBasis: 'per_stack_pass',
+    unitCost: 0, hourlyCost: 40, outputPerHour: 5000, initialSetupFee: 0, markupPercent: 0,
+    categoryIds: ['pc1'], finishingGroupIds: ['fg3'], productIds: [],
+    sheetsPerStack: 500, passesPerHour: 300,
+    createdAt: '2024-01-01' },
+  { id: 'pf5', name: 'Drill 2-Hole', description: 'Double hole drill',
+    costType: 'time_only', chargeBasis: 'per_stack_pass',
+    unitCost: 0, hourlyCost: 40, outputPerHour: 5000, initialSetupFee: 0, markupPercent: 0,
+    categoryIds: ['pc1'], finishingGroupIds: ['fg3'], productIds: [],
+    sheetsPerStack: 500, passesPerHour: 250,
+    createdAt: '2024-01-01' },
+
+  // Laminating
+  { id: 'pf6', name: 'Laminate — Sheet', description: 'Sheet-fed lamination (pouch or roll-to-sheet)',
+    costType: 'cost_plus_time', chargeBasis: 'per_unit',
+    unitCost: 0.15, hourlyCost: 35, outputPerHour: 300, initialSetupFee: 5, markupPercent: 50,
+    categoryIds: ['pc1'], finishingGroupIds: ['fg4'], productIds: [],
+    createdAt: '2024-01-01' },
+  { id: 'pf7', name: 'Laminate — Roll', description: 'Roll-to-roll lamination for wide format',
+    costType: 'cost_plus_time', chargeBasis: 'per_sqft',
+    unitCost: 0.30, hourlyCost: 40, outputPerHour: 200, initialSetupFee: 10, markupPercent: 50,
+    categoryIds: ['pc2'], finishingGroupIds: ['fg4'], productIds: [],
+    createdAt: '2024-01-01' },
+
+  // Mailing
+  { id: 'pf8', name: 'Insert & Seal', description: 'Machine inserting and sealing envelopes',
+    costType: 'time_only', chargeBasis: 'per_unit',
+    unitCost: 0, hourlyCost: 35, outputPerHour: 1500, initialSetupFee: 15, markupPercent: 30,
+    categoryIds: ['pc1'], finishingGroupIds: ['fg5'], productIds: [],
+    createdAt: '2024-01-01' },
+  { id: 'pf9', name: 'Address & Tab', description: 'Inkjet addressing and tabbing for self-mailers',
+    costType: 'cost_plus_time', chargeBasis: 'per_unit',
+    unitCost: 0.03, hourlyCost: 35, outputPerHour: 4000, initialSetupFee: 20, markupPercent: 30,
+    categoryIds: ['pc1'], finishingGroupIds: ['fg5'], productIds: [],
+    createdAt: '2024-01-01' },
+
+  // Sign finishing
+  { id: 'pf10', name: 'Route / Contour Cut', description: 'CNC routing or contour cutting on flatbed',
+    costType: 'cost_plus_time', chargeBasis: 'per_sqft',
+    unitCost: 0.50, hourlyCost: 55, outputPerHour: 50, initialSetupFee: 15, markupPercent: 60,
+    categoryIds: ['pc2'], finishingGroupIds: ['fg6'], productIds: [],
+    createdAt: '2024-01-01' },
+  { id: 'pf11', name: 'Grommet', description: 'Adding grommets to banners',
+    costType: 'time_only', chargeBasis: 'per_unit',
+    unitCost: 0, hourlyCost: 30, outputPerHour: 120, initialSetupFee: 0, markupPercent: 40,
+    categoryIds: ['pc2'], finishingGroupIds: ['fg6'], productIds: [],
+    createdAt: '2024-01-01' },
+  { id: 'pf12', name: 'Hem & Pole Pocket', description: 'Banner hemming and pole pocket sewing',
+    costType: 'time_only', chargeBasis: 'per_hour',
+    unitCost: 0, hourlyCost: 35, outputPerHour: 1, initialSetupFee: 0, markupPercent: 50,
+    categoryIds: ['pc2'], finishingGroupIds: ['fg6'], productIds: [],
+    createdAt: '2024-01-01' },
 ];
 
 // ─── LABOR ─────────────────────────────────────────────────────────────────

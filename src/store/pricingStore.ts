@@ -3,12 +3,12 @@ import { persist } from 'zustand/middleware';
 import type {
   PricingCategory, PricingProduct, PricingEquipment,
   PricingFinishing, PricingMaterial, ProductPricingTemplate,
-  EquipmentPricingTier, MaterialGroup, PricingLabor, PricingBrokered,
+  EquipmentPricingTier, MaterialGroup, FinishingGroup, PricingLabor, PricingBrokered,
 } from '../types/pricing';
 import {
   defaultCategories, defaultProducts, defaultPricingEquipment,
   defaultFinishing, defaultPricingMaterials, defaultPricingTemplates,
-  defaultMaterialGroups, defaultLabor, defaultBrokered,
+  defaultMaterialGroups, defaultFinishingGroups, defaultLabor, defaultBrokered,
 } from '../data/pricingData';
 
 // ─── HELPER: Generate IDs ──────────────────────────────────────────────────
@@ -29,6 +29,7 @@ interface PricingStore {
   materials: PricingMaterial[];
   templates: ProductPricingTemplate[];
   materialGroups: MaterialGroup[];
+  finishingGroups: FinishingGroup[];
 
   // Categories CRUD
   addCategory: (c: Omit<PricingCategory, 'id' | 'createdAt'>) => PricingCategory;
@@ -70,6 +71,11 @@ interface PricingStore {
   updateMaterialGroup: (id: string, g: Partial<MaterialGroup>) => void;
   deleteMaterialGroup: (id: string) => void;
 
+  // Finishing Groups CRUD
+  addFinishingGroup: (g: Omit<FinishingGroup, 'id' | 'createdAt'>) => FinishingGroup;
+  updateFinishingGroup: (id: string, g: Partial<FinishingGroup>) => void;
+  deleteFinishingGroup: (id: string) => void;
+
   // Templates CRUD
   addTemplate: (t: Omit<ProductPricingTemplate, 'id' | 'createdAt' | 'usageCount'>) => ProductPricingTemplate;
   updateTemplate: (id: string, t: Partial<ProductPricingTemplate>) => void;
@@ -109,6 +115,7 @@ export const usePricingStore = create<PricingStore>()(
       materials: defaultPricingMaterials,
       templates: defaultPricingTemplates,
       materialGroups: defaultMaterialGroups,
+      finishingGroups: defaultFinishingGroups,
 
       // ── Categories ──────────────────────────────────────────────────────
       addCategory: (c) => {
@@ -212,6 +219,19 @@ export const usePricingStore = create<PricingStore>()(
       })),
       deleteMaterialGroup: (id) => set((s) => ({
         materialGroups: s.materialGroups.filter((x) => x.id !== id),
+      })),
+
+      // ── Finishing Groups ────────────────────────────────────────────────
+      addFinishingGroup: (g) => {
+        const item: FinishingGroup = { ...g, id: uid(), createdAt: new Date().toISOString() };
+        set((s) => ({ finishingGroups: [...s.finishingGroups, item] }));
+        return item;
+      },
+      updateFinishingGroup: (id, g) => set((s) => ({
+        finishingGroups: s.finishingGroups.map((x) => (x.id === id ? { ...x, ...g } : x)),
+      })),
+      deleteFinishingGroup: (id) => set((s) => ({
+        finishingGroups: s.finishingGroups.filter((x) => x.id !== id),
       })),
 
       // ── Toggle helpers ─────────────────────────────────────────────────
@@ -362,9 +382,9 @@ export const usePricingStore = create<PricingStore>()(
     }),
     {
       name: 'quikquote-pricing-storage',
-      version: 5,
+      version: 6,
       migrate: () => {
-        // Version bump: added labor and brokered service types
+        // Version bump: overhauled finishing system — added finishing groups, new PricingFinishing shape
         return {
           categories: defaultCategories,
           products: defaultProducts,
@@ -375,6 +395,7 @@ export const usePricingStore = create<PricingStore>()(
           materials: defaultPricingMaterials,
           templates: defaultPricingTemplates,
           materialGroups: defaultMaterialGroups,
+          finishingGroups: defaultFinishingGroups,
         };
       },
     }

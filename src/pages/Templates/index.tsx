@@ -101,7 +101,7 @@ export const Templates: React.FC = () => {
   }, [categoryName, pricing]);
 
   const foldOptions = useMemo(() => {
-    return availableFinishing.filter(f => f.service === 'Fold').map(f => f.subservice || f.service);
+    return availableFinishing.filter(f => f.finishingGroupIds?.includes('fg2')).map(f => f.name);
   }, [availableFinishing]);
 
   const selectProduct = (product: PricingProduct) => {

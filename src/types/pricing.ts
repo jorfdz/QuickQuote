@@ -10,6 +10,15 @@ export interface MaterialGroup {
   createdAt: string;
 }
 
+// ─── FINISHING GROUPS ───────────────────────────────────────────────────────
+
+export interface FinishingGroup {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+}
+
 // ─── CATEGORIES & PRODUCTS ──────────────────────────────────────────────────
 
 export interface PricingCategory {
@@ -74,16 +83,29 @@ export interface PricingEquipment {
 
 export interface PricingFinishing {
   id: string;
-  service: string;                 // e.g. "Cut", "Fold", "Drill"
-  subservice?: string;             // e.g. "Tri-fold", "1 Hole"
+  name: string;                    // e.g. "Cut", "Tri-Fold", "Laminate Sheet", "Drill 1-Hole"
+  description?: string;            // detailed description
+
+  // Assignment (at least one category required)
+  categoryIds: string[];           // which categories this applies to
+  finishingGroupIds: string[];     // which finishing groups this belongs to
+  productIds: string[];            // specific products this applies to (optional)
+
+  // Pricing model
   costType: 'cost_only' | 'cost_plus_time' | 'time_only';
-  outputPerHour: number;           // units per hour
+  chargeBasis: 'per_unit' | 'per_sqft' | 'per_hour' | 'per_stack_pass' | 'flat';
+
+  // Cost fields
+  unitCost: number;                // cost per unit/sqft/pass/flat (used for cost_only or cost_plus_time)
   hourlyCost: number;              // $ per hour of operation
-  timeCostMarkup: number;          // markup on time cost (as %)
-  categoryIds: string[];           // which categories this finish applies to
-  unitBasis: 'per_unit' | 'per_sqft' | 'per_hour' | 'per_cut';  // what the finish is based on
-  sheetsPerCutStack?: number;      // for cut services (default 500)
-  cutsPerHour?: number;            // for cut services (default 150)
+  outputPerHour: number;           // units processed per hour (for time-based)
+  initialSetupFee: number;         // one-time setup fee
+  markupPercent: number;           // markup as percentage
+
+  // Stack/batch processing (for per_stack_pass — cutting, drilling, etc.)
+  sheetsPerStack?: number;         // how many sheets can be processed at once (default 500)
+  passesPerHour?: number;          // how many stack passes per hour (default 150)
+
   notes?: string;
   createdAt: string;
 }
