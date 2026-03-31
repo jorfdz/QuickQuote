@@ -1,11 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
-<<<<<<< HEAD
-import { useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Layers, Package, Search, Copy, ChevronDown, FileText, X, ChevronRight } from 'lucide-react';
-=======
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Layers, Package, Search, Copy, ChevronDown, FileText } from 'lucide-react';
->>>>>>> 877dd39b17fc0eb887cf51f11722a5cb18fb06f6
+import { Plus, Pencil, Trash2, Layers, Package, Search, Copy, ChevronDown, FileText, X, ChevronRight } from 'lucide-react';
 import { Card, PageHeader, Button, Input, Table, Modal, ConfirmDialog } from '../../components/ui';
 import { usePricingStore } from '../../store/pricingStore';
 import type { PricingCategory, PricingProduct, ProductPricingTemplate } from '../../types/pricing';
