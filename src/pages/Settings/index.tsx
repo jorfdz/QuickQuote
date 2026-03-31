@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Building, CreditCard, Globe, Bell, Palette, Plus, Pencil, Trash2, Package, Layers, FileText, RotateCcw, Eye, Ruler } from 'lucide-react';
 import { Card, PageHeader, Button, Input, Textarea, Tabs, Select, Table, Modal, ConfirmDialog } from '../../components/ui';
-import { DEFAULT_COMPANY_SETTINGS, DEFAULT_INVOICE_TEMPLATE, DEFAULT_ORDER_TEMPLATE, DEFAULT_QUOTE_TEMPLATE } from '../../data/documentSettings';
+import { DEFAULT_COMPANY_SETTINGS, DEFAULT_INVOICE_TEMPLATE, DEFAULT_ORDER_TEMPLATE, DEFAULT_PURCHASE_ORDER_TEMPLATE, DEFAULT_QUOTE_TEMPLATE } from '../../data/documentSettings';
 import { useStore } from '../../store';
 import { usePricingStore } from '../../store/pricingStore';
 import type { CompanySettings, DocumentTemplates } from '../../types';
@@ -60,6 +60,7 @@ export const Settings: React.FC = () => {
   const [quoteTemplate, setQuoteTemplate] = useState(documentTemplates.quote || DEFAULT_QUOTE_TEMPLATE);
   const [orderTemplate, setOrderTemplate] = useState(documentTemplates.order || DEFAULT_ORDER_TEMPLATE);
   const [invoiceTemplate, setInvoiceTemplate] = useState(documentTemplates.invoice || DEFAULT_INVOICE_TEMPLATE);
+  const [purchaseOrderTemplate, setPurchaseOrderTemplate] = useState(documentTemplates.purchaseOrder || DEFAULT_PURCHASE_ORDER_TEMPLATE);
   const [templatePreviewOpen, setTemplatePreviewOpen] = useState(false);
   const [templatePreviewHtml, setTemplatePreviewHtml] = useState('');
   const [templatePreviewTitle, setTemplatePreviewTitle] = useState('');
@@ -72,6 +73,7 @@ export const Settings: React.FC = () => {
     setQuoteTemplate(documentTemplates.quote || DEFAULT_QUOTE_TEMPLATE);
     setOrderTemplate(documentTemplates.order || DEFAULT_ORDER_TEMPLATE);
     setInvoiceTemplate(documentTemplates.invoice || DEFAULT_INVOICE_TEMPLATE);
+    setPurchaseOrderTemplate(documentTemplates.purchaseOrder || DEFAULT_PURCHASE_ORDER_TEMPLATE);
   }, [documentTemplates]);
 
   const openTemplatePreview = (title: string, html: string) => {
@@ -84,12 +86,21 @@ export const Settings: React.FC = () => {
       '{{quoteNumber}}': 'Q000123',
       '{{orderNumber}}': 'O000045',
       '{{invoiceNumber}}': 'I000012',
+      '{{purchaseOrderNumber}}': 'PO000078',
       '{{customerName}}': 'Acme Corporation',
+      '{{vendorName}}': 'Premium Paper Supply',
+      '{{vendorAddress}}': '245 Vendor Way, Orlando, FL 32801',
+      '{{vendorPhone}}': '555-222-4000',
+      '{{vendorEmail}}': 'orders@premiumpaper.com',
       '{{quoteDate}}': 'Mar 30, 2026',
       '{{orderDate}}': 'Mar 30, 2026',
       '{{invoiceDate}}': 'Mar 30, 2026',
+      '{{purchaseOrderDate}}': 'Mar 30, 2026',
       '{{validUntil}}': 'May 14, 2026',
       '{{dueDate}}': 'Apr 30, 2026',
+      '{{expectedDate}}': 'Apr 4, 2026',
+      '{{purchaseOrderStatus}}': 'Sent',
+      '{{purchaseOrderNotes}}': 'Please confirm stock availability and expected delivery timing.',
       '{{lineItems}}': `
         <tr><td>Business Cards - 14pt C2S, Full Color</td><td style="text-align:center">500</td><td style="text-align:right">$0.12</td><td style="text-align:right">$60.00</td></tr>
         <tr style="background:#f9fafb"><td>Vinyl Banner - 13oz Matte</td><td style="text-align:center">2</td><td style="text-align:right">$85.00</td><td style="text-align:right">$170.00</td></tr>
@@ -116,6 +127,7 @@ export const Settings: React.FC = () => {
       quote: quoteTemplate,
       order: orderTemplate,
       invoice: invoiceTemplate,
+      purchaseOrder: purchaseOrderTemplate,
     };
 
     updateDocumentTemplates(nextTemplates);
@@ -551,6 +563,41 @@ export const Settings: React.FC = () => {
             <textarea
               value={invoiceTemplate}
               onChange={e => setInvoiceTemplate(e.target.value)}
+              rows={16}
+              className="w-full px-4 py-3 text-sm bg-gray-900 text-green-400 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+              style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace", fontSize: '12px', lineHeight: '1.6', tabSize: 2 }}
+              spellCheck={false}
+            />
+          </Card>
+
+          {/* Purchase Order Template */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-500" /> Purchase Order Template HTML
+              </h2>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" icon={<Eye className="w-3.5 h-3.5" />} onClick={() => openTemplatePreview('Purchase Order Template Preview', purchaseOrderTemplate)}>
+                  Preview
+                </Button>
+                <Button variant="ghost" size="sm" icon={<RotateCcw className="w-3.5 h-3.5" />} onClick={() => setPurchaseOrderTemplate(DEFAULT_PURCHASE_ORDER_TEMPLATE)}>
+                  Reset to Default
+                </Button>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              Available placeholders: <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded text-[10px]">{'{{purchaseOrderNumber}}'}</code>{' '}
+              <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded text-[10px]">{'{{vendorName}}'}</code>{' '}
+              <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded text-[10px]">{'{{lineItems}}'}</code>{' '}
+              <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded text-[10px]">{'{{subtotal}}'}</code>{' '}
+              <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded text-[10px]">{'{{tax}}'}</code>{' '}
+              <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded text-[10px]">{'{{total}}'}</code>{' '}
+              <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded text-[10px]">{'{{expectedDate}}'}</code>{' '}
+              <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded text-[10px]">{'{{purchaseOrderNotes}}'}</code>
+            </p>
+            <textarea
+              value={purchaseOrderTemplate}
+              onChange={e => setPurchaseOrderTemplate(e.target.value)}
               rows={16}
               className="w-full px-4 py-3 text-sm bg-gray-900 text-green-400 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
               style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace", fontSize: '12px', lineHeight: '1.6', tabSize: 2 }}

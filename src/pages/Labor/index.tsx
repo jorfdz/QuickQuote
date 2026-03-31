@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Plus, Trash2, Edit3, Search, Clock, X, Info, Copy,
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Table, Modal, Input } from '../../components/ui';
 import type { PricingLabor } from '../../types/pricing';
@@ -38,12 +39,13 @@ const emptyLaborForm = {
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 export const Labor: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const {
     labor, addLabor, updateLabor, deleteLabor,
     categories,
   } = usePricingStore();
 
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [filterCategory, setFilterCategory] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);

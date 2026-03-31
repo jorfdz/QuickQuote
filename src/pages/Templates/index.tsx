@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Plus, Trash2, Search, X, ChevronDown } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { Button, Card, PageHeader, Table, Modal, ConfirmDialog, Input, Badge } from '../../components/ui';
 import { usePricingStore } from '../../store/pricingStore';
 import type { PricingProduct, PricingServiceLine } from '../../types/pricing';
@@ -11,11 +12,12 @@ const slId = () => `sl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export const Templates: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const pricing = usePricingStore();
   const { templates, categories, products, materials, equipment, materialGroups, finishing } = pricing;
 
   // ── Filter / sort ────────────────────────────────────────────────────────
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [sortField, setSortField] = useState<'name' | 'productName' | 'usageCount'>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 

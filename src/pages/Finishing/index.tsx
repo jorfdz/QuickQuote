@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Plus, Trash2, Edit3, Search, Scissors, Copy, Settings, X, Info,
   FlaskConical,
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Table, Modal, Input } from '../../components/ui';
 import type { PricingFinishing, FinishingGroup } from '../../types/pricing';
@@ -28,16 +29,6 @@ const COST_TYPE_OPTIONS: { value: PricingFinishing['costType']; label: string }[
 const chargeBasisLabel = (v: string) =>
   CHARGE_BASIS_OPTIONS.find(o => o.value === v)?.label ?? v;
 
-const basisUnit = (b: PricingFinishing['chargeBasis']) => {
-  switch (b) {
-    case 'per_stack': return 'sheet';
-    case 'per_sqft': return 'sqft';
-    case 'per_hour': return 'hour';
-    case 'flat': return 'job';
-    default: return 'unit';
-  }
-};
-
 // ─── Tooltip ─────────────────────────────────────────────────────────────────
 const Tip: React.FC<{ label: string; tip: string }> = ({ label, tip }) => (
   <span className="inline-flex items-center gap-1 group relative">
@@ -48,76 +39,6 @@ const Tip: React.FC<{ label: string; tip: string }> = ({ label, tip }) => (
     </span>
   </span>
 );
-
-// ─── Product Search Dropdown ─────────────────────────────────────────────────
-const ProductMultiSelect: React.FC<{
-  selectedIds: string[];
-  onChange: (ids: string[]) => void;
-}> = ({ selectedIds, onChange }) => {
-  const { products } = usePricingStore();
-  const [query, setQuery] = useState('');
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const filtered = useMemo(() => {
-    if (!query) return products.filter(p => !selectedIds.includes(p.id));
-    const q = query.toLowerCase();
-    return products.filter(p => !selectedIds.includes(p.id) && p.name.toLowerCase().includes(q));
-  }, [products, query, selectedIds]);
-
-  const selectedProducts = useMemo(
-    () => products.filter(p => selectedIds.includes(p.id)),
-    [products, selectedIds]
-  );
-
-  return (
-    <div ref={ref}>
-      <div className="relative">
-        <input
-          value={query}
-          onChange={e => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
-          placeholder="Search products..."
-          className="w-full px-2.5 py-1 text-[11px] border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400"
-        />
-        {open && filtered.length > 0 && (
-          <div className="absolute z-20 mt-1 w-full max-h-32 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
-            {filtered.map(p => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => { onChange([...selectedIds, p.id]); setQuery(''); }}
-                className="w-full text-left px-2.5 py-1 text-[11px] hover:bg-blue-50 transition-colors"
-              >
-                {p.name}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      {selectedProducts.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-1.5">
-          {selectedProducts.map(p => (
-            <span key={p.id} className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 text-[10px] font-medium">
-              {p.name}
-              <button type="button" onClick={() => onChange(selectedIds.filter(id => id !== p.id))} className="hover:text-purple-900">
-                <X className="w-2.5 h-2.5" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 // ─── Form Defaults ──────────────────────────────────────────────────────────
 const emptyForm = {
@@ -146,14 +67,15 @@ const emptyGroupForm = { name: '', description: '' };
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 export const Finishing: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const {
     finishing, addFinishing, updateFinishing, deleteFinishing,
     finishingGroups, addFinishingGroup, updateFinishingGroup, deleteFinishingGroup,
-    categories, products,
+    categories,
   } = usePricingStore();
 
   // ── State ──
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterGroup, setFilterGroup] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -233,12 +155,6 @@ export const Finishing: React.FC = () => {
     return 0;
   };
 
-  const computeSellPerUnit = (f: typeof form) => {
-    if (f.isFixedCharge) return f.fixedChargeAmount;
-    const cost = computeCostPerUnit(f);
-    return cost > 0 && f.markupPercent > 0 ? cost * (1 + f.markupPercent / 100) : cost;
-  };
-
   const computeTestPrice = (f: typeof form, qty: number) => {
     if (f.isFixedCharge) {
       const total = f.fixedChargeAmount + f.initialSetupFee;
@@ -272,9 +188,6 @@ export const Finishing: React.FC = () => {
       minApplied,
     };
   };
-
-  const costPerUnit = computeCostPerUnit(form);
-  const sellPerUnit = computeSellPerUnit(form);
 
   // ── Cost/Rate display for table ──
   const getCostRateDisplay = (f: PricingFinishing) => {
@@ -344,7 +257,7 @@ export const Finishing: React.FC = () => {
       description: form.description || undefined,
       categoryIds: form.categoryIds,
       finishingGroupIds: form.finishingGroupIds,
-      productIds: form.productIds,
+      productIds: [],
       chargeBasis: form.chargeBasis,
       costType: form.costType,
       unitCost: form.unitCost,
@@ -641,91 +554,86 @@ export const Finishing: React.FC = () => {
         size="xl"
       >
         <div className="space-y-5">
-          {/* ── Top Section: Name/Description (left 60%) + Assignment (right 40%) ── */}
-          <div className="flex gap-6">
-            {/* Left: Name + Description */}
-            <div className="flex-[3] space-y-3">
+          {/* ── Line 1: Name + Description side by side ── */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                Finish Service Name
+              </label>
               <input
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="Service name (e.g. Cut, Tri-Fold, Laminate Sheet)"
+                placeholder="e.g. Cut, Tri-Fold, Laminate..."
                 className="w-full px-3 py-1.5 text-sm font-semibold bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400"
               />
-              <textarea
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                Description
+              </label>
+              <input
                 value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="Description (optional)"
-                rows={2}
-                className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400 resize-none"
+                placeholder="Brief description of this service"
+                className="w-full px-3 py-1.5 text-sm font-normal bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400"
               />
             </div>
+          </div>
 
-            {/* Right: Compact Assignment */}
-            <div className="flex-[2] space-y-2.5">
-              {/* Categories */}
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
-                  Categories <span className="text-red-400">*</span>
-                </label>
-                <div className="flex flex-wrap gap-1">
-                  {categories.length === 0 && (
-                    <span className="text-[10px] text-gray-400 italic">No categories</span>
-                  )}
-                  {categories.map(c => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => toggleCategory(c.id)}
-                      className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-all ${
-                        form.categoryIds.includes(c.id)
-                          ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
-                          : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
-                      }`}
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
-                {form.categoryIds.length === 0 && (
-                  <p className="text-[10px] text-red-400 mt-0.5">Required</p>
+          {/* ── Line 2: Categories + Finish Groups side by side ── */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Categories */}
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                Categories <span className="text-red-400">*</span>
+              </label>
+              <div className="flex flex-wrap gap-1">
+                {categories.length === 0 && (
+                  <span className="text-[10px] text-gray-400 italic">No categories</span>
                 )}
+                {categories.map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => toggleCategory(c.id)}
+                    className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-all ${
+                      form.categoryIds.includes(c.id)
+                        ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
+                        : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
+                    }`}
+                  >
+                    {c.name}
+                  </button>
+                ))}
               </div>
+              {form.categoryIds.length === 0 && (
+                <p className="text-[10px] text-red-400 mt-0.5">Required</p>
+              )}
+            </div>
 
-              {/* Groups */}
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
-                  Groups
-                </label>
-                <div className="flex flex-wrap gap-1">
-                  {finishingGroups.length === 0 && (
-                    <span className="text-[10px] text-gray-400 italic">No groups</span>
-                  )}
-                  {finishingGroups.map(g => (
-                    <button
-                      key={g.id}
-                      type="button"
-                      onClick={() => toggleFinishingGroup(g.id)}
-                      className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-all ${
-                        form.finishingGroupIds.includes(g.id)
-                          ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
-                          : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
-                      }`}
-                    >
-                      {g.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Products */}
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
-                  Products
-                </label>
-                <ProductMultiSelect
-                  selectedIds={form.productIds}
-                  onChange={ids => setForm(f => ({ ...f, productIds: ids }))}
-                />
+            {/* Finish Groups */}
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                Finish Groups
+              </label>
+              <div className="flex flex-wrap gap-1">
+                {finishingGroups.length === 0 && (
+                  <span className="text-[10px] text-gray-400 italic">No groups</span>
+                )}
+                {finishingGroups.map(g => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => toggleFinishingGroup(g.id)}
+                    className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-all ${
+                      form.finishingGroupIds.includes(g.id)
+                        ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
+                        : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
+                    }`}
+                  >
+                    {g.name}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -747,46 +655,18 @@ export const Finishing: React.FC = () => {
             {/* ── FIXED CHARGE FIELDS ── */}
             {form.isFixedCharge ? (
               <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
-                      <Tip label="Fixed Charge Amount ($)" tip="The amount to charge the client for this fixed service." />
-                    </label>
-                    <input
-                      type="number"
-                      value={form.fixedChargeAmount || ''}
-                      onChange={e => setForm(f => ({ ...f, fixedChargeAmount: parseFloat(e.target.value) || 0 }))}
-                      placeholder="0.00"
-                      className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400"
-                    />
+                    <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Cost ($)</label>
+                    <input type="number" value={form.fixedChargeCost || ''} onChange={e => setForm(f => ({ ...f, fixedChargeCost: parseFloat(e.target.value) || 0 }))} placeholder="Your cost" className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400" />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
-                      <Tip label="Cost ($)" tip="Your cost for this service. Used for margin tracking." />
-                    </label>
-                    <input
-                      type="number"
-                      value={form.fixedChargeCost || ''}
-                      onChange={e => setForm(f => ({ ...f, fixedChargeCost: parseFloat(e.target.value) || 0 }))}
-                      placeholder="0.00"
-                      className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
-                      Setup Fee ($)
-                    </label>
-                    <input
-                      type="number"
-                      value={form.initialSetupFee || ''}
-                      onChange={e => setForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))}
-                      placeholder="0.00"
-                      className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400"
-                    />
+                    <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Fixed Price ($)</label>
+                    <input type="number" value={form.fixedChargeAmount || ''} onChange={e => setForm(f => ({ ...f, fixedChargeAmount: parseFloat(e.target.value) || 0 }))} placeholder="Client charge" className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400" />
                   </div>
                 </div>
 
-                {/* Markup approach display */}
+                {/* Markup display */}
                 {form.fixedChargeCost > 0 && form.fixedChargeAmount > 0 && (
                   <div className="text-[11px] text-gray-500 bg-gray-50 rounded-md px-3 py-2">
                     Markup: <span className="font-semibold text-gray-900">{pct(fixedMarkupPct)}</span>
@@ -795,22 +675,6 @@ export const Finishing: React.FC = () => {
                     </span>
                   </div>
                 )}
-
-                {/* Minimum Charge */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
-                      <Tip label="Minimum Charge ($)" tip="If the calculated price is below this amount, this minimum will be charged instead." />
-                    </label>
-                    <input
-                      type="number"
-                      value={form.minimumCharge || ''}
-                      onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))}
-                      placeholder="0.00"
-                      className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400"
-                    />
-                  </div>
-                </div>
               </div>
             ) : (
               /* ── NORMAL PRICING FIELDS ── */
@@ -847,10 +711,10 @@ export const Finishing: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Row 2: Dynamic fields based on chargeBasis + costType */}
+                {/* Row 2: Dynamic fields based on chargeBasis + costType (with Markup on same row) */}
                 {form.chargeBasis === 'per_stack' && (
                   <div className="space-y-2">
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-4 gap-4">
                       <div>
                         <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
                           Hourly Cost ($)
@@ -893,6 +757,13 @@ export const Finishing: React.FC = () => {
                           className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400"
                         />
                       </div>
+                      <Input
+                        label="Markup %"
+                        type="number"
+                        value={form.markupPercent || ''}
+                        onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))}
+                        suffix="%"
+                      />
                     </div>
                     {form.hourlyCost > 0 && (form.stacksPerHour || 0) > 0 && (form.sheetsPerStack || 0) > 0 && (
                       <div className="text-[11px] text-gray-500 bg-gray-50 rounded-md px-3 py-1.5">
@@ -939,6 +810,13 @@ export const Finishing: React.FC = () => {
                         prefix="$"
                       />
                     )}
+                    <Input
+                      label="Markup %"
+                      type="number"
+                      value={form.markupPercent || ''}
+                      onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))}
+                      suffix="%"
+                    />
                   </div>
                 )}
 
@@ -979,6 +857,13 @@ export const Finishing: React.FC = () => {
                         </div>
                       </>
                     )}
+                    <Input
+                      label="Markup %"
+                      type="number"
+                      value={form.markupPercent || ''}
+                      onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))}
+                      suffix="%"
+                    />
                   </div>
                 )}
 
@@ -990,6 +875,13 @@ export const Finishing: React.FC = () => {
                       value={form.hourlyCost || ''}
                       onChange={e => setForm(f => ({ ...f, hourlyCost: parseFloat(e.target.value) || 0 }))}
                       prefix="$"
+                    />
+                    <Input
+                      label="Markup %"
+                      type="number"
+                      value={form.markupPercent || ''}
+                      onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))}
+                      suffix="%"
                     />
                   </div>
                 )}
@@ -1003,24 +895,24 @@ export const Finishing: React.FC = () => {
                       onChange={e => setForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))}
                       prefix="$"
                     />
+                    <Input
+                      label="Markup %"
+                      type="number"
+                      value={form.markupPercent || ''}
+                      onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))}
+                      suffix="%"
+                    />
                   </div>
                 )}
 
-                {/* Row 3: Setup Fee + Markup + Minimum Charge */}
-                <div className="grid grid-cols-3 gap-4">
+                {/* Setup Fee + Minimum Charge */}
+                <div className="grid grid-cols-2 gap-4">
                   <Input
                     label="Setup Fee ($)"
                     type="number"
                     value={form.initialSetupFee || ''}
                     onChange={e => setForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))}
                     prefix="$"
-                  />
-                  <Input
-                    label="Markup %"
-                    type="number"
-                    value={form.markupPercent || ''}
-                    onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))}
-                    suffix="%"
                   />
                   <div>
                     <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
@@ -1034,54 +926,6 @@ export const Finishing: React.FC = () => {
                       className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400"
                     />
                   </div>
-                </div>
-              </div>
-            )}
-
-            {/* ── Computed Summary ── */}
-            {(costPerUnit > 0 || form.isFixedCharge) && (
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="px-3 py-2 bg-gray-50 flex items-center justify-between">
-                  <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Pricing Summary</span>
-                  {form.minimumCharge > 0 && (
-                    <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
-                      Min: {fmt(form.minimumCharge)}
-                    </span>
-                  )}
-                </div>
-                <div className="px-3 py-2 space-y-1">
-                  <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-gray-500">
-                      Cost per {basisUnit(form.chargeBasis)}:
-                    </span>
-                    <span className="font-semibold text-gray-900">{fmt(costPerUnit)}</span>
-                  </div>
-                  {!form.isFixedCharge && form.markupPercent > 0 && (
-                    <div className="flex justify-between items-center text-[11px]">
-                      <span className="text-gray-400">+ {form.markupPercent}% markup:</span>
-                      <span className="font-medium text-blue-700">{fmt(sellPerUnit)}</span>
-                    </div>
-                  )}
-                  {form.isFixedCharge && (
-                    <div className="flex justify-between items-center text-[11px]">
-                      <span className="text-gray-400">Sell price:</span>
-                      <span className="font-medium text-blue-700">{fmt(form.fixedChargeAmount)}</span>
-                    </div>
-                  )}
-                  {form.minimumCharge > 0 && sellPerUnit < form.minimumCharge && sellPerUnit > 0 && (
-                    <div className="flex justify-between items-center text-[11px] text-amber-700">
-                      <span>Calculated: {fmt(sellPerUnit)} {'\u2192'} Minimum applied:</span>
-                      <span className="font-semibold">{fmt(form.minimumCharge)}</span>
-                    </div>
-                  )}
-                  {(sellPerUnit > 0 || form.isFixedCharge) && costPerUnit > 0 && (
-                    <div className="flex justify-between items-center text-[11px] pt-1 border-t border-gray-100">
-                      <span className="text-emerald-600 font-medium">Profit per {basisUnit(form.chargeBasis)}:</span>
-                      <span className="font-bold text-emerald-700">
-                        {fmt((form.isFixedCharge ? form.fixedChargeAmount : sellPerUnit) - costPerUnit)}
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
             )}

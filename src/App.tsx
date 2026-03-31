@@ -9,6 +9,7 @@ import { OrderDetail } from './pages/Orders/OrderDetail';
 import { NewOrder } from './pages/Orders/NewOrder';
 import { OrderTracker } from './pages/OrderTracker';
 import { Invoices } from './pages/Invoices';
+import { InvoiceDetail } from './pages/Invoices/InvoiceDetail';
 import { Customers } from './pages/Customers';
 import { CustomerDetail } from './pages/Customers/CustomerDetail';
 import { Contacts } from './pages/Contacts';
@@ -51,6 +52,7 @@ function App() {
           <Route path="/tracker" element={<OrderTracker />} />
           <Route path="/history" element={<History />} />
           <Route path="/invoices" element={<Invoices />} />
+          <Route path="/invoices/:id" element={<InvoiceDetail />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/customers/new" element={<Customers />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />

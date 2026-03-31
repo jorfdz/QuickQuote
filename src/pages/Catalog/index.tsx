@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Layers, Package, Search, Copy, ChevronDown, FileText } from 'lucide-react';
 import { Card, PageHeader, Button, Input, Table, Modal, ConfirmDialog } from '../../components/ui';
 import { usePricingStore } from '../../store/pricingStore';
@@ -27,6 +27,7 @@ const SUBTABS = [
 
 export const Catalog: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {
     categories, products, materials, equipment, materialGroups, templates,
     addCategory, updateCategory, deleteCategory,
@@ -35,7 +36,7 @@ export const Catalog: React.FC = () => {
   } = usePricingStore();
 
   const [subTab, setSubTab] = useState('categories');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
 
   // ── Category state ─────────────────────────────────────────────────────
   const [catModalOpen, setCatModalOpen] = useState(false);

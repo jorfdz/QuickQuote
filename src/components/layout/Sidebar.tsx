@@ -41,17 +41,17 @@ export const Sidebar: React.FC = () => {
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
         {!sidebarCollapsed && (
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 bg-yellow-400 rounded-lg flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#F890E7' }}>
               <span className="text-gray-900 font-bold text-xs">QQ</span>
             </div>
             <div>
               <span className="font-bold text-white text-sm tracking-tight">QuikQuote</span>
-              <p className="text-[9px] text-red-500 leading-none mt-0.5">V2 3/30/26 9:32PM</p>
+              <p className="text-[9px] text-gray-500 leading-none mt-0.5">V3 3/31/26 11:45AM</p>
             </div>
           </div>
         )}
         {sidebarCollapsed && (
-          <button onClick={() => setSidebarCollapsed(false)} className="w-7 h-7 bg-yellow-400 rounded-lg flex items-center justify-center mx-auto hover:bg-yellow-300 transition-colors" title="Expand sidebar">
+          <button onClick={() => setSidebarCollapsed(false)} className="w-7 h-7 rounded-lg flex items-center justify-center mx-auto transition-colors" style={{ backgroundColor: '#F890E7' }} title="Expand sidebar">
             <span className="text-gray-900 font-bold text-xs">QQ</span>
           </button>
         )}
@@ -90,7 +90,7 @@ export const Sidebar: React.FC = () => {
               to={item.path}
               end={item.exact}
               className={({ isActive }) =>
-                `flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] transition-all group ${isActive ? 'bg-white/10 text-white font-medium' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'}`
+                `flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] transition-all group ${isActive ? 'bg-[#F890E7]/15 text-white font-medium' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'}`
               }
               title={sidebarCollapsed ? item.label : undefined}
             >
@@ -122,6 +122,19 @@ export const Sidebar: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Company Info */}
+      {!sidebarCollapsed && (
+        <div className="px-3 pb-2">
+          <div className="border-t border-white/5 pt-2">
+            <p className="text-[9px] text-gray-600 leading-relaxed">
+              PrintCo Solutions<br />
+              100 Print Ave, Miami, FL 33101<br />
+              555-100-0000 · www.printco.com
+            </p>
+          </div>
+        </div>
+      )}
     </aside>
   );
 };

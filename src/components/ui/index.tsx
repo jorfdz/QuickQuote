@@ -12,7 +12,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 export const Button: React.FC<ButtonProps> = ({ variant = 'secondary', size = 'md', loading, icon, children, className = '', ...props }) => {
   const variants = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 border border-blue-600',
+    primary: 'bg-[#F890E7] text-white hover:bg-[#e57dd6] focus:ring-[#F890E7] border border-[#F890E7]',
     secondary: 'bg-white text-gray-700 hover:bg-gray-50 focus:ring-gray-300 border border-gray-200',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 border border-red-600',
     ghost: 'bg-transparent text-gray-600 hover:bg-gray-100 focus:ring-gray-300 border border-transparent',
@@ -50,7 +50,7 @@ export const Input: React.FC<InputProps> = ({ label, error, prefix, suffix, clas
     <div className="relative">
       {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{prefix}</span>}
       <input
-        className={`w-full px-3 py-1.5 text-sm bg-white border ${error ? 'border-red-400' : 'border-gray-150'} rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 transition-all ${prefix ? 'pl-8' : ''} ${suffix ? 'pr-8' : ''} ${className}`}
+        className={`w-full px-3 py-1.5 text-sm bg-white border ${error ? 'border-red-400' : 'border-gray-150'} rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent placeholder-gray-400 transition-all ${prefix ? 'pl-8' : ''} ${suffix ? 'pr-8' : ''} ${className}`}
         {...props}
       />
       {suffix && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{suffix}</span>}
@@ -67,7 +67,7 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 export const Textarea: React.FC<TextareaProps> = ({ label, className = '', ...props }) => (
   <div>
     {label && <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{label}</label>}
-    <textarea className={`w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 transition-all resize-none ${className}`} {...props} />
+    <textarea className={`w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent placeholder-gray-400 transition-all resize-none ${className}`} {...props} />
   </div>
 );
 
@@ -81,7 +81,7 @@ export const Select: React.FC<SelectProps> = ({ label, options, className = '', 
   <div>
     {label && <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{label}</label>}
     <div className="relative">
-      <select className={`w-full px-3 py-1.5 pr-8 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent appearance-none ${className}`} {...props}>
+      <select className={`w-full px-3 py-1.5 pr-8 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent appearance-none ${className}`} {...props}>
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
       <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -170,7 +170,7 @@ export const SearchInput: React.FC<{ value: string; onChange: (v: string) => voi
     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
     <input
       type="text" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-      className="pl-9 pr-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent w-56 placeholder-gray-400"
+      className="pl-9 pr-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent w-56 placeholder-gray-400"
     />
   </div>
 );
@@ -268,9 +268,9 @@ export const Tabs: React.FC<TabsProps> = ({ tabs, active, onChange }) => (
   <div className="flex gap-1 border-b border-gray-100 mb-4">
     {tabs.map(tab => (
       <button key={tab.id} onClick={() => onChange(tab.id)}
-        className={`flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-medium border-b-2 transition-all -mb-px ${active === tab.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+        className={`flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-medium border-b-2 transition-all -mb-px ${active === tab.id ? 'border-[#F890E7] text-[#F890E7]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
         {tab.label}
-        {tab.count !== undefined && <span className={`text-xs px-1.5 py-0.5 rounded-full ${active === tab.id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>{tab.count}</span>}
+        {tab.count !== undefined && <span className={`text-xs px-1.5 py-0.5 rounded-full ${active === tab.id ? 'bg-pink-100 text-[#F890E7]' : 'bg-gray-100 text-gray-500'}`}>{tab.count}</span>}
       </button>
     ))}
   </div>

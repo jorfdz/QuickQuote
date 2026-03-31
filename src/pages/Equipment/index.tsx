@@ -4,6 +4,7 @@ import {
   ChevronDown, ChevronUp, Camera, Wrench, Calendar,
   Mail, Clock, CheckCircle2, XCircle, AlertCircle, ChevronRight
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { useStore } from '../../store';
 import { Button, Card, PageHeader, Table, Modal, Input } from '../../components/ui';
@@ -105,6 +106,7 @@ const TierEditor: React.FC<{
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 export const Equipment: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const {
     equipment, addEquipment, updateEquipment, deleteEquipment,
     addMaintenanceRecord, updateMaintenanceRecord, deleteMaintenanceRecord,
@@ -112,7 +114,7 @@ export const Equipment: React.FC = () => {
   } = usePricingStore();
   const { vendors } = useStore();
 
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
 
   // ── Equipment state ──
   const [showNewEquip, setShowNewEquip] = useState(false);

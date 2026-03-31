@@ -55,19 +55,26 @@ export const QuoteDetail: React.FC = () => {
   }), [companySettings, csr, customer, documentTemplates.quote, primaryContact, quote]);
 
   const openPrintWindow = () => {
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+    const blob = new Blob([printHtml], { type: 'text/html' });
+    const printUrl = URL.createObjectURL(blob);
+    const printWindow = window.open(printUrl, '_blank');
 
     if (!printWindow) {
+      URL.revokeObjectURL(printUrl);
       return;
     }
 
-    printWindow.document.open();
-    printWindow.document.write(printHtml);
-    printWindow.document.close();
-    printWindow.focus();
-    window.setTimeout(() => {
-      printWindow.print();
-    }, 150);
+    const cleanup = () => {
+      URL.revokeObjectURL(printUrl);
+    };
+
+    printWindow.addEventListener('load', () => {
+      printWindow.focus();
+      window.setTimeout(() => {
+        printWindow.print();
+      }, 150);
+      window.setTimeout(cleanup, 60000);
+    }, { once: true });
   };
 
   const statuses: { value: QuoteStatus; label: string }[] = [

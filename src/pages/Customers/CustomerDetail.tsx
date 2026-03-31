@@ -402,7 +402,7 @@ export const CustomerDetail: React.FC = () => {
           ) : (
             <Table headers={['Invoice #', 'Status', 'Issued', 'Due', 'Total', 'Paid', 'Balance', '']}>
               {custInvoices.map(i => (
-                <tr key={i.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/invoices`)}>
+                <tr key={i.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/invoices/${i.id}`)}>
                   <td className="py-3 px-4 text-sm font-mono font-medium text-brand-600">{i.number}</td>
                   <td className="py-3 px-4"><Badge color={statusColor(i.status)}>{i.status}</Badge></td>
                   <td className="py-3 px-4 text-sm text-gray-500">{formatDate(i.createdAt)}</td>

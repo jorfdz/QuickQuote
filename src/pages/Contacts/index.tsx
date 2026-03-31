@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { Plus, Mail, Phone } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../../store';
 import { Button, SearchInput, Card, PageHeader, Table, Modal, Input, Select } from '../../components/ui';
 import { nanoid } from '../../utils/nanoid';
 
 export const Contacts: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const { contacts, customers, addContact } = useStore();
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState({ customerId: '', firstName: '', lastName: '', email: '', phone: '', mobile: '', title: '', isPrimary: false });
 

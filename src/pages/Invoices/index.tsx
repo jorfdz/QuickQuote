@@ -51,9 +51,11 @@ export const Invoices: React.FC = () => {
           {filtered.map(inv => {
             const sourceOrder = getSourceOrder(inv);
             return (
-              <tr key={inv.id} className="hover:bg-gray-50 cursor-pointer transition-colors">
+              <tr key={inv.id} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => navigate(`/invoices/${inv.id}`)}>
                 <td className="py-3 px-4">
-                  <span className="font-mono text-sm font-bold text-gray-900">{inv.number}</span>
+                  <button onClick={(e) => { e.stopPropagation(); navigate(`/invoices/${inv.id}`); }} className="font-mono text-sm font-bold text-gray-900 hover:text-blue-600">
+                    {inv.number}
+                  </button>
                 </td>
                 <td className="py-3 px-4 text-sm font-medium text-gray-900">{inv.customerName}</td>
                 <td className="py-3 px-4"><Badge label={inv.status} /></td>
@@ -74,8 +76,9 @@ export const Invoices: React.FC = () => {
                   )}
                 </td>
                 <td className="py-3 px-4 flex gap-2">
-                  {inv.status === 'draft' && <Button size="sm" variant="primary" onClick={() => updateInvoice(inv.id, { status: 'sent' })}>Send</Button>}
-                  {['sent', 'posted'].includes(inv.status) && <Button size="sm" variant="success" onClick={() => updateInvoice(inv.id, { status: 'paid', paidDate: new Date().toISOString().split('T')[0], paidAmount: inv.total })}>Mark Paid</Button>}
+                  <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); navigate(`/invoices/${inv.id}`); }}>View</Button>
+                  {inv.status === 'draft' && <Button size="sm" variant="primary" onClick={(e) => { e.stopPropagation(); updateInvoice(inv.id, { status: 'sent' }); }}>Send</Button>}
+                  {['sent', 'posted'].includes(inv.status) && <Button size="sm" variant="success" onClick={(e) => { e.stopPropagation(); updateInvoice(inv.id, { status: 'paid', paidDate: new Date().toISOString().split('T')[0], paidAmount: inv.total }); }}>Mark Paid</Button>}
                 </td>
               </tr>
             );
