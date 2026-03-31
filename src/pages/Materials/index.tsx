@@ -1562,11 +1562,11 @@ export const Materials: React.FC = () => {
           </div>
 
           {/* ── Base cost + roll reference (inline) ── */}
-          <div className="flex gap-4 items-start">
+          <div className="flex gap-3 items-start">
             {/* Primary cost input */}
-            <div className="flex-1">
+            <div className="w-36">
               {form.pricingModel === 'cost_per_m' && (
-                <Input label="Price per M (per 1,000)" type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                <Input label="Price per M" type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
               )}
               {form.pricingModel === 'cost_per_unit' && (
                 <Input label="Cost per Unit" type="number" value={form.costPerUnit || ''} onChange={e => setForm(f => ({ ...f, costPerUnit: parseFloat(e.target.value) || 0 }))} prefix="$" />
@@ -1577,10 +1577,10 @@ export const Materials: React.FC = () => {
             </div>
             {/* Roll reference calculator (compact, inline with cost) */}
             {form.materialType === 'roll_media' && (
-              <div className="flex-1 bg-amber-50/70 border border-amber-200 rounded-lg px-3 py-2">
+              <div className="bg-amber-50/70 border border-amber-200 rounded-lg px-2.5 py-2">
                 <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide mb-1.5">Roll Calculator</p>
                 <div className="flex gap-2">
-                  <div className="flex-1">
+                  <div className="w-20">
                     <label className="block text-[10px] text-amber-500 mb-0.5">Roll $</label>
                     <input type="number" value={form.rollCost || ''} placeholder="0"
                       className="w-full px-2 py-1 text-xs border border-amber-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
@@ -1593,7 +1593,7 @@ export const Materials: React.FC = () => {
                         });
                       }} />
                   </div>
-                  <div className="flex-1">
+                  <div className="w-20">
                     <label className="block text-[10px] text-amber-500 mb-0.5">Length (ft)</label>
                     <input type="number" value={form.rollLength || ''} placeholder="0"
                       className="w-full px-2 py-1 text-xs border border-amber-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
@@ -1617,7 +1617,7 @@ export const Materials: React.FC = () => {
           </div>
 
           {/* ── Tier Pricing (optional) ── */}
-          <div>
+          <div className="max-w-xs">
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Quantity Tier Pricing</label>
               <button
@@ -1632,13 +1632,13 @@ export const Materials: React.FC = () => {
               <p className="text-[10px] text-gray-400">No tiers — base cost above applies to all quantities.</p>
             ) : (
               <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="grid grid-cols-[1fr_1fr_32px] gap-0 bg-gray-50 border-b border-gray-200 px-3 py-1.5">
+                <div className="grid grid-cols-[80px_80px_24px] gap-1 bg-gray-50 border-b border-gray-200 px-2 py-1">
                   <span className="text-[10px] font-semibold text-gray-400 uppercase">Min Qty</span>
-                  <span className="text-[10px] font-semibold text-gray-400 uppercase">Cost/Unit</span>
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase">Cost</span>
                   <span></span>
                 </div>
                 {form.pricingTiers.map((tier, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_1fr_32px] gap-2 items-center px-3 py-1.5 border-b border-gray-100 last:border-0">
+                  <div key={i} className="grid grid-cols-[80px_80px_24px] gap-1 items-center px-2 py-1 border-b border-gray-100 last:border-0">
                     <input type="number" value={tier.minQty || ''} placeholder="0"
                       className="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                       onChange={e => setForm(f => ({
@@ -1646,17 +1646,17 @@ export const Materials: React.FC = () => {
                         pricingTiers: f.pricingTiers.map((t, idx) => idx === i ? { ...t, minQty: parseFloat(e.target.value) || 0 } : t),
                       }))} />
                     <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                      <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]">$</span>
                       <input type="number" value={tier.costPerUnit || ''} placeholder="0.00"
-                        className="w-full pl-5 pr-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full pl-4 pr-1 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                         onChange={e => setForm(f => ({
                           ...f,
                           pricingTiers: f.pricingTiers.map((t, idx) => idx === i ? { ...t, costPerUnit: parseFloat(e.target.value) || 0 } : t),
                         }))} />
                     </div>
                     <button type="button" onClick={() => setForm(f => ({ ...f, pricingTiers: f.pricingTiers.filter((_, idx) => idx !== i) }))}
-                      className="p-1 text-gray-300 hover:text-red-500 transition-colors">
-                      <X className="w-3.5 h-3.5" />
+                      className="p-0.5 text-gray-300 hover:text-red-500 transition-colors">
+                      <X className="w-3 h-3" />
                     </button>
                   </div>
                 ))}
@@ -1665,9 +1665,9 @@ export const Materials: React.FC = () => {
           </div>
 
           {/* ── Minimum Charge ── */}
-          <div className="max-w-xs">
+          <div className="w-36">
             <Input label="Minimum Charge" type="number" value={form.minimumCharge || ''} onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))} prefix="$" />
-            <p className="text-[10px] text-gray-400 mt-1">Floor price — charged if calculated cost is lower. 0 = no minimum.</p>
+            <p className="text-[10px] text-gray-400 mt-1">Floor if cost is lower. 0 = none.</p>
           </div>
 
           {/* ── Markup (last — applies on top of everything) ── */}
@@ -1676,19 +1676,19 @@ export const Materials: React.FC = () => {
             <div className="flex gap-3 items-end">
               <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
                 <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'percent' }))}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
                     form.markupType === 'percent' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
                   }`}>
                   Percentage
                 </button>
                 <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'fixed' }))}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
                     form.markupType === 'fixed' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
                   }`}>
-                  Fixed Amount
+                  Fixed $
                 </button>
               </div>
-              <div className="w-40">
+              <div className="w-24">
                 <Input
                   type="number"
                   value={form.markup}
@@ -1698,11 +1698,6 @@ export const Materials: React.FC = () => {
                 />
               </div>
             </div>
-            <p className="text-[10px] text-gray-400 mt-1.5">
-              {form.markupType === 'percent'
-                ? 'Added as a percentage on top of the cost.'
-                : 'Added as a flat dollar amount on top of the cost.'}
-            </p>
           </div>
 
           {/* ── Test Price Calculator ── */}
