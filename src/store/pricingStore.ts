@@ -11,11 +11,19 @@ import {
   defaultFinishing, defaultPricingMaterials, defaultPricingTemplates,
   defaultMaterialGroups, defaultFinishingGroups, defaultLabor, defaultBrokered,
 } from '../data/pricingData';
+import { useStore } from './index';
 
 // ─── HELPER: Generate IDs ──────────────────────────────────────────────────
 
 let _counter = Date.now();
 const uid = () => `p${_counter++}`;
+
+// ─── HELPER: Get current user info from app store ─────────────────────────
+
+const getCurrentUser = () => {
+  const { currentUser } = useStore.getState();
+  return { userId: currentUser.id, userName: currentUser.name };
+};
 
 // ─── MATERIAL FIELD LABELS (for readable change history) ───────────────────
 
@@ -276,12 +284,15 @@ export const usePricingStore = create<PricingStore>()(
       // ── Materials (with change history tracking) ────────────────────────
       addMaterial: (m) => {
         const item: PricingMaterial = { ...m, id: uid(), createdAt: new Date().toISOString() };
+        const user = getCurrentUser();
         const record: MaterialChangeRecord = {
           id: uid(),
           materialId: item.id,
           materialName: item.name,
           action: 'created',
           changes: [],
+          userId: user.userId,
+          userName: user.userName,
           timestamp: new Date().toISOString(),
         };
         set((s) => ({
@@ -319,12 +330,15 @@ export const usePricingStore = create<PricingStore>()(
 
         // Only create a history record if something actually changed
         if (changes.length > 0) {
+          const user = getCurrentUser();
           const record: MaterialChangeRecord = {
             id: uid(),
             materialId: id,
             materialName: m.name || existing.name,
             action: 'updated',
             changes,
+            userId: user.userId,
+            userName: user.userName,
             timestamp: new Date().toISOString(),
           };
           set((s) => ({
@@ -341,12 +355,15 @@ export const usePricingStore = create<PricingStore>()(
         const state = get();
         const existing = state.materials.find((x) => x.id === id);
         if (existing) {
+          const user = getCurrentUser();
           const record: MaterialChangeRecord = {
             id: uid(),
             materialId: id,
             materialName: existing.name,
             action: 'deleted',
             changes: [],
+            userId: user.userId,
+            userName: user.userName,
             timestamp: new Date().toISOString(),
           };
           set((s) => ({

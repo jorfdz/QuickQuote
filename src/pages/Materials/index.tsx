@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown, Clock, ArrowRight } from 'lucide-react';
+import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown, Clock, ArrowRight, ImageIcon, User } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Modal, Input, Checkbox } from '../../components/ui';
@@ -88,7 +88,7 @@ export const Materials: React.FC = () => {
   const [deleteGroupConfirm, setDeleteGroupConfirm] = useState<string | null>(null);
 
   // Modal tab state: 'details' or 'history'
-  const [modalTab, setModalTab] = useState<'details' | 'history'>('details');
+  const [modalTab, setModalTab] = useState<'details' | 'photos' | 'history'>('details');
 
   // Product & category assignment state
   const [productSearch, setProductSearch] = useState('');
@@ -757,20 +757,32 @@ export const Materials: React.FC = () => {
       {/* Add / Edit Material Modal */}
       <Modal isOpen={showNew || editingId !== null} onClose={() => { setShowNew(false); setEditingId(null); }}
         title={editingId ? 'Edit Material' : 'Add Material'} size="full">
-        {/* Tab Bar (only show History tab when editing an existing material) */}
-        {editingId && (
-          <div className="flex border-b border-gray-200 mb-4 -mt-1">
-            <button
-              type="button"
-              onClick={() => setModalTab('details')}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                modalTab === 'details'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Details
-            </button>
+        {/* Tab Bar */}
+        <div className="flex border-b border-gray-200 mb-4 -mt-1">
+          <button
+            type="button"
+            onClick={() => setModalTab('details')}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              modalTab === 'details'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Details
+          </button>
+          <button
+            type="button"
+            onClick={() => setModalTab('photos')}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              modalTab === 'photos'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+            Photos
+          </button>
+          {editingId && (
             <button
               type="button"
               onClick={() => setModalTab('history')}
@@ -790,8 +802,8 @@ export const Materials: React.FC = () => {
                 </span>
               )}
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* ── Change History Tab ── */}
         {modalTab === 'history' && editingId && (
@@ -836,7 +848,8 @@ export const Materials: React.FC = () => {
 
                         {/* Content */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          {/* Header: action + user + timestamp */}
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className={`text-xs font-semibold uppercase tracking-wide ${
                               record.action === 'created'
                                 ? 'text-green-700'
@@ -846,26 +859,46 @@ export const Materials: React.FC = () => {
                             }`}>
                               {record.action === 'created' ? 'Material Created' : record.action === 'deleted' ? 'Material Deleted' : 'Material Updated'}
                             </span>
+                            <span className="text-[10px] text-gray-300">|</span>
+                            <span className="inline-flex items-center gap-1 text-[11px] text-gray-600 font-medium">
+                              <User className="w-3 h-3 text-gray-400" />
+                              {record.userName || 'Unknown User'}
+                            </span>
+                            <span className="text-[10px] text-gray-300">|</span>
                             <span className="text-[10px] text-gray-400">{formatTimestamp(record.timestamp)}</span>
                           </div>
 
-                          {/* Field changes */}
+                          {/* Field changes — fully expanded, no truncation */}
                           {record.changes.length > 0 && (
-                            <div className="mt-2 space-y-1.5">
-                              {record.changes.map((change, cIdx) => (
-                                <div key={cIdx} className="flex items-start gap-2 text-xs bg-gray-50 rounded-md px-3 py-2">
-                                  <span className="font-semibold text-gray-600 whitespace-nowrap min-w-[120px]">
-                                    {change.fieldLabel}
-                                  </span>
-                                  <span className="text-gray-400 line-through truncate max-w-[200px]" title={formatChangeValue(change.field, change.oldValue)}>
-                                    {formatChangeValue(change.field, change.oldValue)}
-                                  </span>
-                                  <ArrowRight className="w-3 h-3 text-gray-300 flex-shrink-0 mt-0.5" />
-                                  <span className="text-gray-800 font-medium truncate max-w-[200px]" title={formatChangeValue(change.field, change.newValue)}>
-                                    {formatChangeValue(change.field, change.newValue)}
-                                  </span>
-                                </div>
-                              ))}
+                            <div className="mt-2.5 border border-gray-100 rounded-lg overflow-hidden">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="bg-gray-50 border-b border-gray-100">
+                                    <th className="text-left px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider w-[160px]">Field</th>
+                                    <th className="text-left px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Previous Value</th>
+                                    <th className="w-6"></th>
+                                    <th className="text-left px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">New Value</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {record.changes.map((change, cIdx) => (
+                                    <tr key={cIdx} className={cIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                                      <td className="px-3 py-2 font-semibold text-gray-600 align-top whitespace-nowrap">
+                                        {change.fieldLabel}
+                                      </td>
+                                      <td className="px-3 py-2 text-red-400 align-top break-words">
+                                        <span className="line-through">{formatChangeValue(change.field, change.oldValue)}</span>
+                                      </td>
+                                      <td className="py-2 text-center align-top">
+                                        <ArrowRight className="w-3 h-3 text-gray-300 inline-block" />
+                                      </td>
+                                      <td className="px-3 py-2 text-gray-800 font-medium align-top break-words">
+                                        {formatChangeValue(change.field, change.newValue)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
                             </div>
                           )}
 
@@ -881,20 +914,69 @@ export const Materials: React.FC = () => {
           </div>
         )}
 
+        {/* ── Photos Tab ── */}
+        {modalTab === 'photos' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-700">Material Photos</h3>
+              <label className="cursor-pointer">
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => setForm(f => ({ ...f, imageUrl: reader.result as string || undefined }));
+                  reader.readAsDataURL(file);
+                  e.target.value = '';
+                }} />
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                  <Plus className="w-4 h-4" />
+                  Add Photo
+                </span>
+              </label>
+            </div>
+            <div className="columns-3 gap-3 space-y-3">
+              {form.imageUrl && (
+                <div className="relative group break-inside-avoid">
+                  <img src={form.imageUrl} alt="Material" className="w-full rounded-lg border border-gray-200 object-cover" />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-colors flex items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, imageUrl: undefined }))}
+                      className="p-1.5 bg-white/90 rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
+                      title="Remove photo"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                    </button>
+                  </div>
+                  <span className="absolute top-2 left-2 px-1.5 py-0.5 text-[9px] font-semibold uppercase bg-blue-600 text-white rounded">Main</span>
+                </div>
+              )}
+              {/* Sample material photos */}
+              <div className="break-inside-avoid">
+                <img src="https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=400&h=300&fit=crop" alt="Paper texture closeup" className="w-full rounded-lg border border-gray-200 object-cover" />
+              </div>
+              <div className="break-inside-avoid">
+                <img src="https://images.unsplash.com/photo-1586075010923-2dd4570fb338?w=400&h=500&fit=crop" alt="Stacked paper sheets" className="w-full rounded-lg border border-gray-200 object-cover" />
+              </div>
+              <div className="break-inside-avoid">
+                <img src="https://images.unsplash.com/photo-1581783898377-1c85bf937427?w=400&h=350&fit=crop" alt="Printed material sample" className="w-full rounded-lg border border-gray-200 object-cover" />
+              </div>
+              <div className="break-inside-avoid">
+                <img src="https://images.unsplash.com/photo-1604147706283-d7119b5b822c?w=400&h=400&fit=crop" alt="White paper detail" className="w-full rounded-lg border border-gray-200 object-cover" />
+              </div>
+              <div className="break-inside-avoid">
+                <img src="https://images.unsplash.com/photo-1517697471339-4aa32003c11a?w=400&h=280&fit=crop" alt="Color swatches" className="w-full rounded-lg border border-gray-200 object-cover" />
+              </div>
+              <div className="break-inside-avoid">
+                <img src="https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?w=400&h=450&fit=crop" alt="Material roll" className="w-full rounded-lg border border-gray-200 object-cover" />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Details Tab ── */}
         {modalTab === 'details' && <div className="space-y-4">
-          <div className="flex items-start gap-4">
-            {/* Photo upload */}
-            <div className="flex-shrink-0">
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Photo</label>
-              <ImageUploadCropper
-                value={form.imageUrl || ''}
-                onChange={(url) => setForm(f => ({ ...f, imageUrl: url || undefined }))}
-                size={80}
-              />
-            </div>
-            {/* Name, Group, Favorite, Description */}
-            <div className="flex-1 space-y-3">
+          <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <div className="flex-[3]">
                   <Input label="Material Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -924,7 +1006,6 @@ export const Materials: React.FC = () => {
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 />
               </div>
-            </div>
           </div>
           {/* ── Product & Category Assignments (collapsible) ── */}
           {(() => {
