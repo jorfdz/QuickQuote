@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
-import { Plus, Edit3, Trash2 } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Plus, Edit3 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
-import { Button, SearchInput, Card, PageHeader, Table, Modal, Input, Textarea, Checkbox } from '../../components/ui';
+import { Button, SearchInput, Card, PageHeader, Table, Modal, Input, Textarea, Checkbox, Badge } from '../../components/ui';
+import { formatCurrency, formatDate } from '../../data/mockData';
 import { nanoid } from '../../utils/nanoid';
+import { summarizePOReceiving } from '../../utils/purchaseOrders';
 import type { Vendor } from '../../types';
 
 const emptyForm = {
@@ -21,14 +24,21 @@ const emptyForm = {
 };
 
 export const Vendors: React.FC = () => {
-  const { vendors, addVendor, updateVendor } = useStore();
+  const navigate = useNavigate();
+  const { vendors, purchaseOrders, addVendor, updateVendor } = useStore();
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   const filtered = vendors.filter(v => !search || v.name.toLowerCase().includes(search.toLowerCase()));
+  const vendorPurchaseOrders = useMemo(() => {
+    if (!editingId) return [];
+
+    return purchaseOrders
+      .filter((po) => po.vendorId === editingId)
+      .sort((a, b) => new Date(b.createdAt || b.updatedAt).getTime() - new Date(a.createdAt || a.updatedAt).getTime());
+  }, [editingId, purchaseOrders]);
 
   const handleOpenNew = () => {
     setEditingId(null);
@@ -70,12 +80,6 @@ export const Vendors: React.FC = () => {
     handleClose();
   };
 
-  const handleDelete = (id: string) => {
-    // Remove from vendors list via updateVendor workaround — mark inactive or filter
-    // Since the store doesn't have deleteVendor, we'll just close for now
-    setDeleteConfirm(null);
-  };
-
   return (
     <div>
       <PageHeader
@@ -95,7 +99,7 @@ export const Vendors: React.FC = () => {
       <Card>
         <Table headers={['Name', 'Type', 'Email', 'Phone', 'Payment Terms', 'Actions']}>
           {filtered.map(v => (
-            <tr key={v.id} className="hover:bg-gray-50 transition-colors">
+            <tr key={v.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => handleOpenEdit(v)}>
               <td className="py-3 px-4 font-semibold text-sm text-gray-900">{v.name}</td>
               <td className="py-3 px-4">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${v.isOutsourcedProduction ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
@@ -107,7 +111,10 @@ export const Vendors: React.FC = () => {
               <td className="py-3 px-4 text-sm text-gray-500">{v.paymentTerms || '—'}</td>
               <td className="py-3 px-4">
                 <button
-                  onClick={() => handleOpenEdit(v)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenEdit(v);
+                  }}
                   className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
                   title="Edit"
                 >
@@ -148,6 +155,62 @@ export const Vendors: React.FC = () => {
             <Input label="Zip" value={form.zip} onChange={e => setForm(f => ({ ...f, zip: e.target.value }))} />
           </div>
           <Textarea label="Notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
+          {editingId && (
+            <div className="pt-2 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">Linked Purchase Orders</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Sorted from most recent to least recent.</p>
+                </div>
+                <span className="text-xs font-medium text-gray-500">
+                  {vendorPurchaseOrders.length} PO{vendorPurchaseOrders.length === 1 ? '' : 's'}
+                </span>
+              </div>
+
+              {vendorPurchaseOrders.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-400">
+                  No purchase orders linked to this vendor yet.
+                </div>
+              ) : (
+                <div className="max-h-72 overflow-auto rounded-lg border border-gray-200">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold">PO #</th>
+                        <th className="px-3 py-2 text-left font-semibold">Status</th>
+                        <th className="px-3 py-2 text-left font-semibold">Created</th>
+                        <th className="px-3 py-2 text-left font-semibold">Expected</th>
+                        <th className="px-3 py-2 text-left font-semibold">Total</th>
+                        <th className="px-3 py-2 text-left font-semibold">Receiving</th>
+                        <th className="px-3 py-2 text-left font-semibold">Order</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vendorPurchaseOrders.map((po) => {
+                        const receiving = summarizePOReceiving(po);
+
+                        return (
+                          <tr
+                            key={po.id}
+                            className="border-t border-gray-100 hover:bg-gray-50 cursor-pointer"
+                            onClick={() => navigate(`/purchase-orders/${po.id}`)}
+                          >
+                            <td className="px-3 py-2 font-mono text-xs font-semibold text-gray-600">{po.number}</td>
+                            <td className="px-3 py-2"><Badge label={po.status} /></td>
+                            <td className="px-3 py-2 text-gray-600">{formatDate(po.createdAt)}</td>
+                            <td className="px-3 py-2 text-gray-600">{po.expectedDate ? formatDate(po.expectedDate) : '—'}</td>
+                            <td className="px-3 py-2 font-semibold text-gray-900">{formatCurrency(po.total)}</td>
+                            <td className="px-3 py-2 text-gray-600">{receiving.received}/{receiving.ordered}</td>
+                            <td className="px-3 py-2 font-mono text-xs text-gray-500">{po.orderId || '—'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex gap-3 justify-end pt-2">
             <Button variant="secondary" onClick={handleClose}>Cancel</Button>
             <Button variant="primary" onClick={handleSave} disabled={!form.name}>
