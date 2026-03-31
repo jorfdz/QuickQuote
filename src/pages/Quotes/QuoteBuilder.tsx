@@ -934,13 +934,13 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
     // CUTTING
     if (ps.cuttingEnabled && imposition.sheetsNeeded > 0 && imposition.cutsPerSheet > 0) {
-      const cutSvc = finishing.find(f => f.service === 'Cut');
+      const cutSvc = finishing.find(f => f.name === 'Cut');
       if (cutSvc) {
         const totalStacks = Math.ceil(imposition.sheetsNeeded / ps.sheetsPerCutStack);
         const totalCuts = imposition.cutsPerSheet * totalStacks;
         const hours = totalCuts / cutSvc.outputPerHour;
         const totalCost = hours * cutSvc.hourlyCost;
-        const markup = cutSvc.timeCostMarkup;
+        const markup = cutSvc.markupPercent;
         lines.push({
           id: slId(), service: 'Cutting',
           description: `${totalCuts} cuts (${imposition.cutsPerSheet}/sheet x ${totalStacks} stacks) — ${(hours * 60).toFixed(0)} min`,
@@ -952,7 +952,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
     // FOLDING
     if (ps.foldingType) {
-      const fSvc = finishing.find(f => f.service === 'Fold' && f.subservice?.toLowerCase().replace('-', '') === ps.foldingType.toLowerCase().replace('-', ''));
+      const fSvc = finishing.find(f => f.name.toLowerCase().replace('-', '') === ps.foldingType.toLowerCase().replace('-', ''));
       if (fSvc) {
         const hours = ps.quantity / fSvc.outputPerHour;
         const totalCost = hours * fSvc.hourlyCost;
@@ -960,14 +960,14 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
           id: slId(), service: 'Folding',
           description: `${ps.foldingType} — ${ps.quantity} pcs @ ${fSvc.outputPerHour}/hr`,
           quantity: ps.quantity, unit: 'pcs', unitCost: fSvc.hourlyCost / fSvc.outputPerHour,
-          totalCost, markupPercent: fSvc.timeCostMarkup, sellPrice: totalCost * (1 + fSvc.timeCostMarkup / 100), editable: true,
+          totalCost, markupPercent: fSvc.markupPercent, sellPrice: totalCost * (1 + fSvc.markupPercent / 100), editable: true,
         });
       }
     }
 
     // DRILLING
     if (ps.drillingType) {
-      const dSvc = finishing.find(f => f.service === 'Drill' && f.subservice === ps.drillingType);
+      const dSvc = finishing.find(f => f.name === ps.drillingType);
       if (dSvc) {
         const hours = ps.quantity / dSvc.outputPerHour;
         const totalCost = hours * dSvc.hourlyCost;
@@ -975,7 +975,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
           id: slId(), service: 'Drilling',
           description: `${ps.drillingType} — ${ps.quantity} pcs @ ${dSvc.outputPerHour}/hr`,
           quantity: ps.quantity, unit: 'pcs', unitCost: dSvc.hourlyCost / dSvc.outputPerHour,
-          totalCost, markupPercent: dSvc.timeCostMarkup, sellPrice: totalCost * (1 + dSvc.timeCostMarkup / 100), editable: true,
+          totalCost, markupPercent: dSvc.markupPercent, sellPrice: totalCost * (1 + dSvc.markupPercent / 100), editable: true,
         });
       }
     }
@@ -1137,8 +1137,8 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
   };
 
   // Finishing options from pricing store
-  const foldingOptions = finishing.filter(f => f.service === 'Fold').map(f => f.subservice || '');
-  const drillingOptions = finishing.filter(f => f.service === 'Drill').map(f => f.subservice || '');
+  const foldingOptions = finishing.filter(f => f.finishingGroupIds?.includes('fg2')).map(f => f.name);
+  const drillingOptions = finishing.filter(f => f.finishingGroupIds?.includes('fg3')).map(f => f.name);
 
   // ── Cost/Markup/Margin summary ────────────────────────────────────────
   const itemTotalCost = item.totalCost;
