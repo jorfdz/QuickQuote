@@ -275,6 +275,7 @@ export interface CompanySettings {
 export interface DocumentTemplates {
   quote: string;
   order: string;
+  workOrder: string;
   invoice: string;
   purchaseOrder: string;
 }
