@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Plus, Pencil, Trash2, Layers, Package, Search, Copy, ChevronDown } from 'lucide-react';
-import { Card, PageHeader, Button, Input, Table, Modal } from '../../components/ui';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Pencil, Trash2, Layers, Package, Search, Copy, ChevronDown, FileText } from 'lucide-react';
+import { Card, PageHeader, Button, Input, Table, Modal, ConfirmDialog } from '../../components/ui';
 import { usePricingStore } from '../../store/pricingStore';
-import type { PricingCategory, PricingProduct } from '../../types/pricing';
+import type { PricingCategory, PricingProduct, ProductPricingTemplate } from '../../types/pricing';
 
 // ─── Form defaults ─────────────────────────────────────────────────────────
 
@@ -19,15 +20,18 @@ const blankProduct = (): Omit<PricingProduct, 'id' | 'createdAt'> => ({
 const SUBTABS = [
   { id: 'categories', label: 'Categories' },
   { id: 'products', label: 'Products' },
+  { id: 'templates', label: 'Item Templates' },
 ];
 
 // ═════════════════════════════════════════════════════════════════════════════
 
 export const Catalog: React.FC = () => {
+  const navigate = useNavigate();
   const {
-    categories, products, materials, equipment, materialGroups,
+    categories, products, materials, equipment, materialGroups, templates,
     addCategory, updateCategory, deleteCategory,
     addProduct, updateProduct, deleteProduct,
+    deleteTemplate,
   } = usePricingStore();
 
   const [subTab, setSubTab] = useState('categories');
@@ -46,6 +50,11 @@ export const Catalog: React.FC = () => {
   const [prodAliasesStr, setProdAliasesStr] = useState('');
   const [prodDeleteConfirm, setProdDeleteConfirm] = useState<string | null>(null);
   const [prodCategoryFilter, setProdCategoryFilter] = useState('all');
+
+  // ── Template state ─────────────────────────────────────────────────────
+  const [tplDeleteConfirm, setTplDeleteConfirm] = useState<string | null>(null);
+  const [tplRemoveAllConfirm, setTplRemoveAllConfirm] = useState(false);
+  const [tplSearch, setTplSearch] = useState('');
 
   // ── Material search state ──────────────────────────────────────────────
   const [materialQuery, setMaterialQuery] = useState('');
@@ -79,6 +88,15 @@ export const Catalog: React.FC = () => {
     const q = search.toLowerCase();
     return categories.filter(c => c.name.toLowerCase().includes(q));
   }, [categories, search]);
+
+  const filteredTemplates = useMemo(() => {
+    if (!tplSearch) return templates;
+    const q = tplSearch.toLowerCase();
+    return templates.filter(t => t.name.toLowerCase().includes(q) || t.productName.toLowerCase().includes(q));
+  }, [templates, tplSearch]);
+
+  const handleDeleteTemplate = (id: string) => { deleteTemplate(id); setTplDeleteConfirm(null); };
+  const handleRemoveAllTemplates = () => { templates.forEach(t => deleteTemplate(t.id)); setTplRemoveAllConfirm(false); };
 
   // ── Materials filtered by product's categories ────────────────────────
   const availableMaterials = useMemo(() => {
@@ -181,12 +199,19 @@ export const Catalog: React.FC = () => {
     <div>
       <PageHeader
         title="Catalog"
-        subtitle="Manage product categories and product definitions"
+        subtitle="Manage product categories, product definitions, and item templates"
         actions={
           subTab === 'categories' ? (
             <Button variant="primary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={openAddCategory}>Add Category</Button>
-          ) : (
+          ) : subTab === 'products' ? (
             <Button variant="primary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={openAddProduct}>Add Product</Button>
+          ) : (
+            <div className="flex gap-2">
+              {templates.length > 0 && (
+                <Button variant="secondary" size="sm" onClick={() => setTplRemoveAllConfirm(true)}>Remove All</Button>
+              )}
+              <Button variant="primary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={() => navigate('/templates')}>New Template</Button>
+            </div>
           )
         }
       />
@@ -196,24 +221,33 @@ export const Catalog: React.FC = () => {
         <div className="flex items-center gap-4 px-4 py-2.5 flex-wrap">
           <div className="flex border border-gray-200 rounded-lg p-0.5">
             {SUBTABS.map(st => (
-              <button key={st.id} onClick={() => { setSubTab(st.id); setSearch(''); }}
+              <button key={st.id} onClick={() => { setSubTab(st.id); setSearch(''); setTplSearch(''); }}
                 className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${subTab === st.id ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
-                {st.id === 'categories' ? <Layers className="w-3.5 h-3.5" /> : <Package className="w-3.5 h-3.5" />}
-                {st.label} ({st.id === 'categories' ? categories.length : products.length})
+                {st.id === 'categories' ? <Layers className="w-3.5 h-3.5" /> : st.id === 'products' ? <Package className="w-3.5 h-3.5" /> : <FileText className="w-3.5 h-3.5" />}
+                {st.label} ({st.id === 'categories' ? categories.length : st.id === 'products' ? products.length : templates.length})
               </button>
             ))}
           </div>
-          <div className="relative flex-1 max-w-sm">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${subTab}...`}
-              className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
-          </div>
+          {subTab !== 'templates' && (
+            <div className="relative flex-1 max-w-sm">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${subTab}...`}
+                className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            </div>
+          )}
           {subTab === 'products' && (
             <select value={prodCategoryFilter} onChange={e => setProdCategoryFilter(e.target.value)}
               className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500">
               <option value="all">All Categories</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+          )}
+          {subTab === 'templates' && (
+            <div className="relative flex-1 max-w-sm">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input value={tplSearch} onChange={e => setTplSearch(e.target.value)} placeholder="Search templates..."
+                className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            </div>
           )}
         </div>
       </Card>
@@ -296,6 +330,54 @@ export const Catalog: React.FC = () => {
           </Table>
         </Card>
       )}
+
+      {/* ═══ TEMPLATES TAB ═══ */}
+      {subTab === 'templates' && (
+        <Card>
+          <Table headers={['Name', 'Product', 'Category', 'Qty', 'Size', 'Material', 'Color', 'Sides', 'Used', 'Actions']}>
+            {filteredTemplates.map(t => (
+              <tr key={t.id} className="hover:bg-gray-50">
+                <td className="py-2.5 px-4 font-medium text-sm text-gray-900">{t.name}</td>
+                <td className="py-2.5 px-4 text-sm text-gray-600">{t.productName}</td>
+                <td className="py-2.5 px-4">
+                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{t.categoryName || '--'}</span>
+                </td>
+                <td className="py-2.5 px-4 text-sm text-gray-600">{t.quantity.toLocaleString()}</td>
+                <td className="py-2.5 px-4 text-xs text-gray-600">{t.finalWidth}x{t.finalHeight}</td>
+                <td className="py-2.5 px-4 text-xs text-gray-500 max-w-[120px] truncate">{t.materialName || '--'}</td>
+                <td className="py-2.5 px-4 text-xs text-gray-600">{t.color}</td>
+                <td className="py-2.5 px-4 text-xs text-gray-600">{t.sides}</td>
+                <td className="py-2.5 px-4 text-xs text-gray-400">{t.usageCount}x</td>
+                <td className="py-2.5 px-4">
+                  {tplDeleteConfirm === t.id ? (
+                    <div className="flex gap-1 items-center">
+                      <button onClick={() => handleDeleteTemplate(t.id)} className="px-2 py-0.5 text-xs bg-red-600 text-white rounded">Delete</button>
+                      <button onClick={() => setTplDeleteConfirm(null)} className="px-2 py-0.5 text-xs text-gray-500">Cancel</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setTplDeleteConfirm(t.id)} className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-600">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {filteredTemplates.length === 0 && (
+              <tr><td colSpan={10} className="py-12 text-center text-sm text-gray-400">No templates found. Create one to get started.</td></tr>
+            )}
+          </Table>
+        </Card>
+      )}
+
+      {/* Remove All Templates confirm */}
+      <ConfirmDialog
+        isOpen={tplRemoveAllConfirm}
+        onClose={() => setTplRemoveAllConfirm(false)}
+        onConfirm={handleRemoveAllTemplates}
+        title="Remove All Templates"
+        message="Are you sure you want to remove all templates? This action cannot be undone."
+        confirmLabel="Remove All"
+      />
 
       {/* ═══ CATEGORY MODAL ═══ */}
       <Modal isOpen={catModalOpen} onClose={() => setCatModalOpen(false)} title={catEditId ? 'Edit Category' : 'Add Category'}>

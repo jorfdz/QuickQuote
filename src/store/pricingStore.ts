@@ -3,12 +3,12 @@ import { persist } from 'zustand/middleware';
 import type {
   PricingCategory, PricingProduct, PricingEquipment,
   PricingFinishing, PricingMaterial, ProductPricingTemplate,
-  EquipmentPricingTier, MaterialGroup,
+  EquipmentPricingTier, MaterialGroup, PricingLabor, PricingBrokered,
 } from '../types/pricing';
 import {
   defaultCategories, defaultProducts, defaultPricingEquipment,
   defaultFinishing, defaultPricingMaterials, defaultPricingTemplates,
-  defaultMaterialGroups,
+  defaultMaterialGroups, defaultLabor, defaultBrokered,
 } from '../data/pricingData';
 
 // ─── HELPER: Generate IDs ──────────────────────────────────────────────────
@@ -24,6 +24,8 @@ interface PricingStore {
   products: PricingProduct[];
   equipment: PricingEquipment[];
   finishing: PricingFinishing[];
+  labor: PricingLabor[];
+  brokered: PricingBrokered[];
   materials: PricingMaterial[];
   templates: ProductPricingTemplate[];
   materialGroups: MaterialGroup[];
@@ -47,6 +49,16 @@ interface PricingStore {
   addFinishing: (f: Omit<PricingFinishing, 'id' | 'createdAt'>) => PricingFinishing;
   updateFinishing: (id: string, f: Partial<PricingFinishing>) => void;
   deleteFinishing: (id: string) => void;
+
+  // Labor CRUD
+  addLabor: (l: Omit<PricingLabor, 'id' | 'createdAt'>) => PricingLabor;
+  updateLabor: (id: string, l: Partial<PricingLabor>) => void;
+  deleteLabor: (id: string) => void;
+
+  // Brokered CRUD
+  addBrokered: (b: Omit<PricingBrokered, 'id' | 'createdAt'>) => PricingBrokered;
+  updateBrokered: (id: string, b: Partial<PricingBrokered>) => void;
+  deleteBrokered: (id: string) => void;
 
   // Materials CRUD
   addMaterial: (m: Omit<PricingMaterial, 'id' | 'createdAt'>) => PricingMaterial;
@@ -92,6 +104,8 @@ export const usePricingStore = create<PricingStore>()(
       products: defaultProducts,
       equipment: defaultPricingEquipment,
       finishing: defaultFinishing,
+      labor: defaultLabor,
+      brokered: defaultBrokered,
       materials: defaultPricingMaterials,
       templates: defaultPricingTemplates,
       materialGroups: defaultMaterialGroups,
@@ -146,6 +160,32 @@ export const usePricingStore = create<PricingStore>()(
       })),
       deleteFinishing: (id) => set((s) => ({
         finishing: s.finishing.filter((x) => x.id !== id),
+      })),
+
+      // ── Labor ─────────────────────────────────────────────────────────
+      addLabor: (l) => {
+        const item: PricingLabor = { ...l, id: uid(), createdAt: new Date().toISOString() };
+        set((s) => ({ labor: [...s.labor, item] }));
+        return item;
+      },
+      updateLabor: (id, l) => set((s) => ({
+        labor: s.labor.map((x) => (x.id === id ? { ...x, ...l } : x)),
+      })),
+      deleteLabor: (id) => set((s) => ({
+        labor: s.labor.filter((x) => x.id !== id),
+      })),
+
+      // ── Brokered ───────────────────────────────────────────────────────
+      addBrokered: (b) => {
+        const item: PricingBrokered = { ...b, id: uid(), createdAt: new Date().toISOString() };
+        set((s) => ({ brokered: [...s.brokered, item] }));
+        return item;
+      },
+      updateBrokered: (id, b) => set((s) => ({
+        brokered: s.brokered.map((x) => (x.id === id ? { ...x, ...b } : x)),
+      })),
+      deleteBrokered: (id) => set((s) => ({
+        brokered: s.brokered.filter((x) => x.id !== id),
       })),
 
       // ── Materials ───────────────────────────────────────────────────────
@@ -324,12 +364,14 @@ export const usePricingStore = create<PricingStore>()(
       name: 'quikquote-pricing-storage',
       version: 5,
       migrate: () => {
-        // Version bump: reset to fresh defaults — materials now include categoryIds[] and productIds[]
+        // Version bump: added labor and brokered service types
         return {
           categories: defaultCategories,
           products: defaultProducts,
           equipment: defaultPricingEquipment,
           finishing: defaultFinishing,
+          labor: defaultLabor,
+          brokered: defaultBrokered,
           materials: defaultPricingMaterials,
           templates: defaultPricingTemplates,
           materialGroups: defaultMaterialGroups,

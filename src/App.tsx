@@ -26,6 +26,9 @@ import { Templates } from './pages/Templates';
 import { History } from './pages/History';
 import { Imposition } from './pages/Imposition';
 import { Catalog } from './pages/Catalog';
+import { Services } from './pages/Services';
+import { Labor } from './pages/Labor';
+import { Brokered } from './pages/Brokered';
 import { Onboarding } from './pages/Onboarding';
 
 function App() {
@@ -55,6 +58,9 @@ function App() {
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/purchase-orders" element={<PurchaseOrders />} />
           <Route path="/catalog" element={<Catalog />} />
+          <Route path="/services" element={<Services />} />
+          <Route path="/labor" element={<Labor />} />
+          <Route path="/brokered" element={<Brokered />} />
           <Route path="/materials" element={<Materials />} />
           <Route path="/equipment" element={<Equipment />} />
           <Route path="/finishing" element={<Finishing />} />
