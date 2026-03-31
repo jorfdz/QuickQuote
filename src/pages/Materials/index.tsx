@@ -6,7 +6,7 @@ import { Button, Card, PageHeader, Modal, Input, Checkbox } from '../../componen
 
 import type { PricingMaterial, MaterialGroup, MaterialChangeRecord, MaterialType, MaterialPricingModel } from '../../types/pricing';
 import { MATERIAL_TYPE_LABELS, PRICING_MODEL_LABELS, MATERIAL_TYPE_PRICING_MODELS } from '../../types/pricing';
-import { getUnitCost, getUnitLabel, getUnitSell } from '../../utils/materialCost';
+import { getUnitCost, getUnitLabel, getUnitSell, deriveRollCostPerSqft } from '../../utils/materialCost';
 
 // ─── Sort / Pagination types ────────────────────────────────────────────────
 
@@ -1547,8 +1547,44 @@ export const Materials: React.FC = () => {
             </div>
           </div>
 
+          {/* ── Roll cost / length (optional helpers for roll media) ── */}
+          {form.materialType === 'roll_media' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Roll Reference</span>
+                <span className="text-[10px] text-amber-500">Optional — enter roll cost &amp; length to auto-calculate cost/sqft</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Cost of Roll" type="number" value={form.rollCost || ''} prefix="$"
+                  onChange={e => {
+                    const rollCost = parseFloat(e.target.value) || 0;
+                    setForm(f => {
+                      const derived = rollCost > 0 && f.rollLength > 0 && f.sizeWidth > 0
+                        ? deriveRollCostPerSqft(rollCost, f.rollLength, f.sizeWidth) : null;
+                      return { ...f, rollCost, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
+                    });
+                  }} />
+                <Input label="Roll Length (ft)" type="number" value={form.rollLength || ''} suffix="ft"
+                  onChange={e => {
+                    const rollLength = parseFloat(e.target.value) || 0;
+                    setForm(f => {
+                      const derived = f.rollCost > 0 && rollLength > 0 && f.sizeWidth > 0
+                        ? deriveRollCostPerSqft(f.rollCost, rollLength, f.sizeWidth) : null;
+                      return { ...f, rollLength, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
+                    });
+                  }} />
+              </div>
+              {form.rollCost > 0 && form.rollLength > 0 && form.sizeWidth > 0 && (
+                <p className="text-[10px] text-amber-600">
+                  Roll total: {form.rollLength} ft × {(form.sizeWidth / 12).toFixed(2)} ft wide = {(form.rollLength * (form.sizeWidth / 12)).toFixed(1)} sqft
+                  → <span className="font-semibold">{formatCurrency(deriveRollCostPerSqft(form.rollCost, form.rollLength, form.sizeWidth))}/sqft</span>
+                </p>
+              )}
+            </div>
+          )}
+
           {/* ── Price inputs (conditional by pricing model) ── */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             {form.pricingModel === 'cost_per_m' && (
               <Input label="Price per M (per 1,000)" type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
             )}
@@ -1557,12 +1593,6 @@ export const Materials: React.FC = () => {
             )}
             {form.pricingModel === 'cost_per_sqft' && (
               <Input label="Cost per Square Foot" type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
-            )}
-            {form.pricingModel === 'roll_cost_length' && (
-              <>
-                <Input label="Cost of Roll" type="number" value={form.rollCost || ''} onChange={e => setForm(f => ({ ...f, rollCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
-                <Input label="Roll Length (ft)" type="number" value={form.rollLength || ''} onChange={e => setForm(f => ({ ...f, rollLength: parseFloat(e.target.value) || 0 }))} suffix="ft" />
-              </>
             )}
             <Input label="Markup %" type="number" value={form.markup} onChange={e => setForm(f => ({ ...f, markup: parseFloat(e.target.value) || 0 }))} suffix="%" />
           </div>
@@ -1575,24 +1605,13 @@ export const Materials: React.FC = () => {
 
           {/* ── Live cost preview ── */}
           {(() => {
-            // Build a preview object to compute costs
             const preview = { ...form, materialType: form.materialType || 'paper', pricingModel: form.pricingModel || 'cost_per_m' } as PricingMaterial;
             const cost = getUnitCost(preview);
             const label = getUnitLabel(preview);
             const sell = cost * (1 + (form.markup || 0) / 100);
-            const showPreview = cost > 0 || (form.pricingModel === 'roll_cost_length' && form.rollCost > 0 && form.rollLength > 0 && form.sizeWidth > 0);
-            if (!showPreview) return null;
-            const derivedSqft = form.pricingModel === 'roll_cost_length' && form.rollLength > 0 && form.sizeWidth > 0
-              ? form.rollCost / (form.rollLength * (form.sizeWidth / 12))
-              : null;
+            if (cost <= 0) return null;
             return (
               <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
-                {derivedSqft !== null && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Derived cost/sqft:</span>
-                    <span className="font-medium">{formatCurrency(derivedSqft)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between">
                   <span className="text-gray-500">Cost{label}:</span>
                   <span className="font-medium">{formatCurrency(cost)}</span>

@@ -359,8 +359,8 @@ const rawMaterials: { name: string; size: string; pricePerM: number; markup: num
   { name: 'Tabs Our Stock', size: '8.5x11', pricePerM: 80.00, markup: 70, materialGroupIds: ['mg1'], isFavorite: false, materialType: 'paper', pricingModel: 'cost_per_m' },
   // ── Roll Media ──
   { name: 'HP Premium Matte Polypropylene 36"', size: '36', pricePerM: 0, markup: 60, materialGroupIds: ['mg2'], isFavorite: false, materialType: 'roll_media', pricingModel: 'cost_per_sqft', costPerSqft: 0.42 },
-  { name: 'Avery MPI 1105 Gloss White Vinyl 54"', size: '54', pricePerM: 0, markup: 55, materialGroupIds: ['mg2'], isFavorite: false, materialType: 'roll_media', pricingModel: 'roll_cost_length', rollCost: 285.00, rollLength: 150 },
-  { name: '3M IJ35 Matte White Vinyl 48"', size: '48', pricePerM: 0, markup: 55, materialGroupIds: ['mg2'], isFavorite: false, materialType: 'roll_media', pricingModel: 'roll_cost_length', rollCost: 340.00, rollLength: 150 },
+  { name: 'Avery MPI 1105 Gloss White Vinyl 54"', size: '54', pricePerM: 0, markup: 55, materialGroupIds: ['mg2'], isFavorite: false, materialType: 'roll_media', pricingModel: 'cost_per_sqft', costPerSqft: 0.42, rollCost: 285.00, rollLength: 150 },
+  { name: '3M IJ35 Matte White Vinyl 48"', size: '48', pricePerM: 0, markup: 55, materialGroupIds: ['mg2'], isFavorite: false, materialType: 'roll_media', pricingModel: 'cost_per_sqft', costPerSqft: 0.57, rollCost: 340.00, rollLength: 150 },
   { name: 'Oracal 651 Gloss Vinyl 24"', size: '24', pricePerM: 0, markup: 65, materialGroupIds: ['mg2'], isFavorite: false, materialType: 'roll_media', pricingModel: 'cost_per_sqft', costPerSqft: 0.28 },
   // ── Rigid Substrates ──
   { name: 'Coroplast 4mm White 48x96', size: '48x96', pricePerM: 0, markup: 60, materialGroupIds: ['mg3'], isFavorite: false, materialType: 'rigid_substrate', pricingModel: 'cost_per_unit', costPerUnit: 12.50 },
