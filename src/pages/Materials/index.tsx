@@ -94,14 +94,27 @@ export const Materials: React.FC = () => {
   const [browseCategoryFilter, setBrowseCategoryFilter] = useState<string>('all');
   const productSearchRef = useRef<HTMLInputElement>(null);
 
+  // Filtered categories for the browser panel (search matching)
+  const browseFilteredCategories = useMemo(() => {
+    const q = productSearch.toLowerCase().trim();
+    if (!q) return categories;
+    return categories.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      (c.description && c.description.toLowerCase().includes(q))
+    );
+  }, [categories, productSearch]);
+
   // Filtered products for the browser panel (search + category filter)
   const browseFilteredProducts = useMemo(() => {
     let result = products;
     const q = productSearch.toLowerCase().trim();
     if (q) {
+      // Include products that match by name/alias OR belong to a matching category
+      const matchingCatIds = browseFilteredCategories.map(c => c.id);
       result = result.filter(
         p => p.name.toLowerCase().includes(q) ||
-             p.aliases.some(a => a.toLowerCase().includes(q))
+             p.aliases.some(a => a.toLowerCase().includes(q)) ||
+             p.categoryIds.some(cid => matchingCatIds.includes(cid))
       );
     }
     if (browseCategoryFilter !== 'all') {
@@ -1099,8 +1112,9 @@ export const Materials: React.FC = () => {
                             .filter(c => browseCategoryFilter === 'all' || browseCategoryFilter === c.id)
                             .map(cat => {
                               const catProducts = browseFilteredProducts.filter(p => p.categoryIds.includes(cat.id));
-                              if (catProducts.length === 0 && !productSearch) return null;
-                              if (catProducts.length === 0) return null;
+                              const catMatchesSearch = browseFilteredCategories.some(c => c.id === cat.id);
+                              // Show category if it has products, or if the category name matches the search
+                              if (catProducts.length === 0 && !catMatchesSearch) return null;
                               const allCatProductIds = products.filter(p => p.categoryIds.includes(cat.id)).map(p => p.id);
                               const allCatSelected = allCatProductIds.length > 0 && allCatProductIds.every(id => form.productIds.includes(id));
                               const someCatSelected = allCatProductIds.some(id => form.productIds.includes(id));
