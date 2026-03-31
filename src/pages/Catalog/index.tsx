@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { Plus, Pencil, Trash2, Star, Layers, Package, Search } from 'lucide-react';
-import { Card, PageHeader, Button, Input, Table, Modal, Select, ConfirmDialog } from '../../components/ui';
+import React, { useState, useMemo, useRef } from 'react';
+import { Plus, Pencil, Trash2, Layers, Package, Search, Copy, ChevronDown } from 'lucide-react';
+import { Card, PageHeader, Button, Input, Table, Modal } from '../../components/ui';
 import { usePricingStore } from '../../store/pricingStore';
 import type { PricingCategory, PricingProduct } from '../../types/pricing';
 
@@ -11,7 +11,7 @@ const blankCategory = (): Omit<PricingCategory, 'id' | 'createdAt'> => ({
 });
 
 const blankProduct = (): Omit<PricingProduct, 'id' | 'createdAt'> => ({
-  categoryId: '', name: '', aliases: [], defaultQuantity: 1000,
+  categoryIds: [], name: '', aliases: [], defaultQuantity: 1000,
   defaultFinalSize: '', defaultFinalWidth: 0, defaultFinalHeight: 0,
   defaultColor: 'Color', defaultSides: 'Double', isTemplate: false,
 });
@@ -25,9 +25,9 @@ const SUBTABS = [
 
 export const Catalog: React.FC = () => {
   const {
-    categories, products,
+    categories, products, materials, equipment, materialGroups,
     addCategory, updateCategory, deleteCategory,
-    addProduct, updateProduct, deleteProduct, toggleProductTemplate,
+    addProduct, updateProduct, deleteProduct,
   } = usePricingStore();
 
   const [subTab, setSubTab] = useState('categories');
@@ -47,18 +47,26 @@ export const Catalog: React.FC = () => {
   const [prodDeleteConfirm, setProdDeleteConfirm] = useState<string | null>(null);
   const [prodCategoryFilter, setProdCategoryFilter] = useState('all');
 
+  // ── Material search state ──────────────────────────────────────────────
+  const [materialQuery, setMaterialQuery] = useState('');
+  const [showMaterialDropdown, setShowMaterialDropdown] = useState(false);
+  const materialInputRef = useRef<HTMLInputElement>(null);
+
   // ── Derived ────────────────────────────────────────────────────────────
   const productCountByCategory = useMemo(() => {
     const counts: Record<string, number> = {};
-    products.forEach(p => { counts[p.categoryId] = (counts[p.categoryId] || 0) + 1; });
+    products.forEach(p => { p.categoryIds.forEach(cid => { counts[cid] = (counts[cid] || 0) + 1; }); });
     return counts;
   }, [products]);
 
-  const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name || '--';
+  const getCategoryNames = (ids: string[]) => {
+    if (!ids || ids.length === 0) return '--';
+    return ids.map(id => categories.find(c => c.id === id)?.name || '').filter(Boolean).join(', ');
+  };
 
   const filteredProducts = useMemo(() => {
     let list = products;
-    if (prodCategoryFilter !== 'all') list = list.filter(p => p.categoryId === prodCategoryFilter);
+    if (prodCategoryFilter !== 'all') list = list.filter(p => p.categoryIds.includes(prodCategoryFilter));
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(p => p.name.toLowerCase().includes(q) || p.aliases.some(a => a.toLowerCase().includes(q)));
@@ -71,6 +79,30 @@ export const Catalog: React.FC = () => {
     const q = search.toLowerCase();
     return categories.filter(c => c.name.toLowerCase().includes(q));
   }, [categories, search]);
+
+  // ── Materials filtered by product's categories ────────────────────────
+  const availableMaterials = useMemo(() => {
+    if (!prodForm.categoryIds || prodForm.categoryIds.length === 0) return materials;
+    const matchingGroupIds = materialGroups
+      .filter(g => g.categoryIds.some(cid => prodForm.categoryIds.includes(cid)))
+      .map(g => g.id);
+    if (matchingGroupIds.length === 0) return materials;
+    return materials.filter(m => m.materialGroupId && matchingGroupIds.includes(m.materialGroupId));
+  }, [prodForm.categoryIds, materials, materialGroups]);
+
+  const filteredMaterials = useMemo(() => {
+    if (!materialQuery.trim()) return availableMaterials;
+    const q = materialQuery.toLowerCase();
+    return availableMaterials.filter(m => m.name.toLowerCase().includes(q) || m.size.toLowerCase().includes(q));
+  }, [availableMaterials, materialQuery]);
+
+  // ── Equipment filtered by product's categories ────────────────────────
+  const availableEquipment = useMemo(() => {
+    if (!prodForm.categoryIds || prodForm.categoryIds.length === 0) return equipment;
+    const catNames = prodForm.categoryIds.map(id => categories.find(c => c.id === id)?.name?.toLowerCase() || '').filter(Boolean);
+    if (catNames.length === 0) return equipment;
+    return equipment.filter(e => catNames.includes(e.categoryApplies.toLowerCase()));
+  }, [prodForm.categoryIds, equipment, categories]);
 
   // ── Category handlers ──────────────────────────────────────────────────
   const openAddCategory = () => { setCatForm(blankCategory()); setCatEditId(null); setCatModalOpen(true); };
@@ -91,12 +123,13 @@ export const Catalog: React.FC = () => {
     setProdForm(blankProduct());
     setProdAliasesStr('');
     setProdEditId(null);
+    setMaterialQuery('');
     setProdModalOpen(true);
   };
   const openEditProduct = (p: PricingProduct) => {
     setProdEditId(p.id);
     setProdForm({
-      categoryId: p.categoryId, name: p.name, aliases: p.aliases,
+      categoryIds: p.categoryIds, name: p.name, aliases: p.aliases,
       defaultQuantity: p.defaultQuantity, defaultMaterialId: p.defaultMaterialId,
       defaultMaterialName: p.defaultMaterialName,
       defaultFinalSize: p.defaultFinalSize, defaultFinalWidth: p.defaultFinalWidth,
@@ -105,15 +138,42 @@ export const Catalog: React.FC = () => {
       defaultSides: p.defaultSides, defaultFolding: p.defaultFolding, isTemplate: p.isTemplate,
     });
     setProdAliasesStr(p.aliases.join(', '));
+    setMaterialQuery(p.defaultMaterialName || '');
     setProdModalOpen(true);
   };
+
+  const handleCloneProduct = (p: PricingProduct) => {
+    addProduct({
+      categoryIds: p.categoryIds, name: `Clone of ${p.name}`, aliases: [...p.aliases],
+      defaultQuantity: p.defaultQuantity, defaultMaterialId: p.defaultMaterialId,
+      defaultMaterialName: p.defaultMaterialName,
+      defaultFinalSize: p.defaultFinalSize, defaultFinalWidth: p.defaultFinalWidth,
+      defaultFinalHeight: p.defaultFinalHeight, defaultEquipmentId: p.defaultEquipmentId,
+      defaultEquipmentName: p.defaultEquipmentName, defaultColor: p.defaultColor,
+      defaultSides: p.defaultSides, defaultFolding: p.defaultFolding, isTemplate: false,
+    });
+  };
+
   const handleSaveProduct = () => {
-    const data = { ...prodForm, aliases: prodAliasesStr.split(',').map(s => s.trim()).filter(Boolean) };
+    const data = {
+      ...prodForm,
+      aliases: prodAliasesStr.split(',').map(s => s.trim()).filter(Boolean),
+      defaultFinalSize: `${prodForm.defaultFinalWidth}x${prodForm.defaultFinalHeight}`,
+    };
     if (prodEditId) updateProduct(prodEditId, data);
     else addProduct(data);
     setProdModalOpen(false);
   };
   const handleDeleteProduct = (id: string) => { deleteProduct(id); setProdDeleteConfirm(null); };
+
+  const toggleCategoryId = (catId: string) => {
+    setProdForm(f => {
+      const ids = f.categoryIds.includes(catId)
+        ? f.categoryIds.filter(id => id !== catId)
+        : [...f.categoryIds, catId];
+      return { ...f, categoryIds: ids };
+    });
+  };
 
   // ═══════════════════════════════════════════════════════════════════════
 
@@ -195,24 +255,28 @@ export const Catalog: React.FC = () => {
       {/* ═══ PRODUCTS TAB ═══ */}
       {subTab === 'products' && (
         <Card>
-          <Table headers={['Name', 'Category', 'Aliases', 'Size', 'Paper', 'Equipment', 'Color', 'Sides', '', 'Actions']}>
+          <Table headers={['Name', 'Categories', 'Aliases', 'Size', 'Paper', 'Equipment', 'Color', 'Sides', 'Actions']}>
             {filteredProducts.map(prod => (
               <tr key={prod.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => openEditProduct(prod)}>
                 <td className="py-2.5 px-4 font-medium text-sm text-gray-900">{prod.name}</td>
-                <td className="py-2.5 px-4"><span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{getCategoryName(prod.categoryId)}</span></td>
+                <td className="py-2.5 px-4">
+                  <div className="flex flex-wrap gap-1">
+                    {prod.categoryIds.map(cid => {
+                      const catName = categories.find(c => c.id === cid)?.name;
+                      return catName ? <span key={cid} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{catName}</span> : null;
+                    })}
+                    {(!prod.categoryIds || prod.categoryIds.length === 0) && <span className="text-xs text-gray-400">--</span>}
+                  </div>
+                </td>
                 <td className="py-2.5 px-4 text-gray-500 text-xs max-w-[140px] truncate">{prod.aliases.length > 0 ? prod.aliases.join(', ') : '--'}</td>
-                <td className="py-2.5 px-4 text-gray-600 text-xs">{prod.defaultFinalSize || '--'}</td>
+                <td className="py-2.5 px-4 text-gray-600 text-xs">{prod.defaultFinalWidth && prod.defaultFinalHeight ? `${prod.defaultFinalWidth}x${prod.defaultFinalHeight}` : '--'}</td>
                 <td className="py-2.5 px-4 text-gray-500 text-xs max-w-[120px] truncate">{prod.defaultMaterialName || '--'}</td>
                 <td className="py-2.5 px-4 text-gray-500 text-xs">{prod.defaultEquipmentName || '--'}</td>
                 <td className="py-2.5 px-4 text-gray-600 text-xs">{prod.defaultColor}</td>
                 <td className="py-2.5 px-4 text-gray-600 text-xs">{prod.defaultSides}</td>
                 <td className="py-2.5 px-4" onClick={e => e.stopPropagation()}>
-                  <button onClick={() => toggleProductTemplate(prod.id)} className="p-1 rounded transition-colors hover:bg-yellow-50">
-                    <Star className={`w-3.5 h-3.5 ${prod.isTemplate ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
-                  </button>
-                </td>
-                <td className="py-2.5 px-4" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
+                    <button onClick={() => handleCloneProduct(prod)} className="p-1.5 hover:bg-green-50 rounded text-gray-400 hover:text-green-600" title="Clone product"><Copy className="w-3.5 h-3.5" /></button>
                     <button onClick={() => openEditProduct(prod)} className="p-1.5 hover:bg-blue-50 rounded text-gray-400 hover:text-blue-600"><Pencil className="w-3.5 h-3.5" /></button>
                     {prodDeleteConfirm === prod.id ? (
                       <div className="flex gap-1 items-center">
@@ -227,7 +291,7 @@ export const Catalog: React.FC = () => {
               </tr>
             ))}
             {filteredProducts.length === 0 && (
-              <tr><td colSpan={10} className="py-12 text-center text-sm text-gray-400">No products found</td></tr>
+              <tr><td colSpan={9} className="py-12 text-center text-sm text-gray-400">No products found</td></tr>
             )}
           </Table>
         </Card>
@@ -252,42 +316,88 @@ export const Catalog: React.FC = () => {
           <div className="grid grid-cols-2 gap-4">
             <Input label="Product Name" value={prodForm.name} onChange={e => setProdForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Business Cards" />
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Category</label>
-              <select value={prodForm.categoryId} onChange={e => setProdForm(f => ({ ...f, categoryId: e.target.value }))}
-                className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500">
-                <option value="">Select...</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Categories</label>
+              <div className="flex flex-wrap gap-2 p-2 border border-gray-200 rounded-md min-h-[38px]">
+                {categories.map(c => (
+                  <label key={c.id} className="flex items-center gap-1.5 text-sm cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={prodForm.categoryIds.includes(c.id)}
+                      onChange={() => toggleCategoryId(c.id)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className={prodForm.categoryIds.includes(c.id) ? 'text-blue-700 font-medium' : 'text-gray-600'}>{c.name}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
           <Input label="Aliases (comma-separated)" value={prodAliasesStr}
             onChange={e => setProdAliasesStr(e.target.value)}
             placeholder="e.g. BCARD, BC, Presentation Cards" />
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <Input label="Default Qty" type="number" value={prodForm.defaultQuantity}
               onChange={e => setProdForm(f => ({ ...f, defaultQuantity: parseInt(e.target.value) || 0 }))} />
-            <Input label="Final Size" value={prodForm.defaultFinalSize}
-              onChange={e => {
-                const val = e.target.value;
-                const match = val.match(/^(\d+\.?\d*)\s*[xX×]\s*(\d+\.?\d*)$/);
-                setProdForm(f => ({
-                  ...f, defaultFinalSize: val,
-                  ...(match ? { defaultFinalWidth: parseFloat(match[1]), defaultFinalHeight: parseFloat(match[2]) } : {}),
-                }));
-              }}
-              placeholder="e.g. 3.5x2" />
             <Input label="Width (in)" type="number" value={prodForm.defaultFinalWidth || ''}
               onChange={e => setProdForm(f => ({ ...f, defaultFinalWidth: parseFloat(e.target.value) || 0 }))} />
             <Input label="Height (in)" type="number" value={prodForm.defaultFinalHeight || ''}
               onChange={e => setProdForm(f => ({ ...f, defaultFinalHeight: parseFloat(e.target.value) || 0 }))} />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Default Paper" value={prodForm.defaultMaterialName || ''}
-              onChange={e => setProdForm(f => ({ ...f, defaultMaterialName: e.target.value }))}
-              placeholder="e.g. 120lb Cougar Cover" />
-            <Input label="Default Equipment" value={prodForm.defaultEquipmentName || ''}
-              onChange={e => setProdForm(f => ({ ...f, defaultEquipmentName: e.target.value }))}
-              placeholder="e.g. Ricoh 9200" />
+            {/* Searchable material dropdown */}
+            <div className="relative">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Default Paper</label>
+              <div className="relative">
+                <input
+                  ref={materialInputRef}
+                  type="text"
+                  value={materialQuery}
+                  onChange={e => { setMaterialQuery(e.target.value); setShowMaterialDropdown(true); }}
+                  onFocus={() => setShowMaterialDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowMaterialDropdown(false), 200)}
+                  placeholder="Search materials..."
+                  className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 pr-8"
+                />
+                <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+              {showMaterialDropdown && (
+                <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                  {filteredMaterials.length === 0 && (
+                    <div className="px-3 py-2 text-xs text-gray-400">No materials found</div>
+                  )}
+                  {filteredMaterials.slice(0, 30).map(m => (
+                    <button key={m.id} type="button"
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => {
+                        setProdForm(f => ({ ...f, defaultMaterialId: m.id, defaultMaterialName: m.name }));
+                        setMaterialQuery(m.name);
+                        setShowMaterialDropdown(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-gray-50 last:border-0">
+                      <span className="font-medium text-gray-900">{m.name}</span>
+                      <span className="text-xs text-gray-400 ml-2">{m.size}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Equipment dropdown */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Default Equipment</label>
+              <select
+                value={prodForm.defaultEquipmentId || ''}
+                onChange={e => {
+                  const eq = equipment.find(x => x.id === e.target.value);
+                  setProdForm(f => ({ ...f, defaultEquipmentId: eq?.id || '', defaultEquipmentName: eq?.name || '' }));
+                }}
+                className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">Select equipment...</option>
+                {availableEquipment.map(eq => (
+                  <option key={eq.id} value={eq.id}>{eq.name} ({eq.categoryApplies})</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
@@ -313,7 +423,7 @@ export const Catalog: React.FC = () => {
           </div>
           <div className="flex gap-3 justify-end pt-2">
             <Button variant="secondary" onClick={() => setProdModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={handleSaveProduct} disabled={!prodForm.name || !prodForm.categoryId}>
+            <Button variant="primary" onClick={handleSaveProduct} disabled={!prodForm.name || prodForm.categoryIds.length === 0}>
               {prodEditId ? 'Save Changes' : 'Add Product'}
             </Button>
           </div>

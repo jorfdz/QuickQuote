@@ -71,7 +71,7 @@ const EMPTY_LINE_ITEM = (): QuoteLineItem => ({
 export const QuoteBuilder: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { customers, contacts, addQuote, nextQuoteNumber, currentUser, users } = useStore();
+  const { customers, contacts, addQuote, nextQuoteNumber, currentUser, users, addCustomer, addContact } = useStore();
   const pricing = usePricingStore();
 
   // ── Generate quote number immediately on mount ───────────────────────
@@ -103,6 +103,10 @@ export const QuoteBuilder: React.FC = () => {
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [showShipToModal, setShowShipToModal] = useState(false);
+  const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
+  const [showNewContactModal, setShowNewContactModal] = useState(false);
+  const [newCustomerForm, setNewCustomerForm] = useState({ name: '', email: '', phone: '', address: '' });
+  const [newContactForm, setNewContactForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
   const customerSearchRef = useRef<HTMLDivElement>(null);
 
   const selectedCustomer = customers.find(c => c.id === form.customerId);
@@ -272,7 +276,7 @@ export const QuoteBuilder: React.FC = () => {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={handleCancel}>Cancel</Button>
-          <Button variant="secondary" onClick={() => handleSave()} loading={saving}>Save Draft</Button>
+          <Button variant="success" onClick={() => handleSave()} loading={saving}>Save Draft</Button>
           {/* Save & Convert dropdown */}
           <div className="relative">
             <div className="flex">
@@ -361,6 +365,7 @@ export const QuoteBuilder: React.FC = () => {
                           {selectedCustomer.name} &#8599;
                         </button>
                       )}
+                      <button onClick={() => setShowNewCustomerModal(true)} className="ml-2 text-[10px] text-emerald-600 hover:text-emerald-800 font-medium normal-case">+ New</button>
                     </label>
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
@@ -413,6 +418,7 @@ export const QuoteBuilder: React.FC = () => {
                           </button>
                         ) : null;
                       })()}
+                      {form.customerId && <button onClick={() => setShowNewContactModal(true)} className="ml-2 text-[10px] text-emerald-600 hover:text-emerald-800 font-medium normal-case">+ New</button>}
                     </label>
                     <select
                       value={form.contactId}
@@ -428,22 +434,15 @@ export const QuoteBuilder: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Line 3: Ship To, Status, Valid Until, Due Date */}
-                <div className="grid grid-cols-4 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Ship To</label>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-gray-500 truncate flex-1">
-                        {form.shipToAddress || 'Same as billing'}
-                      </span>
-                      <button
-                        onClick={() => setShowShipToModal(true)}
-                        className="text-[10px] text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </div>
+                {/* Ship To inline below customer/contact */}
+                <div className="text-[10px] text-gray-400">
+                  Ship to: <span className="text-gray-500">{form.shipToAddress || 'Same as billing'}</span>
+                  {' '}
+                  <button onClick={() => setShowShipToModal(true)} className="text-blue-600 hover:text-blue-800 font-medium">[Edit]</button>
+                </div>
+
+                {/* Line 3: Status, Valid Until, Due Date */}
+                <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Status</label>
                     <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as Quote['status'] }))}
@@ -509,6 +508,71 @@ export const QuoteBuilder: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* New Customer Modal */}
+            {showNewCustomerModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/30" onClick={() => setShowNewCustomerModal(false)} />
+                <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md p-5">
+                  <h3 className="font-semibold text-gray-900 mb-3">New Customer</h3>
+                  <div className="space-y-2">
+                    <input type="text" placeholder="Company / Customer Name *" value={newCustomerForm.name} onChange={e => setNewCustomerForm(f => ({ ...f, name: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400" />
+                    <input type="email" placeholder="Email" value={newCustomerForm.email} onChange={e => setNewCustomerForm(f => ({ ...f, email: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400" />
+                    <input type="tel" placeholder="Phone" value={newCustomerForm.phone} onChange={e => setNewCustomerForm(f => ({ ...f, phone: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400" />
+                    <input type="text" placeholder="Address" value={newCustomerForm.address} onChange={e => setNewCustomerForm(f => ({ ...f, address: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400" />
+                  </div>
+                  <div className="flex justify-end gap-2 mt-3">
+                    <button onClick={() => setShowNewCustomerModal(false)} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button onClick={() => {
+                      if (!newCustomerForm.name.trim()) return;
+                      const id = nanoid();
+                      addCustomer({ id, name: newCustomerForm.name, email: newCustomerForm.email || undefined, phone: newCustomerForm.phone || undefined, address: newCustomerForm.address || undefined, taxExempt: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+                      setForm(f => ({ ...f, customerId: id, contactId: '' }));
+                      setCustomerSearch('');
+                      setNewCustomerForm({ name: '', email: '', phone: '', address: '' });
+                      setShowNewCustomerModal(false);
+                    }} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Customer</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* New Contact Modal */}
+            {showNewContactModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/30" onClick={() => setShowNewContactModal(false)} />
+                <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md p-5">
+                  <h3 className="font-semibold text-gray-900 mb-3">New Contact</h3>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="text" placeholder="First Name *" value={newContactForm.firstName} onChange={e => setNewContactForm(f => ({ ...f, firstName: e.target.value }))}
+                        className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400" />
+                      <input type="text" placeholder="Last Name *" value={newContactForm.lastName} onChange={e => setNewContactForm(f => ({ ...f, lastName: e.target.value }))}
+                        className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400" />
+                    </div>
+                    <input type="email" placeholder="Email" value={newContactForm.email} onChange={e => setNewContactForm(f => ({ ...f, email: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400" />
+                    <input type="tel" placeholder="Phone" value={newContactForm.phone} onChange={e => setNewContactForm(f => ({ ...f, phone: e.target.value }))}
+                      className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400" />
+                  </div>
+                  <div className="flex justify-end gap-2 mt-3">
+                    <button onClick={() => setShowNewContactModal(false)} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button onClick={() => {
+                      if (!newContactForm.firstName.trim() || !newContactForm.lastName.trim()) return;
+                      const id = nanoid();
+                      addContact({ id, customerId: form.customerId, firstName: newContactForm.firstName, lastName: newContactForm.lastName, email: newContactForm.email || undefined, phone: newContactForm.phone || undefined, isPrimary: false, createdAt: new Date().toISOString() });
+                      setForm(f => ({ ...f, contactId: id }));
+                      setNewContactForm({ firstName: '', lastName: '', email: '', phone: '' });
+                      setShowNewContactModal(false);
+                    }} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Contact</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </Card>
 
           {/* ─── Line Items ──────────────────────────────────────────── */}
@@ -553,7 +617,7 @@ export const QuoteBuilder: React.FC = () => {
 
             <button onClick={addLineItem}
               className="w-full mt-3 py-3 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-all flex items-center justify-center gap-2">
-              <Plus className="w-4 h-4" /> Add Line Item
+              <Plus className="w-4 h-4" /> + Add Item
             </button>
           </div>
 
@@ -651,7 +715,7 @@ export const QuoteBuilder: React.FC = () => {
             </div>
             <div className="mt-4 space-y-2">
               <Button variant="primary" className="w-full justify-center" onClick={() => handleSave(true)} loading={saving} icon={<ArrowRight className="w-4 h-4" />}>Save & Convert to Order</Button>
-              <Button variant="secondary" className="w-full justify-center" onClick={() => handleSave()} loading={saving}>Save as Quote</Button>
+              <Button variant="success" className="w-full justify-center" onClick={() => handleSave()} loading={saving}>Save Quote</Button>
             </div>
           </Card>
 
@@ -746,10 +810,29 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [editValues, setEditValues] = useState<Partial<PricingServiceLine>>({});
   const [savedAsTemplate, setSavedAsTemplate] = useState(false);
   const [multiQtyInput, setMultiQtyInput] = useState(String(ps.quantity || 1000));
+  const [autoDescribe, setAutoDescribe] = useState(true);
 
   // Sync product query when pricing state changes externally (e.g. template load)
   useEffect(() => { setProductQuery(ps.productName || ''); }, [ps.productName]);
   useEffect(() => { setMultiQtyInput(String(ps.quantity || 1000)); }, [ps.quantity]);
+
+  // ── Auto-describe helper ──────────────────────────────────────────────
+  const buildDescription = useCallback(() => {
+    const materialName = materials.find(m => m.id === ps.materialId)?.name;
+    let desc = ps.productName || '';
+    if (materialName) desc += ' - ' + materialName;
+    if (ps.finalWidth && ps.finalHeight) desc += ', ' + ps.finalWidth + 'x' + ps.finalHeight;
+    if (ps.colorMode) desc += ', ' + ps.colorMode;
+    if (ps.sides) desc += ', ' + ps.sides + '-Sided';
+    return desc;
+  }, [ps.productName, ps.materialId, ps.finalWidth, ps.finalHeight, ps.colorMode, ps.sides, materials]);
+
+  useEffect(() => {
+    if (autoDescribe && ps.productName) {
+      onUpdateItem({ description: buildDescription() });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoDescribe, buildDescription]);
 
   // ── Derived data ──────────────────────────────────────────────────────
   const selectedMaterial = useMemo(() => materials.find(m => m.id === ps.materialId), [materials, ps.materialId]);
@@ -916,7 +999,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
     const finishingCost = lines.filter(l => ['Cutting', 'Folding', 'Drilling'].includes(l.service)).reduce((s, l) => s + l.totalCost, 0);
 
     onUpdateItem({
-      description: ps.productName || item.description,
+      description: autoDescribe ? buildDescription() : (ps.productName || item.description),
       quantity: ps.quantity || item.quantity,
       width: ps.finalWidth || undefined,
       height: ps.finalHeight || undefined,
@@ -982,7 +1065,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const selectProduct = (product: PricingProduct) => {
     setProductQuery(product.name);
     setShowSuggestions(false);
-    const cat = categories.find(c => c.id === product.categoryId);
+    const cat = categories.find(c => product.categoryIds.includes(c.id));
 
     const matMatch = materials.find(m =>
       m.name.toLowerCase().includes((product.defaultMaterialName || '').toLowerCase().split(' ').slice(-2).join(' '))
@@ -1033,7 +1116,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
     if (!ps.productName) return;
     pricing.addTemplate({
       name: ps.productName,
-      categoryId: categories.find(c => c.name === ps.categoryName)?.id || '',
+      categoryId: categories.find(c => c.name === ps.categoryName)?.id || '',  // template still uses single categoryId
       categoryName: ps.categoryName,
       productId: ps.productId,
       productName: ps.productName,
@@ -1072,7 +1155,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold text-gray-900">{isNew ? 'Add Product' : 'Edit Product'}</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{isNew ? 'Add Item' : 'Edit Item'}</h2>
             {ps.productName && (
               <button
                 onClick={handleSaveAsTemplate}
@@ -1082,7 +1165,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 <Star className={`w-4 h-4 ${savedAsTemplate ? 'fill-amber-400 text-amber-400' : ''}`} />
               </button>
             )}
-            {savedAsTemplate && <span className="text-xs text-amber-600 font-medium">Product saved as Template</span>}
+            {savedAsTemplate && <span className="text-xs text-amber-600 font-medium">Item saved as Template</span>}
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-5 h-5 text-gray-400" /></button>
         </div>
@@ -1113,7 +1196,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   {showSuggestions && suggestions.length > 0 && !ps.productId && (
                     <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
                       {suggestions.map(p => {
-                        const cat = categories.find(c => c.id === p.categoryId);
+                        const cat = categories.find(c => p.categoryIds.includes(c.id));
                         return (
                           <button key={p.id} onClick={() => selectProduct(p)}
                             className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0">
@@ -1128,6 +1211,22 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* ── Item Description ─────────────────────────────────── */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</label>
+                <input
+                  type="text"
+                  value={item.description}
+                  onChange={e => { setAutoDescribe(false); onUpdateItem({ description: e.target.value }); }}
+                  placeholder="Item description..."
+                  className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+                />
+                <label className="flex items-center gap-1.5 text-[10px] text-gray-400 mt-1">
+                  <input type="checkbox" checked={autoDescribe} onChange={e => { setAutoDescribe(e.target.checked); if (e.target.checked) onUpdateItem({ description: buildDescription() }); }} className="w-3 h-3" />
+                  Auto-describe
+                </label>
               </div>
 
               {/* ── Configuration Grid ─────────────────────────────────── */}
@@ -1400,11 +1499,11 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
               <Input label="Line Item Notes" value={item.notes || ''} onChange={e => onUpdateItem({ notes: e.target.value })} placeholder="Notes for this item..." />
             </div>
 
-            {/* ── Right panel: Matching Templates ──────────────────────── */}
+            {/* ── Right panel: Item Templates ──────────────────────────── */}
             {matchingTemplates.length > 0 && (
               <div className="w-52 flex-shrink-0">
                 <div className="sticky top-0">
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Matching Templates</h4>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Item Templates</h4>
                   <div className="space-y-1.5 max-h-[60vh] overflow-y-auto">
                     {matchingTemplates.slice(0, 12).map(t => (
                       <button key={t.id} onClick={() => onApplyTemplate(t.id)}

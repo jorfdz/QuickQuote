@@ -26,7 +26,7 @@ export const defaultCategories: PricingCategory[] = [
 export const defaultProducts: PricingProduct[] = [
   // ── Digital Press ──
   {
-    id: 'pp1', categoryId: 'pc1', name: 'Business Cards',
+    id: 'pp1', categoryIds: ['pc1'], name: 'Business Cards',
     aliases: ['BCARD', 'BC', 'Presentation Cards'],
     defaultQuantity: 1000,
     defaultMaterialName: '12X18 120lb Cougar',
@@ -37,7 +37,7 @@ export const defaultProducts: PricingProduct[] = [
     createdAt: '2024-01-01',
   },
   {
-    id: 'pp2', categoryId: 'pc1', name: 'Postcards',
+    id: 'pp2', categoryIds: ['pc1'], name: 'Postcards',
     aliases: ['Flyers'],
     defaultQuantity: 1000,
     defaultMaterialName: '12 x 18 100lb Cover',
@@ -48,7 +48,7 @@ export const defaultProducts: PricingProduct[] = [
     createdAt: '2024-01-01',
   },
   {
-    id: 'pp3', categoryId: 'pc1', name: 'Sell Sheet',
+    id: 'pp3', categoryIds: ['pc1'], name: 'Sell Sheet',
     aliases: ['Sales Sheet', 'Sell Sheets', 'Sales Sheets', 'Product Sheet'],
     defaultQuantity: 1000,
     defaultMaterialName: '80lb Gloss Text',
@@ -59,7 +59,7 @@ export const defaultProducts: PricingProduct[] = [
     createdAt: '2024-01-01',
   },
   {
-    id: 'pp4', categoryId: 'pc1', name: 'Brochures',
+    id: 'pp4', categoryIds: ['pc1'], name: 'Brochures',
     aliases: ['Trifold', 'Bifold', 'Tri-fold', 'Bi-fold', 'Brochure'],
     defaultQuantity: 1000,
     defaultMaterialName: '80lb Gloss Text',
@@ -71,7 +71,7 @@ export const defaultProducts: PricingProduct[] = [
     createdAt: '2024-01-01',
   },
   {
-    id: 'pp5', categoryId: 'pc1', name: 'Envelopes',
+    id: 'pp5', categoryIds: ['pc1'], name: 'Envelopes',
     aliases: ['A7', '#10', '#9', 'A6', '9X12', 'Envelope', '#10 Envelope'],
     defaultQuantity: 1000,
     defaultMaterialName: '#10 Window',
@@ -82,7 +82,7 @@ export const defaultProducts: PricingProduct[] = [
     createdAt: '2024-01-01',
   },
   {
-    id: 'pp6', categoryId: 'pc1', name: 'Door Hanger',
+    id: 'pp6', categoryIds: ['pc1'], name: 'Door Hanger',
     aliases: ['Door Knob', 'Door Hangers', 'Door Knob Hanger'],
     defaultQuantity: 1000,
     defaultMaterialName: '120lb Uncoated',

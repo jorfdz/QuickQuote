@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Building, CreditCard, Printer, Globe, Shield, Bell, Palette, Plus, Pencil, Trash2, Star, Package, Layers, FileText, RotateCcw, Eye, Ruler } from 'lucide-react';
+import { Building, CreditCard, Printer, Globe, Shield, Bell, Palette, Plus, Pencil, Trash2, Package, Layers, FileText, RotateCcw, Eye, Ruler } from 'lucide-react';
 import { Card, PageHeader, Button, Input, Textarea, Tabs, Select, Table, Modal, ConfirmDialog } from '../../components/ui';
 import { usePricingStore } from '../../store/pricingStore';
 import type { PricingCategory, PricingProduct } from '../../types/pricing';
@@ -269,7 +269,7 @@ const blankCategory = (): Omit<PricingCategory, 'id' | 'createdAt'> => ({
 });
 
 const blankProduct = (): Omit<PricingProduct, 'id' | 'createdAt'> => ({
-  categoryId: '', name: '', aliases: [], defaultQuantity: 250,
+  categoryIds: [], name: '', aliases: [], defaultQuantity: 250,
   defaultFinalSize: '', defaultFinalWidth: 0, defaultFinalHeight: 0,
   defaultMaterialName: '', defaultEquipmentName: '',
   defaultColor: 'Color', defaultSides: 'Single', defaultFolding: '',
@@ -363,7 +363,7 @@ export const Settings: React.FC = () => {
   const {
     categories, products,
     addCategory, updateCategory, deleteCategory,
-    addProduct, updateProduct, deleteProduct, toggleProductTemplate,
+    addProduct, updateProduct, deleteProduct,
   } = usePricingStore();
 
   // ─── Category helpers ────────────────────────────────────────────────────
@@ -392,7 +392,7 @@ export const Settings: React.FC = () => {
 
   const productCountByCategory = useMemo(() => {
     const map: Record<string, number> = {};
-    products.forEach(p => { map[p.categoryId] = (map[p.categoryId] || 0) + 1; });
+    products.forEach(p => { p.categoryIds.forEach(cid => { map[cid] = (map[cid] || 0) + 1; }); });
     return map;
   }, [products]);
 
@@ -401,7 +401,7 @@ export const Settings: React.FC = () => {
   const openAddProduct = () => {
     setProdEditId(null);
     const blank = blankProduct();
-    if (categories.length > 0) blank.categoryId = categories[0].id;
+    if (categories.length > 0) blank.categoryIds = [categories[0].id];
     setProdForm(blank);
     setProdAliasesStr('');
     setProdModalOpen(true);
@@ -410,7 +410,7 @@ export const Settings: React.FC = () => {
   const openEditProduct = (prod: PricingProduct) => {
     setProdEditId(prod.id);
     setProdForm({
-      categoryId: prod.categoryId, name: prod.name, aliases: prod.aliases,
+      categoryIds: prod.categoryIds, name: prod.name, aliases: prod.aliases,
       defaultQuantity: prod.defaultQuantity, defaultFinalSize: prod.defaultFinalSize,
       defaultFinalWidth: prod.defaultFinalWidth, defaultFinalHeight: prod.defaultFinalHeight,
       defaultMaterialName: prod.defaultMaterialName || '', defaultEquipmentName: prod.defaultEquipmentName || '',
@@ -422,7 +422,7 @@ export const Settings: React.FC = () => {
   };
 
   const saveProduct = () => {
-    if (!prodForm.name.trim() || !prodForm.categoryId) return;
+    if (!prodForm.name.trim() || prodForm.categoryIds.length === 0) return;
     const data = {
       ...prodForm,
       aliases: prodAliasesStr.split(',').map(a => a.trim()).filter(Boolean),
@@ -437,7 +437,7 @@ export const Settings: React.FC = () => {
 
   const filteredProducts = useMemo(() => {
     if (prodCategoryFilter === 'all') return products;
-    return products.filter(p => p.categoryId === prodCategoryFilter);
+    return products.filter(p => p.categoryIds.includes(prodCategoryFilter));
   }, [products, prodCategoryFilter]);
 
   const getCategoryName = (id: string) => categories.find(c => c.id === id)?.name || 'Unknown';
@@ -620,22 +620,17 @@ export const Settings: React.FC = () => {
                   <Button variant="primary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={openAddProduct}>Add Product</Button>
                 </div>
               </div>
-              <Table headers={['Name', 'Category', 'Aliases', 'Size', 'Paper', 'Equipment', 'Color', 'Sides', 'Template', 'Actions']}>
+              <Table headers={['Name', 'Categories', 'Aliases', 'Size', 'Paper', 'Equipment', 'Color', 'Sides', 'Actions']}>
                 {filteredProducts.map(prod => (
                   <tr key={prod.id} className="hover:bg-gray-50/50">
                     <td className="py-3 px-4 font-medium text-gray-900">{prod.name}</td>
-                    <td className="py-3 px-4 text-gray-600 text-xs">{getCategoryName(prod.categoryId)}</td>
+                    <td className="py-3 px-4 text-gray-600 text-xs">{prod.categoryIds.map(id => getCategoryName(id)).join(', ')}</td>
                     <td className="py-3 px-4 text-gray-500 text-xs max-w-[160px] truncate">{prod.aliases.length > 0 ? prod.aliases.join(', ') : '--'}</td>
                     <td className="py-3 px-4 text-gray-600 text-xs">{prod.defaultFinalSize || '--'}</td>
                     <td className="py-3 px-4 text-gray-600 text-xs">{prod.defaultMaterialName || '--'}</td>
                     <td className="py-3 px-4 text-gray-600 text-xs">{prod.defaultEquipmentName || '--'}</td>
                     <td className="py-3 px-4 text-gray-600 text-xs">{prod.defaultColor}</td>
                     <td className="py-3 px-4 text-gray-600 text-xs">{prod.defaultSides}</td>
-                    <td className="py-3 px-4">
-                      <button onClick={() => toggleProductTemplate(prod.id)} className="p-1 rounded transition-colors hover:bg-yellow-50">
-                        <Star className={`w-4 h-4 ${prod.isTemplate ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
-                      </button>
-                    </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-1">
                         <button onClick={() => openEditProduct(prod)} className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors text-gray-400 hover:text-blue-600">
@@ -649,7 +644,7 @@ export const Settings: React.FC = () => {
                   </tr>
                 ))}
                 {filteredProducts.length === 0 && (
-                  <tr><td colSpan={10} className="py-12 text-center text-sm text-gray-400">No products found. Add one to get started.</td></tr>
+                  <tr><td colSpan={9} className="py-12 text-center text-sm text-gray-400">No products found. Add one to get started.</td></tr>
                 )}
               </Table>
             </Card>
@@ -856,8 +851,19 @@ export const Settings: React.FC = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Input label="Product Name" value={prodForm.name} onChange={e => setProdForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Business Cards" />
-            <Select label="Category" value={prodForm.categoryId} onChange={e => setProdForm(f => ({ ...f, categoryId: e.target.value }))}
-              options={categories.map(c => ({ value: c.id, label: c.name }))} />
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Categories</label>
+              <div className="flex flex-wrap gap-2 p-2 border border-gray-200 rounded-md min-h-[38px]">
+                {categories.map(c => (
+                  <label key={c.id} className="flex items-center gap-1.5 text-sm cursor-pointer select-none">
+                    <input type="checkbox" checked={prodForm.categoryIds.includes(c.id)}
+                      onChange={() => setProdForm(f => ({ ...f, categoryIds: f.categoryIds.includes(c.id) ? f.categoryIds.filter(id => id !== c.id) : [...f.categoryIds, c.id] }))}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                    <span className={prodForm.categoryIds.includes(c.id) ? 'text-blue-700 font-medium' : 'text-gray-600'}>{c.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
           <Input label="Aliases (comma-separated)" value={prodAliasesStr} onChange={e => setProdAliasesStr(e.target.value)} placeholder="e.g. Biz Cards, BC, Calling Cards" />
           <div className="grid grid-cols-3 gap-4">
@@ -879,13 +885,6 @@ export const Settings: React.FC = () => {
             <Select label="Default Sides" value={prodForm.defaultSides} onChange={e => setProdForm(f => ({ ...f, defaultSides: e.target.value as PricingProduct['defaultSides'] }))}
               options={[{ value: 'Single', label: 'Single' }, { value: 'Double', label: 'Double' }]} />
             <Input label="Default Folding" value={prodForm.defaultFolding || ''} onChange={e => setProdForm(f => ({ ...f, defaultFolding: e.target.value }))} placeholder="e.g. Tri-Fold" />
-          </div>
-          <div className="flex items-center gap-2 pt-1">
-            <button onClick={() => setProdForm(f => ({ ...f, isTemplate: !f.isTemplate }))}
-              className={`p-1 rounded transition-colors ${prodForm.isTemplate ? 'text-yellow-400' : 'text-gray-300 hover:text-gray-400'}`}>
-              <Star className={`w-5 h-5 ${prodForm.isTemplate ? 'fill-yellow-400' : ''}`} />
-            </button>
-            <span className="text-sm text-gray-600">{prodForm.isTemplate ? 'This product is a template' : 'Mark as template'}</span>
           </div>
           <div className="flex gap-3 justify-end pt-2">
             <Button variant="secondary" onClick={() => setProdModalOpen(false)}>Cancel</Button>

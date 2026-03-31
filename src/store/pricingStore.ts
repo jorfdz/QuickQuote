@@ -322,9 +322,9 @@ export const usePricingStore = create<PricingStore>()(
     }),
     {
       name: 'quikquote-pricing-storage',
-      version: 3,
+      version: 4,
       migrate: () => {
-        // Version bump: reset to fresh defaults so all data including materialGroups is loaded
+        // Version bump: reset to fresh defaults — products now use categoryIds[] instead of categoryId
         return {
           categories: defaultCategories,
           products: defaultProducts,

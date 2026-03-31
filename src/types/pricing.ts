@@ -22,7 +22,7 @@ export interface PricingCategory {
 
 export interface PricingProduct {
   id: string;
-  categoryId: string;
+  categoryIds: string[];
   name: string;
   aliases: string[];
   defaultQuantity: number;
