@@ -5,7 +5,7 @@ import { DEFAULT_COMPANY_SETTINGS, DEFAULT_INVOICE_TEMPLATE, DEFAULT_ORDER_TEMPL
 import { useStore } from '../../store';
 import { usePricingStore } from '../../store/pricingStore';
 import { nanoid } from '../../utils/nanoid';
-import type { CompanySettings, DocumentTemplates, Workflow, WorkflowStage } from '../../types';
+import type { CompanySettings, DocumentTemplates, Workflow, WorkflowStage, TrackingDevice } from '../../types';
 import type { PricingCategory, PricingProduct } from '../../types/pricing';
 
 const TABS = [
@@ -19,6 +19,11 @@ const TABS = [
 const CATALOG_SUBTABS = [
   { id: 'categories', label: 'Categories' },
   { id: 'products', label: 'Products' },
+];
+
+const ORDER_TRACKER_SUBTABS = [
+  { id: 'boards', label: 'Boards' },
+  { id: 'devices', label: 'Tracking Devices' },
 ];
 
 // ─── BLANK FORMS ──────────────────────────────────────────────────────────────
@@ -58,6 +63,15 @@ const blankWorkflowForm = (): Omit<Workflow, 'id' | 'createdAt'> => ({
   isDefault: false,
 });
 
+const blankTrackingDeviceForm = (): Omit<TrackingDevice, 'id' | 'createdAt'> => ({
+  name: '',
+  code: '',
+  description: '',
+  workflowId: '',
+  stageId: '',
+  isActive: true,
+});
+
 // ─── SETTINGS COMPONENT ───────────────────────────────────────────────────────
 
 export const Settings: React.FC = () => {
@@ -66,10 +80,14 @@ export const Settings: React.FC = () => {
     companySettings,
     documentTemplates,
     workflows,
+    trackingDevices,
     orders,
     addWorkflow,
     updateWorkflow,
     deleteWorkflow,
+    addTrackingDevice,
+    updateTrackingDevice,
+    deleteTrackingDevice,
     updateCompanySettings,
     updateDocumentTemplates,
   } = useStore();
@@ -165,6 +183,7 @@ export const Settings: React.FC = () => {
 
   // Catalog state
   const [catalogSubTab, setCatalogSubTab] = useState('categories');
+  const [orderTrackerSubTab, setOrderTrackerSubTab] = useState('boards');
 
   // Category modal state
   const [catModalOpen, setCatModalOpen] = useState(false);
@@ -185,6 +204,10 @@ export const Settings: React.FC = () => {
   const [workflowEditId, setWorkflowEditId] = useState<string | null>(null);
   const [workflowForm, setWorkflowForm] = useState<Omit<Workflow, 'id' | 'createdAt'>>(blankWorkflowForm());
   const [workflowDeleteConfirm, setWorkflowDeleteConfirm] = useState<string | null>(null);
+  const [trackingDeviceModalOpen, setTrackingDeviceModalOpen] = useState(false);
+  const [trackingDeviceEditId, setTrackingDeviceEditId] = useState<string | null>(null);
+  const [trackingDeviceForm, setTrackingDeviceForm] = useState<Omit<TrackingDevice, 'id' | 'createdAt'>>(blankTrackingDeviceForm());
+  const [trackingDeviceDeleteConfirm, setTrackingDeviceDeleteConfirm] = useState<string | null>(null);
 
   // Pricing store
   const {
@@ -379,6 +402,59 @@ export const Settings: React.FC = () => {
     });
     return counts;
   }, [orders]);
+
+  const openAddTrackingDevice = () => {
+    const firstWorkflow = workflows.find((workflow) => workflow.isActive) || workflows[0];
+    const firstStage = firstWorkflow?.stages.slice().sort((a, b) => a.order - b.order)[0];
+    setTrackingDeviceEditId(null);
+    setTrackingDeviceForm({
+      ...blankTrackingDeviceForm(),
+      workflowId: firstWorkflow?.id || '',
+      stageId: firstStage?.id || '',
+    });
+    setTrackingDeviceModalOpen(true);
+  };
+
+  const openEditTrackingDevice = (device: TrackingDevice) => {
+    setTrackingDeviceEditId(device.id);
+    setTrackingDeviceForm({
+      name: device.name,
+      code: device.code,
+      description: device.description || '',
+      workflowId: device.workflowId,
+      stageId: device.stageId,
+      isActive: device.isActive,
+    });
+    setTrackingDeviceModalOpen(true);
+  };
+
+  const selectedTrackingWorkflow = workflows.find((workflow) => workflow.id === trackingDeviceForm.workflowId);
+  const selectedTrackingStages = selectedTrackingWorkflow?.stages.slice().sort((a, b) => a.order - b.order) || [];
+
+  const saveTrackingDevice = () => {
+    const name = trackingDeviceForm.name.trim();
+    const code = trackingDeviceForm.code.trim().toUpperCase();
+    if (!name || !code || !trackingDeviceForm.workflowId || !trackingDeviceForm.stageId) return;
+
+    const payload = {
+      ...trackingDeviceForm,
+      name,
+      code,
+      description: trackingDeviceForm.description?.trim() || '',
+    };
+
+    if (trackingDeviceEditId) {
+      updateTrackingDevice(trackingDeviceEditId, payload);
+    } else {
+      addTrackingDevice({
+        id: nanoid(),
+        ...payload,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    setTrackingDeviceModalOpen(false);
+  };
 
   // ─── RENDER ──────────────────────────────────────────────────────────────
 
@@ -761,66 +837,142 @@ export const Settings: React.FC = () => {
       {/* ── ORDER TRACKER TAB ──────────────────────────────────────────── */}
       {activeTab === 'order-tracker' && (
         <div className="space-y-6">
-          <Card className="p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
-                  <WorkflowIcon className="w-4 h-4 text-blue-500" /> Order Tracker Boards
-                </h2>
-                <p className="text-sm text-gray-500 max-w-3xl">
-                  Define the boards and stages used by the Order Tracker page. Active boards are available to production for routing and status tracking.
-                </p>
-              </div>
-              <Button variant="primary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={openAddWorkflow}>
-                Add Board
-              </Button>
-            </div>
-          </Card>
+          <div className="flex gap-1">
+            {ORDER_TRACKER_SUBTABS.map(st => (
+              <button
+                key={st.id}
+                onClick={() => setOrderTrackerSubTab(st.id)}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${orderTrackerSubTab === st.id ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}
+              >
+                {st.label}
+              </button>
+            ))}
+          </div>
 
-          <Card className="p-0">
-            <Table headers={['Board', 'Description', 'Stages', 'Orders', 'Status', 'Actions']}>
-              {workflows.map((workflow) => (
-                <tr key={workflow.id} className="hover:bg-gray-50/50">
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900">{workflow.name}</span>
-                      {workflow.isDefault && <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">Default</span>}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-xs text-gray-500 max-w-sm">{workflow.description || '--'}</td>
-                  <td className="py-3 px-4">
-                    <div className="flex flex-wrap gap-1.5">
-                      {workflow.stages.slice().sort((a, b) => a.order - b.order).map((stage) => (
-                        <span key={stage.id} className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[11px] text-gray-600">
-                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
-                          {stage.name}
+          {orderTrackerSubTab === 'boards' && (
+            <>
+              <Card className="p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                      <WorkflowIcon className="w-4 h-4 text-blue-500" /> Order Tracker Boards
+                    </h2>
+                    <p className="text-sm text-gray-500 max-w-3xl">
+                      Define the boards and stages used by the Order Tracker page. Active boards are available to production for routing and status tracking.
+                    </p>
+                  </div>
+                  <Button variant="primary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={openAddWorkflow}>
+                    Add Board
+                  </Button>
+                </div>
+              </Card>
+
+              <Card className="p-0">
+                <Table headers={['Board', 'Description', 'Stages', 'Orders', 'Status', 'Actions']}>
+                  {workflows.map((workflow) => (
+                    <tr key={workflow.id} className="hover:bg-gray-50/50">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900">{workflow.name}</span>
+                          {workflow.isDefault && <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">Default</span>}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-xs text-gray-500 max-w-sm">{workflow.description || '--'}</td>
+                      <td className="py-3 px-4">
+                        <div className="flex flex-wrap gap-1.5">
+                          {workflow.stages.slice().sort((a, b) => a.order - b.order).map((stage) => (
+                            <span key={stage.id} className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[11px] text-gray-600">
+                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                              {stage.name}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-gray-600">{workflowUsage[workflow.id] || 0}</td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${workflow.isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
+                          {workflow.isActive ? 'Active' : 'Inactive'}
                         </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-gray-600">{workflowUsage[workflow.id] || 0}</td>
-                  <td className="py-3 px-4">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${workflow.isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
-                      {workflow.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => openEditWorkflow(workflow)} className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors text-gray-400 hover:text-blue-600">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => setWorkflowDeleteConfirm(workflow.id)} className="p-1.5 hover:bg-red-50 rounded-lg transition-colors text-gray-400 hover:text-red-600">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {workflows.length === 0 && (
-                <tr><td colSpan={6} className="py-12 text-center text-sm text-gray-400">No boards configured yet. Add one to start building your production workflow.</td></tr>
-              )}
-            </Table>
-          </Card>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => openEditWorkflow(workflow)} className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors text-gray-400 hover:text-blue-600">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => setWorkflowDeleteConfirm(workflow.id)} className="p-1.5 hover:bg-red-50 rounded-lg transition-colors text-gray-400 hover:text-red-600">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {workflows.length === 0 && (
+                    <tr><td colSpan={6} className="py-12 text-center text-sm text-gray-400">No boards configured yet. Add one to start building your production workflow.</td></tr>
+                  )}
+                </Table>
+              </Card>
+            </>
+          )}
+
+          {orderTrackerSubTab === 'devices' && (
+            <>
+              <Card className="p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                      <WorkflowIcon className="w-4 h-4 text-blue-500" /> Tracking Devices
+                    </h2>
+                    <p className="text-sm text-gray-500 max-w-3xl">
+                      Define the scanners or machine devices used on the floor. Each device maps a scanned order item to a specific board and stage.
+                    </p>
+                  </div>
+                  <Button variant="primary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={openAddTrackingDevice}>
+                    Add Device
+                  </Button>
+                </div>
+              </Card>
+
+              <Card className="p-0">
+                <Table headers={['Device', 'Device Code', 'Board', 'Stage', 'Status', 'Actions']}>
+                  {trackingDevices.map((device) => {
+                    const workflow = workflows.find((item) => item.id === device.workflowId);
+                    const stage = workflow?.stages.find((item) => item.id === device.stageId);
+                    return (
+                      <tr key={device.id} className="hover:bg-gray-50/50">
+                        <td className="py-3 px-4">
+                          <div>
+                            <div className="font-medium text-gray-900">{device.name}</div>
+                            <div className="text-xs text-gray-500">{device.description || '--'}</div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4"><span className="font-mono text-xs text-gray-700">{device.code}</span></td>
+                        <td className="py-3 px-4 text-gray-600">{workflow?.name || '--'}</td>
+                        <td className="py-3 px-4 text-gray-600">{stage?.name || '--'}</td>
+                        <td className="py-3 px-4">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${device.isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
+                            {device.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => openEditTrackingDevice(device)} className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors text-gray-400 hover:text-blue-600">
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => setTrackingDeviceDeleteConfirm(device.id)} className="p-1.5 hover:bg-red-50 rounded-lg transition-colors text-gray-400 hover:text-red-600">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {trackingDevices.length === 0 && (
+                    <tr><td colSpan={6} className="py-12 text-center text-sm text-gray-400">No tracking devices configured yet. Add a device to map scans to a board and stage.</td></tr>
+                  )}
+                </Table>
+              </Card>
+            </>
+          )}
         </div>
       )}
 
@@ -1034,6 +1186,84 @@ export const Settings: React.FC = () => {
         onConfirm={() => { if (workflowDeleteConfirm) deleteWorkflow(workflowDeleteConfirm); }}
         title="Delete Order Tracker Board"
         message="Are you sure you want to delete this board? Orders assigned to it will be unassigned from the tracker stages."
+      />
+
+      {/* ── TRACKING DEVICE MODAL ──────────────────────────────────────── */}
+      <Modal isOpen={trackingDeviceModalOpen} onClose={() => setTrackingDeviceModalOpen(false)} title={trackingDeviceEditId ? 'Edit Tracking Device' : 'Add Tracking Device'} size="lg">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Device Name"
+              value={trackingDeviceForm.name}
+              onChange={e => setTrackingDeviceForm((current) => ({ ...current, name: e.target.value }))}
+              placeholder="e.g. Indigo 7K Scanner"
+            />
+            <Input
+              label="Device Code"
+              value={trackingDeviceForm.code}
+              onChange={e => setTrackingDeviceForm((current) => ({ ...current, code: e.target.value.toUpperCase() }))}
+              placeholder="e.g. INDIGO-01"
+            />
+          </div>
+
+          <Textarea
+            label="Description"
+            rows={2}
+            value={trackingDeviceForm.description || ''}
+            onChange={e => setTrackingDeviceForm((current) => ({ ...current, description: e.target.value }))}
+            placeholder="Optional notes about the machine or scanner location."
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <Select
+              label="Destination Board"
+              value={trackingDeviceForm.workflowId}
+              onChange={e => {
+                const workflowId = e.target.value;
+                const workflow = workflows.find((item) => item.id === workflowId);
+                const firstStage = workflow?.stages.slice().sort((a, b) => a.order - b.order)[0];
+                setTrackingDeviceForm((current) => ({ ...current, workflowId, stageId: firstStage?.id || '' }));
+              }}
+              options={workflows.map((workflow) => ({ value: workflow.id, label: workflow.name }))}
+            />
+            <Select
+              label="Destination Stage"
+              value={trackingDeviceForm.stageId}
+              onChange={e => setTrackingDeviceForm((current) => ({ ...current, stageId: e.target.value }))}
+              options={selectedTrackingStages.map((stage) => ({ value: stage.id, label: stage.name }))}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Device Status</label>
+            <div className="flex gap-2">
+              <Button variant={trackingDeviceForm.isActive ? 'success' : 'secondary'} type="button" onClick={() => setTrackingDeviceForm((current) => ({ ...current, isActive: true }))}>
+                Active
+              </Button>
+              <Button variant={!trackingDeviceForm.isActive ? 'secondary' : 'ghost'} type="button" onClick={() => setTrackingDeviceForm((current) => ({ ...current, isActive: false }))}>
+                Inactive
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
+            A scan from this device should include an order item code. The configured device mapping determines which board and stage that item is moved into.
+          </div>
+
+          <div className="flex gap-3 justify-end pt-2">
+            <Button variant="secondary" onClick={() => setTrackingDeviceModalOpen(false)}>Cancel</Button>
+            <Button variant="primary" onClick={saveTrackingDevice}>{trackingDeviceEditId ? 'Save Device' : 'Create Device'}</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── TRACKING DEVICE DELETE CONFIRM ─────────────────────────────── */}
+      <ConfirmDialog
+        isOpen={!!trackingDeviceDeleteConfirm}
+        onClose={() => setTrackingDeviceDeleteConfirm(null)}
+        onConfirm={() => { if (trackingDeviceDeleteConfirm) deleteTrackingDevice(trackingDeviceDeleteConfirm); }}
+        title="Delete Tracking Device"
+        message="Are you sure you want to delete this tracking device? Scans from this device will no longer route order items."
       />
 
       {/* ── TEMPLATE PREVIEW MODAL ──────────────────────────────────────── */}
