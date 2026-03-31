@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import {
   Plus, Trash2, Edit3, X, Search, Copy, Info,
-  ChevronDown, ChevronUp, Camera, Image as ImageIcon
+  ChevronDown, ChevronUp, Camera
 } from 'lucide-react';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Table, Modal, Input } from '../../components/ui';
+import { ImageUploadCropper } from '../../components/ui/ImageUploadCropper';
 import type {
   PricingEquipment, EquipmentPricingTier, EquipmentCostUnit
 } from '../../types/pricing';
@@ -81,9 +82,6 @@ export const Equipment: React.FC = () => {
   const [equipForm, setEquipForm] = useState(emptyEquipmentForm);
   const [deleteEquipConfirm, setDeleteEquipConfirm] = useState<string | null>(null);
 
-  // ── Image preview error state (Item 22) ──
-  const [imageError, setImageError] = useState(false);
-
   // ── Filtered list ──
   const filteredEquipment = equipment.filter(e =>
     !search || e.name.toLowerCase().includes(search.toLowerCase()) || e.categoryApplies.toLowerCase().includes(search.toLowerCase())
@@ -113,7 +111,6 @@ export const Equipment: React.FC = () => {
     });
     setShowNewEquip(false);
     setEquipForm(emptyEquipmentForm);
-    setImageError(false);
   };
 
   const handleStartEditEquip = (e: PricingEquipment) => {
@@ -135,7 +132,6 @@ export const Equipment: React.FC = () => {
       timeCostMarkup: e.timeCostMarkup,
       imageUrl: e.imageUrl || '',
     });
-    setImageError(false);
   };
 
   const handleSaveEditEquip = () => {
@@ -158,7 +154,6 @@ export const Equipment: React.FC = () => {
       imageUrl: equipForm.imageUrl || undefined,
     });
     setEditingEquipId(null);
-    setImageError(false);
   };
 
   const handleCloneEquip = (eq: PricingEquipment) => {
@@ -365,32 +360,18 @@ export const Equipment: React.FC = () => {
         title={editingEquipId ? 'Edit Equipment' : 'Add Equipment'} size="lg">
         <div className="space-y-4">
 
-          {/* Equipment Photo Section (Item 22) */}
+          {/* Equipment Photo */}
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0">
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Photo</label>
-              <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
-                {equipForm.imageUrl && !imageError ? (
-                  <img
-                    src={equipForm.imageUrl}
-                    alt="Equipment"
-                    className="w-full h-full object-cover rounded-xl"
-                    onError={() => setImageError(true)}
-                  />
-                ) : (
-                  <Camera className="w-6 h-6 text-gray-300" />
-                )}
-              </div>
-            </div>
-            <div className="flex-1 space-y-2">
-              <Input
-                label="Image URL"
+              <ImageUploadCropper
                 value={equipForm.imageUrl || ''}
-                onChange={e => { setEquipForm(f => ({ ...f, imageUrl: e.target.value })); setImageError(false); }}
-                placeholder="https://example.com/equipment-photo.jpg"
-                prefix={<ImageIcon className="w-3.5 h-3.5" />}
+                onChange={(url) => setEquipForm(f => ({ ...f, imageUrl: url }))}
+                size={80}
               />
-              <p className="text-xs text-gray-400">Paste a URL to an image of this equipment for quick identification.</p>
+            </div>
+            <div className="flex-1 pt-6">
+              <p className="text-xs text-gray-400">Click the photo to upload an image from your computer or paste a public URL. You can crop it before saving.</p>
             </div>
           </div>
 
