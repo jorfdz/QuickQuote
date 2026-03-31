@@ -657,7 +657,27 @@ export const Equipment: React.FC = () => {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost Unit</label>
-                <select value={equipForm.costUnit} onChange={e => setEquipForm(f => ({ ...f, costUnit: e.target.value as EquipmentCostUnit }))}
+                <select value={equipForm.costUnit} onChange={e => {
+                    const newUnit = e.target.value as EquipmentCostUnit;
+                    setEquipForm(f => {
+                      const updates: Partial<typeof f> = { costUnit: newUnit };
+                      // Auto-populate default sqft tiers (1, 10, 50) when switching to per_sqft with empty tiers
+                      if (newUnit === 'per_sqft') {
+                        const defaultSqftTiers = [
+                          { minQty: 1, pricePerUnit: 0 },
+                          { minQty: 10, pricePerUnit: 0 },
+                          { minQty: 50, pricePerUnit: 0 },
+                        ];
+                        if (f.colorTiers.length === 0 && (f.colorCapability === 'Color' || f.colorCapability === 'Color and Black')) {
+                          updates.colorTiers = defaultSqftTiers.map(t => ({ ...t }));
+                        }
+                        if (f.blackTiers.length === 0 && (f.colorCapability === 'Black' || f.colorCapability === 'Color and Black')) {
+                          updates.blackTiers = defaultSqftTiers.map(t => ({ ...t }));
+                        }
+                      }
+                      return { ...f, ...updates };
+                    });
+                  }}
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="per_click">Per Click</option>
                   <option value="per_sqft">Per Sq Ft</option>
