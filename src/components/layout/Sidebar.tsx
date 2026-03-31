@@ -127,7 +127,7 @@ export const Sidebar: React.FC = () => {
       {!sidebarCollapsed && (
         <div className="px-3 pb-2">
           <div className="border-t border-white/5 pt-2">
-            <p className="text-[9px] text-gray-600 leading-relaxed">
+            <p className="text-[10px] text-gray-400 leading-relaxed">
               PrintCo Solutions<br />
               100 Print Ave, Miami, FL 33101<br />
               555-100-0000 · www.printco.com
