@@ -555,7 +555,7 @@ export const Materials: React.FC = () => {
       {/* Sortable Table */}
       <Card>
         {sorted.length > 0 && <PaginationBar />}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
@@ -591,13 +591,56 @@ export const Materials: React.FC = () => {
                   onClick={() => handleStartEdit(m)}
                 >
                   <td className="py-3 px-2 w-8" onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={() => toggleMaterialFavorite(m.id)}
-                      className="p-1 hover:bg-amber-50 rounded transition-colors"
-                      title={m.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                    >
-                      <Star className={`w-4 h-4 ${m.isFavorite ? 'fill-amber-400 text-amber-400' : 'text-gray-300 hover:text-amber-300'}`} />
-                    </button>
+                    {(() => {
+                      const favCats = (m.favoriteCategoryIds || []).map(id => categories.find(c => c.id === id)).filter(Boolean);
+                      const favProds = (m.favoriteProductIds || []).map(id => products.find(p => p.id === id)).filter(Boolean);
+                      const hasFavItems = favCats.length > 0 || favProds.length > 0;
+                      return (
+                        <div className="relative group/fav">
+                          <button
+                            onClick={() => toggleMaterialFavorite(m.id)}
+                            className="p-1 hover:bg-amber-50 rounded transition-colors"
+                            title={!hasFavItems ? (m.isFavorite ? 'Remove from favorites' : 'Add to favorites') : undefined}
+                          >
+                            <Star className={`w-4 h-4 ${m.isFavorite ? 'fill-amber-400 text-amber-400' : 'text-gray-300 hover:text-amber-300'}`} />
+                          </button>
+                          {hasFavItems && (
+                            <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover/fav:block">
+                              <div className="bg-gray-900 text-white rounded-lg shadow-xl px-3 py-2.5 text-xs whitespace-nowrap min-w-[200px] max-w-[300px]">
+                                {/* Arrow */}
+                                <div className="absolute bottom-full left-3 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[6px] border-b-gray-900" />
+                                <p className="text-[10px] font-semibold text-amber-400 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                                  <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                                  Favorite Assignments
+                                </p>
+                                {favCats.length > 0 && (
+                                  <div className={favProds.length > 0 ? 'mb-2 pb-2 border-b border-gray-700' : ''}>
+                                    <p className="text-[10px] text-gray-400 font-medium mb-1">Categories ({favCats.length})</p>
+                                    {favCats.map(cat => (
+                                      <div key={cat!.id} className="flex items-center gap-1.5 py-0.5">
+                                        <Layers className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                                        <span className="text-gray-100 truncate">{cat!.name}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {favProds.length > 0 && (
+                                  <div>
+                                    <p className="text-[10px] text-gray-400 font-medium mb-1">Products ({favProds.length})</p>
+                                    {favProds.map(prod => (
+                                      <div key={prod!.id} className="flex items-center gap-1.5 py-0.5">
+                                        <Package className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                                        <span className="text-gray-100 truncate">{prod!.name}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2.5">
