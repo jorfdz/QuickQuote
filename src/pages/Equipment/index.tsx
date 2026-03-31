@@ -180,11 +180,29 @@ export const Equipment: React.FC = () => {
   const showTimeFields = equipForm.costType === 'time_only' || equipForm.costType === 'cost_plus_time';
   const showUnitCost = equipForm.costType === 'cost_only' || equipForm.costType === 'cost_plus_time';
 
-  // Helper: which tier columns to show for a given equipment
   const showColorTiers = (eq: PricingEquipment) =>
     eq.colorCapability === 'Color' || eq.colorCapability === 'Color and Black';
   const showBlackTiers = (eq: PricingEquipment) =>
     eq.colorCapability === 'Black' || eq.colorCapability === 'Color and Black';
+
+  // Next scheduled maintenance for list view
+  const getNextMaintenance = (eq: PricingEquipment) => {
+    const history = eq.maintenanceHistory || [];
+    const upcoming = history.filter(r => r.status === 'Scheduled' || r.status === 'Requested');
+    if (upcoming.length === 0) {
+      // Check if any completed record has nextMaintenanceDate
+      const lastCompleted = history.filter(r => r.status === 'Completed' && r.nextMaintenanceDate);
+      if (lastCompleted.length > 0) {
+        const sorted = lastCompleted.sort((a, b) =>
+          new Date(b.serviceDate || b.scheduledOn).getTime() - new Date(a.serviceDate || a.scheduledOn).getTime()
+        );
+        return { date: sorted[0].nextMaintenanceDate!, status: 'due' as const };
+      }
+      return null;
+    }
+    const sorted = upcoming.sort((a, b) => new Date(a.scheduledOn).getTime() - new Date(b.scheduledOn).getTime());
+    return { date: sorted[0].scheduledOn, status: sorted[0].status.toLowerCase() as 'requested' | 'scheduled' };
+  };
 
   // ══════════════════════════════════════════════════════════════════════════════
   //  RENDER
@@ -196,7 +214,7 @@ export const Equipment: React.FC = () => {
         title="Equipment"
         subtitle={`${equipment.length} equipment item${equipment.length !== 1 ? 's' : ''}`}
         actions={
-          <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEquipForm(emptyEquipmentForm); setShowNewEquip(true); }}>
+          <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEquipForm(emptyEquipmentForm); setModalTab('details'); setShowNewEquip(true); }}>
             Add Equipment
           </Button>
         }
@@ -219,12 +237,13 @@ export const Equipment: React.FC = () => {
 
       {/* Equipment Table */}
       <Card>
-        <Table headers={['Equipment', 'Category', 'Cost Model', 'Unit Cost', 'Setup Fee', 'Markup', 'Tiers', 'Actions']}>
+        <Table headers={['Equipment', 'Category', 'Cost Model', 'Unit Cost', 'Setup Fee', 'Markup', 'Maintenance', 'Tiers', 'Actions']}>
           {filteredEquipment.map(eq => {
             const isExpanded = expandedEquipId === eq.id;
             const colorTierCount = showColorTiers(eq) ? (eq.colorTiers || []).length : 0;
             const blackTierCount = showBlackTiers(eq) ? (eq.blackTiers || []).length : 0;
             const totalTiers = colorTierCount + blackTierCount;
+            const nextMaint = getNextMaintenance(eq);
 
             return (
               <React.Fragment key={eq.id}>
@@ -235,20 +254,12 @@ export const Equipment: React.FC = () => {
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-3">
                       {eq.imageUrl ? (
-                        <img
-                          src={eq.imageUrl}
-                          alt={eq.name}
+                        <img src={eq.imageUrl} alt={eq.name}
                           className="w-8 h-8 rounded-lg object-cover border border-gray-200 flex-shrink-0"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                         />
-                      ) : null}
-                      {!eq.imageUrl && (
+                      ) : (
                         <div className="w-8 h-8 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
-                          <Camera className="w-3.5 h-3.5 text-gray-400" />
-                        </div>
-                      )}
-                      {eq.imageUrl && (
-                        <div className="w-8 h-8 rounded-lg bg-gray-100 border border-gray-200 items-center justify-center flex-shrink-0 hidden">
                           <Camera className="w-3.5 h-3.5 text-gray-400" />
                         </div>
                       )}
@@ -272,6 +283,21 @@ export const Equipment: React.FC = () => {
                     {eq.markupMultiplier
                       ? (eq.markupType === 'percent' ? `${eq.markupMultiplier}%` : `${eq.markupMultiplier}x`)
                       : '—'}
+                  </td>
+                  <td className="py-3 px-4">
+                    {nextMaint ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
+                          nextMaint.status === 'requested' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          nextMaint.status === 'scheduled' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                          'bg-gray-50 text-gray-600 border-gray-200'
+                        }`}>
+                          {formatDate(nextMaint.date)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
                   </td>
                   <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
                     {totalTiers > 0 ? (
@@ -394,121 +420,386 @@ export const Equipment: React.FC = () => {
               </select>
             </div>
           </div>
+        )}
 
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Color Capability</label>
-              <select value={equipForm.colorCapability} onChange={e => setEquipForm(f => ({ ...f, colorCapability: e.target.value as any }))}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="Color and Black">Color and Black</option>
-                <option value="Color">Color Only</option>
-                <option value="Black">Black Only</option>
-              </select>
+        {/* ═══════════ DETAILS TAB ═══════════ */}
+        {(modalTab === 'details' || !editingEquipId) && (
+          <div className="space-y-4">
+            {/* Photo + Name row */}
+            <div className="flex items-start gap-5">
+              <div className="flex-shrink-0">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Photo</label>
+                <ImageUploadCropper
+                  value={equipForm.imageUrl || ''}
+                  onChange={(url) => setEquipForm(f => ({ ...f, imageUrl: url }))}
+                  size={80}
+                />
+              </div>
+              <div className="flex-1 grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Equipment Name</label>
+                  <input
+                    value={equipForm.name}
+                    onChange={e => setEquipForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. Ricoh 9200"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Category</label>
+                  <select value={equipForm.categoryApplies} onChange={e => setEquipForm(f => ({ ...f, categoryApplies: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost Unit</label>
-              <select value={equipForm.costUnit} onChange={e => setEquipForm(f => ({ ...f, costUnit: e.target.value as EquipmentCostUnit }))}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="per_click">Per Click</option>
-                <option value="per_sqft">Per Sq Ft</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                Cost Type
-              </label>
-              <select value={equipForm.costType} onChange={e => setEquipForm(f => ({ ...f, costType: e.target.value as PricingEquipment['costType'] }))}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="cost_only">Cost Only</option>
-                <option value="cost_plus_time">Cost + Time</option>
-                <option value="time_only">Time Only</option>
-              </select>
-            </div>
-          </div>
 
-          {/* Unit cost - hidden when time_only */}
-          {showUnitCost && (
+            {/* Pricing configuration */}
             <div className="grid grid-cols-3 gap-4">
-              <Input label="Unit Cost ($)" type="number" value={equipForm.unitCost || ''}
-                onChange={e => setEquipForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
-              <Input label="Setup Fee ($)" type="number" value={equipForm.initialSetupFee || ''}
-                onChange={e => setEquipForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Markup Type</label>
-                <select value={equipForm.markupType} onChange={e => setEquipForm(f => ({ ...f, markupType: e.target.value as PricingEquipment['markupType'] }))}
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Color Capability</label>
+                <select value={equipForm.colorCapability} onChange={e => setEquipForm(f => ({ ...f, colorCapability: e.target.value as any }))}
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="multiplier">Multiplier (e.g. 7x)</option>
-                  <option value="percent">Percent (e.g. 70%)</option>
+                  <option value="Color and Black">Color and Black</option>
+                  <option value="Color">Color Only</option>
+                  <option value="Black">Black Only</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost Unit</label>
+                <select value={equipForm.costUnit} onChange={e => setEquipForm(f => ({ ...f, costUnit: e.target.value as EquipmentCostUnit }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="per_click">Per Click</option>
+                  <option value="per_sqft">Per Sq Ft</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost Type</label>
+                <select value={equipForm.costType} onChange={e => setEquipForm(f => ({ ...f, costType: e.target.value as PricingEquipment['costType'] }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="cost_only">Cost Only</option>
+                  <option value="cost_plus_time">Cost + Time</option>
+                  <option value="time_only">Time Only</option>
                 </select>
               </div>
             </div>
-          )}
 
-          {showUnitCost && (
-            <div className="grid grid-cols-3 gap-4">
-              <Input
-                label={equipForm.markupType === 'percent' ? 'Markup %' : 'Markup Multiplier'}
-                type="number"
-                value={equipForm.markupMultiplier || ''}
-                onChange={e => setEquipForm(f => ({ ...f, markupMultiplier: parseFloat(e.target.value) || undefined }))}
-                placeholder={equipForm.markupType === 'percent' ? 'e.g. 70' : 'e.g. 7'}
-                suffix={equipForm.markupType === 'percent' ? '%' : 'x'}
-              />
-            </div>
-          )}
+            {showUnitCost && (
+              <div className="grid grid-cols-4 gap-4">
+                <Input label="Unit Cost ($)" type="number" value={equipForm.unitCost || ''}
+                  onChange={e => setEquipForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                <Input label="Setup Fee ($)" type="number" value={equipForm.initialSetupFee || ''}
+                  onChange={e => setEquipForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Markup Type</label>
+                  <select value={equipForm.markupType} onChange={e => setEquipForm(f => ({ ...f, markupType: e.target.value as PricingEquipment['markupType'] }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="multiplier">Multiplier (e.g. 7x)</option>
+                    <option value="percent">Percent (e.g. 70%)</option>
+                  </select>
+                </div>
+                <Input
+                  label={equipForm.markupType === 'percent' ? 'Markup %' : 'Markup Multiplier'}
+                  type="number"
+                  value={equipForm.markupMultiplier || ''}
+                  onChange={e => setEquipForm(f => ({ ...f, markupMultiplier: parseFloat(e.target.value) || undefined }))}
+                  placeholder={equipForm.markupType === 'percent' ? 'e.g. 70' : 'e.g. 7'}
+                  suffix={equipForm.markupType === 'percent' ? '%' : 'x'}
+                />
+              </div>
+            )}
 
-          {/* Time fields - shown when cost_plus_time or time_only */}
-          {showTimeFields && (
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <div className="flex items-center gap-1 mb-1.5">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Units/Hour</label>
-                  <div className="group relative">
-                    <Info className="w-3 h-3 text-gray-400" />
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                      Units = sheets or pieces ran through equipment
+            {showTimeFields && (
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <div className="flex items-center gap-1 mb-1.5">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Units/Hour</label>
+                    <div className="group relative">
+                      <Info className="w-3 h-3 text-gray-400" />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        Units = sheets or pieces ran through equipment
+                      </div>
                     </div>
                   </div>
+                  <input type="number" value={equipForm.unitsPerHour || ''} onChange={e => setEquipForm(f => ({ ...f, unitsPerHour: parseInt(e.target.value) || undefined }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
-                <input type="number" value={equipForm.unitsPerHour || ''} onChange={e => setEquipForm(f => ({ ...f, unitsPerHour: parseInt(e.target.value) || undefined }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <Input label="Time Cost/Hour ($)" type="number" value={equipForm.timeCostPerHour || ''}
+                  onChange={e => setEquipForm(f => ({ ...f, timeCostPerHour: parseFloat(e.target.value) || undefined }))} prefix="$" />
+                <Input label="Time Cost Markup %" type="number" value={equipForm.timeCostMarkup || ''}
+                  onChange={e => setEquipForm(f => ({ ...f, timeCostMarkup: parseFloat(e.target.value) || undefined }))} suffix="%" />
               </div>
-              <Input label="Time Cost/Hour ($)" type="number" value={equipForm.timeCostPerHour || ''}
-                onChange={e => setEquipForm(f => ({ ...f, timeCostPerHour: parseFloat(e.target.value) || undefined }))} prefix="$" />
-              <Input label="Time Cost Markup %" type="number" value={equipForm.timeCostMarkup || ''}
-                onChange={e => setEquipForm(f => ({ ...f, timeCostMarkup: parseFloat(e.target.value) || undefined }))} suffix="%" />
-            </div>
-          )}
+            )}
 
-          {/* Setup fee for time_only */}
-          {!showUnitCost && (
-            <div className="grid grid-cols-3 gap-4">
-              <Input label="Setup Fee ($)" type="number" value={equipForm.initialSetupFee || ''}
-                onChange={e => setEquipForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
-            </div>
-          )}
+            {!showUnitCost && (
+              <div className="grid grid-cols-3 gap-4">
+                <Input label="Setup Fee ($)" type="number" value={equipForm.initialSetupFee || ''}
+                  onChange={e => setEquipForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
+              </div>
+            )}
 
-          {/* Tier editors - only show relevant ones based on colorCapability */}
-          {equipForm.costUnit === 'per_click' && showUnitCost && (
-            <div className={`grid gap-4 ${
-              equipForm.colorCapability === 'Color and Black' ? 'grid-cols-2' : 'grid-cols-1'
-            }`}>
-              {(equipForm.colorCapability === 'Color' || equipForm.colorCapability === 'Color and Black') && (
-                <TierEditor label="Color Tiers" tiers={equipForm.colorTiers} onChange={tiers => setEquipForm(f => ({ ...f, colorTiers: tiers }))} />
-              )}
-              {(equipForm.colorCapability === 'Black' || equipForm.colorCapability === 'Color and Black') && (
-                <TierEditor label="Black Tiers" tiers={equipForm.blackTiers} onChange={tiers => setEquipForm(f => ({ ...f, blackTiers: tiers }))} />
-              )}
-            </div>
-          )}
+            {/* Tier editors */}
+            {equipForm.costUnit === 'per_click' && showUnitCost && (
+              <div className={`grid gap-4 ${
+                equipForm.colorCapability === 'Color and Black' ? 'grid-cols-2' : 'grid-cols-1'
+              }`}>
+                {(equipForm.colorCapability === 'Color' || equipForm.colorCapability === 'Color and Black') && (
+                  <TierEditor label="Color Tiers" tiers={equipForm.colorTiers} onChange={tiers => setEquipForm(f => ({ ...f, colorTiers: tiers }))} />
+                )}
+                {(equipForm.colorCapability === 'Black' || equipForm.colorCapability === 'Color and Black') && (
+                  <TierEditor label="Black Tiers" tiers={equipForm.blackTiers} onChange={tiers => setEquipForm(f => ({ ...f, blackTiers: tiers }))} />
+                )}
+              </div>
+            )}
 
-          <div className="flex gap-3 justify-end pt-2">
-            <Button variant="secondary" onClick={() => { setShowNewEquip(false); setEditingEquipId(null); }}>Cancel</Button>
-            <Button variant="primary" onClick={editingEquipId ? handleSaveEditEquip : handleAddEquip} disabled={!equipForm.name}>
-              {editingEquipId ? 'Save Changes' : 'Add Equipment'}
-            </Button>
+            {/* Save / Cancel */}
+            <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
+              <Button variant="secondary" onClick={handleCloseModal}>Cancel</Button>
+              <Button variant="primary" onClick={editingEquipId ? handleSaveEditEquip : handleAddEquip} disabled={!equipForm.name}>
+                {editingEquipId ? 'Save Changes' : 'Add Equipment'}
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* ═══════════ MAINTENANCE TAB ═══════════ */}
+        {modalTab === 'maintenance' && editingEquipId && (
+          <div className="space-y-5">
+            {/* Maintenance Vendor Assignment */}
+            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900">Maintenance Vendor</h4>
+                  <p className="text-xs text-gray-500 mt-0.5">Assign a vendor from your catalog responsible for servicing this equipment.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <select
+                  value={equipForm.maintenanceVendorId || ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setEquipForm(f => ({ ...f, maintenanceVendorId: val || undefined }));
+                    // Auto-save the vendor assignment
+                    updateEquipment(editingEquipId, { maintenanceVendorId: val || undefined });
+                  }}
+                  className="flex-1 max-w-sm px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">No vendor assigned</option>
+                  {vendors.map(v => (
+                    <option key={v.id} value={v.id}>{v.name}{v.email ? ` (${v.email})` : ''}</option>
+                  ))}
+                </select>
+                {equipForm.maintenanceVendorId && (
+                  <div className="flex items-center gap-1 text-xs text-emerald-600">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Assigned
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-gray-900">Service History</h4>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<Mail className="w-3.5 h-3.5" />}
+                  onClick={handleRequestService}
+                  disabled={!equipForm.maintenanceVendorId}
+                >
+                  Request Service
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={<Plus className="w-3.5 h-3.5" />}
+                  onClick={() => handleOpenServiceForm()}
+                >
+                  Schedule Service
+                </Button>
+              </div>
+            </div>
+
+            {!equipForm.maintenanceVendorId && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-700 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                Assign a maintenance vendor above to enable the "Request Service" feature.
+              </div>
+            )}
+
+            {/* Service Form (inline) */}
+            {showServiceForm && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="text-sm font-semibold text-blue-900">
+                    {editingServiceId ? 'Edit Service Record' : serviceForm.status === 'Requested' ? 'Request Service' : 'Schedule Service'}
+                  </h5>
+                  <button onClick={() => { setShowServiceForm(false); setEditingServiceId(null); }}
+                    className="p-1 hover:bg-blue-100 rounded">
+                    <X className="w-4 h-4 text-blue-600" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Description</label>
+                    <input value={serviceForm.description} onChange={e => setServiceForm(f => ({ ...f, description: e.target.value }))}
+                      placeholder="e.g. Annual preventive maintenance, Belt replacement..."
+                      className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      {serviceForm.status === 'Requested' ? 'Requested On' : 'Scheduled For'}
+                    </label>
+                    <input type="date" value={serviceForm.scheduledOn}
+                      onChange={e => setServiceForm(f => ({ ...f, scheduledOn: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Status</label>
+                    <select value={serviceForm.status} onChange={e => setServiceForm(f => ({ ...f, status: e.target.value as MaintenanceStatus }))}
+                      className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                      <option value="Requested">Requested</option>
+                      <option value="Scheduled">Scheduled</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Canceled">Canceled</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Service Vendor</label>
+                    <select value={serviceForm.servicedByVendorId}
+                      onChange={e => setServiceForm(f => ({ ...f, servicedByVendorId: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                      <option value="">Select vendor...</option>
+                      {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                    </select>
+                  </div>
+                  {serviceForm.status === 'Completed' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Service Date</label>
+                      <input type="date" value={serviceForm.serviceDate}
+                        onChange={e => setServiceForm(f => ({ ...f, serviceDate: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                    </div>
+                  )}
+                  <div className="col-span-2">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Notes</label>
+                    <input value={serviceForm.notes} onChange={e => setServiceForm(f => ({ ...f, notes: e.target.value }))}
+                      placeholder="Additional notes..."
+                      className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                  </div>
+                </div>
+
+                {serviceForm.status === 'Requested' && equipForm.maintenanceVendorId && (
+                  <div className="bg-white rounded-lg border border-blue-100 p-3 flex items-center gap-2 text-xs text-blue-700">
+                    <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                    An email notification will be sent to <strong>{getVendorName(equipForm.maintenanceVendorId)}</strong> with this service request.
+                  </div>
+                )}
+
+                <div className="flex gap-2 justify-end pt-1">
+                  <Button variant="secondary" size="sm" onClick={() => { setShowServiceForm(false); setEditingServiceId(null); }}>Cancel</Button>
+                  <Button variant="primary" size="sm" onClick={handleSaveService} disabled={!serviceForm.description}>
+                    {editingServiceId ? 'Update' : serviceForm.status === 'Requested' ? 'Send Request' : 'Save'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Completion Form (inline) */}
+            {showCompletionForm && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3">
+                <h5 className="text-sm font-semibold text-emerald-900">Mark as Completed</h5>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Next Scheduled Maintenance (optional)</label>
+                  <input type="date" value={nextMaintDate}
+                    onChange={e => setNextMaintDate(e.target.value)}
+                    className="w-full max-w-xs px-3 py-2 text-sm border border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white" />
+                  <p className="text-[10px] text-gray-500 mt-1">Set a date for the next maintenance reminder.</p>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button variant="secondary" size="sm" onClick={() => setShowCompletionForm(null)}>Cancel</Button>
+                  <Button variant="success" size="sm" icon={<CheckCircle2 className="w-3.5 h-3.5" />} onClick={handleConfirmComplete}>
+                    Complete
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Service History List */}
+            {maintenanceHistory.length === 0 && !showServiceForm ? (
+              <div className="text-center py-10 border border-dashed border-gray-200 rounded-xl">
+                <Clock className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-500 font-medium">No maintenance records</p>
+                <p className="text-xs text-gray-400 mt-1">Schedule or request a service to start tracking maintenance.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {maintenanceHistory.map(record => {
+                  const cfg = STATUS_CONFIG[record.status];
+                  return (
+                    <div key={record.id} className={`border rounded-xl p-4 transition-colors ${cfg.bg}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`flex items-center gap-1 text-xs font-semibold ${cfg.color}`}>
+                              {cfg.icon}
+                              {record.status}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {record.status === 'Completed' && record.serviceDate
+                                ? `Serviced ${formatDate(record.serviceDate)}`
+                                : `${record.status === 'Requested' ? 'Requested' : 'Scheduled'} ${formatDate(record.scheduledOn)}`
+                              }
+                            </span>
+                          </div>
+                          <p className="text-sm font-medium text-gray-900">{record.description}</p>
+                          {record.servicedByVendorName && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Vendor: <span className="font-medium">{record.servicedByVendorName}</span>
+                            </p>
+                          )}
+                          {record.notes && (
+                            <p className="text-xs text-gray-400 mt-1 italic">{record.notes}</p>
+                          )}
+                          {record.nextMaintenanceDate && (
+                            <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                              <ChevronRight className="w-3 h-3" />
+                              Next maintenance: {formatDate(record.nextMaintenanceDate)}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex gap-1 flex-shrink-0">
+                          {(record.status === 'Requested' || record.status === 'Scheduled') && (
+                            <button
+                              onClick={() => handleCompleteService(record.id)}
+                              className="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded"
+                              title="Mark as Completed"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button onClick={() => handleOpenServiceForm(record)}
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50/50 rounded" title="Edit">
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => deleteMaintenanceRecord(editingEquipId, record.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50/50 rounded" title="Delete">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );
