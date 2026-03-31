@@ -99,6 +99,8 @@ export interface PricingMaterial {
   pricePerM: number;               // price per 1,000 sheets
   markup: number;                  // percentage markup (70 = 70%)
   materialGroupId?: string;        // which material group it belongs to
+  categoryIds: string[];           // direct product-category assignments
+  productIds: string[];            // direct product assignments
   isFavorite: boolean;             // for starring/favoriting
   // Vendor information
   vendorName?: string;             // vendor company name

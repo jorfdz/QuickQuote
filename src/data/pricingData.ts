@@ -279,6 +279,8 @@ export const defaultPricingMaterials: PricingMaterial[] = rawMaterials.map((m, i
     pricePerM: m.pricePerM,
     markup: m.markup,
     materialGroupId: m.materialGroupId,
+    categoryIds: [],
+    productIds: [],
     isFavorite: m.isFavorite,
     createdAt: '2024-01-01',
   };
