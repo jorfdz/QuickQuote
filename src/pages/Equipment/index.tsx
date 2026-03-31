@@ -39,7 +39,6 @@ const emptyEquipmentForm = {
   unitCost: 0,
   colorTiers: [] as EquipmentPricingTier[],
   blackTiers: [] as EquipmentPricingTier[],
-  sqftTiers: [] as EquipmentPricingTier[],
   initialSetupFee: 0,
   unitsPerHour: undefined as number | undefined,
   timeCostPerHour: undefined as number | undefined,
@@ -66,7 +65,9 @@ const TierEditor: React.FC<{
   label: string;
   tiers: EquipmentPricingTier[];
   onChange: (tiers: EquipmentPricingTier[]) => void;
-}> = ({ label, tiers, onChange }) => {
+  qtyLabel?: string;
+  priceLabel?: string;
+}> = ({ label, tiers, onChange, qtyLabel = 'Min Qty', priceLabel = '$/unit' }) => {
   const addTier = () => onChange([...tiers, { minQty: 0, pricePerUnit: 0 }]);
   const removeTier = (i: number) => onChange(tiers.filter((_, idx) => idx !== i));
   const updateTier = (i: number, field: keyof EquipmentPricingTier, val: number) =>
@@ -79,14 +80,21 @@ const TierEditor: React.FC<{
         <button onClick={addTier} className="text-xs text-blue-600 hover:text-blue-700 font-medium">+ Add Tier</button>
       </div>
       {tiers.length === 0 && <p className="text-xs text-gray-400 italic">No tiers defined</p>}
+      {tiers.length > 0 && (
+        <div className="flex gap-2 items-center mb-1 px-0.5">
+          <span className="w-24 text-[10px] font-medium text-gray-400 uppercase">{qtyLabel}</span>
+          <span className="w-4" />
+          <span className="w-24 text-[10px] font-medium text-gray-400 uppercase">{priceLabel}</span>
+        </div>
+      )}
       <div className="space-y-1">
         {tiers.map((t, i) => (
           <div key={i} className="flex gap-2 items-center">
             <input type="number" value={t.minQty} onChange={e => updateTier(i, 'minQty', parseInt(e.target.value) || 0)}
-              className="w-24 px-2 py-1 text-xs border rounded" placeholder="Min Qty" />
+              className="w-24 px-2 py-1 text-xs border rounded" placeholder={qtyLabel} />
             <span className="text-xs text-gray-400">@</span>
             <input type="number" value={t.pricePerUnit} onChange={e => updateTier(i, 'pricePerUnit', parseFloat(e.target.value) || 0)}
-              className="w-24 px-2 py-1 text-xs border rounded" placeholder="$/unit" step="0.001" />
+              className="w-24 px-2 py-1 text-xs border rounded" placeholder={priceLabel} step="0.001" />
             <button onClick={() => removeTier(i)} className="p-0.5 text-red-400 hover:text-red-600"><X className="w-3 h-3" /></button>
           </div>
         ))}
@@ -159,7 +167,7 @@ export const Equipment: React.FC = () => {
       unitCost: equipForm.unitCost,
       colorTiers: equipForm.colorTiers,
       blackTiers: equipForm.blackTiers,
-      sqftTiers: equipForm.sqftTiers,
+
       initialSetupFee: equipForm.initialSetupFee,
       unitsPerHour: equipForm.unitsPerHour,
       timeCostPerHour: equipForm.timeCostPerHour,
@@ -184,7 +192,6 @@ export const Equipment: React.FC = () => {
       unitCost: e.unitCost,
       colorTiers: e.colorTiers || [],
       blackTiers: e.blackTiers || [],
-      sqftTiers: e.sqftTiers || [],
       initialSetupFee: e.initialSetupFee,
       unitsPerHour: e.unitsPerHour,
       timeCostPerHour: e.timeCostPerHour,
@@ -210,7 +217,7 @@ export const Equipment: React.FC = () => {
       unitCost: equipForm.unitCost,
       colorTiers: equipForm.colorTiers,
       blackTiers: equipForm.blackTiers,
-      sqftTiers: equipForm.sqftTiers,
+
       initialSetupFee: equipForm.initialSetupFee,
       unitsPerHour: equipForm.unitsPerHour,
       timeCostPerHour: equipForm.timeCostPerHour,
@@ -233,7 +240,6 @@ export const Equipment: React.FC = () => {
       unitCost: eq.unitCost,
       colorTiers: eq.colorTiers ? [...eq.colorTiers.map(t => ({ ...t }))] : [],
       blackTiers: eq.blackTiers ? [...eq.blackTiers.map(t => ({ ...t }))] : [],
-      sqftTiers: eq.sqftTiers ? [...eq.sqftTiers.map(t => ({ ...t }))] : [],
       initialSetupFee: eq.initialSetupFee,
       unitsPerHour: eq.unitsPerHour,
       timeCostPerHour: eq.timeCostPerHour,
@@ -413,8 +419,7 @@ export const Equipment: React.FC = () => {
             const isExpanded = expandedEquipId === eq.id;
             const colorTierCount = showColorTiers(eq) ? (eq.colorTiers || []).length : 0;
             const blackTierCount = showBlackTiers(eq) ? (eq.blackTiers || []).length : 0;
-            const sqftTierCount = eq.costUnit === 'per_sqft' ? (eq.sqftTiers || []).length : 0;
-            const totalTiers = colorTierCount + blackTierCount + sqftTierCount;
+            const totalTiers = colorTierCount + blackTierCount;
             const nextMaint = getNextMaintenance(eq);
 
             return (
@@ -510,9 +515,14 @@ export const Equipment: React.FC = () => {
                       <div className="grid grid-cols-2 gap-4 max-w-2xl">
                         {showColorTiers(eq) && colorTierCount > 0 && (
                           <div>
-                            <p className="text-xs font-semibold text-gray-600 mb-2 uppercase">Color Tiers</p>
+                            <p className="text-xs font-semibold text-gray-600 mb-2 uppercase">
+                              Color Tiers {eq.costUnit === 'per_sqft' ? '(per Sq Ft)' : '(per Click)'}
+                            </p>
                             <table className="w-full text-xs">
-                              <thead><tr className="text-gray-400"><th className="text-left py-1">Min Qty</th><th className="text-right py-1">Price/Unit</th></tr></thead>
+                              <thead><tr className="text-gray-400">
+                                <th className="text-left py-1">{eq.costUnit === 'per_sqft' ? 'Min Sq Ft' : 'Min Qty'}</th>
+                                <th className="text-right py-1">{eq.costUnit === 'per_sqft' ? 'Price/Sq Ft' : 'Price/Click'}</th>
+                              </tr></thead>
                               <tbody>
                                 {(eq.colorTiers || []).map((t, i) => (
                                   <tr key={i} className="border-t border-gray-100">
@@ -526,27 +536,16 @@ export const Equipment: React.FC = () => {
                         )}
                         {showBlackTiers(eq) && blackTierCount > 0 && (
                           <div>
-                            <p className="text-xs font-semibold text-gray-600 mb-2 uppercase">Black Tiers</p>
+                            <p className="text-xs font-semibold text-gray-600 mb-2 uppercase">
+                              Black Tiers {eq.costUnit === 'per_sqft' ? '(per Sq Ft)' : '(per Click)'}
+                            </p>
                             <table className="w-full text-xs">
-                              <thead><tr className="text-gray-400"><th className="text-left py-1">Min Qty</th><th className="text-right py-1">Price/Unit</th></tr></thead>
+                              <thead><tr className="text-gray-400">
+                                <th className="text-left py-1">{eq.costUnit === 'per_sqft' ? 'Min Sq Ft' : 'Min Qty'}</th>
+                                <th className="text-right py-1">{eq.costUnit === 'per_sqft' ? 'Price/Sq Ft' : 'Price/Click'}</th>
+                              </tr></thead>
                               <tbody>
                                 {(eq.blackTiers || []).map((t, i) => (
-                                  <tr key={i} className="border-t border-gray-100">
-                                    <td className="py-1">{t.minQty.toLocaleString()}</td>
-                                    <td className="text-right font-medium">{formatCurrency(t.pricePerUnit)}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                        {eq.costUnit === 'per_sqft' && sqftTierCount > 0 && (
-                          <div>
-                            <p className="text-xs font-semibold text-gray-600 mb-2 uppercase">Sq Ft Tiers</p>
-                            <table className="w-full text-xs">
-                              <thead><tr className="text-gray-400"><th className="text-left py-1">Min Sq Ft</th><th className="text-right py-1">Price/Sq Ft</th></tr></thead>
-                              <tbody>
-                                {(eq.sqftTiers || []).map((t, i) => (
                                   <tr key={i} className="border-t border-gray-100">
                                     <td className="py-1">{t.minQty.toLocaleString()}</td>
                                     <td className="text-right font-medium">{formatCurrency(t.pricePerUnit)}</td>
@@ -729,27 +728,30 @@ export const Equipment: React.FC = () => {
               </div>
             )}
 
-            {/* Tier editors — per click */}
-            {equipForm.costUnit === 'per_click' && showUnitCost && (
+            {/* Tier editors — shown for both per_click and per_sqft, driven by color capability */}
+            {showUnitCost && (
               <div className={`grid gap-4 ${
                 equipForm.colorCapability === 'Color and Black' ? 'grid-cols-2' : 'grid-cols-1'
               }`}>
                 {(equipForm.colorCapability === 'Color' || equipForm.colorCapability === 'Color and Black') && (
-                  <TierEditor label="Color Tiers" tiers={equipForm.colorTiers} onChange={tiers => setEquipForm(f => ({ ...f, colorTiers: tiers }))} />
+                  <TierEditor
+                    label={equipForm.costUnit === 'per_sqft' ? 'Color Tiers (per Sq Ft)' : 'Color Tiers (per Click)'}
+                    tiers={equipForm.colorTiers}
+                    onChange={tiers => setEquipForm(f => ({ ...f, colorTiers: tiers }))}
+                    qtyLabel={equipForm.costUnit === 'per_sqft' ? 'Min Sq Ft' : 'Min Qty'}
+                    priceLabel={equipForm.costUnit === 'per_sqft' ? '$/sq ft' : '$/click'}
+                  />
                 )}
                 {(equipForm.colorCapability === 'Black' || equipForm.colorCapability === 'Color and Black') && (
-                  <TierEditor label="Black Tiers" tiers={equipForm.blackTiers} onChange={tiers => setEquipForm(f => ({ ...f, blackTiers: tiers }))} />
+                  <TierEditor
+                    label={equipForm.costUnit === 'per_sqft' ? 'Black Tiers (per Sq Ft)' : 'Black Tiers (per Click)'}
+                    tiers={equipForm.blackTiers}
+                    onChange={tiers => setEquipForm(f => ({ ...f, blackTiers: tiers }))}
+                    qtyLabel={equipForm.costUnit === 'per_sqft' ? 'Min Sq Ft' : 'Min Qty'}
+                    priceLabel={equipForm.costUnit === 'per_sqft' ? '$/sq ft' : '$/click'}
+                  />
                 )}
               </div>
-            )}
-
-            {/* Tier editors — per sq ft */}
-            {equipForm.costUnit === 'per_sqft' && showUnitCost && (
-              <TierEditor
-                label="Sq Ft Pricing Tiers (Min Sq Ft → Price per Sq Ft)"
-                tiers={equipForm.sqftTiers}
-                onChange={tiers => setEquipForm(f => ({ ...f, sqftTiers: tiers }))}
-              />
             )}
 
             {/* Save / Cancel */}

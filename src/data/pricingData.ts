@@ -177,12 +177,10 @@ export const defaultPricingEquipment: PricingEquipment[] = [
     costType: 'cost_only',
     markupMultiplier: 7,
     unitCost: 0.50,
-    sqftTiers: [
+    colorTiers: [
       { minQty: 1, pricePerUnit: 3.50 },
-      { minQty: 50, pricePerUnit: 3.00 },
-      { minQty: 100, pricePerUnit: 2.50 },
-      { minQty: 500, pricePerUnit: 2.00 },
-      { minQty: 1000, pricePerUnit: 1.75 },
+      { minQty: 10, pricePerUnit: 3.00 },
+      { minQty: 50, pricePerUnit: 2.50 },
     ],
     initialSetupFee: 0,
     markupType: 'multiplier',
