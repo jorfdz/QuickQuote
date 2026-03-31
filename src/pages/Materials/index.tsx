@@ -824,7 +824,7 @@ export const Materials: React.FC = () => {
                                         key={p.id}
                                         type="button"
                                         onClick={() => toggleFormProduct(p.id)}
-                                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-gray-50 ${
+                                        className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-left transition-colors border-b border-gray-50 ${
                                           isSelected ? 'bg-blue-50/60 hover:bg-blue-50' : 'hover:bg-gray-50'
                                         }`}
                                       >
@@ -834,23 +834,22 @@ export const Materials: React.FC = () => {
                                           {isSelected && <Check className="w-3 h-3 text-white" />}
                                         </div>
                                         <Package className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-2">
-                                            <p className={`text-sm ${isSelected ? 'text-blue-700 font-semibold' : 'text-gray-800 font-medium'}`}>
-                                              {p.name}
-                                            </p>
-                                            {p.aliases.length > 0 && (
-                                              <span className="text-[10px] text-gray-400 font-mono">{p.aliases[0]}</span>
-                                            )}
-                                          </div>
-                                          <p className="text-[10px] text-gray-400 truncate">
+                                        <div className="flex-1 min-w-0 flex items-center gap-2 truncate">
+                                          <p className={`text-sm whitespace-nowrap ${isSelected ? 'text-blue-700 font-semibold' : 'text-gray-800 font-medium'}`}>
+                                            {p.name}
+                                          </p>
+                                          {p.aliases.length > 0 && (
+                                            <span className="text-[10px] text-gray-400 font-mono whitespace-nowrap">{p.aliases[0]}</span>
+                                          )}
+                                          <span className="text-[10px] text-gray-300 mx-0.5">|</span>
+                                          <span className="text-[10px] text-gray-400 truncate">
                                             {[
                                               p.defaultFinalSize && `Size: ${p.defaultFinalSize}`,
                                               p.defaultColor,
                                               p.defaultSides && `${p.defaultSides}-sided`,
                                               p.defaultEquipmentName && `on ${p.defaultEquipmentName}`,
                                             ].filter(Boolean).join(' · ')}
-                                          </p>
+                                          </span>
                                         </div>
                                       </button>
                                     );
@@ -875,7 +874,7 @@ export const Materials: React.FC = () => {
                                       key={p.id}
                                       type="button"
                                       onClick={() => toggleFormProduct(p.id)}
-                                      className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-gray-50 ${
+                                      className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-left transition-colors border-b border-gray-50 ${
                                         isSelected ? 'bg-blue-50/60 hover:bg-blue-50' : 'hover:bg-gray-50'
                                       }`}
                                     >
@@ -885,23 +884,22 @@ export const Materials: React.FC = () => {
                                         {isSelected && <Check className="w-3 h-3 text-white" />}
                                       </div>
                                       <Package className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                          <p className={`text-sm ${isSelected ? 'text-blue-700 font-semibold' : 'text-gray-800 font-medium'}`}>
-                                            {p.name}
-                                          </p>
-                                          {p.aliases.length > 0 && (
-                                            <span className="text-[10px] text-gray-400 font-mono">{p.aliases[0]}</span>
-                                          )}
-                                        </div>
-                                        <p className="text-[10px] text-gray-400 truncate">
+                                      <div className="flex-1 min-w-0 flex items-center gap-2 truncate">
+                                        <p className={`text-sm whitespace-nowrap ${isSelected ? 'text-blue-700 font-semibold' : 'text-gray-800 font-medium'}`}>
+                                          {p.name}
+                                        </p>
+                                        {p.aliases.length > 0 && (
+                                          <span className="text-[10px] text-gray-400 font-mono whitespace-nowrap">{p.aliases[0]}</span>
+                                        )}
+                                        <span className="text-[10px] text-gray-300 mx-0.5">|</span>
+                                        <span className="text-[10px] text-gray-400 truncate">
                                           {[
                                             p.defaultFinalSize && `Size: ${p.defaultFinalSize}`,
                                             p.defaultColor,
                                             p.defaultSides && `${p.defaultSides}-sided`,
                                             p.defaultEquipmentName && `on ${p.defaultEquipmentName}`,
                                           ].filter(Boolean).join(' · ')}
-                                        </p>
+                                        </span>
                                       </div>
                                     </button>
                                   );
