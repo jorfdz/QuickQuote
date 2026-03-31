@@ -259,6 +259,7 @@ export interface CompanySettings {
   zip: string;
   website: string;
   tagline: string;
+  primaryBrandColor: string;
   defaultTaxRate: number;
   defaultMarkup: number;
   defaultLaborRate: number;
@@ -274,6 +275,7 @@ export interface CompanySettings {
 export interface DocumentTemplates {
   quote: string;
   order: string;
+  workOrder: string;
   invoice: string;
   purchaseOrder: string;
 }

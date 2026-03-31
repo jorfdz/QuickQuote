@@ -28,12 +28,21 @@ const getCurrentUser = () => {
 // ─── MATERIAL FIELD LABELS (for readable change history) ───────────────────
 
 const MATERIAL_FIELD_LABELS: Record<string, string> = {
+  materialType: 'Material Type',
   name: 'Material Name',
   size: 'Sheet Size',
   sizeWidth: 'Width (in)',
   sizeHeight: 'Height (in)',
+  pricingModel: 'Cost Unit',
   pricePerM: 'Price per M',
-  markup: 'Markup %',
+  costPerUnit: 'Cost per Unit',
+  costPerSqft: 'Cost per Sq Ft',
+  rollCost: 'Roll Cost',
+  rollLength: 'Roll Length (ft)',
+  pricingTiers: 'Pricing Tiers',
+  minimumCharge: 'Minimum Charge',
+  markupType: 'Markup Type',
+  markup: 'Markup',
   materialGroupIds: 'Material Groups',
   categoryIds: 'Categories',
   productIds: 'Products',

@@ -161,6 +161,105 @@ export const DEFAULT_ORDER_TEMPLATE = `<!DOCTYPE html>
 </body>
 </html>`;
 
+export const DEFAULT_WORK_ORDER_TEMPLATE = `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1f2937; margin: 0; padding: 40px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1f2937; padding-bottom: 20px; margin-bottom: 28px; }
+    .company-name { font-size: 22px; font-weight: bold; color: #1f2937; }
+    .company-info { font-size: 13px; color: #6b7280; margin-top: 4px; }
+    .doc-title { font-size: 28px; font-weight: bold; color: #1f2937; text-align: right; }
+    .doc-number { font-size: 16px; font-weight: 600; color: #0f766e; text-align: right; margin-top: 4px; }
+    .header-right { display: flex; align-items: flex-start; gap: 18px; }
+    .header-copy { text-align: right; }
+    .qr-box { width: 84px; text-align: center; }
+    .qr-box img { width: 84px; height: 84px; display: block; border: 1px solid #e5e7eb; border-radius: 8px; }
+    .qr-caption { font-size: 9px; color: #94a3b8; margin-top: 6px; letter-spacing: 0.06em; text-transform: uppercase; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-bottom: 28px; }
+    .section { margin-bottom: 24px; }
+    .section-label { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+    .customer-name { font-size: 16px; font-weight: 600; color: #1f2937; }
+    .customer-detail { font-size: 13px; color: #6b7280; }
+    .details-box { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 16px; }
+    .details-box p { margin: 0 0 6px; font-size: 13px; color: #475569; }
+    .details-box p:last-child { margin-bottom: 0; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    thead th { background: #1f2937; color: white; padding: 10px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; text-align: left; }
+    tbody td { padding: 12px 14px; font-size: 13px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    tbody tr:nth-child(even) { background: #f9fafb; }
+    .item-title { font-weight: 600; color: #111827; }
+    .item-meta { display: block; font-size: 11px; color: #9ca3af; margin-top: 4px; }
+    .notes { border-top: 1px solid #e5e7eb; padding-top: 18px; margin-top: 28px; }
+    .notes p { font-size: 12px; color: #6b7280; line-height: 1.6; white-space: pre-line; }
+    .footer { text-align: center; font-size: 11px; color: #9ca3af; margin-top: 36px; padding-top: 18px; border-top: 1px solid #e5e7eb; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="company-name">{{companyName}}</div>
+      <div class="company-info">{{companyAddress}}<br>{{companyPhone}} &middot; {{companyEmail}}</div>
+    </div>
+    <div class="header-right">
+      <div class="header-copy">
+      <div class="doc-title">WORK ORDER</div>
+      <div class="doc-number">{{orderNumber}}</div>
+      </div>
+      <div class="qr-box">
+        <img src="{{qrCodeUrl}}" alt="Work order QR code" />
+        <div class="qr-caption">Tracker Link</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="meta-grid">
+    <div>
+      <div class="section-label">Customer</div>
+      <div class="customer-name">{{customerName}}</div>
+      <div class="customer-detail">{{contactName}}</div>
+    </div>
+    <div>
+      <div class="section-label">Production Details</div>
+      <div class="details-box">
+        <p><strong>Order Date:</strong> {{orderDate}}</p>
+        <p><strong>Due Date:</strong> {{dueDate}}</p>
+        <p><strong>Assigned CSR:</strong> {{csrName}}</p>
+        <p><strong>Sales Rep:</strong> {{salesName}}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Job Summary</div>
+    <div class="details-box">
+      <p><strong>Title:</strong> {{orderTitle}}</p>
+      <p><strong>Description:</strong> {{orderDescription}}</p>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Production Details</th>
+        <th>Materials / Services / Finishing</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{workOrderItems}}
+    </tbody>
+  </table>
+
+  <div class="notes">
+    <div class="section-label">Internal Notes</div>
+    <p>{{internalNotes}}</p>
+  </div>
+
+  <div class="footer">{{companyName}} &middot; {{companyAddress}} &middot; {{companyPhone}}</div>
+</body>
+</html>`;
+
 export const DEFAULT_INVOICE_TEMPLATE = `<!DOCTYPE html>
 <html>
 <head>
@@ -342,6 +441,7 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   zip: '33101',
   website: 'www.printco.com',
   tagline: 'Quality Print. Fast Delivery.',
+  primaryBrandColor: '#2563eb',
   defaultTaxRate: 7,
   defaultMarkup: 45,
   defaultLaborRate: 45,
@@ -357,6 +457,7 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
 export const DEFAULT_DOCUMENT_TEMPLATES: DocumentTemplates = {
   quote: DEFAULT_QUOTE_TEMPLATE,
   order: DEFAULT_ORDER_TEMPLATE,
+  workOrder: DEFAULT_WORK_ORDER_TEMPLATE,
   invoice: DEFAULT_INVOICE_TEMPLATE,
   purchaseOrder: DEFAULT_PURCHASE_ORDER_TEMPLATE,
 };

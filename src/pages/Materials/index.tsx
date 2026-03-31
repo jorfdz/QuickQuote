@@ -1,23 +1,34 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown, Clock, ArrowRight, ImageIcon, User, Truck } from 'lucide-react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown, Clock, ArrowRight, ImageIcon, User, Truck, FlaskConical } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Modal, Input, Checkbox } from '../../components/ui';
-import { ImageUploadCropper } from '../../components/ui/ImageUploadCropper';
-import type { PricingMaterial, MaterialGroup, MaterialChangeRecord } from '../../types/pricing';
+
+import type { PricingMaterial, MaterialGroup, MaterialChangeRecord, MaterialType, MaterialPricingModel, MaterialMarkupType } from '../../types/pricing';
+import { MATERIAL_TYPE_LABELS, PRICING_MODEL_LABELS, MATERIAL_TYPE_PRICING_MODELS } from '../../types/pricing';
+import { getUnitCost, getUnitLabel, getUnitSell, deriveRollCostPerSqft, getTierCost } from '../../utils/materialCost';
 
 // ─── Sort / Pagination types ────────────────────────────────────────────────
 
-type SortColumn = 'name' | 'group' | 'size' | 'sizeWidth' | 'sizeHeight' | 'pricePerM' | 'costPerSheet' | 'markup' | 'sellPerSheet' | 'vendor';
+type SortColumn = 'name' | 'materialType' | 'group' | 'size' | 'sizeWidth' | 'sizeHeight' | 'unitCost' | 'markup' | 'unitSell' | 'vendor';
 type SortDir = 'asc' | 'desc';
 type PageSize = 50 | 100 | 200;
 
 const emptyForm = {
+  materialType: 'paper' as MaterialType,
   name: '',
   size: '',
   sizeWidth: 0,
   sizeHeight: 0,
+  pricingModel: 'cost_per_m' as MaterialPricingModel,
   pricePerM: 0,
+  costPerUnit: 0,
+  costPerSqft: 0,
+  rollCost: 0,
+  rollLength: 0,
+  pricingTiers: [] as { minQty: number; costPerUnit: number }[],
+  minimumCharge: 0,
+  markupType: 'percent' as 'percent' | 'fixed',
   markup: 70,
   materialGroupIds: [] as string[],
   categoryIds: [] as string[],
@@ -57,10 +68,11 @@ export const Materials: React.FC = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   // Filters
-  const sizeGroups = Array.from(new Set(materials.map(m => m.size))).sort();
+  const sizeGroups = Array.from(new Set(materials.map(m => m.size).filter(Boolean))).sort();
   const [sizeFilter, setSizeFilter] = useState('all');
   const [groupFilter, setGroupFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState<MaterialType | 'all'>('all');
 
   // Vendor filter
   const vendorNames = useMemo(() =>
@@ -90,11 +102,29 @@ export const Materials: React.FC = () => {
   // Modal tab state: 'details' or 'history'
   const [modalTab, setModalTab] = useState<'details' | 'vendor' | 'photos' | 'history'>('details');
 
+  // Test pricing state
+  const [showTestPanel, setShowTestPanel] = useState(false);
+  const [testQty, setTestQty] = useState(1000);
+
   // Product & category assignment state
   const [productSearch, setProductSearch] = useState('');
   const [assignmentsCollapsed, setAssignmentsCollapsed] = useState(false);
   const [browseCategoryFilter, setBrowseCategoryFilter] = useState<string>('all');
+  const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
+  const groupDropdownRef = useRef<HTMLDivElement>(null);
   const productSearchRef = useRef<HTMLInputElement>(null);
+
+  // Close material groups dropdown on outside click
+  useEffect(() => {
+    if (!groupDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (groupDropdownRef.current && !groupDropdownRef.current.contains(e.target as Node)) {
+        setGroupDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [groupDropdownOpen]);
 
   // Filtered categories for the browser panel (search matching)
   const browseFilteredCategories = useMemo(() => {
@@ -192,39 +222,39 @@ export const Materials: React.FC = () => {
     return materials.filter(m => {
       const matchSearch = !search
         || m.name.toLowerCase().includes(q)
-        || m.size.toLowerCase().includes(q)
+        || (m.size && m.size.toLowerCase().includes(q))
         || (m.vendorName && m.vendorName.toLowerCase().includes(q))
         || (m.vendorId && m.vendorId.toLowerCase().includes(q))
         || (m.vendorMaterialId && m.vendorMaterialId.toLowerCase().includes(q))
         || (m.vendorContactName && m.vendorContactName.toLowerCase().includes(q))
-        || (m.vendorSalesRep && m.vendorSalesRep.toLowerCase().includes(q));
+        || (m.vendorSalesRep && m.vendorSalesRep.toLowerCase().includes(q))
+        || (MATERIAL_TYPE_LABELS[m.materialType] || '').toLowerCase().includes(q);
       const matchSize = sizeFilter === 'all' || m.size === sizeFilter;
       const matchGroup = groupFilter === 'all' || (m.materialGroupIds && m.materialGroupIds.includes(groupFilter));
       const matchCategory = !groupIdsForCategory || (m.materialGroupIds && m.materialGroupIds.some(gid => groupIdsForCategory.includes(gid)));
       const matchVendor = vendorFilter === 'all' || m.vendorName === vendorFilter;
       const matchFav = favFilter === 'all' || m.isFavorite;
-      return matchSearch && matchSize && matchGroup && matchCategory && matchVendor && matchFav;
+      const matchType = typeFilter === 'all' || (m.materialType || 'paper') === typeFilter;
+      return matchSearch && matchSize && matchGroup && matchCategory && matchVendor && matchFav && matchType;
     });
-  }, [materials, search, sizeFilter, groupFilter, groupIdsForCategory, vendorFilter, favFilter]);
+  }, [materials, search, sizeFilter, groupFilter, groupIdsForCategory, vendorFilter, favFilter, typeFilter]);
 
   // Sorting
   const sorted = useMemo(() => {
     if (!sortCol) return filtered;
     const dir = sortDir === 'asc' ? 1 : -1;
-    const _costPerSheet = (m: PricingMaterial) => m.pricePerM / 1000;
-    const _sellPerSheet = (m: PricingMaterial) => _costPerSheet(m) * (1 + m.markup / 100);
     return [...filtered].sort((a, b) => {
       let cmp = 0;
       switch (sortCol) {
-        case 'name':        cmp = a.name.localeCompare(b.name); break;
+        case 'name':         cmp = a.name.localeCompare(b.name); break;
+        case 'materialType': cmp = (a.materialType || 'paper').localeCompare(b.materialType || 'paper'); break;
         case 'group':        cmp = (getGroupNames(a.materialGroupIds)).localeCompare(getGroupNames(b.materialGroupIds)); break;
-        case 'size':         cmp = a.size.localeCompare(b.size); break;
+        case 'size':         cmp = (a.size || '').localeCompare(b.size || ''); break;
         case 'sizeWidth':    cmp = a.sizeWidth - b.sizeWidth; break;
         case 'sizeHeight':   cmp = a.sizeHeight - b.sizeHeight; break;
-        case 'pricePerM':    cmp = a.pricePerM - b.pricePerM; break;
-        case 'costPerSheet': cmp = _costPerSheet(a) - _costPerSheet(b); break;
+        case 'unitCost':     cmp = getUnitCost(a) - getUnitCost(b); break;
         case 'markup':       cmp = a.markup - b.markup; break;
-        case 'sellPerSheet': cmp = _sellPerSheet(a) - _sellPerSheet(b); break;
+        case 'unitSell':     cmp = getUnitSell(a) - getUnitSell(b); break;
         case 'vendor':       cmp = (a.vendorName || '').localeCompare(b.vendorName || ''); break;
       }
       return cmp * dir;
@@ -241,7 +271,7 @@ export const Materials: React.FC = () => {
 
   // Reset to page 1 when filters / sort change
   const prevFilterKey = useRef('');
-  const filterKey = `${search}|${sizeFilter}|${groupFilter}|${categoryFilter}|${vendorFilter}|${favFilter}|${sortCol}|${sortDir}|${pageSize}`;
+  const filterKey = `${search}|${sizeFilter}|${groupFilter}|${categoryFilter}|${vendorFilter}|${favFilter}|${typeFilter}|${sortCol}|${sortDir}|${pageSize}`;
   if (filterKey !== prevFilterKey.current) {
     prevFilterKey.current = filterKey;
     if (currentPage !== 1) setCurrentPage(1);
@@ -311,13 +341,24 @@ export const Materials: React.FC = () => {
 
   const handleAdd = () => {
     if (!form.name) return;
-    const sizeStr = form.size || `${form.sizeWidth}x${form.sizeHeight}`;
+    const sizeStr = form.materialType === 'blanks' ? '' :
+      form.materialType === 'roll_media' ? `${form.sizeWidth}` :
+      form.size || `${form.sizeWidth}x${form.sizeHeight}`;
     addMaterial({
+      materialType: form.materialType,
       name: form.name,
       size: sizeStr,
       sizeWidth: form.sizeWidth,
       sizeHeight: form.sizeHeight,
+      pricingModel: form.pricingModel,
       pricePerM: form.pricePerM,
+      costPerUnit: form.costPerUnit || undefined,
+      costPerSqft: form.costPerSqft || undefined,
+      rollCost: form.rollCost || undefined,
+      rollLength: form.rollLength || undefined,
+      pricingTiers: form.pricingTiers,
+      minimumCharge: form.minimumCharge,
+      markupType: form.markupType,
       markup: form.markup,
       materialGroupIds: form.materialGroupIds,
       categoryIds: form.categoryIds,
@@ -341,11 +382,20 @@ export const Materials: React.FC = () => {
   const handleStartEdit = (m: PricingMaterial) => {
     setEditingId(m.id);
     setForm({
+      materialType: m.materialType || 'paper',
       name: m.name,
       size: m.size,
       sizeWidth: m.sizeWidth,
       sizeHeight: m.sizeHeight,
+      pricingModel: m.pricingModel || 'cost_per_m',
       pricePerM: m.pricePerM,
+      costPerUnit: m.costPerUnit || 0,
+      costPerSqft: m.costPerSqft || 0,
+      rollCost: m.rollCost || 0,
+      rollLength: m.rollLength || 0,
+      pricingTiers: m.pricingTiers || [],
+      minimumCharge: m.minimumCharge || 0,
+      markupType: m.markupType || 'percent',
       markup: m.markup,
       materialGroupIds: m.materialGroupIds || [],
       categoryIds: m.categoryIds || [],
@@ -368,13 +418,24 @@ export const Materials: React.FC = () => {
 
   const handleSaveEdit = () => {
     if (!editingId) return;
-    const sizeStr = form.size || `${form.sizeWidth}x${form.sizeHeight}`;
+    const sizeStr = form.materialType === 'blanks' ? '' :
+      form.materialType === 'roll_media' ? `${form.sizeWidth}` :
+      form.size || `${form.sizeWidth}x${form.sizeHeight}`;
     updateMaterial(editingId, {
+      materialType: form.materialType,
       name: form.name,
       size: sizeStr,
       sizeWidth: form.sizeWidth,
       sizeHeight: form.sizeHeight,
+      pricingModel: form.pricingModel,
       pricePerM: form.pricePerM,
+      costPerUnit: form.costPerUnit || undefined,
+      costPerSqft: form.costPerSqft || undefined,
+      rollCost: form.rollCost || undefined,
+      rollLength: form.rollLength || undefined,
+      pricingTiers: form.pricingTiers,
+      minimumCharge: form.minimumCharge,
+      markupType: form.markupType,
       markup: form.markup,
       materialGroupIds: form.materialGroupIds,
       categoryIds: form.categoryIds,
@@ -397,11 +458,20 @@ export const Materials: React.FC = () => {
   const handleClone = (m: PricingMaterial) => {
     setEditingId(null);
     setForm({
+      materialType: m.materialType || 'paper',
       name: `Clone of ${m.name}`,
       size: m.size,
       sizeWidth: m.sizeWidth,
       sizeHeight: m.sizeHeight,
+      pricingModel: m.pricingModel || 'cost_per_m',
       pricePerM: m.pricePerM,
+      costPerUnit: m.costPerUnit || 0,
+      costPerSqft: m.costPerSqft || 0,
+      rollCost: m.rollCost || 0,
+      rollLength: m.rollLength || 0,
+      pricingTiers: m.pricingTiers || [],
+      minimumCharge: m.minimumCharge || 0,
+      markupType: m.markupType || 'percent',
       markup: m.markup,
       materialGroupIds: m.materialGroupIds || [],
       categoryIds: m.categoryIds || [],
@@ -427,23 +497,8 @@ export const Materials: React.FC = () => {
     setDeleteConfirm(null);
   };
 
-  const parseSizeInput = (val: string) => {
-    const match = val.match(/^(\d+\.?\d*)\s*[xX\u00d7]\s*(\d+\.?\d*)$/);
-    if (match) {
-      setForm(f => ({
-        ...f,
-        size: val,
-        sizeWidth: parseFloat(match[1]),
-        sizeHeight: parseFloat(match[2]),
-      }));
-    } else {
-      setForm(f => ({ ...f, size: val }));
-    }
-  };
 
   const formatCurrency = (n: number) => `$${n.toFixed(2)}`;
-  const costPerSheet = (m: PricingMaterial) => m.pricePerM / 1000;
-  const sellPerSheet = (m: PricingMaterial) => costPerSheet(m) * (1 + m.markup / 100);
 
   // ── Change History helpers ──
   const formatChangeValue = useCallback((field: string, value: unknown): string => {
@@ -461,7 +516,10 @@ export const Materials: React.FC = () => {
     if (field === 'materialGroupIds') {
       return (value as string[]).map(id => materialGroups.find(g => g.id === id)?.name || id).join(', ');
     }
-    if (field === 'pricePerM') return `$${Number(value).toFixed(2)}`;
+    if (field === 'materialType') return MATERIAL_TYPE_LABELS[value as MaterialType] || String(value);
+    if (field === 'pricingModel') return PRICING_MODEL_LABELS[value as MaterialPricingModel] || String(value);
+    if (field === 'pricePerM' || field === 'costPerUnit' || field === 'costPerSqft' || field === 'rollCost' || field === 'minimumCharge') return `$${Number(value).toFixed(2)}`;
+    if (field === 'rollLength') return `${value} ft`;
     if (field === 'markup') return `${value}%`;
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
     return String(value);
@@ -553,6 +611,16 @@ export const Materials: React.FC = () => {
             />
           </div>
           <select
+            value={typeFilter}
+            onChange={e => setTypeFilter(e.target.value as MaterialType | 'all')}
+            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Types</option>
+            {(['paper', 'roll_media', 'rigid_substrate', 'blanks'] as MaterialType[]).map(t => (
+              <option key={t} value={t}>{MATERIAL_TYPE_LABELS[t]}</option>
+            ))}
+          </select>
+          <select
             value={sizeFilter}
             onChange={e => setSizeFilter(e.target.value)}
             className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -616,16 +684,16 @@ export const Materials: React.FC = () => {
               <tr className="border-b border-gray-100">
                 <th className="text-left py-2.5 px-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-8"></th>
                 {([
-                  ['name',        'Material Name'],
-                  ['group',       'Group'],
-                  ['vendor',      'Vendor'],
-                  ['size',        'Sheet Size'],
-                  ['sizeWidth',   'W'],
-                  ['sizeHeight',  'H'],
-                  ['pricePerM',   'Price/M'],
-                  ['costPerSheet','Cost/Sheet'],
-                  ['markup',      'Markup %'],
-                  ['sellPerSheet','Sell/Sheet'],
+                  ['name',         'Material Name'],
+                  ['materialType', 'Type'],
+                  ['group',        'Group'],
+                  ['vendor',       'Vendor'],
+                  ['size',         'Size'],
+                  ['sizeWidth',    'W'],
+                  ['sizeHeight',   'H'],
+                  ['unitCost',     'Unit Cost'],
+                  ['markup',       'Markup %'],
+                  ['unitSell',     'Sell Price'],
                 ] as [SortColumn, string][]).map(([col, label]) => (
                   <th
                     key={col}
@@ -701,15 +769,24 @@ export const Materials: React.FC = () => {
                       <p className="text-sm font-semibold text-gray-900">{m.name}</p>
                     </div>
                   </td>
+                  <td className="py-3 px-4">
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
+                      (m.materialType || 'paper') === 'paper' ? 'bg-blue-50 text-blue-700' :
+                      m.materialType === 'roll_media' ? 'bg-emerald-50 text-emerald-700' :
+                      m.materialType === 'rigid_substrate' ? 'bg-orange-50 text-orange-700' :
+                      'bg-purple-50 text-purple-700'
+                    }`}>
+                      {MATERIAL_TYPE_LABELS[m.materialType || 'paper']}
+                    </span>
+                  </td>
                   <td className="py-3 px-4 text-sm text-gray-500">{getGroupNames(m.materialGroupIds)}</td>
                   <td className="py-3 px-4 text-sm text-gray-500 truncate max-w-[120px]" title={m.vendorName || '--'}>{m.vendorName || '--'}</td>
-                  <td className="py-3 px-4 text-sm text-gray-600 font-medium">{m.size}</td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{m.sizeWidth}"</td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{m.sizeHeight}"</td>
-                  <td className="py-3 px-4 text-sm text-gray-700 font-medium">{formatCurrency(m.pricePerM)}</td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{formatCurrency(costPerSheet(m))}</td>
+                  <td className="py-3 px-4 text-sm text-gray-600 font-medium">{m.materialType === 'blanks' ? '--' : m.materialType === 'roll_media' ? `${m.sizeWidth}" wide` : m.size || '--'}</td>
+                  <td className="py-3 px-4 text-sm text-gray-500">{m.materialType === 'blanks' ? '--' : `${m.sizeWidth}"`}</td>
+                  <td className="py-3 px-4 text-sm text-gray-500">{m.materialType === 'blanks' || m.materialType === 'roll_media' ? '--' : `${m.sizeHeight}"`}</td>
+                  <td className="py-3 px-4 text-sm text-gray-700 font-medium">{formatCurrency(getUnitCost(m))}<span className="text-[10px] text-gray-400 ml-0.5">{getUnitLabel(m)}</span></td>
                   <td className="py-3 px-4 text-sm text-gray-500">{m.markup}%</td>
-                  <td className="py-3 px-4 text-sm font-bold text-blue-700">{formatCurrency(sellPerSheet(m))}</td>
+                  <td className="py-3 px-4 text-sm font-bold text-blue-700">{formatCurrency(getUnitSell(m))}<span className="text-[10px] text-gray-400 ml-0.5">{getUnitLabel(m)}</span></td>
                   <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-1">
                       <button onClick={() => handleStartEdit(m)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
@@ -757,7 +834,7 @@ export const Materials: React.FC = () => {
 
       {/* Add / Edit Material Modal */}
       <Modal isOpen={showNew || editingId !== null} onClose={() => { setShowNew(false); setEditingId(null); }}
-        title={editingId ? 'Edit Material' : 'Add Material'} size="full">
+        title={editingId ? 'Edit Material' : 'Add Material'} size="half">
         {/* Tab Bar */}
         <div className="flex border-b border-gray-200 mb-4 -mt-1">
           <button
@@ -989,7 +1066,9 @@ export const Materials: React.FC = () => {
 
         {/* ── Details Tab ── */}
         {modalTab === 'details' && <div className="space-y-4">
-          <div className="space-y-3">
+          <div className="flex items-start gap-4">
+            {/* Name, Group, Description */}
+            <div className="flex-1 space-y-3">
               <div className="flex items-center gap-3">
                 <div className="flex-[3]">
                   <Input label="Material Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -998,47 +1077,81 @@ export const Materials: React.FC = () => {
                 <div className="flex-[2]">
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                     Material Groups
-                    {form.materialGroupIds.length > 0 && (
-                      <span className="ml-1.5 text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
-                        {form.materialGroupIds.length}
-                      </span>
-                    )}
                   </label>
-                  <div className="border border-gray-200 rounded-lg max-h-[120px] overflow-y-auto">
-                    {materialGroups.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-gray-400">No material groups available</div>
-                    ) : (
-                      materialGroups.map(g => {
-                        const isChecked = form.materialGroupIds.includes(g.id);
-                        return (
-                          <label
-                            key={g.id}
-                            className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
-                              isChecked ? 'bg-blue-50' : 'hover:bg-gray-50'
-                            }`}
-                          >
-                            <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
-                              isChecked ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
-                            }`}>
-                              {isChecked && <Check className="w-3 h-3 text-white" />}
-                            </div>
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => setForm(f => ({
-                                ...f,
-                                materialGroupIds: isChecked
-                                  ? f.materialGroupIds.filter(id => id !== g.id)
-                                  : [...f.materialGroupIds, g.id],
-                              }))}
-                              className="sr-only"
-                            />
-                            <span className={`text-sm ${isChecked ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
-                              {g.name}
-                            </span>
-                          </label>
-                        );
-                      })
+                  <div className="relative" ref={groupDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setGroupDropdownOpen(o => !o)}
+                      className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                    >
+                      {form.materialGroupIds.length === 0 ? (
+                        <span className="text-gray-400">Select groups…</span>
+                      ) : (
+                        <span className="flex-1 flex flex-wrap gap-1 min-w-0">
+                          {form.materialGroupIds.map(gid => {
+                            const g = materialGroups.find(mg => mg.id === gid);
+                            if (!g) return null;
+                            return (
+                              <span
+                                key={gid}
+                                className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-medium max-w-[140px]"
+                              >
+                                <span className="truncate">{g.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setForm(f => ({ ...f, materialGroupIds: f.materialGroupIds.filter(id => id !== gid) }));
+                                  }}
+                                  className="flex-shrink-0 p-0.5 rounded-full hover:bg-blue-100 transition-colors"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                            );
+                          })}
+                        </span>
+                      )}
+                      <ChevronDown className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform ${groupDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {groupDropdownOpen && (
+                      <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 max-h-[180px] overflow-y-auto">
+                        {materialGroups.length === 0 ? (
+                          <div className="px-3 py-2 text-xs text-gray-400">No groups available</div>
+                        ) : (
+                          materialGroups.map(g => {
+                            const isChecked = form.materialGroupIds.includes(g.id);
+                            return (
+                              <label
+                                key={g.id}
+                                className={`flex items-center gap-2.5 px-3 py-1.5 cursor-pointer transition-colors ${
+                                  isChecked ? 'bg-blue-50/60' : 'hover:bg-gray-50'
+                                }`}
+                              >
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                  isChecked ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
+                                }`}>
+                                  {isChecked && <Check className="w-3 h-3 text-white" />}
+                                </div>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => setForm(f => ({
+                                    ...f,
+                                    materialGroupIds: isChecked
+                                      ? f.materialGroupIds.filter(id => id !== g.id)
+                                      : [...f.materialGroupIds, g.id],
+                                  }))}
+                                  className="sr-only"
+                                />
+                                <span className={`text-sm ${isChecked ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
+                                  {g.name}
+                                </span>
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1053,6 +1166,7 @@ export const Materials: React.FC = () => {
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 />
               </div>
+            </div>
           </div>
           {/* ── Product & Category Assignments (collapsible) ── */}
           {(() => {
@@ -1386,27 +1500,293 @@ export const Materials: React.FC = () => {
             );
           })()}
 
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Sheet Size</label>
-              <input value={form.size} onChange={e => parseSizeInput(e.target.value)}
-                placeholder="e.g. 13x19"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <p className="text-[10px] text-gray-400 mt-1">Type "13x19" to auto-fill W/H</p>
+          {/* ── Material Type toggle ── */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Material Type</label>
+            <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+              {(['paper', 'roll_media', 'rigid_substrate', 'blanks'] as MaterialType[]).map(type => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => {
+                    const allowedModels = MATERIAL_TYPE_PRICING_MODELS[type];
+                    setForm(f => ({
+                      ...f,
+                      materialType: type,
+                      pricingModel: allowedModels.includes(f.pricingModel) ? f.pricingModel : allowedModels[0],
+                      ...(type === 'blanks' ? { sizeWidth: 0, sizeHeight: 0, size: '' } : {}),
+                      ...(type === 'roll_media' ? { sizeHeight: 0, size: '' } : {}),
+                    }));
+                  }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    form.materialType === type
+                      ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {MATERIAL_TYPE_LABELS[type]}
+                </button>
+              ))}
             </div>
-            <Input label="Width (in)" type="number" value={form.sizeWidth || ''} onChange={e => setForm(f => ({ ...f, sizeWidth: parseFloat(e.target.value) || 0 }))} />
-            <Input label="Height (in)" type="number" value={form.sizeHeight || ''} onChange={e => setForm(f => ({ ...f, sizeHeight: parseFloat(e.target.value) || 0 }))} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Price per M (per 1,000 sheets)" type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
-            <Input label="Markup %" type="number" value={form.markup} onChange={e => setForm(f => ({ ...f, markup: parseFloat(e.target.value) || 0 }))} suffix="%" />
-          </div>
-          {form.pricePerM > 0 && (
-            <div className="bg-gray-50 rounded-lg p-3 text-sm">
-              <div className="flex justify-between"><span className="text-gray-500">Cost/sheet:</span><span className="font-medium">{formatCurrency(form.pricePerM / 1000)}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Sell/sheet:</span><span className="font-bold text-blue-700">{formatCurrency((form.pricePerM / 1000) * (1 + form.markup / 100))}</span></div>
+
+          {/* ── Dimensions (conditional by type) ── */}
+          {form.materialType !== 'blanks' && (
+            <div className={`grid gap-4 ${form.materialType === 'roll_media' ? 'grid-cols-1 max-w-xs' : 'grid-cols-2 max-w-sm'}`}>
+              <Input label={form.materialType === 'roll_media' ? 'Roll Width (in)' : 'Width (in)'} type="number" value={form.sizeWidth || ''} onChange={e => setForm(f => ({ ...f, sizeWidth: parseFloat(e.target.value) || 0 }))} />
+              {form.materialType !== 'roll_media' && (
+                <Input label="Height (in)" type="number" value={form.sizeHeight || ''} onChange={e => setForm(f => ({ ...f, sizeHeight: parseFloat(e.target.value) || 0 }))} />
+              )}
             </div>
           )}
+
+          {/* ── Cost Unit selector ── */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Cost Unit</label>
+            <div className="flex gap-2 flex-wrap">
+              {MATERIAL_TYPE_PRICING_MODELS[form.materialType].map(model => (
+                <button
+                  key={model}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, pricingModel: model }))}
+                  className={`px-3 py-2 text-sm rounded-lg border-2 transition-all ${
+                    form.pricingModel === model
+                      ? 'border-blue-600 bg-blue-50 text-blue-700 font-semibold shadow-sm'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {PRICING_MODEL_LABELS[model]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Base cost + roll reference (single row) ── */}
+          <div className="flex gap-3 items-end">
+            {/* Primary cost input */}
+            <div className="w-36">
+              {form.pricingModel === 'cost_per_m' && (
+                <Input label="Price per M" type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
+              )}
+              {form.pricingModel === 'cost_per_unit' && (
+                <Input label="Cost per Unit" type="number" value={form.costPerUnit || ''} onChange={e => setForm(f => ({ ...f, costPerUnit: parseFloat(e.target.value) || 0 }))} prefix="$" />
+              )}
+              {form.pricingModel === 'cost_per_sqft' && (
+                <Input label="Cost per Sq Ft" type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
+              )}
+            </div>
+            {/* Roll reference calculator (flat row, aligned with cost input) */}
+            {form.materialType === 'roll_media' && (
+              <div className="flex items-end gap-2">
+                <span className="text-[10px] text-amber-600 font-semibold pb-1.5">←</span>
+                <div className="w-28">
+                  <Input label="Roll $" type="number" value={form.rollCost || ''} prefix="$"
+                    onChange={e => {
+                      const rollCost = parseFloat(e.target.value) || 0;
+                      setForm(f => {
+                        const derived = rollCost > 0 && f.rollLength > 0 && f.sizeWidth > 0
+                          ? deriveRollCostPerSqft(rollCost, f.rollLength, f.sizeWidth) : null;
+                        return { ...f, rollCost, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
+                      });
+                    }} />
+                </div>
+                <div className="w-28">
+                  <Input label="Length (ft)" type="number" value={form.rollLength || ''} suffix="ft"
+                    onChange={e => {
+                      const rollLength = parseFloat(e.target.value) || 0;
+                      setForm(f => {
+                        const derived = f.rollCost > 0 && rollLength > 0 && f.sizeWidth > 0
+                          ? deriveRollCostPerSqft(f.rollCost, rollLength, f.sizeWidth) : null;
+                        return { ...f, rollLength, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
+                      });
+                    }} />
+                </div>
+                {form.rollCost > 0 && form.rollLength > 0 && form.sizeWidth > 0 && (
+                  <span className="text-[10px] text-amber-600 pb-1.5 whitespace-nowrap">
+                    = {(form.rollLength * (form.sizeWidth / 12)).toFixed(0)} sqft → <span className="font-semibold">{formatCurrency(deriveRollCostPerSqft(form.rollCost, form.rollLength, form.sizeWidth))}/sqft</span>
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ── Tier Pricing (optional) ── */}
+          <div className="max-w-xs">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Quantity Tier Pricing</label>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, pricingTiers: [...f.pricingTiers, { minQty: 0, costPerUnit: 0 }] }))}
+                className="text-[10px] text-blue-600 hover:text-blue-700 font-medium"
+              >
+                + Add Tier
+              </button>
+            </div>
+            {form.pricingTiers.length === 0 ? (
+              <p className="text-[10px] text-gray-400">No tiers — base cost above applies to all quantities.</p>
+            ) : (
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="grid grid-cols-[112px_112px_24px] gap-1 bg-gray-50 border-b border-gray-200 px-2 py-1">
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase">Min Qty</span>
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase">Cost</span>
+                  <span></span>
+                </div>
+                {form.pricingTiers.map((tier, i) => (
+                  <div key={i} className="grid grid-cols-[112px_112px_24px] gap-1 items-center px-2 py-1 border-b border-gray-100 last:border-0">
+                    <input type="number" value={tier.minQty || ''} placeholder="0"
+                      className="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      onChange={e => setForm(f => ({
+                        ...f,
+                        pricingTiers: f.pricingTiers.map((t, idx) => idx === i ? { ...t, minQty: parseFloat(e.target.value) || 0 } : t),
+                      }))} />
+                    <div className="relative">
+                      <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]">$</span>
+                      <input type="number" value={tier.costPerUnit || ''} placeholder="0.00"
+                        className="w-full pl-4 pr-1 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        onChange={e => setForm(f => ({
+                          ...f,
+                          pricingTiers: f.pricingTiers.map((t, idx) => idx === i ? { ...t, costPerUnit: parseFloat(e.target.value) || 0 } : t),
+                        }))} />
+                    </div>
+                    <button type="button" onClick={() => setForm(f => ({ ...f, pricingTiers: f.pricingTiers.filter((_, idx) => idx !== i) }))}
+                      className="p-0.5 text-gray-300 hover:text-red-500 transition-colors">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Minimum Charge ── */}
+          <div className="w-36">
+            <Input label="Minimum Charge" type="number" value={form.minimumCharge || ''} onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))} prefix="$" />
+            <p className="text-[10px] text-gray-400 mt-1">Floor if cost is lower. 0 = none.</p>
+          </div>
+
+          {/* ── Markup (last — applies on top of everything) ── */}
+          <div className="border-t border-gray-200 pt-4">
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Markup</label>
+            <div className="flex gap-3 items-end">
+              <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'percent' }))}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                    form.markupType === 'percent' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
+                  }`}>
+                  Percentage
+                </button>
+                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'fixed' }))}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                    form.markupType === 'fixed' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
+                  }`}>
+                  Fixed $
+                </button>
+              </div>
+              <div className="w-24">
+                <Input
+                  type="number"
+                  value={form.markup}
+                  onChange={e => setForm(f => ({ ...f, markup: parseFloat(e.target.value) || 0 }))}
+                  prefix={form.markupType === 'fixed' ? '$' : undefined}
+                  suffix={form.markupType === 'percent' ? '%' : undefined}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Test Price Calculator ── */}
+          {(() => {
+            const preview = { ...form, materialType: form.materialType || 'paper', pricingModel: form.pricingModel || 'cost_per_m' } as PricingMaterial;
+            const baseCost = getUnitCost(preview);
+            const unitLabel = getUnitLabel(preview);
+            if (baseCost <= 0 && !showTestPanel) return (
+              <button type="button" onClick={() => setShowTestPanel(true)}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:text-amber-900 transition-colors opacity-50 cursor-not-allowed" disabled>
+                <FlaskConical className="w-3.5 h-3.5" /> Test Price
+              </button>
+            );
+
+            // Compute test result
+            const tierCost = getTierCost(preview, testQty);
+            const effectiveCost = tierCost !== null ? tierCost : baseCost;
+            const markupAmt = form.markupType === 'fixed'
+              ? (form.markup || 0)
+              : effectiveCost * ((form.markup || 0) / 100);
+            const sellPerUnit = effectiveCost + markupAmt;
+            const totalCost = effectiveCost * testQty;
+            const totalSell = sellPerUnit * testQty;
+            const minApplied = form.minimumCharge > 0 && totalSell < form.minimumCharge;
+            const finalTotal = minApplied ? form.minimumCharge : totalSell;
+
+            return (
+              <div className="space-y-2">
+                <button type="button" onClick={() => setShowTestPanel(p => !p)}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:text-amber-900 transition-colors">
+                  <FlaskConical className="w-3.5 h-3.5" />
+                  {showTestPanel ? 'Hide Test' : 'Test Price'}
+                </button>
+
+                {showTestPanel && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <FlaskConical className="w-3.5 h-3.5 text-amber-600" />
+                        <span className="text-[11px] font-semibold text-amber-800">Test Price Calculator</span>
+                      </div>
+                      <button type="button" onClick={() => setShowTestPanel(false)} className="p-0.5 hover:bg-amber-100 rounded">
+                        <X className="w-3.5 h-3.5 text-amber-500" />
+                      </button>
+                    </div>
+
+                    {/* Test quantity input */}
+                    <div className="flex items-center gap-2">
+                      <label className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide whitespace-nowrap">
+                        {form.pricingModel === 'cost_per_sqft' ? 'Test Sq Ft' : form.pricingModel === 'cost_per_m' ? 'Test Sheets' : 'Test Qty'}
+                      </label>
+                      <input type="number" value={testQty}
+                        onChange={e => setTestQty(parseInt(e.target.value) || 0)}
+                        className="w-28 px-2 py-1 text-sm bg-white border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                    </div>
+
+                    {/* Results */}
+                    <div className="bg-white/60 rounded-md px-3 py-2 space-y-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-gray-600">Base cost{unitLabel}:</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(baseCost)}</span>
+                      </div>
+                      {tierCost !== null && (
+                        <div className="flex justify-between text-[11px]">
+                          <span className="text-gray-500">Tier cost{unitLabel} (at {testQty.toLocaleString()}):</span>
+                          <span className="font-medium text-purple-700">{formatCurrency(tierCost)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-gray-500">+ Markup ({form.markupType === 'fixed' ? formatCurrency(form.markup) : `${form.markup}%`}):</span>
+                        <span className="font-medium text-gray-700">{formatCurrency(markupAmt)}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-gray-500">Sell{unitLabel}:</span>
+                        <span className="font-semibold text-blue-700">{formatCurrency(sellPerUnit)}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px] pt-1 border-t border-amber-200">
+                        <span className="text-gray-500">Total cost ({testQty.toLocaleString()}):</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(totalCost)}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="font-semibold text-amber-800">Total sell ({testQty.toLocaleString()}):</span>
+                        <span className="font-bold text-amber-900">{formatCurrency(finalTotal)}</span>
+                      </div>
+                      {minApplied && (
+                        <div className="text-[10px] text-amber-700 bg-amber-100 rounded px-2 py-1 mt-1">
+                          Subtotal {formatCurrency(totalSell)} is below minimum — minimum charge of {formatCurrency(form.minimumCharge)} applied
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
         </div>}
 
@@ -1441,7 +1821,11 @@ export const Materials: React.FC = () => {
         {/* Save / Cancel buttons (visible on all tabs) */}
         <div className="flex gap-3 justify-end pt-4 border-t border-gray-100 mt-4">
           <Button variant="secondary" onClick={() => { setShowNew(false); setEditingId(null); }}>Cancel</Button>
-          <Button variant="primary" onClick={editingId ? handleSaveEdit : handleAdd} disabled={!form.name || form.sizeWidth <= 0 || form.sizeHeight <= 0}>
+          <Button variant="primary" onClick={editingId ? handleSaveEdit : handleAdd} disabled={
+            !form.name ||
+            ((form.materialType === 'paper' || form.materialType === 'rigid_substrate') && (form.sizeWidth <= 0 || form.sizeHeight <= 0)) ||
+            (form.materialType === 'roll_media' && form.sizeWidth <= 0)
+          }>
             {editingId ? 'Save Changes' : 'Add Material'}
           </Button>
         </div>
