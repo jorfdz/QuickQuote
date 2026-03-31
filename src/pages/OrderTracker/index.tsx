@@ -17,12 +17,12 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Clock3, GripVertical, Layers3, MoveRight } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock3, GripVertical, Layers3, MoveRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
 import { Card, PageHeader } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
-import type { Order, OrderItem, Workflow } from '../../types';
+import type { OrderItem } from '../../types';
 
 type StageColumn = {
   id: string;
@@ -46,11 +46,12 @@ type TrackerItemCard = {
 const QUEUE_STAGE_ID = '__queue__';
 
 export const OrderTracker: React.FC = () => {
-  const { orders, workflows, updateOrder } = useStore();
+  const { orders, workflows, updateOrder, companySettings } = useStore();
   const navigate = useNavigate();
   const activeBoards = workflows.filter((workflow) => workflow.isActive);
   const [activeWorkflowId, setActiveWorkflowId] = useState(activeBoards[0]?.id || workflows[0]?.id || '');
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [boardsCollapsed, setBoardsCollapsed] = useState(false);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -138,6 +139,11 @@ export const OrderTracker: React.FC = () => {
     });
   }, [activeBoards, orders]);
 
+  const brandColor = companySettings.primaryBrandColor || '#2563eb';
+  const boardSurfaceStyle = useMemo(() => ({
+    backgroundImage: `radial-gradient(circle at top left, ${withAlpha(brandColor, 0.22)}, transparent 30%), radial-gradient(circle at top right, ${withAlpha(brandColor, 0.14)}, transparent 24%), linear-gradient(135deg, ${withAlpha(brandColor, 0.08)}, rgba(255,255,255,0.98) 42%, ${withAlpha(brandColor, 0.1)})`,
+  }), [brandColor]);
+
   const activeDragItem = trackerItems.find((item) => item.id === activeDragId) || null;
 
   const moveItemToStage = (itemId: string, stageId: string) => {
@@ -193,10 +199,21 @@ export const OrderTracker: React.FC = () => {
       <PageHeader title="Order Tracker" subtitle="Move production items across boards and stages in real time." />
 
       <section className="space-y-3">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">
-          <Layers3 className="h-3.5 w-3.5" />
-          Active Boards
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">
+            <Layers3 className="h-3.5 w-3.5" />
+            Active Boards
+          </div>
+          <button
+            type="button"
+            onClick={() => setBoardsCollapsed((current) => !current)}
+            className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-gray-300 hover:text-gray-900"
+          >
+            {boardsCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+            {boardsCollapsed ? 'Show Boards' : 'Collapse Boards'}
+          </button>
         </div>
+        {!boardsCollapsed && (
         <div className="grid gap-3 lg:grid-cols-3">
           {activeBoards.map((board) => {
             const stats = boardStats.find((entry) => entry.id === board.id);
@@ -205,7 +222,12 @@ export const OrderTracker: React.FC = () => {
               <button
                 key={board.id}
                 onClick={() => setActiveWorkflowId(board.id)}
-                className={`rounded-2xl border p-4 text-left transition-all ${selected ? 'border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-200' : 'border-gray-200 bg-white hover:border-slate-300 hover:shadow-md'}`}
+                className={`rounded-2xl border p-4 text-left transition-all ${selected ? 'text-white shadow-lg' : 'border-gray-200 bg-white hover:border-slate-300 hover:shadow-md'}`}
+                style={selected ? {
+                  borderColor: withAlpha(brandColor, 0.8),
+                  backgroundImage: `linear-gradient(135deg, ${withAlpha(brandColor, 0.96)}, ${withAlpha(brandColor, 0.72)})`,
+                  boxShadow: `0 20px 35px ${withAlpha(brandColor, 0.18)}`,
+                } : undefined}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -234,9 +256,10 @@ export const OrderTracker: React.FC = () => {
             );
           })}
         </div>
+        )}
       </section>
 
-      <section className="rounded-[28px] border border-gray-200 bg-gradient-to-br from-slate-50 via-white to-slate-100 p-4 shadow-sm">
+      <section className="rounded-[28px] border border-white/70 p-4 shadow-sm" style={boardSurfaceStyle}>
         <div className="mb-5 flex flex-col gap-4 border-b border-white/80 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">{workflow.name}</h2>
@@ -262,6 +285,7 @@ export const OrderTracker: React.FC = () => {
                 column={column}
                 items={itemsByStage.get(column.id) || []}
                 onNavigate={(orderId) => navigate(`/orders/${orderId}`)}
+                brandColor={brandColor}
               />
             ))}
           </div>
@@ -281,7 +305,8 @@ const StageLane: React.FC<{
   column: StageColumn;
   items: TrackerItemCard[];
   onNavigate: (orderId: string) => void;
-}> = ({ column, items, onNavigate }) => {
+  brandColor: string;
+}> = ({ column, items, onNavigate, brandColor }) => {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
   return (
@@ -298,7 +323,8 @@ const StageLane: React.FC<{
       </div>
       <div
         ref={setNodeRef}
-        className={`min-h-[420px] rounded-2xl border p-3 transition-colors ${isOver ? 'border-slate-400 bg-white shadow-inner' : 'border-white/70 bg-white/70'}`}
+        className={`min-h-[420px] rounded-2xl border p-3 transition-colors ${isOver ? 'bg-white shadow-inner' : 'border-white/70 bg-white/72'}`}
+        style={isOver ? { borderColor: withAlpha(brandColor, 0.45), boxShadow: `inset 0 0 0 1px ${withAlpha(brandColor, 0.12)}` } : undefined}
       >
         <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-3">
@@ -392,4 +418,16 @@ const endOfTomorrow = () => {
   date.setDate(date.getDate() + 1);
   date.setHours(23, 59, 59, 999);
   return date;
+};
+
+const withAlpha = (hex: string, alpha: number) => {
+  const normalized = hex.replace('#', '');
+  const full = normalized.length === 3
+    ? normalized.split('').map((char) => `${char}${char}`).join('')
+    : normalized;
+  const value = Number.parseInt(full, 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
