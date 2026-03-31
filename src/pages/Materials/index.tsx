@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown } from 'lucide-react';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Modal, Input, Checkbox } from '../../components/ui';
+import { ImageUploadCropper } from '../../components/ui/ImageUploadCropper';
 import type { PricingMaterial, MaterialGroup } from '../../types/pricing';
 
 // ─── Sort / Pagination types ────────────────────────────────────────────────
@@ -23,6 +24,8 @@ const emptyForm = {
   favoriteProductIds: [] as string[],
   favoriteCategoryIds: [] as string[],
   isFavorite: false,
+  imageUrl: '' as string | undefined,
+  description: '',
   vendorName: '',
   vendorId: '',
   vendorMaterialId: '',
@@ -240,6 +243,45 @@ export const Materials: React.FC = () => {
       : <ChevronDown className="w-3 h-3 text-blue-600 ml-1 inline-block" />;
   };
 
+  const PaginationBar: React.FC = () => (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-gray-500">Rows per page:</span>
+        <select
+          value={pageSize}
+          onChange={e => setPageSize(Number(e.target.value) as PageSize)}
+          className="px-2 py-1 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value={50}>50</option>
+          <option value={100}>100</option>
+          <option value={200}>200</option>
+        </select>
+      </div>
+      <span className="text-xs text-gray-500">
+        {sorted.length === 0 ? '0 of 0' : `${(safePage - 1) * pageSize + 1}\u2013${Math.min(safePage * pageSize, sorted.length)} of ${sorted.length}`}
+      </span>
+      <div className="flex items-center gap-1">
+        <button onClick={() => setCurrentPage(1)} disabled={safePage <= 1}
+          className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="First page">
+          <ChevronsLeft className="w-4 h-4 text-gray-600" />
+        </button>
+        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage <= 1}
+          className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Previous page">
+          <ChevronLeft className="w-4 h-4 text-gray-600" />
+        </button>
+        <span className="text-xs text-gray-600 font-medium px-2">Page {safePage} of {totalPages}</span>
+        <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
+          className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Next page">
+          <ChevronRight className="w-4 h-4 text-gray-600" />
+        </button>
+        <button onClick={() => setCurrentPage(totalPages)} disabled={safePage >= totalPages}
+          className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Last page">
+          <ChevronsRight className="w-4 h-4 text-gray-600" />
+        </button>
+      </div>
+    </div>
+  );
+
   const handleOpenNew = () => {
     setForm(emptyForm);
     setProductSearch('');
@@ -262,6 +304,8 @@ export const Materials: React.FC = () => {
       favoriteProductIds: form.favoriteProductIds,
       favoriteCategoryIds: form.favoriteCategoryIds,
       isFavorite: form.isFavorite,
+      imageUrl: form.imageUrl || undefined,
+      description: form.description || undefined,
       vendorName: form.vendorName || undefined,
       vendorId: form.vendorId || undefined,
       vendorMaterialId: form.vendorMaterialId || undefined,
@@ -288,6 +332,8 @@ export const Materials: React.FC = () => {
       favoriteProductIds: m.favoriteProductIds || [],
       favoriteCategoryIds: m.favoriteCategoryIds || [],
       isFavorite: m.isFavorite,
+      imageUrl: m.imageUrl || '',
+      description: m.description || '',
       vendorName: m.vendorName || '',
       vendorId: m.vendorId || '',
       vendorMaterialId: m.vendorMaterialId || '',
@@ -314,6 +360,8 @@ export const Materials: React.FC = () => {
       favoriteProductIds: form.favoriteProductIds,
       favoriteCategoryIds: form.favoriteCategoryIds,
       isFavorite: form.isFavorite,
+      imageUrl: form.imageUrl || undefined,
+      description: form.description || undefined,
       vendorName: form.vendorName || undefined,
       vendorId: form.vendorId || undefined,
       vendorMaterialId: form.vendorMaterialId || undefined,
@@ -339,6 +387,8 @@ export const Materials: React.FC = () => {
       favoriteProductIds: m.favoriteProductIds || [],
       favoriteCategoryIds: m.favoriteCategoryIds || [],
       isFavorite: m.isFavorite,
+      imageUrl: m.imageUrl || '',
+      description: m.description || '',
       vendorName: m.vendorName || '',
       vendorId: m.vendorId || '',
       vendorMaterialId: m.vendorMaterialId || '',
@@ -504,6 +554,7 @@ export const Materials: React.FC = () => {
 
       {/* Sortable Table */}
       <Card>
+        {sorted.length > 0 && <PaginationBar />}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -549,7 +600,12 @@ export const Materials: React.FC = () => {
                     </button>
                   </td>
                   <td className="py-3 px-4">
-                    <p className="text-sm font-semibold text-gray-900">{m.name}</p>
+                    <div className="flex items-center gap-2.5">
+                      {m.imageUrl ? (
+                        <img src={m.imageUrl} alt={m.name} className="w-8 h-8 rounded object-cover flex-shrink-0 border border-gray-200" />
+                      ) : null}
+                      <p className="text-sm font-semibold text-gray-900">{m.name}</p>
+                    </div>
                   </td>
                   <td className="py-3 px-4 text-sm text-gray-500">{getGroupName(m.materialGroupId)}</td>
                   <td className="py-3 px-4 text-sm text-gray-500 truncate max-w-[120px]" title={m.vendorName || '--'}>{m.vendorName || '--'}</td>
@@ -602,104 +658,54 @@ export const Materials: React.FC = () => {
           </div>
         )}
 
-        {/* Pagination footer */}
-        {sorted.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-            {/* Left: page size selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">Rows per page:</span>
-              <select
-                value={pageSize}
-                onChange={e => setPageSize(Number(e.target.value) as PageSize)}
-                className="px-2 py-1 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-                <option value={200}>200</option>
-              </select>
-            </div>
-
-            {/* Center: showing info */}
-            <span className="text-xs text-gray-500">
-              {sorted.length === 0 ? '0 of 0' : `${(safePage - 1) * pageSize + 1}–${Math.min(safePage * pageSize, sorted.length)} of ${sorted.length}`}
-            </span>
-
-            {/* Right: page navigation */}
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setCurrentPage(1)}
-                disabled={safePage <= 1}
-                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                title="First page"
-              >
-                <ChevronsLeft className="w-4 h-4 text-gray-600" />
-              </button>
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={safePage <= 1}
-                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                title="Previous page"
-              >
-                <ChevronLeft className="w-4 h-4 text-gray-600" />
-              </button>
-              <span className="text-xs text-gray-600 font-medium px-2">
-                Page {safePage} of {totalPages}
-              </span>
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={safePage >= totalPages}
-                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                title="Next page"
-              >
-                <ChevronRight className="w-4 h-4 text-gray-600" />
-              </button>
-              <button
-                onClick={() => setCurrentPage(totalPages)}
-                disabled={safePage >= totalPages}
-                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                title="Last page"
-              >
-                <ChevronsRight className="w-4 h-4 text-gray-600" />
-              </button>
-            </div>
-          </div>
-        )}
+        {sorted.length > 0 && <PaginationBar />}
       </Card>
 
       {/* Add / Edit Material Modal */}
       <Modal isOpen={showNew || editingId !== null} onClose={() => { setShowNew(false); setEditingId(null); }}
         title={editingId ? 'Edit Material' : 'Add Material'} size="full">
         <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="flex-[3]">
-              <Input label="Material Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. 100lb Gloss Cover" />
+          <div className="flex items-start gap-4">
+            {/* Photo upload */}
+            <div className="flex-shrink-0">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Photo</label>
+              <ImageUploadCropper
+                value={form.imageUrl || ''}
+                onChange={(url) => setForm(f => ({ ...f, imageUrl: url || undefined }))}
+                size={80}
+              />
             </div>
-            <div className="flex-[1]">
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Material Group</label>
-              <select
-                value={form.materialGroupId}
-                onChange={e => setForm(f => ({ ...f, materialGroupId: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">None</option>
-                {materialGroups.map(g => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="pt-5">
-              <button
-                onClick={() => setForm(f => ({ ...f, isFavorite: !f.isFavorite }))}
-                className={`p-2 rounded-lg border transition-colors ${
-                  form.isFavorite
-                    ? 'bg-amber-50 border-amber-300 text-amber-500'
-                    : 'border-gray-200 text-gray-300 hover:text-amber-300 hover:border-amber-200'
-                }`}
-                title={form.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-              >
-                <Star className={`w-5 h-5 ${form.isFavorite ? 'fill-amber-400 text-amber-400' : ''}`} />
-              </button>
+            {/* Name, Group, Favorite, Description */}
+            <div className="flex-1 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="flex-[3]">
+                  <Input label="Material Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. 100lb Gloss Cover" />
+                </div>
+                <div className="flex-[1]">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Material Group</label>
+                  <select
+                    value={form.materialGroupId}
+                    onChange={e => setForm(f => ({ ...f, materialGroupId: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">None</option>
+                    {materialGroups.map(g => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Description</label>
+                <textarea
+                  value={form.description}
+                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="Optional notes about this material (e.g. finish, weight, best uses...)"
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
             </div>
           </div>
           {/* ── Product & Category Assignments (collapsible) ── */}

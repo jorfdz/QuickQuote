@@ -190,6 +190,9 @@ export interface PricingMaterial {
   favoriteProductIds: string[];    // products marked as favorites for this material
   favoriteCategoryIds: string[];   // categories marked as favorites for this material
   isFavorite: boolean;             // for starring/favoriting
+  // Photo & description
+  imageUrl?: string;               // material photo URL or base64 data URL
+  description?: string;            // material description / notes
   // Vendor information
   vendorName?: string;             // vendor company name
   vendorId?: string;               // vendor ID / account number
