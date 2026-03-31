@@ -429,6 +429,39 @@ export const Materials: React.FC = () => {
   const costPerSheet = (m: PricingMaterial) => m.pricePerM / 1000;
   const sellPerSheet = (m: PricingMaterial) => costPerSheet(m) * (1 + m.markup / 100);
 
+  // ── Change History helpers ──
+  const formatChangeValue = useCallback((field: string, value: unknown): string => {
+    if (value === null || value === undefined || value === '') return '(empty)';
+    if (Array.isArray(value)) {
+      if (value.length === 0) return '(none)';
+      if (field === 'categoryIds' || field === 'favoriteCategoryIds') {
+        return value.map(id => categories.find(c => c.id === id)?.name || id).join(', ');
+      }
+      if (field === 'productIds' || field === 'favoriteProductIds') {
+        return value.map(id => products.find(p => p.id === id)?.name || id).join(', ');
+      }
+      return value.join(', ');
+    }
+    if (field === 'materialGroupId') {
+      return materialGroups.find(g => g.id === value)?.name || String(value);
+    }
+    if (field === 'pricePerM') return `$${Number(value).toFixed(2)}`;
+    if (field === 'markup') return `${value}%`;
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    return String(value);
+  }, [categories, products, materialGroups]);
+
+  const formatTimestamp = (iso: string): string => {
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+      ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  };
+
+  const historyRecords = useMemo(() => {
+    if (!editingId) return [];
+    return getMaterialHistory(editingId);
+  }, [editingId, getMaterialHistory]);
+
   // ── Material Group management helpers ──
   const handleOpenGroupForm = (group?: MaterialGroup) => {
     if (group) {
@@ -709,7 +742,132 @@ export const Materials: React.FC = () => {
       {/* Add / Edit Material Modal */}
       <Modal isOpen={showNew || editingId !== null} onClose={() => { setShowNew(false); setEditingId(null); }}
         title={editingId ? 'Edit Material' : 'Add Material'} size="full">
-        <div className="space-y-4">
+        {/* Tab Bar (only show History tab when editing an existing material) */}
+        {editingId && (
+          <div className="flex border-b border-gray-200 mb-4 -mt-1">
+            <button
+              type="button"
+              onClick={() => setModalTab('details')}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                modalTab === 'details'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Details
+            </button>
+            <button
+              type="button"
+              onClick={() => setModalTab('history')}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                modalTab === 'history'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              Change History
+              {historyRecords.length > 0 && (
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                  modalTab === 'history' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {historyRecords.length}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* ── Change History Tab ── */}
+        {modalTab === 'history' && editingId && (
+          <div className="space-y-3">
+            {historyRecords.length === 0 ? (
+              <div className="text-center py-16">
+                <Clock className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+                <p className="text-sm text-gray-400 font-medium">No changes recorded yet</p>
+                <p className="text-xs text-gray-300 mt-1">Changes to this material will be tracked here automatically</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-500">{historyRecords.length} change{historyRecords.length !== 1 ? 's' : ''} recorded</p>
+                  <button
+                    type="button"
+                    onClick={() => { if (editingId) clearMaterialHistory(editingId); }}
+                    className="text-[10px] text-red-400 hover:text-red-600 font-medium transition-colors"
+                  >
+                    Clear history
+                  </button>
+                </div>
+                <div className="relative">
+                  {/* Timeline line */}
+                  <div className="absolute left-[15px] top-2 bottom-2 w-px bg-gray-200" />
+
+                  <div className="space-y-0">
+                    {historyRecords.map((record: MaterialChangeRecord, idx: number) => (
+                      <div key={record.id} className="relative flex gap-3 py-3">
+                        {/* Timeline dot */}
+                        <div className={`relative z-10 flex-shrink-0 w-[31px] h-[31px] rounded-full flex items-center justify-center ${
+                          record.action === 'created'
+                            ? 'bg-green-100'
+                            : record.action === 'deleted'
+                            ? 'bg-red-100'
+                            : 'bg-blue-100'
+                        }`}>
+                          {record.action === 'created' && <Plus className="w-3.5 h-3.5 text-green-600" />}
+                          {record.action === 'updated' && <Edit3 className="w-3.5 h-3.5 text-blue-600" />}
+                          {record.action === 'deleted' && <Trash2 className="w-3.5 h-3.5 text-red-600" />}
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-semibold uppercase tracking-wide ${
+                              record.action === 'created'
+                                ? 'text-green-700'
+                                : record.action === 'deleted'
+                                ? 'text-red-700'
+                                : 'text-blue-700'
+                            }`}>
+                              {record.action === 'created' ? 'Material Created' : record.action === 'deleted' ? 'Material Deleted' : 'Material Updated'}
+                            </span>
+                            <span className="text-[10px] text-gray-400">{formatTimestamp(record.timestamp)}</span>
+                          </div>
+
+                          {/* Field changes */}
+                          {record.changes.length > 0 && (
+                            <div className="mt-2 space-y-1.5">
+                              {record.changes.map((change, cIdx) => (
+                                <div key={cIdx} className="flex items-start gap-2 text-xs bg-gray-50 rounded-md px-3 py-2">
+                                  <span className="font-semibold text-gray-600 whitespace-nowrap min-w-[120px]">
+                                    {change.fieldLabel}
+                                  </span>
+                                  <span className="text-gray-400 line-through truncate max-w-[200px]" title={formatChangeValue(change.field, change.oldValue)}>
+                                    {formatChangeValue(change.field, change.oldValue)}
+                                  </span>
+                                  <ArrowRight className="w-3 h-3 text-gray-300 flex-shrink-0 mt-0.5" />
+                                  <span className="text-gray-800 font-medium truncate max-w-[200px]" title={formatChangeValue(change.field, change.newValue)}>
+                                    {formatChangeValue(change.field, change.newValue)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Separator between entries */}
+                          {idx < historyRecords.length - 1 && <div className="border-b border-gray-100 mt-3" />}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── Details Tab ── */}
+        {modalTab === 'details' && <div className="space-y-4">
           <div className="flex items-start gap-4">
             {/* Photo upload */}
             <div className="flex-shrink-0">
