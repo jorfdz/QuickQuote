@@ -275,6 +275,7 @@ export interface DocumentTemplates {
   quote: string;
   order: string;
   invoice: string;
+  purchaseOrder: string;
 }
 
 // ─── ORDERS ─────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Plus, Edit3, FileText, Building2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../../store';
 import { Button, SearchInput, Card, PageHeader, Table, Modal, Input, Textarea, Checkbox, Badge } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
@@ -25,8 +25,9 @@ const emptyForm = {
 
 export const Vendors: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { vendors, purchaseOrders, addVendor, updateVendor } = useStore();
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);

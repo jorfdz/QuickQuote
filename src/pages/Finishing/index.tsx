@@ -3,6 +3,7 @@ import {
   Plus, Trash2, Edit3, Search, Scissors, Copy, Settings, X, Info,
   FlaskConical,
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Table, Modal, Input } from '../../components/ui';
 import type { PricingFinishing, FinishingGroup } from '../../types/pricing';
@@ -66,6 +67,7 @@ const emptyGroupForm = { name: '', description: '' };
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 export const Finishing: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const {
     finishing, addFinishing, updateFinishing, deleteFinishing,
     finishingGroups, addFinishingGroup, updateFinishingGroup, deleteFinishingGroup,
@@ -73,7 +75,7 @@ export const Finishing: React.FC = () => {
   } = usePricingStore();
 
   // ── State ──
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterGroup, setFilterGroup] = useState('');
   const [showModal, setShowModal] = useState(false);

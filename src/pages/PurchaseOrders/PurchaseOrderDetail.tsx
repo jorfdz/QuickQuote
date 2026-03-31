@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { CheckCircle2, PackageCheck, Send, Undo2, XCircle } from 'lucide-react';
+import { CheckCircle2, PackageCheck, Printer, Send, Undo2, XCircle } from 'lucide-react';
 import { useStore } from '../../store';
 import { Badge, Button, Card, Input, PageHeader, Textarea } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
 import type { PurchaseOrder } from '../../types';
+import { buildPurchaseOrderTemplateHtml } from '../../utils/documentTemplates';
 import { getPOStatusFromItems, getVendorWorkflowStageId, summarizePOReceiving } from '../../utils/purchaseOrders';
 
 export const PurchaseOrderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { purchaseOrders, vendors, orders, updatePurchaseOrder, updateOrder, workflows } = useStore();
+  const { purchaseOrders, vendors, orders, updatePurchaseOrder, updateOrder, workflows, companySettings, documentTemplates } = useStore();
 
   const po = purchaseOrders.find((item) => item.id === id);
   const vendor = vendors.find((item) => item.id === po?.vendorId);
@@ -36,6 +37,18 @@ export const PurchaseOrderDetail: React.FC = () => {
     ...po,
     items: po.items.map((item) => ({ ...item, receivedQuantity: receipts[item.id] ?? item.receivedQuantity ?? 0 })),
   }) : { ordered: 0, received: 0, allReceived: false, anyReceived: false }), [po, receipts]);
+  const printHtml = useMemo(() => {
+    if (!po) {
+      return '';
+    }
+
+    return buildPurchaseOrderTemplateHtml({
+      template: documentTemplates.purchaseOrder,
+      company: companySettings,
+      purchaseOrder: po,
+      vendor: vendor || null,
+    });
+  }, [companySettings, documentTemplates.purchaseOrder, po, vendor]);
 
   if (!po) return <div className="text-center py-16 text-gray-400">Purchase order not found</div>;
 
@@ -66,8 +79,15 @@ export const PurchaseOrderDetail: React.FC = () => {
   });
 
   const saveReceiving = () => {
+    const hasManualReceiptChanges = po.items.some((item) => (
+      (receipts[item.id] ?? item.receivedQuantity ?? 0) !== (item.receivedQuantity ?? 0)
+    ));
+
     const nextItems = po.items.map((item) => {
-      const nextReceived = Math.max(0, Math.min(receipts[item.id] ?? 0, item.quantity));
+      const candidateReceived = hasManualReceiptChanges
+        ? (receipts[item.id] ?? item.receivedQuantity ?? 0)
+        : item.quantity;
+      const nextReceived = Math.max(0, Math.min(candidateReceived, item.quantity));
       return { ...item, receivedQuantity: nextReceived };
     });
     const nextStatus = getPOStatusFromItems({ ...po, items: nextItems });
@@ -75,13 +95,33 @@ export const PurchaseOrderDetail: React.FC = () => {
     setReceipts(Object.fromEntries(
       nextItems.map((item) => [item.id, item.receivedQuantity || 0])
     ));
-    updatePurchaseOrder(po.id, {
+    updateStatus(nextStatus, {
       items: nextItems,
-      status: nextStatus,
       receivedDate: nextStatus === 'received' || nextStatus === 'partial' ? now : undefined,
-      updatedAt: now,
     });
-    syncOrderStage(nextStatus);
+  };
+
+  const openPrintWindow = () => {
+    const blob = new Blob([printHtml], { type: 'text/html' });
+    const printUrl = URL.createObjectURL(blob);
+    const printWindow = window.open(printUrl, '_blank');
+
+    if (!printWindow) {
+      URL.revokeObjectURL(printUrl);
+      return;
+    }
+
+    const cleanup = () => {
+      URL.revokeObjectURL(printUrl);
+    };
+
+    printWindow.addEventListener('load', () => {
+      printWindow.focus();
+      window.setTimeout(() => {
+        printWindow.print();
+      }, 150);
+      window.setTimeout(cleanup, 60000);
+    }, { once: true });
   };
 
   return (
@@ -93,9 +133,10 @@ export const PurchaseOrderDetail: React.FC = () => {
         actions={
           <>
             <Button variant="secondary" onClick={saveHeader}>Save</Button>
+            <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />} onClick={openPrintWindow}>Print PDF</Button>
             {po.status === 'draft' && <Button variant="primary" icon={<Send className="w-4 h-4" />} onClick={() => updateStatus('sent')}>Mark Sent</Button>}
             {po.status === 'sent' && <Button variant="primary" icon={<CheckCircle2 className="w-4 h-4" />} onClick={() => updateStatus('acknowledged')}>Acknowledge</Button>}
-            {(po.status === 'sent' || po.status === 'acknowledged' || po.status === 'partial') && <Button variant="success" icon={<PackageCheck className="w-4 h-4" />} onClick={saveReceiving}>Post Receipt</Button>}
+            {(po.status === 'sent' || po.status === 'acknowledged' || po.status === 'partial') && <Button variant="success" icon={<PackageCheck className="w-4 h-4" />} onClick={(e) => { e.preventDefault(); e.stopPropagation(); saveReceiving(); }}>Post Receipt</Button>}
             {po.status === 'canceled' && <Button variant="secondary" icon={<Undo2 className="w-4 h-4" />} onClick={() => updateStatus('draft')}>Reopen</Button>}
             {po.status !== 'received' && po.status !== 'canceled' && <Button variant="danger" icon={<XCircle className="w-4 h-4" />} onClick={() => updateStatus('canceled')}>Cancel</Button>}
           </>

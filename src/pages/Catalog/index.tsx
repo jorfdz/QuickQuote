@@ -1,6 +1,11 @@
 import React, { useState, useMemo, useRef } from 'react';
+<<<<<<< HEAD
 import { useNavigate } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Layers, Package, Search, Copy, ChevronDown, FileText, X, ChevronRight } from 'lucide-react';
+=======
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, Pencil, Trash2, Layers, Package, Search, Copy, ChevronDown, FileText } from 'lucide-react';
+>>>>>>> 877dd39b17fc0eb887cf51f11722a5cb18fb06f6
 import { Card, PageHeader, Button, Input, Table, Modal, ConfirmDialog } from '../../components/ui';
 import { usePricingStore } from '../../store/pricingStore';
 import type { PricingCategory, PricingProduct, ProductPricingTemplate } from '../../types/pricing';
@@ -42,6 +47,7 @@ const SUBTABS = [
 
 export const Catalog: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {
     categories, products, materials, equipment, materialGroups, templates,
     finishing, finishingGroups,
@@ -51,7 +57,7 @@ export const Catalog: React.FC = () => {
   } = usePricingStore();
 
   const [subTab, setSubTab] = useState('categories');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
 
   // ── Category state ─────────────────────────────────────────────────────
   const [catModalOpen, setCatModalOpen] = useState(false);

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown, Clock, ArrowRight } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Modal, Input, Checkbox } from '../../components/ui';
 import { ImageUploadCropper } from '../../components/ui/ImageUploadCropper';
@@ -41,6 +42,7 @@ const emptyGroupForm = {
 };
 
 export const Materials: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const {
     materials, addMaterial, updateMaterial, deleteMaterial, toggleMaterialFavorite,
     materialGroups, addMaterialGroup, updateMaterialGroup, deleteMaterialGroup,
@@ -48,7 +50,7 @@ export const Materials: React.FC = () => {
     getMaterialHistory, clearMaterialHistory,
   } = usePricingStore();
 
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [showNew, setShowNew] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);

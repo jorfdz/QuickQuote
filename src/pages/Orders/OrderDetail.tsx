@@ -10,7 +10,7 @@ import { nanoid } from '../../utils/nanoid';
 export const OrderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { orders, updateOrder, deleteOrder, addInvoice, nextInvoiceNumber, invoiceCount, workflows, users, equipment, purchaseOrders, vendors } = useStore();
+  const { orders, invoices, updateOrder, deleteOrder, addInvoice, nextInvoiceNumber, invoiceCount, workflows, users, equipment, purchaseOrders, vendors } = useStore();
   const [activeTab, setActiveTab] = useState('overview');
   const [showDelete, setShowDelete] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -35,6 +35,7 @@ export const OrderDetail: React.FC = () => {
   const csr = users.find(u => u.id === order.csrId);
   const salesRep = users.find(u => u.id === order.salesId);
   const linkedPurchaseOrders = purchaseOrders.filter((po) => po.orderId === order.id || (order.purchaseOrderIds || []).includes(po.id));
+  const linkedInvoice = invoices.find((invoice) => invoice.orderIds.includes(order.id) || invoice.number === order.invoiceId);
 
   const createInvoice = () => {
     const number = nextInvoiceNumber();
@@ -259,7 +260,7 @@ export const OrderDetail: React.FC = () => {
                 <div className="flex justify-between"><dt className="text-gray-500">Order Date</dt><dd>{formatDate(order.createdAt)}</dd></div>
                 <div className="flex justify-between"><dt className="text-gray-500">Due Date</dt><dd className={order.dueDate && new Date(order.dueDate) < new Date() && order.status === 'in_progress' ? 'text-red-500 font-medium' : ''}>{order.dueDate ? formatDate(order.dueDate) : '—'}</dd></div>
                 {order.quoteNumber && <div className="flex justify-between"><dt className="text-gray-500">From Quote</dt><dd><button onClick={() => navigate(`/quotes/${order.quoteId}`)} className="text-blue-600 hover:underline">{order.quoteNumber}</button></dd></div>}
-                {order.invoiceId && <div className="flex justify-between"><dt className="text-gray-500">Invoice</dt><dd className="text-emerald-600 font-medium">{order.invoiceId} ✓</dd></div>}
+                {order.invoiceId && <div className="flex justify-between"><dt className="text-gray-500">Invoice</dt><dd>{linkedInvoice ? <button onClick={() => navigate(`/invoices/${linkedInvoice.id}`)} className="text-emerald-600 font-medium hover:underline">{order.invoiceId} ✓</button> : <span className="text-emerald-600 font-medium">{order.invoiceId} ✓</span>}</dd></div>}
                 <div className="flex justify-between"><dt className="text-gray-500">Purchase Orders</dt><dd>{linkedPurchaseOrders.length || '—'}</dd></div>
               </dl>
             </Card>

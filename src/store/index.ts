@@ -186,7 +186,7 @@ export const useStore = create<AppStore>()(
     }),
     {
       name: 'quikquote-storage',
-      version: 3,
+      version: 4,
       migrate: (persistedState) => {
         const state = persistedState as Partial<AppStore> | undefined;
 
