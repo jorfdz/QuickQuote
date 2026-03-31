@@ -445,9 +445,11 @@ export const usePricingStore = create<PricingStore>()(
     }),
     {
       name: 'quikquote-pricing-storage',
-      version: 6,
+      version: 7,
       migrate: () => {
-        // Version bump: overhauled finishing system — added finishing groups, new PricingFinishing shape
+        // Version 7: renamed per_stack_pass→per_stack, passesPerHour→stacksPerHour,
+        // added minimumCharge/isFixedCharge/fixedChargeAmount/fixedChargeCost to finishing,
+        // added isFixedCharge/fixedChargeAmount/fixedChargeCost/minimumCharge/outputPerHour to labor
         return {
           categories: defaultCategories,
           products: defaultProducts,
