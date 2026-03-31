@@ -610,6 +610,9 @@ export const Equipment: React.FC = () => {
           </div>
         )}
 
+        {/* Tab content wrapper — fixed min-height so modal doesn't resize between tabs */}
+        <div className="min-h-[60vh]">
+
         {/* ═══════════ DETAILS TAB ═══════════ */}
         {(modalTab === 'details' || !editingEquipId) && (
           <div className="space-y-4">
@@ -1042,6 +1045,8 @@ export const Equipment: React.FC = () => {
             )}
           </div>
         )}
+
+        </div>{/* end tab content wrapper */}
       </Modal>
     </div>
   );
