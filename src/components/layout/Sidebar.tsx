@@ -49,7 +49,7 @@ export const Sidebar: React.FC = () => {
             </div>
             <div>
               <span className="font-bold text-white text-sm tracking-tight">QuikQuote</span>
-              <p className="text-[9px] text-gray-500 leading-none mt-0.5">V2 3/30/26 9:32PM</p>
+              <p className="text-[9px] text-red-500 leading-none mt-0.5">V2 3/30/26 9:32PM</p>
             </div>
           </div>
         )}
