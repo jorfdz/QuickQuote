@@ -1,21 +1,20 @@
 import React from 'react';
-import { Bell, Plus, Search } from 'lucide-react';
+import { Bell, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store';
+import { GlobalSearch } from './GlobalSearch';
 
 export const Header: React.FC = () => {
   const { sidebarCollapsed } = useStore();
   const navigate = useNavigate();
   
   return (
-    <header className={`fixed top-0 right-0 h-12 bg-white border-b border-gray-100 flex items-center justify-between px-5 z-20 transition-all duration-300 ${sidebarCollapsed ? 'left-16' : 'left-56'}`}>
-      <div className="flex items-center gap-3">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-          <input placeholder="Quick search..." className="pl-8 pr-3 py-1 text-sm bg-gray-50 border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent w-56 placeholder-gray-400" />
-        </div>
+    <header className={`fixed top-0 right-0 h-14 bg-white border-b border-gray-100 grid grid-cols-[minmax(0,1fr)_minmax(320px,720px)_minmax(0,1fr)] items-center gap-4 px-5 z-20 transition-all duration-300 ${sidebarCollapsed ? 'left-16' : 'left-56'}`}>
+      <div />
+      <div className="justify-self-center w-full">
+        <GlobalSearch />
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-end gap-2">
         <button
           onClick={() => navigate('/quotes/new')}
           className="flex items-center gap-1.5 px-3 py-1.5 text-white text-xs font-medium rounded-lg transition-colors" style={{ backgroundColor: '#F890E7' }}

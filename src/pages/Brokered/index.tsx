@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Plus, Trash2, Edit3, Search, Handshake, Info, Copy, X, Building2,
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { useStore } from '../../store';
 import { Button, Card, PageHeader, Table, Modal, Input, Tabs } from '../../components/ui';
@@ -45,6 +46,7 @@ const emptyBrokeredForm = {
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 export const Brokered: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const {
     brokered, addBrokered, updateBrokered, deleteBrokered,
     categories,
@@ -52,7 +54,7 @@ export const Brokered: React.FC = () => {
 
   const { vendors } = useStore();
 
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [filterCategory, setFilterCategory] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);

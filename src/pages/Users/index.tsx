@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Plus, Shield } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../../store';
-import { Button, Card, PageHeader, Table, Modal, Input, Select } from '../../components/ui';
+import { Button, Card, PageHeader, Table, Modal, Input, Select, SearchInput } from '../../components/ui';
 import { formatDate } from '../../data/mockData';
 import type { UserRole } from '../../types';
 
@@ -16,9 +17,15 @@ const ROLES = [
 ];
 
 export const Users: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const { users } = useStore();
   const [showNew, setShowNew] = useState(false);
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [form, setForm] = useState({ name: '', email: '', role: 'csr' as UserRole });
+  const filteredUsers = users.filter((user) => {
+    const q = search.toLowerCase();
+    return !search || user.name.toLowerCase().includes(q) || user.email.toLowerCase().includes(q) || user.role.toLowerCase().includes(q);
+  });
 
   return (
     <div>
@@ -27,9 +34,14 @@ export const Users: React.FC = () => {
       />
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2">
+          <Card className="mb-4">
+            <div className="flex gap-4 px-4 py-3">
+              <SearchInput value={search} onChange={setSearch} placeholder="Search users..." />
+            </div>
+          </Card>
           <Card>
             <Table headers={['Name', 'Email', 'Role', 'Status', 'Joined', '']}>
-              {users.map(u => (
+              {filteredUsers.map(u => (
                 <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-3">
