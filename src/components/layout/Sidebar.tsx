@@ -43,8 +43,8 @@ export const Sidebar: React.FC = () => {
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
         {!sidebarCollapsed && (
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xs">QQ</span>
+            <div className="w-7 h-7 bg-yellow-400 rounded-lg flex items-center justify-center">
+              <span className="text-gray-900 font-bold text-xs">QQ</span>
             </div>
             <div>
               <span className="font-bold text-white text-sm tracking-tight">QuikQuote</span>
@@ -53,8 +53,8 @@ export const Sidebar: React.FC = () => {
           </div>
         )}
         {sidebarCollapsed && (
-          <button onClick={() => setSidebarCollapsed(false)} className="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center mx-auto hover:bg-blue-400 transition-colors" title="Expand sidebar">
-            <span className="text-white font-bold text-xs">QQ</span>
+          <button onClick={() => setSidebarCollapsed(false)} className="w-7 h-7 bg-yellow-400 rounded-lg flex items-center justify-center mx-auto hover:bg-yellow-300 transition-colors" title="Expand sidebar">
+            <span className="text-gray-900 font-bold text-xs">QQ</span>
           </button>
         )}
         {!sidebarCollapsed && (
