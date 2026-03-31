@@ -95,13 +95,10 @@ export const PurchaseOrderDetail: React.FC = () => {
     setReceipts(Object.fromEntries(
       nextItems.map((item) => [item.id, item.receivedQuantity || 0])
     ));
-    updatePurchaseOrder(po.id, {
+    updateStatus(nextStatus, {
       items: nextItems,
-      status: nextStatus,
       receivedDate: nextStatus === 'received' || nextStatus === 'partial' ? now : undefined,
-      updatedAt: now,
     });
-    syncOrderStage(nextStatus);
   };
 
   const openPrintWindow = () => {
@@ -139,7 +136,7 @@ export const PurchaseOrderDetail: React.FC = () => {
             <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />} onClick={openPrintWindow}>Print PDF</Button>
             {po.status === 'draft' && <Button variant="primary" icon={<Send className="w-4 h-4" />} onClick={() => updateStatus('sent')}>Mark Sent</Button>}
             {po.status === 'sent' && <Button variant="primary" icon={<CheckCircle2 className="w-4 h-4" />} onClick={() => updateStatus('acknowledged')}>Acknowledge</Button>}
-            {(po.status === 'sent' || po.status === 'acknowledged' || po.status === 'partial') && <Button variant="success" icon={<PackageCheck className="w-4 h-4" />} onClick={saveReceiving}>Post Receipt</Button>}
+            {(po.status === 'sent' || po.status === 'acknowledged' || po.status === 'partial') && <Button variant="success" icon={<PackageCheck className="w-4 h-4" />} onClick={(e) => { e.preventDefault(); e.stopPropagation(); saveReceiving(); }}>Post Receipt</Button>}
             {po.status === 'canceled' && <Button variant="secondary" icon={<Undo2 className="w-4 h-4" />} onClick={() => updateStatus('draft')}>Reopen</Button>}
             {po.status !== 'received' && po.status !== 'canceled' && <Button variant="danger" icon={<XCircle className="w-4 h-4" />} onClick={() => updateStatus('canceled')}>Cancel</Button>}
           </>
