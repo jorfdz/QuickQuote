@@ -40,13 +40,6 @@ export const PurchaseOrderDetail: React.FC = () => {
 
   if (!po) return <div className="text-center py-16 text-gray-400">Purchase order not found</div>;
 
-  const printHtml = buildPurchaseOrderTemplateHtml({
-    template: documentTemplates.purchaseOrder,
-    company: companySettings,
-    purchaseOrder: po,
-    vendor: vendor || null,
-  });
-
   const syncOrderStage = (status: PurchaseOrder['status']) => {
     if (!linkedOrder) return;
     const nextStageId = getVendorWorkflowStageId(status, workflows, linkedOrder.workflowId);
@@ -93,6 +86,20 @@ export const PurchaseOrderDetail: React.FC = () => {
   };
 
   const openPrintWindow = () => {
+    let printHtml = '';
+
+    try {
+      printHtml = buildPurchaseOrderTemplateHtml({
+        template: documentTemplates.purchaseOrder,
+        company: companySettings,
+        purchaseOrder: po,
+        vendor: vendor || null,
+      });
+    } catch (error) {
+      console.error('Failed to build purchase order print HTML', error);
+      return;
+    }
+
     const blob = new Blob([printHtml], { type: 'text/html' });
     const printUrl = URL.createObjectURL(blob);
     const printWindow = window.open(printUrl, '_blank');
