@@ -356,7 +356,7 @@ export const Equipment: React.FC = () => {
       </Card>
 
       {/* ═══════════════ ADD / EDIT EQUIPMENT MODAL ═══════════════ */}
-      <Modal isOpen={showNewEquip || editingEquipId !== null} onClose={() => { setShowNewEquip(false); setEditingEquipId(null); setImageError(false); }}
+      <Modal isOpen={showNewEquip || editingEquipId !== null} onClose={() => { setShowNewEquip(false); setEditingEquipId(null); }}
         title={editingEquipId ? 'Edit Equipment' : 'Add Equipment'} size="lg">
         <div className="space-y-4">
 
@@ -503,7 +503,7 @@ export const Equipment: React.FC = () => {
           )}
 
           <div className="flex gap-3 justify-end pt-2">
-            <Button variant="secondary" onClick={() => { setShowNewEquip(false); setEditingEquipId(null); setImageError(false); }}>Cancel</Button>
+            <Button variant="secondary" onClick={() => { setShowNewEquip(false); setEditingEquipId(null); }}>Cancel</Button>
             <Button variant="primary" onClick={editingEquipId ? handleSaveEditEquip : handleAddEquip} disabled={!equipForm.name}>
               {editingEquipId ? 'Save Changes' : 'Add Equipment'}
             </Button>
