@@ -3,11 +3,7 @@ import { persist } from 'zustand/middleware';
 import type {
   PricingCategory, PricingProduct, PricingEquipment,
   PricingFinishing, PricingMaterial, ProductPricingTemplate,
-<<<<<<< HEAD
-  EquipmentPricingTier, MaterialGroup, FinishingGroup, PricingLabor, PricingBrokered,
-=======
-  EquipmentPricingTier, MaterialGroup, MaintenanceRecord,PricingLabor, PricingBrokered,
->>>>>>> 643d6dd583b1af20b2f832a0dbde9080601c5303
+  EquipmentPricingTier, MaterialGroup, MaintenanceRecord, FinishingGroup, PricingLabor, PricingBrokered,
 } from '../types/pricing';
 import {
   defaultCategories, defaultProducts, defaultPricingEquipment,
