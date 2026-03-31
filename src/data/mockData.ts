@@ -6,7 +6,7 @@ import type {
 // ─── USERS ───────────────────────────────────────────────────────────────────
 
 export const mockUsers: User[] = [
-  { id: 'u1', name: 'Sarah Mitchell', email: 'sarah@printco.com', role: 'admin', active: true, createdAt: '2024-01-01' },
+  { id: 'u1', name: 'John Mitchell', email: 'john@printco.com', role: 'admin', active: true, createdAt: '2024-01-01' },
   { id: 'u2', name: 'Denise Rivera', email: 'denise@printco.com', role: 'csr', active: true, createdAt: '2024-01-05' },
   { id: 'u3', name: 'Amanda Chen', email: 'amanda@printco.com', role: 'estimator', active: true, createdAt: '2024-01-10' },
   { id: 'u4', name: 'Mike Torres', email: 'mike@printco.com', role: 'production', active: true, createdAt: '2024-02-01' },
