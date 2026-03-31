@@ -1,4 +1,5 @@
 import { formatCurrency, formatDate } from '../data/mockData';
+import { DEFAULT_DOCUMENT_TEMPLATES } from '../data/documentSettings';
 import type { CompanySettings, Contact, Customer, DocumentTemplates, Invoice, PurchaseOrder, Quote, User, Vendor } from '../types';
 
 const escapeHtml = (value: string): string => value
@@ -98,6 +99,7 @@ export const buildQuoteTemplateHtml = ({
   contact: Contact | null;
   assignedUser: User | null;
 }): string => {
+  const effectiveTemplate = template || DEFAULT_DOCUMENT_TEMPLATES.quote;
   const companyAddress = buildCompanyAddress(company);
   const validUntil = quote.validUntil ? formatDate(quote.validUntil) : 'Upon receipt';
   const contactName = contact ? `${contact.firstName} ${contact.lastName}`.trim() : '';
@@ -115,7 +117,7 @@ export const buildQuoteTemplateHtml = ({
     contact?.phone || '',
   ].filter(Boolean).map(escapeHtml).join('<br>');
 
-  return ensureHtmlDocument(replaceTokens(template, {
+  return ensureHtmlDocument(replaceTokens(effectiveTemplate, {
     '{{companyName}}': escapeHtml(company.name),
     '{{companyAddress}}': escapeHtml(companyAddress),
     '{{companyPhone}}': escapeHtml(company.phone),
@@ -148,6 +150,7 @@ export const buildInvoiceTemplateHtml = ({
   customer: Customer | null;
   contact: Contact | null;
 }): string => {
+  const effectiveTemplate = template || DEFAULT_DOCUMENT_TEMPLATES.invoice;
   const companyAddress = buildCompanyAddress(company);
   const dueDate = invoice.dueDate ? formatDate(invoice.dueDate) : 'Upon receipt';
   const contactName = contact ? `${contact.firstName} ${contact.lastName}`.trim() : '';
@@ -161,7 +164,7 @@ export const buildInvoiceTemplateHtml = ({
     contact?.phone || '',
   ].filter(Boolean).map(escapeHtml).join('<br>');
 
-  return ensureHtmlDocument(replaceTokens(template, {
+  return ensureHtmlDocument(replaceTokens(effectiveTemplate, {
     '{{companyName}}': escapeHtml(company.name),
     '{{companyAddress}}': escapeHtml(companyAddress),
     '{{companyPhone}}': escapeHtml(company.phone),
@@ -189,13 +192,14 @@ export const buildPurchaseOrderTemplateHtml = ({
   purchaseOrder: PurchaseOrder;
   vendor: Vendor | null;
 }): string => {
+  const effectiveTemplate = template || DEFAULT_DOCUMENT_TEMPLATES.purchaseOrder;
   const companyAddress = buildCompanyAddress(company);
   const vendorAddress = [
     vendor?.address || '',
     `${[vendor?.city, vendor?.state].filter(Boolean).join(', ')}${vendor?.zip ? ` ${vendor.zip}` : ''}`.trim(),
   ].filter(Boolean).map(escapeHtml).join('<br>');
 
-  return ensureHtmlDocument(replaceTokens(template, {
+  return ensureHtmlDocument(replaceTokens(effectiveTemplate, {
     '{{companyName}}': escapeHtml(company.name),
     '{{companyAddress}}': escapeHtml(companyAddress),
     '{{companyPhone}}': escapeHtml(company.phone),
