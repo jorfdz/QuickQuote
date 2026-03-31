@@ -615,192 +615,207 @@ export const Equipment: React.FC = () => {
 
         {/* ═══════════ DETAILS TAB ═══════════ */}
         {(modalTab === 'details' || !editingEquipId) && (
-          <div className="space-y-4">
-            {/* Photo + Name row */}
-            <div className="flex items-start gap-5">
-              <div className="flex-shrink-0">
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Photo</label>
-                <ImageUploadCropper
-                  value={equipForm.imageUrl || ''}
-                  onChange={(url) => setEquipForm(f => ({ ...f, imageUrl: url }))}
-                  size={80}
-                />
-              </div>
-              <div className="flex-1 grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Equipment Name</label>
-                  <input
-                    value={equipForm.name}
-                    onChange={e => setEquipForm(f => ({ ...f, name: e.target.value }))}
-                    placeholder="e.g. Ricoh 9200"
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+          <div className="space-y-5">
+
+            {/* ── Section 1: Equipment Identity ────────────────────────────────── */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Equipment Identity</h3>
+              <div className="flex items-start gap-5">
+                <div className="flex-shrink-0">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Photo</label>
+                  <ImageUploadCropper
+                    value={equipForm.imageUrl || ''}
+                    onChange={(url) => setEquipForm(f => ({ ...f, imageUrl: url }))}
+                    size={80}
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Category</label>
-                  <select value={equipForm.categoryApplies} onChange={e => setEquipForm(f => ({ ...f, categoryApplies: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                    <option value="Other">Other</option>
-                  </select>
+                <div className="flex-1 grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Equipment Name</label>
+                    <input
+                      value={equipForm.name}
+                      onChange={e => setEquipForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="e.g. Ricoh 9200"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Category</label>
+                    <select value={equipForm.categoryApplies} onChange={e => setEquipForm(f => ({ ...f, categoryApplies: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Color Capability</label>
+                    <select value={equipForm.colorCapability} onChange={e => setEquipForm(f => ({ ...f, colorCapability: e.target.value as any }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="Color and Black">Color and Black</option>
+                      <option value="Color">Color Only</option>
+                      <option value="Black">Black Only</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Pricing configuration */}
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Color Capability</label>
-                <select value={equipForm.colorCapability} onChange={e => setEquipForm(f => ({ ...f, colorCapability: e.target.value as any }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="Color and Black">Color and Black</option>
-                  <option value="Color">Color Only</option>
-                  <option value="Black">Black Only</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost Unit</label>
-                <select value={equipForm.costUnit} onChange={e => {
-                    const newUnit = e.target.value as EquipmentCostUnit;
-                    setEquipForm(f => {
-                      const updates: Partial<typeof f> = { costUnit: newUnit };
-                      const defaultSqftTiers: EquipmentPricingTier[] = [
-                        { minQty: 1, pricePerUnit: 0 },
-                        { minQty: 10, pricePerUnit: 0 },
-                        { minQty: 50, pricePerUnit: 0 },
-                      ];
-                      const defaultClickTiers: EquipmentPricingTier[] = [
-                        { minQty: 1, pricePerUnit: 0 },
-                        { minQty: 25, pricePerUnit: 0 },
-                        { minQty: 50, pricePerUnit: 0 },
-                        { minQty: 250, pricePerUnit: 0 },
-                        { minQty: 500, pricePerUnit: 0 },
-                        { minQty: 1750, pricePerUnit: 0 },
-                        { minQty: 3000, pricePerUnit: 0 },
-                        { minQty: 7500, pricePerUnit: 0 },
-                        { minQty: 10000, pricePerUnit: 0 },
-                      ];
-                      // When switching back to the saved record's original unit, restore its tiers;
-                      // otherwise use defaults for the new unit
-                      const savedUnit = editingEquipment?.costUnit;
-                      if (newUnit === 'per_sqft') {
-                        if (savedUnit === 'per_sqft' && editingEquipment) {
-                          updates.colorTiers = editingEquipment.colorTiers?.map(t => ({ ...t })) || defaultSqftTiers.map(t => ({ ...t }));
-                          updates.blackTiers = editingEquipment.blackTiers?.map(t => ({ ...t })) || defaultSqftTiers.map(t => ({ ...t }));
-                        } else {
-                          updates.colorTiers = defaultSqftTiers.map(t => ({ ...t }));
-                          updates.blackTiers = defaultSqftTiers.map(t => ({ ...t }));
-                        }
-                      } else {
-                        if (savedUnit === 'per_click' && editingEquipment) {
-                          updates.colorTiers = editingEquipment.colorTiers?.map(t => ({ ...t })) || defaultClickTiers.map(t => ({ ...t }));
-                          updates.blackTiers = editingEquipment.blackTiers?.map(t => ({ ...t })) || defaultClickTiers.map(t => ({ ...t }));
-                        } else {
-                          updates.colorTiers = defaultClickTiers.map(t => ({ ...t }));
-                          updates.blackTiers = defaultClickTiers.map(t => ({ ...t }));
-                        }
-                      }
-                      return { ...f, ...updates };
-                    });
-                  }}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="per_click">Per Click</option>
-                  <option value="per_sqft">Per Sq Ft</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost Type</label>
-                <select value={equipForm.costType} onChange={e => setEquipForm(f => ({ ...f, costType: e.target.value as PricingEquipment['costType'] }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="cost_only">Cost Only</option>
-                  <option value="cost_plus_time">Cost + Time</option>
-                  <option value="time_only">Time Only</option>
-                </select>
-              </div>
-            </div>
+            <hr className="border-gray-100" />
 
-            {showUnitCost && (
-              <div className="grid grid-cols-4 gap-4">
-                <Input label="Unit Cost ($)" type="number" value={equipForm.unitCost || ''}
-                  onChange={e => setEquipForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
+            {/* ── Section 2: Pricing Model ─────────────────────────────────────── */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Pricing Model</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost Unit</label>
+                  <select value={equipForm.costUnit} onChange={e => {
+                      const newUnit = e.target.value as EquipmentCostUnit;
+                      setEquipForm(f => {
+                        const updates: Partial<typeof f> = { costUnit: newUnit };
+                        const defaultSqftTiers: EquipmentPricingTier[] = [
+                          { minQty: 1, pricePerUnit: 0 },
+                          { minQty: 10, pricePerUnit: 0 },
+                          { minQty: 50, pricePerUnit: 0 },
+                        ];
+                        const defaultClickTiers: EquipmentPricingTier[] = [
+                          { minQty: 1, pricePerUnit: 0 },
+                          { minQty: 25, pricePerUnit: 0 },
+                          { minQty: 50, pricePerUnit: 0 },
+                          { minQty: 250, pricePerUnit: 0 },
+                          { minQty: 500, pricePerUnit: 0 },
+                          { minQty: 1750, pricePerUnit: 0 },
+                          { minQty: 3000, pricePerUnit: 0 },
+                          { minQty: 7500, pricePerUnit: 0 },
+                          { minQty: 10000, pricePerUnit: 0 },
+                        ];
+                        const savedUnit = editingEquipment?.costUnit;
+                        if (newUnit === 'per_sqft') {
+                          if (savedUnit === 'per_sqft' && editingEquipment) {
+                            updates.colorTiers = editingEquipment.colorTiers?.map(t => ({ ...t })) || defaultSqftTiers.map(t => ({ ...t }));
+                            updates.blackTiers = editingEquipment.blackTiers?.map(t => ({ ...t })) || defaultSqftTiers.map(t => ({ ...t }));
+                          } else {
+                            updates.colorTiers = defaultSqftTiers.map(t => ({ ...t }));
+                            updates.blackTiers = defaultSqftTiers.map(t => ({ ...t }));
+                          }
+                        } else {
+                          if (savedUnit === 'per_click' && editingEquipment) {
+                            updates.colorTiers = editingEquipment.colorTiers?.map(t => ({ ...t })) || defaultClickTiers.map(t => ({ ...t }));
+                            updates.blackTiers = editingEquipment.blackTiers?.map(t => ({ ...t })) || defaultClickTiers.map(t => ({ ...t }));
+                          } else {
+                            updates.colorTiers = defaultClickTiers.map(t => ({ ...t }));
+                            updates.blackTiers = defaultClickTiers.map(t => ({ ...t }));
+                          }
+                        }
+                        return { ...f, ...updates };
+                      });
+                    }}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="per_click">Per Click</option>
+                    <option value="per_sqft">Per Sq Ft</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost Type</label>
+                  <select value={equipForm.costType} onChange={e => setEquipForm(f => ({ ...f, costType: e.target.value as PricingEquipment['costType'] }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="cost_only">Cost Only</option>
+                    <option value="cost_plus_time">Cost + Time</option>
+                    <option value="time_only">Time Only</option>
+                  </select>
+                </div>
                 <Input label="Setup Fee ($)" type="number" value={equipForm.initialSetupFee || ''}
                   onChange={e => setEquipForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Markup Type</label>
-                  <select value={equipForm.markupType} onChange={e => setEquipForm(f => ({ ...f, markupType: e.target.value as PricingEquipment['markupType'] }))}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="multiplier">Multiplier (e.g. 7x)</option>
-                    <option value="percent">Percent (e.g. 70%)</option>
-                  </select>
+              </div>
+            </div>
+
+            <hr className="border-gray-100" />
+
+            {/* ── Section 3: Cost & Markup ─────────────────────────────────────── */}
+            {showUnitCost && (
+              <div>
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Cost & Markup</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <Input label="Unit Cost ($)" type="number" value={equipForm.unitCost || ''}
+                    onChange={e => setEquipForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Markup Type</label>
+                    <select value={equipForm.markupType} onChange={e => setEquipForm(f => ({ ...f, markupType: e.target.value as PricingEquipment['markupType'] }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="multiplier">Multiplier (e.g. 7x)</option>
+                      <option value="percent">Percent (e.g. 70%)</option>
+                    </select>
+                  </div>
+                  <Input
+                    label={equipForm.markupType === 'percent' ? 'Markup %' : 'Markup Multiplier'}
+                    type="number"
+                    value={equipForm.markupMultiplier || ''}
+                    onChange={e => setEquipForm(f => ({ ...f, markupMultiplier: parseFloat(e.target.value) || undefined }))}
+                    placeholder={equipForm.markupType === 'percent' ? 'e.g. 70' : 'e.g. 7'}
+                    suffix={equipForm.markupType === 'percent' ? '%' : 'x'}
+                  />
                 </div>
-                <Input
-                  label={equipForm.markupType === 'percent' ? 'Markup %' : 'Markup Multiplier'}
-                  type="number"
-                  value={equipForm.markupMultiplier || ''}
-                  onChange={e => setEquipForm(f => ({ ...f, markupMultiplier: parseFloat(e.target.value) || undefined }))}
-                  placeholder={equipForm.markupType === 'percent' ? 'e.g. 70' : 'e.g. 7'}
-                  suffix={equipForm.markupType === 'percent' ? '%' : 'x'}
-                />
               </div>
             )}
 
+            {/* ── Section 4: Time-Based Costs ─────────────────────────────────── */}
             {showTimeFields && (
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <div className="flex items-center gap-1 mb-1.5">
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Units/Hour</label>
-                    <div className="group relative">
-                      <Info className="w-3 h-3 text-gray-400" />
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                        Units = sheets or pieces ran through equipment
+              <div>
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Time-Based Costs</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <div className="flex items-center gap-1 mb-1.5">
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Units/Hour</label>
+                      <div className="group relative">
+                        <Info className="w-3 h-3 text-gray-400" />
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                          Units = sheets or pieces ran through equipment
+                        </div>
                       </div>
                     </div>
+                    <input type="number" value={equipForm.unitsPerHour || ''} onChange={e => setEquipForm(f => ({ ...f, unitsPerHour: parseInt(e.target.value) || undefined }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
-                  <input type="number" value={equipForm.unitsPerHour || ''} onChange={e => setEquipForm(f => ({ ...f, unitsPerHour: parseInt(e.target.value) || undefined }))}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <Input label="Time Cost/Hour ($)" type="number" value={equipForm.timeCostPerHour || ''}
+                    onChange={e => setEquipForm(f => ({ ...f, timeCostPerHour: parseFloat(e.target.value) || undefined }))} prefix="$" />
+                  <Input label="Time Cost Markup %" type="number" value={equipForm.timeCostMarkup || ''}
+                    onChange={e => setEquipForm(f => ({ ...f, timeCostMarkup: parseFloat(e.target.value) || undefined }))} suffix="%" />
                 </div>
-                <Input label="Time Cost/Hour ($)" type="number" value={equipForm.timeCostPerHour || ''}
-                  onChange={e => setEquipForm(f => ({ ...f, timeCostPerHour: parseFloat(e.target.value) || undefined }))} prefix="$" />
-                <Input label="Time Cost Markup %" type="number" value={equipForm.timeCostMarkup || ''}
-                  onChange={e => setEquipForm(f => ({ ...f, timeCostMarkup: parseFloat(e.target.value) || undefined }))} suffix="%" />
               </div>
             )}
 
-            {!showUnitCost && (
-              <div className="grid grid-cols-3 gap-4">
-                <Input label="Setup Fee ($)" type="number" value={equipForm.initialSetupFee || ''}
-                  onChange={e => setEquipForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
-              </div>
-            )}
+            {(showUnitCost || showTimeFields) && <hr className="border-gray-100" />}
 
-            {/* Tier editors — shown for both per_click and per_sqft, driven by color capability */}
+            {/* ── Section 5: Volume Pricing Tiers ─────────────────────────────── */}
             {showUnitCost && (
-              <div className={`grid gap-4 ${
-                equipForm.colorCapability === 'Color and Black' ? 'grid-cols-2' : 'grid-cols-1'
-              }`}>
-                {(equipForm.colorCapability === 'Color' || equipForm.colorCapability === 'Color and Black') && (
-                  <TierEditor
-                    label={equipForm.costUnit === 'per_sqft' ? 'Color Tiers (per Sq Ft)' : 'Color Tiers (per Click)'}
-                    tiers={equipForm.colorTiers}
-                    onChange={tiers => setEquipForm(f => ({ ...f, colorTiers: tiers }))}
-                    qtyLabel={equipForm.costUnit === 'per_sqft' ? 'Min Sq Ft' : 'Min Qty'}
-                    priceLabel={equipForm.costUnit === 'per_sqft' ? '$/sq ft' : '$/click'}
-                  />
-                )}
-                {(equipForm.colorCapability === 'Black' || equipForm.colorCapability === 'Color and Black') && (
-                  <TierEditor
-                    label={equipForm.costUnit === 'per_sqft' ? 'Black Tiers (per Sq Ft)' : 'Black Tiers (per Click)'}
-                    tiers={equipForm.blackTiers}
-                    onChange={tiers => setEquipForm(f => ({ ...f, blackTiers: tiers }))}
-                    qtyLabel={equipForm.costUnit === 'per_sqft' ? 'Min Sq Ft' : 'Min Qty'}
-                    priceLabel={equipForm.costUnit === 'per_sqft' ? '$/sq ft' : '$/click'}
-                  />
-                )}
+              <div>
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Volume Pricing Tiers</h3>
+                <div className={`grid gap-4 ${
+                  equipForm.colorCapability === 'Color and Black' ? 'grid-cols-2' : 'grid-cols-1'
+                }`}>
+                  {(equipForm.colorCapability === 'Color' || equipForm.colorCapability === 'Color and Black') && (
+                    <TierEditor
+                      label={equipForm.costUnit === 'per_sqft' ? 'Color Tiers (per Sq Ft)' : 'Color Tiers (per Click)'}
+                      tiers={equipForm.colorTiers}
+                      onChange={tiers => setEquipForm(f => ({ ...f, colorTiers: tiers }))}
+                      qtyLabel={equipForm.costUnit === 'per_sqft' ? 'Min Sq Ft' : 'Min Qty'}
+                      priceLabel={equipForm.costUnit === 'per_sqft' ? '$/sq ft' : '$/click'}
+                    />
+                  )}
+                  {(equipForm.colorCapability === 'Black' || equipForm.colorCapability === 'Color and Black') && (
+                    <TierEditor
+                      label={equipForm.costUnit === 'per_sqft' ? 'Black Tiers (per Sq Ft)' : 'Black Tiers (per Click)'}
+                      tiers={equipForm.blackTiers}
+                      onChange={tiers => setEquipForm(f => ({ ...f, blackTiers: tiers }))}
+                      qtyLabel={equipForm.costUnit === 'per_sqft' ? 'Min Sq Ft' : 'Min Qty'}
+                      priceLabel={equipForm.costUnit === 'per_sqft' ? '$/sq ft' : '$/click'}
+                    />
+                  )}
+                </div>
               </div>
             )}
 
-            {/* Save / Cancel */}
-            <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
+            {/* ── Save / Cancel ───────────────────────────────────────────────── */}
+            <div className="flex gap-3 justify-end pt-3 border-t border-gray-100">
               <Button variant="secondary" onClick={handleCloseModal}>Cancel</Button>
               <Button variant="primary" onClick={editingEquipId ? handleSaveEditEquip : handleAddEquip} disabled={!equipForm.name}>
                 {editingEquipId ? 'Save Changes' : 'Add Equipment'}
