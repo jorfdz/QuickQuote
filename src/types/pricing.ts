@@ -88,6 +88,39 @@ export interface PricingFinishing {
   createdAt: string;
 }
 
+// ─── LABOR SERVICES ────────────────────────────────────────────────────────
+
+export interface PricingLabor {
+  id: string;
+  name: string;                    // e.g. "Graphic Design", "Installation", "Manual Assembly"
+  description?: string;
+  hourlyCost: number;              // $ per hour
+  initialSetupFee: number;         // one-time setup fee
+  markupPercent: number;           // markup as percentage
+  categoryIds: string[];           // which categories this labor applies to
+  notes?: string;
+  createdAt: string;
+}
+
+// ─── BROKERED SERVICES ─────────────────────────────────────────────────────
+
+export type BrokeredCostBasis = 'per_unit' | 'per_sqft' | 'per_linear_ft' | 'flat';
+
+export interface PricingBrokered {
+  id: string;
+  name: string;                    // e.g. "Banners", "Embroidery", "Vehicle Wrap Install"
+  description?: string;
+  costBasis: BrokeredCostBasis;    // how cost is calculated
+  unitCost: number;                // cost per unit/sqft/linearft/flat
+  initialSetupFee: number;         // setup fee
+  markupPercent: number;           // markup as percentage
+  vendorId?: string;               // linked vendor
+  vendorName?: string;             // cached vendor name
+  categoryIds: string[];           // which categories this applies to
+  notes?: string;
+  createdAt: string;
+}
+
 // ─── MATERIALS ──────────────────────────────────────────────────────────────
 
 export interface PricingMaterial {
