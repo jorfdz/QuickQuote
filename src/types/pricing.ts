@@ -195,15 +195,55 @@ export interface MaterialChangeRecord {
   timestamp: string;
 }
 
+// ─── MATERIAL TYPES & PRICING MODELS ────────────────────────────────────────
+
+export type MaterialType = 'paper' | 'roll_media' | 'rigid_substrate' | 'blanks';
+
+export type MaterialPricingModel =
+  | 'cost_per_m'          // Cost per 1,000 (paper, rigid, blanks)
+  | 'cost_per_unit'       // Cost per single unit (paper, rigid, blanks)
+  | 'cost_per_sqft'       // Cost per square foot (roll media, rigid)
+  | 'roll_cost_length';   // Cost of roll + length -> system derives $/sqft (roll media only)
+
+export const MATERIAL_TYPE_LABELS: Record<MaterialType, string> = {
+  paper: 'Paper',
+  roll_media: 'Roll Media',
+  rigid_substrate: 'Rigid Substrate',
+  blanks: 'Blanks',
+};
+
+export const PRICING_MODEL_LABELS: Record<MaterialPricingModel, string> = {
+  cost_per_m: 'Cost per Thousand',
+  cost_per_unit: 'Cost per Unit',
+  cost_per_sqft: 'Cost per Square Foot',
+  roll_cost_length: 'Cost of Roll + Length',
+};
+
+/** Which pricing models are available for each material type */
+export const MATERIAL_TYPE_PRICING_MODELS: Record<MaterialType, MaterialPricingModel[]> = {
+  paper:            ['cost_per_m', 'cost_per_unit'],
+  roll_media:       ['cost_per_sqft', 'roll_cost_length'],
+  rigid_substrate:  ['cost_per_m', 'cost_per_unit', 'cost_per_sqft'],
+  blanks:           ['cost_per_unit', 'cost_per_m'],
+};
+
 // ─── MATERIALS ──────────────────────────────────────────────────────────────
 
 export interface PricingMaterial {
   id: string;
+  materialType: MaterialType;       // paper | roll_media | rigid_substrate | blanks
   name: string;
   size: string;                    // display string e.g. "13x19"
-  sizeWidth: number;               // inches (parsed)
-  sizeHeight: number;              // inches (parsed)
-  pricePerM: number;               // price per 1,000 sheets
+  sizeWidth: number;               // inches — used by paper, roll_media, rigid_substrate
+  sizeHeight: number;              // inches — used by paper, rigid_substrate
+  // Pricing model
+  pricingModel: MaterialPricingModel;  // which pricing method to use
+  pricePerM: number;               // price per 1,000 (when pricingModel = 'cost_per_m')
+  costPerUnit?: number;            // cost per unit (when pricingModel = 'cost_per_unit')
+  costPerSqft?: number;            // cost per sqft (when pricingModel = 'cost_per_sqft')
+  rollCost?: number;               // full roll cost (when pricingModel = 'roll_cost_length')
+  rollLength?: number;             // roll length in feet (when pricingModel = 'roll_cost_length')
+  minimumCharge: number;           // minimum charge floor — 0 means no minimum
   markup: number;                  // percentage markup (70 = 70%)
   materialGroupIds: string[];       // which material groups it belongs to
   categoryIds: string[];           // direct product-category assignments

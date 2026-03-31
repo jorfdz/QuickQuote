@@ -4,20 +4,29 @@ import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Modal, Input, Checkbox } from '../../components/ui';
 import { ImageUploadCropper } from '../../components/ui/ImageUploadCropper';
-import type { PricingMaterial, MaterialGroup, MaterialChangeRecord } from '../../types/pricing';
+import type { PricingMaterial, MaterialGroup, MaterialChangeRecord, MaterialType, MaterialPricingModel } from '../../types/pricing';
+import { MATERIAL_TYPE_LABELS, PRICING_MODEL_LABELS, MATERIAL_TYPE_PRICING_MODELS } from '../../types/pricing';
+import { getUnitCost, getUnitLabel, getUnitSell } from '../../utils/materialCost';
 
 // ─── Sort / Pagination types ────────────────────────────────────────────────
 
-type SortColumn = 'name' | 'group' | 'size' | 'sizeWidth' | 'sizeHeight' | 'pricePerM' | 'costPerSheet' | 'markup' | 'sellPerSheet' | 'vendor';
+type SortColumn = 'name' | 'materialType' | 'group' | 'size' | 'sizeWidth' | 'sizeHeight' | 'unitCost' | 'markup' | 'unitSell' | 'vendor';
 type SortDir = 'asc' | 'desc';
 type PageSize = 50 | 100 | 200;
 
 const emptyForm = {
+  materialType: 'paper' as MaterialType,
   name: '',
   size: '',
   sizeWidth: 0,
   sizeHeight: 0,
+  pricingModel: 'cost_per_m' as MaterialPricingModel,
   pricePerM: 0,
+  costPerUnit: 0,
+  costPerSqft: 0,
+  rollCost: 0,
+  rollLength: 0,
+  minimumCharge: 0,
   markup: 70,
   materialGroupIds: [] as string[],
   categoryIds: [] as string[],
@@ -57,10 +66,11 @@ export const Materials: React.FC = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   // Filters
-  const sizeGroups = Array.from(new Set(materials.map(m => m.size))).sort();
+  const sizeGroups = Array.from(new Set(materials.map(m => m.size).filter(Boolean))).sort();
   const [sizeFilter, setSizeFilter] = useState('all');
   const [groupFilter, setGroupFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState<MaterialType | 'all'>('all');
 
   // Vendor filter
   const vendorNames = useMemo(() =>
@@ -192,39 +202,39 @@ export const Materials: React.FC = () => {
     return materials.filter(m => {
       const matchSearch = !search
         || m.name.toLowerCase().includes(q)
-        || m.size.toLowerCase().includes(q)
+        || (m.size && m.size.toLowerCase().includes(q))
         || (m.vendorName && m.vendorName.toLowerCase().includes(q))
         || (m.vendorId && m.vendorId.toLowerCase().includes(q))
         || (m.vendorMaterialId && m.vendorMaterialId.toLowerCase().includes(q))
         || (m.vendorContactName && m.vendorContactName.toLowerCase().includes(q))
-        || (m.vendorSalesRep && m.vendorSalesRep.toLowerCase().includes(q));
+        || (m.vendorSalesRep && m.vendorSalesRep.toLowerCase().includes(q))
+        || (MATERIAL_TYPE_LABELS[m.materialType] || '').toLowerCase().includes(q);
       const matchSize = sizeFilter === 'all' || m.size === sizeFilter;
       const matchGroup = groupFilter === 'all' || (m.materialGroupIds && m.materialGroupIds.includes(groupFilter));
       const matchCategory = !groupIdsForCategory || (m.materialGroupIds && m.materialGroupIds.some(gid => groupIdsForCategory.includes(gid)));
       const matchVendor = vendorFilter === 'all' || m.vendorName === vendorFilter;
       const matchFav = favFilter === 'all' || m.isFavorite;
-      return matchSearch && matchSize && matchGroup && matchCategory && matchVendor && matchFav;
+      const matchType = typeFilter === 'all' || (m.materialType || 'paper') === typeFilter;
+      return matchSearch && matchSize && matchGroup && matchCategory && matchVendor && matchFav && matchType;
     });
-  }, [materials, search, sizeFilter, groupFilter, groupIdsForCategory, vendorFilter, favFilter]);
+  }, [materials, search, sizeFilter, groupFilter, groupIdsForCategory, vendorFilter, favFilter, typeFilter]);
 
   // Sorting
   const sorted = useMemo(() => {
     if (!sortCol) return filtered;
     const dir = sortDir === 'asc' ? 1 : -1;
-    const _costPerSheet = (m: PricingMaterial) => m.pricePerM / 1000;
-    const _sellPerSheet = (m: PricingMaterial) => _costPerSheet(m) * (1 + m.markup / 100);
     return [...filtered].sort((a, b) => {
       let cmp = 0;
       switch (sortCol) {
-        case 'name':        cmp = a.name.localeCompare(b.name); break;
+        case 'name':         cmp = a.name.localeCompare(b.name); break;
+        case 'materialType': cmp = (a.materialType || 'paper').localeCompare(b.materialType || 'paper'); break;
         case 'group':        cmp = (getGroupNames(a.materialGroupIds)).localeCompare(getGroupNames(b.materialGroupIds)); break;
-        case 'size':         cmp = a.size.localeCompare(b.size); break;
+        case 'size':         cmp = (a.size || '').localeCompare(b.size || ''); break;
         case 'sizeWidth':    cmp = a.sizeWidth - b.sizeWidth; break;
         case 'sizeHeight':   cmp = a.sizeHeight - b.sizeHeight; break;
-        case 'pricePerM':    cmp = a.pricePerM - b.pricePerM; break;
-        case 'costPerSheet': cmp = _costPerSheet(a) - _costPerSheet(b); break;
+        case 'unitCost':     cmp = getUnitCost(a) - getUnitCost(b); break;
         case 'markup':       cmp = a.markup - b.markup; break;
-        case 'sellPerSheet': cmp = _sellPerSheet(a) - _sellPerSheet(b); break;
+        case 'unitSell':     cmp = getUnitSell(a) - getUnitSell(b); break;
         case 'vendor':       cmp = (a.vendorName || '').localeCompare(b.vendorName || ''); break;
       }
       return cmp * dir;
@@ -241,7 +251,7 @@ export const Materials: React.FC = () => {
 
   // Reset to page 1 when filters / sort change
   const prevFilterKey = useRef('');
-  const filterKey = `${search}|${sizeFilter}|${groupFilter}|${categoryFilter}|${vendorFilter}|${favFilter}|${sortCol}|${sortDir}|${pageSize}`;
+  const filterKey = `${search}|${sizeFilter}|${groupFilter}|${categoryFilter}|${vendorFilter}|${favFilter}|${typeFilter}|${sortCol}|${sortDir}|${pageSize}`;
   if (filterKey !== prevFilterKey.current) {
     prevFilterKey.current = filterKey;
     if (currentPage !== 1) setCurrentPage(1);
@@ -311,13 +321,22 @@ export const Materials: React.FC = () => {
 
   const handleAdd = () => {
     if (!form.name) return;
-    const sizeStr = form.size || `${form.sizeWidth}x${form.sizeHeight}`;
+    const sizeStr = form.materialType === 'blanks' ? '' :
+      form.materialType === 'roll_media' ? `${form.sizeWidth}` :
+      form.size || `${form.sizeWidth}x${form.sizeHeight}`;
     addMaterial({
+      materialType: form.materialType,
       name: form.name,
       size: sizeStr,
       sizeWidth: form.sizeWidth,
       sizeHeight: form.sizeHeight,
+      pricingModel: form.pricingModel,
       pricePerM: form.pricePerM,
+      costPerUnit: form.costPerUnit || undefined,
+      costPerSqft: form.costPerSqft || undefined,
+      rollCost: form.rollCost || undefined,
+      rollLength: form.rollLength || undefined,
+      minimumCharge: form.minimumCharge,
       markup: form.markup,
       materialGroupIds: form.materialGroupIds,
       categoryIds: form.categoryIds,
@@ -341,11 +360,18 @@ export const Materials: React.FC = () => {
   const handleStartEdit = (m: PricingMaterial) => {
     setEditingId(m.id);
     setForm({
+      materialType: m.materialType || 'paper',
       name: m.name,
       size: m.size,
       sizeWidth: m.sizeWidth,
       sizeHeight: m.sizeHeight,
+      pricingModel: m.pricingModel || 'cost_per_m',
       pricePerM: m.pricePerM,
+      costPerUnit: m.costPerUnit || 0,
+      costPerSqft: m.costPerSqft || 0,
+      rollCost: m.rollCost || 0,
+      rollLength: m.rollLength || 0,
+      minimumCharge: m.minimumCharge || 0,
       markup: m.markup,
       materialGroupIds: m.materialGroupIds || [],
       categoryIds: m.categoryIds || [],
@@ -368,13 +394,22 @@ export const Materials: React.FC = () => {
 
   const handleSaveEdit = () => {
     if (!editingId) return;
-    const sizeStr = form.size || `${form.sizeWidth}x${form.sizeHeight}`;
+    const sizeStr = form.materialType === 'blanks' ? '' :
+      form.materialType === 'roll_media' ? `${form.sizeWidth}` :
+      form.size || `${form.sizeWidth}x${form.sizeHeight}`;
     updateMaterial(editingId, {
+      materialType: form.materialType,
       name: form.name,
       size: sizeStr,
       sizeWidth: form.sizeWidth,
       sizeHeight: form.sizeHeight,
+      pricingModel: form.pricingModel,
       pricePerM: form.pricePerM,
+      costPerUnit: form.costPerUnit || undefined,
+      costPerSqft: form.costPerSqft || undefined,
+      rollCost: form.rollCost || undefined,
+      rollLength: form.rollLength || undefined,
+      minimumCharge: form.minimumCharge,
       markup: form.markup,
       materialGroupIds: form.materialGroupIds,
       categoryIds: form.categoryIds,
@@ -397,11 +432,18 @@ export const Materials: React.FC = () => {
   const handleClone = (m: PricingMaterial) => {
     setEditingId(null);
     setForm({
+      materialType: m.materialType || 'paper',
       name: `Clone of ${m.name}`,
       size: m.size,
       sizeWidth: m.sizeWidth,
       sizeHeight: m.sizeHeight,
+      pricingModel: m.pricingModel || 'cost_per_m',
       pricePerM: m.pricePerM,
+      costPerUnit: m.costPerUnit || 0,
+      costPerSqft: m.costPerSqft || 0,
+      rollCost: m.rollCost || 0,
+      rollLength: m.rollLength || 0,
+      minimumCharge: m.minimumCharge || 0,
       markup: m.markup,
       materialGroupIds: m.materialGroupIds || [],
       categoryIds: m.categoryIds || [],
@@ -442,8 +484,6 @@ export const Materials: React.FC = () => {
   };
 
   const formatCurrency = (n: number) => `$${n.toFixed(2)}`;
-  const costPerSheet = (m: PricingMaterial) => m.pricePerM / 1000;
-  const sellPerSheet = (m: PricingMaterial) => costPerSheet(m) * (1 + m.markup / 100);
 
   // ── Change History helpers ──
   const formatChangeValue = useCallback((field: string, value: unknown): string => {
@@ -461,7 +501,10 @@ export const Materials: React.FC = () => {
     if (field === 'materialGroupIds') {
       return (value as string[]).map(id => materialGroups.find(g => g.id === id)?.name || id).join(', ');
     }
-    if (field === 'pricePerM') return `$${Number(value).toFixed(2)}`;
+    if (field === 'materialType') return MATERIAL_TYPE_LABELS[value as MaterialType] || String(value);
+    if (field === 'pricingModel') return PRICING_MODEL_LABELS[value as MaterialPricingModel] || String(value);
+    if (field === 'pricePerM' || field === 'costPerUnit' || field === 'costPerSqft' || field === 'rollCost' || field === 'minimumCharge') return `$${Number(value).toFixed(2)}`;
+    if (field === 'rollLength') return `${value} ft`;
     if (field === 'markup') return `${value}%`;
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
     return String(value);
@@ -553,6 +596,16 @@ export const Materials: React.FC = () => {
             />
           </div>
           <select
+            value={typeFilter}
+            onChange={e => setTypeFilter(e.target.value as MaterialType | 'all')}
+            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Types</option>
+            {(['paper', 'roll_media', 'rigid_substrate', 'blanks'] as MaterialType[]).map(t => (
+              <option key={t} value={t}>{MATERIAL_TYPE_LABELS[t]}</option>
+            ))}
+          </select>
+          <select
             value={sizeFilter}
             onChange={e => setSizeFilter(e.target.value)}
             className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -616,16 +669,16 @@ export const Materials: React.FC = () => {
               <tr className="border-b border-gray-100">
                 <th className="text-left py-2.5 px-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-8"></th>
                 {([
-                  ['name',        'Material Name'],
-                  ['group',       'Group'],
-                  ['vendor',      'Vendor'],
-                  ['size',        'Sheet Size'],
-                  ['sizeWidth',   'W'],
-                  ['sizeHeight',  'H'],
-                  ['pricePerM',   'Price/M'],
-                  ['costPerSheet','Cost/Sheet'],
-                  ['markup',      'Markup %'],
-                  ['sellPerSheet','Sell/Sheet'],
+                  ['name',         'Material Name'],
+                  ['materialType', 'Type'],
+                  ['group',        'Group'],
+                  ['vendor',       'Vendor'],
+                  ['size',         'Size'],
+                  ['sizeWidth',    'W'],
+                  ['sizeHeight',   'H'],
+                  ['unitCost',     'Unit Cost'],
+                  ['markup',       'Markup %'],
+                  ['unitSell',     'Sell Price'],
                 ] as [SortColumn, string][]).map(([col, label]) => (
                   <th
                     key={col}
@@ -701,15 +754,24 @@ export const Materials: React.FC = () => {
                       <p className="text-sm font-semibold text-gray-900">{m.name}</p>
                     </div>
                   </td>
+                  <td className="py-3 px-4">
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
+                      (m.materialType || 'paper') === 'paper' ? 'bg-blue-50 text-blue-700' :
+                      m.materialType === 'roll_media' ? 'bg-emerald-50 text-emerald-700' :
+                      m.materialType === 'rigid_substrate' ? 'bg-orange-50 text-orange-700' :
+                      'bg-purple-50 text-purple-700'
+                    }`}>
+                      {MATERIAL_TYPE_LABELS[m.materialType || 'paper']}
+                    </span>
+                  </td>
                   <td className="py-3 px-4 text-sm text-gray-500">{getGroupNames(m.materialGroupIds)}</td>
                   <td className="py-3 px-4 text-sm text-gray-500 truncate max-w-[120px]" title={m.vendorName || '--'}>{m.vendorName || '--'}</td>
-                  <td className="py-3 px-4 text-sm text-gray-600 font-medium">{m.size}</td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{m.sizeWidth}"</td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{m.sizeHeight}"</td>
-                  <td className="py-3 px-4 text-sm text-gray-700 font-medium">{formatCurrency(m.pricePerM)}</td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{formatCurrency(costPerSheet(m))}</td>
+                  <td className="py-3 px-4 text-sm text-gray-600 font-medium">{m.materialType === 'blanks' ? '--' : m.materialType === 'roll_media' ? `${m.sizeWidth}" wide` : m.size || '--'}</td>
+                  <td className="py-3 px-4 text-sm text-gray-500">{m.materialType === 'blanks' ? '--' : `${m.sizeWidth}"`}</td>
+                  <td className="py-3 px-4 text-sm text-gray-500">{m.materialType === 'blanks' || m.materialType === 'roll_media' ? '--' : `${m.sizeHeight}"`}</td>
+                  <td className="py-3 px-4 text-sm text-gray-700 font-medium">{formatCurrency(getUnitCost(m))}<span className="text-[10px] text-gray-400 ml-0.5">{getUnitLabel(m)}</span></td>
                   <td className="py-3 px-4 text-sm text-gray-500">{m.markup}%</td>
-                  <td className="py-3 px-4 text-sm font-bold text-blue-700">{formatCurrency(sellPerSheet(m))}</td>
+                  <td className="py-3 px-4 text-sm font-bold text-blue-700">{formatCurrency(getUnitSell(m))}<span className="text-[10px] text-gray-400 ml-0.5">{getUnitLabel(m)}</span></td>
                   <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-1">
                       <button onClick={() => handleStartEdit(m)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
@@ -1386,27 +1448,139 @@ export const Materials: React.FC = () => {
             );
           })()}
 
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Sheet Size</label>
-              <input value={form.size} onChange={e => parseSizeInput(e.target.value)}
-                placeholder="e.g. 13x19"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <p className="text-[10px] text-gray-400 mt-1">Type "13x19" to auto-fill W/H</p>
+          {/* ── Material Type selector ── */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Material Type</label>
+            <div className="grid grid-cols-4 gap-2">
+              {(['paper', 'roll_media', 'rigid_substrate', 'blanks'] as MaterialType[]).map(type => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => {
+                    const allowedModels = MATERIAL_TYPE_PRICING_MODELS[type];
+                    setForm(f => ({
+                      ...f,
+                      materialType: type,
+                      pricingModel: allowedModels.includes(f.pricingModel) ? f.pricingModel : allowedModels[0],
+                      ...(type === 'blanks' ? { sizeWidth: 0, sizeHeight: 0, size: '' } : {}),
+                      ...(type === 'roll_media' ? { sizeHeight: 0, size: '' } : {}),
+                    }));
+                  }}
+                  className={`px-3 py-2.5 text-sm rounded-lg border-2 transition-all ${
+                    form.materialType === type
+                      ? 'border-blue-600 bg-blue-50 text-blue-700 font-semibold shadow-sm'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {MATERIAL_TYPE_LABELS[type]}
+                </button>
+              ))}
             </div>
-            <Input label="Width (in)" type="number" value={form.sizeWidth || ''} onChange={e => setForm(f => ({ ...f, sizeWidth: parseFloat(e.target.value) || 0 }))} />
-            <Input label="Height (in)" type="number" value={form.sizeHeight || ''} onChange={e => setForm(f => ({ ...f, sizeHeight: parseFloat(e.target.value) || 0 }))} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Price per M (per 1,000 sheets)" type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
-            <Input label="Markup %" type="number" value={form.markup} onChange={e => setForm(f => ({ ...f, markup: parseFloat(e.target.value) || 0 }))} suffix="%" />
-          </div>
-          {form.pricePerM > 0 && (
-            <div className="bg-gray-50 rounded-lg p-3 text-sm">
-              <div className="flex justify-between"><span className="text-gray-500">Cost/sheet:</span><span className="font-medium">{formatCurrency(form.pricePerM / 1000)}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Sell/sheet:</span><span className="font-bold text-blue-700">{formatCurrency((form.pricePerM / 1000) * (1 + form.markup / 100))}</span></div>
+
+          {/* ── Dimensions (conditional by type) ── */}
+          {form.materialType !== 'blanks' && (
+            <div className={`grid gap-4 ${form.materialType === 'roll_media' ? 'grid-cols-1 max-w-xs' : 'grid-cols-3'}`}>
+              {form.materialType !== 'roll_media' && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Sheet Size</label>
+                  <input value={form.size} onChange={e => parseSizeInput(e.target.value)}
+                    placeholder="e.g. 13x19"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <p className="text-[10px] text-gray-400 mt-1">Type "13x19" to auto-fill W/H</p>
+                </div>
+              )}
+              <Input label={form.materialType === 'roll_media' ? 'Roll Width (in)' : 'Width (in)'} type="number" value={form.sizeWidth || ''} onChange={e => setForm(f => ({ ...f, sizeWidth: parseFloat(e.target.value) || 0 }))} />
+              {form.materialType !== 'roll_media' && (
+                <Input label="Height (in)" type="number" value={form.sizeHeight || ''} onChange={e => setForm(f => ({ ...f, sizeHeight: parseFloat(e.target.value) || 0 }))} />
+              )}
             </div>
           )}
+
+          {/* ── Pricing Model selector ── */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Pricing Model</label>
+            <div className="flex gap-2 flex-wrap">
+              {MATERIAL_TYPE_PRICING_MODELS[form.materialType].map(model => (
+                <button
+                  key={model}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, pricingModel: model }))}
+                  className={`px-3 py-2 text-sm rounded-lg border-2 transition-all ${
+                    form.pricingModel === model
+                      ? 'border-blue-600 bg-blue-50 text-blue-700 font-semibold shadow-sm'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {PRICING_MODEL_LABELS[model]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Price inputs (conditional by pricing model) ── */}
+          <div className="grid grid-cols-3 gap-4">
+            {form.pricingModel === 'cost_per_m' && (
+              <Input label="Price per M (per 1,000)" type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
+            )}
+            {form.pricingModel === 'cost_per_unit' && (
+              <Input label="Cost per Unit" type="number" value={form.costPerUnit || ''} onChange={e => setForm(f => ({ ...f, costPerUnit: parseFloat(e.target.value) || 0 }))} prefix="$" />
+            )}
+            {form.pricingModel === 'cost_per_sqft' && (
+              <Input label="Cost per Square Foot" type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
+            )}
+            {form.pricingModel === 'roll_cost_length' && (
+              <>
+                <Input label="Cost of Roll" type="number" value={form.rollCost || ''} onChange={e => setForm(f => ({ ...f, rollCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                <Input label="Roll Length (ft)" type="number" value={form.rollLength || ''} onChange={e => setForm(f => ({ ...f, rollLength: parseFloat(e.target.value) || 0 }))} suffix="ft" />
+              </>
+            )}
+            <Input label="Markup %" type="number" value={form.markup} onChange={e => setForm(f => ({ ...f, markup: parseFloat(e.target.value) || 0 }))} suffix="%" />
+          </div>
+
+          {/* ── Minimum Charge ── */}
+          <div className="max-w-xs">
+            <Input label="Minimum Charge" type="number" value={form.minimumCharge || ''} onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))} prefix="$" />
+            <p className="text-[10px] text-gray-400 mt-1">If calculated cost is below this amount, this amount will be charged instead. Leave at 0 for no minimum.</p>
+          </div>
+
+          {/* ── Live cost preview ── */}
+          {(() => {
+            // Build a preview object to compute costs
+            const preview = { ...form, materialType: form.materialType || 'paper', pricingModel: form.pricingModel || 'cost_per_m' } as PricingMaterial;
+            const cost = getUnitCost(preview);
+            const label = getUnitLabel(preview);
+            const sell = cost * (1 + (form.markup || 0) / 100);
+            const showPreview = cost > 0 || (form.pricingModel === 'roll_cost_length' && form.rollCost > 0 && form.rollLength > 0 && form.sizeWidth > 0);
+            if (!showPreview) return null;
+            const derivedSqft = form.pricingModel === 'roll_cost_length' && form.rollLength > 0 && form.sizeWidth > 0
+              ? form.rollCost / (form.rollLength * (form.sizeWidth / 12))
+              : null;
+            return (
+              <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
+                {derivedSqft !== null && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Derived cost/sqft:</span>
+                    <span className="font-medium">{formatCurrency(derivedSqft)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Cost{label}:</span>
+                  <span className="font-medium">{formatCurrency(cost)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Sell{label}:</span>
+                  <span className="font-bold text-blue-700">{formatCurrency(sell)}</span>
+                </div>
+                {form.minimumCharge > 0 && (
+                  <div className="flex justify-between border-t border-gray-200 mt-1 pt-1">
+                    <span className="text-gray-500">Min Charge:</span>
+                    <span className="font-medium text-orange-600">{formatCurrency(form.minimumCharge)}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
         </div>}
 
@@ -1441,7 +1615,11 @@ export const Materials: React.FC = () => {
         {/* Save / Cancel buttons (visible on all tabs) */}
         <div className="flex gap-3 justify-end pt-4 border-t border-gray-100 mt-4">
           <Button variant="secondary" onClick={() => { setShowNew(false); setEditingId(null); }}>Cancel</Button>
-          <Button variant="primary" onClick={editingId ? handleSaveEdit : handleAdd} disabled={!form.name || form.sizeWidth <= 0 || form.sizeHeight <= 0}>
+          <Button variant="primary" onClick={editingId ? handleSaveEdit : handleAdd} disabled={
+            !form.name ||
+            ((form.materialType === 'paper' || form.materialType === 'rigid_substrate') && (form.sizeWidth <= 0 || form.sizeHeight <= 0)) ||
+            (form.materialType === 'roll_media' && form.sizeWidth <= 0)
+          }>
             {editingId ? 'Save Changes' : 'Add Material'}
           </Button>
         </div>
