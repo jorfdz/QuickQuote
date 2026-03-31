@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X } from 'lucide-react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
+import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, Check } from 'lucide-react';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Table, Modal, Input, Checkbox } from '../../components/ui';
 import type { PricingMaterial, MaterialGroup } from '../../types/pricing';
@@ -12,6 +12,8 @@ const emptyForm = {
   pricePerM: 0,
   markup: 70,
   materialGroupId: '',
+  categoryIds: [] as string[],
+  productIds: [] as string[],
   isFavorite: false,
   vendorName: '',
   vendorId: '',
@@ -31,7 +33,7 @@ export const Materials: React.FC = () => {
   const {
     materials, addMaterial, updateMaterial, deleteMaterial, toggleMaterialFavorite,
     materialGroups, addMaterialGroup, updateMaterialGroup, deleteMaterialGroup,
-    categories,
+    categories, products,
   } = usePricingStore();
 
   const [search, setSearch] = useState('');
@@ -57,6 +59,49 @@ export const Materials: React.FC = () => {
   const [groupForm, setGroupForm] = useState(emptyGroupForm);
   const [deleteGroupConfirm, setDeleteGroupConfirm] = useState<string | null>(null);
 
+  // Product multi-select search state
+  const [productSearch, setProductSearch] = useState('');
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const productSearchRef = useRef<HTMLInputElement>(null);
+  const productDropdownRef = useRef<HTMLDivElement>(null);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Filtered products for the dropdown (search within available products)
+  const filteredProducts = useMemo(() => {
+    const q = productSearch.toLowerCase().trim();
+    if (!q) return products;
+    return products.filter(
+      p => p.name.toLowerCase().includes(q) ||
+           p.aliases.some(a => a.toLowerCase().includes(q))
+    );
+  }, [products, productSearch]);
+
+  // Toggle helpers for form arrays
+  const toggleFormCategory = useCallback((catId: string) => {
+    setForm(f => ({
+      ...f,
+      categoryIds: f.categoryIds.includes(catId)
+        ? f.categoryIds.filter(id => id !== catId)
+        : [...f.categoryIds, catId],
+    }));
+  }, []);
+
+  const toggleFormProduct = useCallback((prodId: string) => {
+    setForm(f => ({
+      ...f,
+      productIds: f.productIds.includes(prodId)
+        ? f.productIds.filter(id => id !== prodId)
+        : [...f.productIds, prodId],
+    }));
+  }, []);
+
+  const removeFormProduct = useCallback((prodId: string) => {
+    setForm(f => ({
+      ...f,
+      productIds: f.productIds.filter(id => id !== prodId),
+    }));
+  }, []);
+
   // Derive group IDs matching selected category filter
   const groupIdsForCategory = useMemo(() => {
     if (categoryFilter === 'all') return null;
@@ -78,6 +123,7 @@ export const Materials: React.FC = () => {
 
   const handleOpenNew = () => {
     setForm(emptyForm);
+    setProductSearch('');
     setShowNew(true);
   };
 
@@ -92,6 +138,8 @@ export const Materials: React.FC = () => {
       pricePerM: form.pricePerM,
       markup: form.markup,
       materialGroupId: form.materialGroupId || undefined,
+      categoryIds: form.categoryIds,
+      productIds: form.productIds,
       isFavorite: form.isFavorite,
       vendorName: form.vendorName || undefined,
       vendorId: form.vendorId || undefined,
@@ -114,6 +162,8 @@ export const Materials: React.FC = () => {
       pricePerM: m.pricePerM,
       markup: m.markup,
       materialGroupId: m.materialGroupId || '',
+      categoryIds: m.categoryIds || [],
+      productIds: m.productIds || [],
       isFavorite: m.isFavorite,
       vendorName: m.vendorName || '',
       vendorId: m.vendorId || '',
@@ -122,6 +172,7 @@ export const Materials: React.FC = () => {
       vendorContactTitle: m.vendorContactTitle || '',
       vendorSalesRep: m.vendorSalesRep || '',
     });
+    setProductSearch('');
   };
 
   const handleSaveEdit = () => {
@@ -135,6 +186,8 @@ export const Materials: React.FC = () => {
       pricePerM: form.pricePerM,
       markup: form.markup,
       materialGroupId: form.materialGroupId || undefined,
+      categoryIds: form.categoryIds,
+      productIds: form.productIds,
       isFavorite: form.isFavorite,
       vendorName: form.vendorName || undefined,
       vendorId: form.vendorId || undefined,
@@ -156,6 +209,8 @@ export const Materials: React.FC = () => {
       pricePerM: m.pricePerM,
       markup: m.markup,
       materialGroupId: m.materialGroupId || '',
+      categoryIds: m.categoryIds || [],
+      productIds: m.productIds || [],
       isFavorite: m.isFavorite,
       vendorName: m.vendorName || '',
       vendorId: m.vendorId || '',
@@ -165,6 +220,7 @@ export const Materials: React.FC = () => {
       vendorSalesRep: m.vendorSalesRep || '',
     });
     setShowNew(true);
+    setProductSearch('');
   };
 
   const handleDelete = (id: string) => {
@@ -385,7 +441,7 @@ export const Materials: React.FC = () => {
 
       {/* Add / Edit Material Modal */}
       <Modal isOpen={showNew || editingId !== null} onClose={() => { setShowNew(false); setEditingId(null); }}
-        title={editingId ? 'Edit Material' : 'Add Material'}>
+        title={editingId ? 'Edit Material' : 'Add Material'} size="full">
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <div className="flex-1">
@@ -419,6 +475,173 @@ export const Materials: React.FC = () => {
               ))}
             </select>
           </div>
+          {/* ── Assignments Section ── */}
+          <div className="border-t border-gray-200 pt-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Assignments</h3>
+
+            {/* Product Categories — checkbox grid (small list) */}
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Product Categories</label>
+              <div className="border border-gray-200 rounded-lg p-3">
+                {categories.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">No categories defined</p>
+                ) : (
+                  <div className="flex flex-wrap gap-x-5 gap-y-2">
+                    {categories.map(c => (
+                      <label key={c.id} className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={form.categoryIds.includes(c.id)}
+                          onChange={() => toggleFormCategory(c.id)}
+                          className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className={`text-sm ${form.categoryIds.includes(c.id) ? 'text-blue-700 font-medium' : 'text-gray-600'}`}>
+                          {c.name}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Products — searchable multi-select with chips */}
+            <div className="mb-1">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Products</label>
+
+              {/* Selected product chips */}
+              {form.productIds.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {form.productIds.map(pid => {
+                    const prod = products.find(p => p.id === pid);
+                    if (!prod) return null;
+                    return (
+                      <span
+                        key={pid}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium group"
+                      >
+                        {prod.name}
+                        <button
+                          type="button"
+                          onClick={() => removeFormProduct(pid)}
+                          className="ml-0.5 p-0.5 rounded-full hover:bg-blue-200 transition-colors"
+                          title={`Remove ${prod.name}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, productIds: [] }))}
+                    className="text-[10px] text-gray-400 hover:text-red-500 px-1.5 py-1 transition-colors"
+                  >
+                    Clear all
+                  </button>
+                </div>
+              )}
+
+              {/* Search input + dropdown */}
+              <div className="relative">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    ref={productSearchRef}
+                    value={productSearch}
+                    onChange={e => {
+                      setProductSearch(e.target.value);
+                      setShowProductDropdown(true);
+                    }}
+                    onFocus={() => setShowProductDropdown(true)}
+                    onBlur={() => {
+                      blurTimeoutRef.current = setTimeout(() => setShowProductDropdown(false), 200);
+                    }}
+                    placeholder={`Search ${products.length} products by name or alias...`}
+                    className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <ChevronDown className={`w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-transform ${showProductDropdown ? 'rotate-180' : ''}`} />
+                </div>
+
+                {/* Dropdown */}
+                {showProductDropdown && (
+                  <div
+                    ref={productDropdownRef}
+                    onMouseDown={e => e.preventDefault()}
+                    className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto"
+                  >
+                    {/* Quick actions bar */}
+                    <div className="sticky top-0 bg-gray-50 border-b border-gray-100 px-3 py-1.5 flex items-center justify-between">
+                      <span className="text-[10px] text-gray-400">
+                        {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
+                        {form.productIds.length > 0 && ` · ${form.productIds.length} selected`}
+                      </span>
+                      {filteredProducts.length > 0 && filteredProducts.length <= 20 && (
+                        <button
+                          type="button"
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => {
+                            const allIds = filteredProducts.map(p => p.id);
+                            const allSelected = allIds.every(id => form.productIds.includes(id));
+                            if (allSelected) {
+                              setForm(f => ({ ...f, productIds: f.productIds.filter(id => !allIds.includes(id)) }));
+                            } else {
+                              setForm(f => ({ ...f, productIds: [...new Set([...f.productIds, ...allIds])] }));
+                            }
+                          }}
+                          className="text-[10px] text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                          {filteredProducts.every(p => form.productIds.includes(p.id)) ? 'Deselect visible' : 'Select visible'}
+                        </button>
+                      )}
+                    </div>
+
+                    {filteredProducts.length === 0 ? (
+                      <div className="px-3 py-4 text-center text-xs text-gray-400">
+                        No products match "{productSearch}"
+                      </div>
+                    ) : (
+                      filteredProducts.map(p => {
+                        const isSelected = form.productIds.includes(p.id);
+                        const catNames = p.categoryIds
+                          .map(cid => categories.find(c => c.id === cid)?.name)
+                          .filter(Boolean);
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => toggleFormProduct(p.id)}
+                            className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-blue-50 transition-colors ${
+                              isSelected ? 'bg-blue-50/60' : ''
+                            }`}
+                          >
+                            <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                              isSelected
+                                ? 'bg-blue-600 border-blue-600'
+                                : 'border-gray-300'
+                            }`}>
+                              {isSelected && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm truncate ${isSelected ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
+                                {p.name}
+                              </p>
+                              {catNames.length > 0 && (
+                                <p className="text-[10px] text-gray-400 truncate">{catNames.join(', ')}</p>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1">Search and select the products this material applies to</p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Sheet Size</label>

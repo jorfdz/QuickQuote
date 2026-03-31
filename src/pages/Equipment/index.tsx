@@ -1,17 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Plus, Trash2, Edit3, X, Search, Copy, Info,
-  ChevronDown, ChevronUp, Camera
+  ChevronDown, ChevronUp, Camera, Wrench, Calendar,
+  Mail, Clock, CheckCircle2, XCircle, AlertCircle, ChevronRight
 } from 'lucide-react';
 import { usePricingStore } from '../../store/pricingStore';
+import { useStore } from '../../store';
 import { Button, Card, PageHeader, Table, Modal, Input } from '../../components/ui';
 import { ImageUploadCropper } from '../../components/ui/ImageUploadCropper';
 import type {
-  PricingEquipment, EquipmentPricingTier, EquipmentCostUnit
+  PricingEquipment, EquipmentPricingTier, EquipmentCostUnit,
+  MaintenanceRecord, MaintenanceStatus
 } from '../../types/pricing';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const formatCurrency = (n: number) => `$${n.toFixed(n < 1 ? 3 : 2)}`;
+const formatDate = (iso?: string) => {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const STATUS_CONFIG: Record<MaintenanceStatus, { color: string; bg: string; icon: React.ReactNode }> = {
+  Requested: { color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: <AlertCircle className="w-3.5 h-3.5" /> },
+  Scheduled: { color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: <Calendar className="w-3.5 h-3.5" /> },
+  Completed: { color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+  Canceled: { color: 'text-gray-500', bg: 'bg-gray-50 border-gray-200', icon: <XCircle className="w-3.5 h-3.5" /> },
+};
 
 // ─── Equipment Form Defaults ────────────────────────────────────────────────
 const emptyEquipmentForm = {
@@ -30,7 +44,21 @@ const emptyEquipmentForm = {
   timeCostPerHour: undefined as number | undefined,
   timeCostMarkup: undefined as number | undefined,
   imageUrl: '' as string | undefined,
+  maintenanceVendorId: '' as string | undefined,
 };
+
+const emptyServiceForm = {
+  description: '',
+  scheduledOn: new Date().toISOString().split('T')[0],
+  serviceDate: '',
+  servicedByVendorId: '',
+  status: 'Requested' as MaintenanceStatus,
+  notes: '',
+  nextMaintenanceDate: '',
+};
+
+// ─── Tab types ───────────────────────────────────────────────────────────────
+type ModalTab = 'details' | 'maintenance';
 
 // ─── Tier Editor Sub-Component ───────────────────────────────────────────────
 const TierEditor: React.FC<{
@@ -70,8 +98,10 @@ const TierEditor: React.FC<{
 export const Equipment: React.FC = () => {
   const {
     equipment, addEquipment, updateEquipment, deleteEquipment,
+    addMaintenanceRecord, updateMaintenanceRecord, deleteMaintenanceRecord,
     categories,
   } = usePricingStore();
+  const { vendors } = useStore();
 
   const [search, setSearch] = useState('');
 
@@ -82,10 +112,35 @@ export const Equipment: React.FC = () => {
   const [equipForm, setEquipForm] = useState(emptyEquipmentForm);
   const [deleteEquipConfirm, setDeleteEquipConfirm] = useState<string | null>(null);
 
+  // ── Modal tabs ──
+  const [modalTab, setModalTab] = useState<ModalTab>('details');
+
+  // ── Maintenance state ──
+  const [showServiceForm, setShowServiceForm] = useState(false);
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
+  const [serviceForm, setServiceForm] = useState(emptyServiceForm);
+  const [showCompletionForm, setShowCompletionForm] = useState<string | null>(null);
+  const [nextMaintDate, setNextMaintDate] = useState('');
+
+  // ── Current equipment being edited ──
+  const editingEquipment = editingEquipId ? equipment.find(e => e.id === editingEquipId) : null;
+  const maintenanceHistory = useMemo(() => {
+    if (!editingEquipment) return [];
+    return [...(editingEquipment.maintenanceHistory || [])].sort(
+      (a, b) => new Date(b.scheduledOn).getTime() - new Date(a.scheduledOn).getTime()
+    );
+  }, [editingEquipment]);
+
   // ── Filtered list ──
   const filteredEquipment = equipment.filter(e =>
     !search || e.name.toLowerCase().includes(search.toLowerCase()) || e.categoryApplies.toLowerCase().includes(search.toLowerCase())
   );
+
+  // Helper: vendor name lookup
+  const getVendorName = (id?: string) => {
+    if (!id) return '—';
+    return vendors.find(v => v.id === id)?.name || '—';
+  };
 
   // ══════════════════════════════════════════════════════════════════════════════
   //  EQUIPMENT HANDLERS
@@ -108,6 +163,7 @@ export const Equipment: React.FC = () => {
       timeCostPerHour: equipForm.timeCostPerHour,
       timeCostMarkup: equipForm.timeCostMarkup,
       imageUrl: equipForm.imageUrl || undefined,
+      maintenanceVendorId: equipForm.maintenanceVendorId || undefined,
     });
     setShowNewEquip(false);
     setEquipForm(emptyEquipmentForm);
@@ -131,7 +187,11 @@ export const Equipment: React.FC = () => {
       timeCostPerHour: e.timeCostPerHour,
       timeCostMarkup: e.timeCostMarkup,
       imageUrl: e.imageUrl || '',
+      maintenanceVendorId: e.maintenanceVendorId || '',
     });
+    setModalTab('details');
+    setShowServiceForm(false);
+    setEditingServiceId(null);
   };
 
   const handleSaveEditEquip = () => {
@@ -152,6 +212,7 @@ export const Equipment: React.FC = () => {
       timeCostPerHour: equipForm.timeCostPerHour,
       timeCostMarkup: equipForm.timeCostMarkup,
       imageUrl: equipForm.imageUrl || undefined,
+      maintenanceVendorId: equipForm.maintenanceVendorId || undefined,
     });
     setEditingEquipId(null);
   };
@@ -173,10 +234,115 @@ export const Equipment: React.FC = () => {
       timeCostPerHour: eq.timeCostPerHour,
       timeCostMarkup: eq.timeCostMarkup,
       imageUrl: eq.imageUrl,
+      maintenanceVendorId: eq.maintenanceVendorId,
     });
   };
 
-  // Helper: should we show time fields in the modal?
+  const handleCloseModal = () => {
+    setShowNewEquip(false);
+    setEditingEquipId(null);
+    setShowServiceForm(false);
+    setEditingServiceId(null);
+    setShowCompletionForm(null);
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  MAINTENANCE HANDLERS
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  const handleOpenServiceForm = (record?: MaintenanceRecord) => {
+    if (record) {
+      setEditingServiceId(record.id);
+      setServiceForm({
+        description: record.description,
+        scheduledOn: record.scheduledOn.split('T')[0],
+        serviceDate: record.serviceDate ? record.serviceDate.split('T')[0] : '',
+        servicedByVendorId: record.servicedByVendorId || '',
+        status: record.status,
+        notes: record.notes || '',
+        nextMaintenanceDate: record.nextMaintenanceDate ? record.nextMaintenanceDate.split('T')[0] : '',
+      });
+    } else {
+      setEditingServiceId(null);
+      setServiceForm({
+        ...emptyServiceForm,
+        scheduledOn: new Date().toISOString().split('T')[0],
+        servicedByVendorId: equipForm.maintenanceVendorId || '',
+      });
+    }
+    setShowServiceForm(true);
+  };
+
+  const handleSaveService = () => {
+    if (!editingEquipId || !serviceForm.description) return;
+    const vendorName = serviceForm.servicedByVendorId
+      ? vendors.find(v => v.id === serviceForm.servicedByVendorId)?.name
+      : undefined;
+
+    if (editingServiceId) {
+      updateMaintenanceRecord(editingEquipId, editingServiceId, {
+        description: serviceForm.description,
+        scheduledOn: serviceForm.scheduledOn,
+        serviceDate: serviceForm.serviceDate || undefined,
+        servicedByVendorId: serviceForm.servicedByVendorId || undefined,
+        servicedByVendorName: vendorName,
+        status: serviceForm.status,
+        notes: serviceForm.notes || undefined,
+        nextMaintenanceDate: serviceForm.nextMaintenanceDate || undefined,
+      });
+    } else {
+      addMaintenanceRecord(editingEquipId, {
+        description: serviceForm.description,
+        scheduledOn: serviceForm.scheduledOn,
+        serviceDate: serviceForm.serviceDate || undefined,
+        servicedByVendorId: serviceForm.servicedByVendorId || undefined,
+        servicedByVendorName: vendorName,
+        status: serviceForm.status,
+        notes: serviceForm.notes || undefined,
+        nextMaintenanceDate: serviceForm.nextMaintenanceDate || undefined,
+      });
+    }
+    setShowServiceForm(false);
+    setEditingServiceId(null);
+  };
+
+  const handleRequestService = () => {
+    if (!editingEquipId) return;
+    const vendor = equipForm.maintenanceVendorId
+      ? vendors.find(v => v.id === equipForm.maintenanceVendorId)
+      : null;
+
+    // Open service form pre-filled as "Requested"
+    setEditingServiceId(null);
+    setServiceForm({
+      description: '',
+      scheduledOn: new Date().toISOString().split('T')[0],
+      serviceDate: '',
+      servicedByVendorId: equipForm.maintenanceVendorId || '',
+      status: 'Requested',
+      notes: vendor ? `Service request sent to ${vendor.name}${vendor.email ? ` (${vendor.email})` : ''}` : '',
+      nextMaintenanceDate: '',
+    });
+    setShowServiceForm(true);
+  };
+
+  const handleCompleteService = (recordId: string) => {
+    if (!editingEquipId) return;
+    setShowCompletionForm(recordId);
+    setNextMaintDate('');
+  };
+
+  const handleConfirmComplete = () => {
+    if (!editingEquipId || !showCompletionForm) return;
+    updateMaintenanceRecord(editingEquipId, showCompletionForm, {
+      status: 'Completed',
+      serviceDate: new Date().toISOString().split('T')[0],
+      nextMaintenanceDate: nextMaintDate || undefined,
+    });
+    setShowCompletionForm(null);
+  };
+
+  // Helpers for form display
   const showTimeFields = equipForm.costType === 'time_only' || equipForm.costType === 'cost_plus_time';
   const showUnitCost = equipForm.costType === 'cost_only' || equipForm.costType === 'cost_plus_time';
 
@@ -331,10 +497,10 @@ export const Equipment: React.FC = () => {
                     </div>
                   </td>
                 </tr>
-                {/* Expanded tiers row - only show relevant color capability tiers */}
+                {/* Expanded tiers row */}
                 {isExpanded && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+                    <td colSpan={9} className="px-4 py-3 bg-gray-50 border-t border-gray-100">
                       <div className="grid grid-cols-2 gap-4 max-w-2xl">
                         {showColorTiers(eq) && colorTierCount > 0 && (
                           <div>
@@ -381,44 +547,45 @@ export const Equipment: React.FC = () => {
         )}
       </Card>
 
-      {/* ═══════════════ ADD / EDIT EQUIPMENT MODAL ═══════════════ */}
-      <Modal isOpen={showNewEquip || editingEquipId !== null} onClose={() => { setShowNewEquip(false); setEditingEquipId(null); }}
-        title={editingEquipId ? 'Edit Equipment' : 'Add Equipment'} size="lg">
-        <div className="space-y-4">
-
-          {/* Equipment Photo */}
-          <div className="flex items-start gap-4">
-            <div className="flex-shrink-0">
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Photo</label>
-              <ImageUploadCropper
-                value={equipForm.imageUrl || ''}
-                onChange={(url) => setEquipForm(f => ({ ...f, imageUrl: url }))}
-                size={80}
-              />
-            </div>
-            <div className="flex-1 pt-6">
-              <p className="text-xs text-gray-400">Click the photo to upload an image from your computer or paste a public URL. You can crop it before saving.</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Equipment Name</label>
-              <input
-                value={equipForm.name}
-                onChange={e => setEquipForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Ricoh 9200"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Category</label>
-              <select value={equipForm.categoryApplies} onChange={e => setEquipForm(f => ({ ...f, categoryApplies: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                <option value="Other">Other</option>
-              </select>
-            </div>
+      {/* ═══════════════════════════════════════════════════════════════════════════
+          EQUIPMENT MODAL — Full width with tabs
+      ═══════════════════════════════════════════════════════════════════════════ */}
+      <Modal
+        isOpen={showNewEquip || editingEquipId !== null}
+        onClose={handleCloseModal}
+        title={editingEquipId ? equipForm.name || 'Edit Equipment' : 'Add Equipment'}
+        size="full"
+      >
+        {/* Tab Navigation */}
+        {editingEquipId && (
+          <div className="flex border-b border-gray-200 -mx-5 px-5 mb-5 -mt-1">
+            <button
+              onClick={() => setModalTab('details')}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                modalTab === 'details'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Wrench className="w-4 h-4" />
+              Equipment Details
+            </button>
+            <button
+              onClick={() => { setModalTab('maintenance'); setShowServiceForm(false); }}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                modalTab === 'maintenance'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+              Maintenance
+              {maintenanceHistory.length > 0 && (
+                <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full font-medium">
+                  {maintenanceHistory.length}
+                </span>
+              )}
+            </button>
           </div>
         )}
 

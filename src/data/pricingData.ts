@@ -135,6 +135,7 @@ export const defaultPricingEquipment: PricingEquipment[] = [
     ],
     initialSetupFee: 0,
     markupType: 'multiplier',
+    maintenanceHistory: [],
     createdAt: '2024-01-01',
   },
   {
@@ -164,6 +165,7 @@ export const defaultPricingEquipment: PricingEquipment[] = [
     ],
     initialSetupFee: 0,
     markupType: 'multiplier',
+    maintenanceHistory: [],
     createdAt: '2024-01-01',
   },
   {
@@ -177,6 +179,7 @@ export const defaultPricingEquipment: PricingEquipment[] = [
     unitCost: 0.50,
     initialSetupFee: 0,
     markupType: 'multiplier',
+    maintenanceHistory: [],
     createdAt: '2024-01-01',
   },
 ];
@@ -348,6 +351,8 @@ export const defaultPricingMaterials: PricingMaterial[] = rawMaterials.map((m, i
     pricePerM: m.pricePerM,
     markup: m.markup,
     materialGroupId: m.materialGroupId,
+    categoryIds: [],
+    productIds: [],
     isFavorite: m.isFavorite,
     createdAt: '2024-01-01',
   };

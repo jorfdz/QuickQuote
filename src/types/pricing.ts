@@ -76,6 +76,27 @@ export interface PricingEquipment {
   timeCostMarkup?: number;
   imageUrl?: string;               // equipment photo URL
   markupType: 'multiplier' | 'percent';  // how markup is applied
+  // Maintenance
+  maintenanceVendorId?: string;    // FK to Vendor catalog
+  maintenanceHistory: MaintenanceRecord[];
+  createdAt: string;
+}
+
+// ─── MAINTENANCE ─────────────────────────────────────────────────────────────
+
+export type MaintenanceStatus = 'Requested' | 'Scheduled' | 'Completed' | 'Canceled';
+
+export interface MaintenanceRecord {
+  id: string;
+  equipmentId: string;
+  scheduledOn: string;             // ISO date when it was scheduled/requested
+  serviceDate?: string;            // ISO date of actual service
+  servicedByVendorId?: string;     // vendor who performed the service
+  servicedByVendorName?: string;
+  description: string;             // what was done / what is needed
+  status: MaintenanceStatus;
+  notes?: string;
+  nextMaintenanceDate?: string;    // suggested next maintenance date (set on completion)
   createdAt: string;
 }
 
@@ -154,6 +175,8 @@ export interface PricingMaterial {
   pricePerM: number;               // price per 1,000 sheets
   markup: number;                  // percentage markup (70 = 70%)
   materialGroupId?: string;        // which material group it belongs to
+  categoryIds: string[];           // direct product-category assignments
+  productIds: string[];            // direct product assignments
   isFavorite: boolean;             // for starring/favoriting
   // Vendor information
   vendorName?: string;             // vendor company name
