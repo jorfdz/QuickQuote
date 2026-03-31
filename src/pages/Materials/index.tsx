@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown, Clock, ArrowRight } from 'lucide-react';
+import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown, Clock, ArrowRight, ImageIcon, User } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Modal, Input, Checkbox } from '../../components/ui';
@@ -779,7 +779,7 @@ export const Materials: React.FC = () => {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            <Image className="w-3.5 h-3.5" />
+            <ImageIcon className="w-3.5 h-3.5" />
             Photos
           </button>
           {editingId && (
@@ -861,7 +861,7 @@ export const Materials: React.FC = () => {
                             </span>
                             <span className="text-[10px] text-gray-300">|</span>
                             <span className="inline-flex items-center gap-1 text-[11px] text-gray-600 font-medium">
-                              <UserIcon className="w-3 h-3 text-gray-400" />
+                              <User className="w-3 h-3 text-gray-400" />
                               {record.userName || 'Unknown User'}
                             </span>
                             <span className="text-[10px] text-gray-300">|</span>
