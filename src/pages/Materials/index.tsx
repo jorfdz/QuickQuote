@@ -13,6 +13,12 @@ const emptyForm = {
   markup: 70,
   materialGroupId: '',
   isFavorite: false,
+  vendorName: '',
+  vendorId: '',
+  vendorMaterialId: '',
+  vendorContactName: '',
+  vendorContactTitle: '',
+  vendorSalesRep: '',
 };
 
 const emptyGroupForm = {
@@ -87,6 +93,12 @@ export const Materials: React.FC = () => {
       markup: form.markup,
       materialGroupId: form.materialGroupId || undefined,
       isFavorite: form.isFavorite,
+      vendorName: form.vendorName || undefined,
+      vendorId: form.vendorId || undefined,
+      vendorMaterialId: form.vendorMaterialId || undefined,
+      vendorContactName: form.vendorContactName || undefined,
+      vendorContactTitle: form.vendorContactTitle || undefined,
+      vendorSalesRep: form.vendorSalesRep || undefined,
     });
     setShowNew(false);
     setForm(emptyForm);
@@ -103,6 +115,12 @@ export const Materials: React.FC = () => {
       markup: m.markup,
       materialGroupId: m.materialGroupId || '',
       isFavorite: m.isFavorite,
+      vendorName: m.vendorName || '',
+      vendorId: m.vendorId || '',
+      vendorMaterialId: m.vendorMaterialId || '',
+      vendorContactName: m.vendorContactName || '',
+      vendorContactTitle: m.vendorContactTitle || '',
+      vendorSalesRep: m.vendorSalesRep || '',
     });
   };
 
@@ -118,6 +136,12 @@ export const Materials: React.FC = () => {
       markup: form.markup,
       materialGroupId: form.materialGroupId || undefined,
       isFavorite: form.isFavorite,
+      vendorName: form.vendorName || undefined,
+      vendorId: form.vendorId || undefined,
+      vendorMaterialId: form.vendorMaterialId || undefined,
+      vendorContactName: form.vendorContactName || undefined,
+      vendorContactTitle: form.vendorContactTitle || undefined,
+      vendorSalesRep: form.vendorSalesRep || undefined,
     });
     setEditingId(null);
   };
@@ -133,6 +157,12 @@ export const Materials: React.FC = () => {
       markup: m.markup,
       materialGroupId: m.materialGroupId || '',
       isFavorite: m.isFavorite,
+      vendorName: m.vendorName || '',
+      vendorId: m.vendorId || '',
+      vendorMaterialId: m.vendorMaterialId || '',
+      vendorContactName: m.vendorContactName || '',
+      vendorContactTitle: m.vendorContactTitle || '',
+      vendorSalesRep: m.vendorSalesRep || '',
     });
     setShowNew(true);
   };
@@ -410,6 +440,30 @@ export const Materials: React.FC = () => {
               <div className="flex justify-between"><span className="text-gray-500">Sell/sheet:</span><span className="font-bold text-blue-700">{formatCurrency((form.pricePerM / 1000) * (1 + form.markup / 100))}</span></div>
             </div>
           )}
+
+          {/* Vendor Information */}
+          <div className="border-t border-gray-200 pt-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Vendor Information</h3>
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-4">
+                <Input label="Vendor Name" value={form.vendorName} onChange={e => setForm(f => ({ ...f, vendorName: e.target.value }))}
+                  placeholder="e.g. Grimco Inc" />
+                <Input label="Vendor ID" value={form.vendorId} onChange={e => setForm(f => ({ ...f, vendorId: e.target.value }))}
+                  placeholder="e.g. V-10042" />
+                <Input label="Vendor Material ID" value={form.vendorMaterialId} onChange={e => setForm(f => ({ ...f, vendorMaterialId: e.target.value }))}
+                  placeholder="e.g. MAT-55810" />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <Input label="Primary Contact Name" value={form.vendorContactName} onChange={e => setForm(f => ({ ...f, vendorContactName: e.target.value }))}
+                  placeholder="e.g. Jane Smith" />
+                <Input label="Contact Title" value={form.vendorContactTitle} onChange={e => setForm(f => ({ ...f, vendorContactTitle: e.target.value }))}
+                  placeholder="e.g. Account Director" />
+                <Input label="Sales Rep / Account Manager" value={form.vendorSalesRep} onChange={e => setForm(f => ({ ...f, vendorSalesRep: e.target.value }))}
+                  placeholder="e.g. John Doe" />
+              </div>
+            </div>
+          </div>
+
           <div className="flex gap-3 justify-end pt-2">
             <Button variant="secondary" onClick={() => { setShowNew(false); setEditingId(null); }}>Cancel</Button>
             <Button variant="primary" onClick={editingId ? handleSaveEdit : handleAdd} disabled={!form.name || form.sizeWidth <= 0 || form.sizeHeight <= 0}>

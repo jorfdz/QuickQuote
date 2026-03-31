@@ -1,7 +1,7 @@
 import type {
   PricingCategory, PricingProduct, PricingEquipment,
   PricingFinishing, PricingMaterial, ProductPricingTemplate,
-  MaterialGroup,
+  MaterialGroup, PricingLabor, PricingBrokered,
 } from '../types/pricing';
 
 // ─── MATERIAL GROUPS ──────────────────────────────────────────────────────────
@@ -205,6 +205,22 @@ export const defaultFinishing: PricingFinishing[] = [
     categoryIds: ['pc1'], unitBasis: 'per_unit',
     createdAt: '2024-01-01',
   },
+];
+
+// ─── LABOR ─────────────────────────────────────────────────────────────────
+
+export const defaultLabor: PricingLabor[] = [
+  { id: 'pl1', name: 'Graphic Design', description: 'Design and layout services', hourlyCost: 30, initialSetupFee: 10, markupPercent: 100, categoryIds: ['pc1', 'pc2', 'pc3'], notes: '', createdAt: '2024-01-01' },
+  { id: 'pl2', name: 'Installation', description: 'On-site installation of signage and graphics', hourlyCost: 45, initialSetupFee: 25, markupPercent: 80, categoryIds: ['pc2'], notes: '', createdAt: '2024-01-01' },
+  { id: 'pl3', name: 'Manual Assembly', description: 'Hand assembly, collating, packaging', hourlyCost: 25, initialSetupFee: 0, markupPercent: 100, categoryIds: ['pc1', 'pc3'], notes: '', createdAt: '2024-01-01' },
+  { id: 'pl4', name: 'Fulfillment', description: 'Kitting, packaging, and shipping prep', hourlyCost: 25, initialSetupFee: 5, markupPercent: 100, categoryIds: ['pc1', 'pc2', 'pc3'], notes: '', createdAt: '2024-01-01' },
+];
+
+// ─── BROKERED ──────────────────────────────────────────────────────────────
+
+export const defaultBrokered: PricingBrokered[] = [
+  { id: 'pb1', name: 'Banners (Vendor)', description: 'Outsourced banner printing', costBasis: 'per_sqft', unitCost: 3.50, initialSetupFee: 10, markupPercent: 50, categoryIds: ['pc2'], notes: '', createdAt: '2024-01-01' },
+  { id: 'pb2', name: 'Embroidery', description: 'Outsourced embroidery services', costBasis: 'per_unit', unitCost: 8, initialSetupFee: 25, markupPercent: 40, categoryIds: ['pc3'], notes: '', createdAt: '2024-01-01' },
 ];
 
 // ─── MATERIALS (from Excel — all 50 rows) ───────────────────────────────────
