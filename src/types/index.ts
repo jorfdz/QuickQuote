@@ -259,6 +259,7 @@ export interface CompanySettings {
   zip: string;
   website: string;
   tagline: string;
+  primaryBrandColor: string;
   defaultTaxRate: number;
   defaultMarkup: number;
   defaultLaborRate: number;

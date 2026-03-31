@@ -677,10 +677,10 @@ export const Settings: React.FC = () => {
                 <div className="text-center"><p className="text-2xl">&#x1f5bc;&#xfe0f;</p><p className="text-xs text-gray-400 mt-1">Upload logo</p></div>
               </div>
             </div>
-            <Input label="Primary Brand Color" type="color" defaultValue="#2563eb" className="w-20 h-10" />
+            <Input label="Primary Brand Color" type="color" value={company.primaryBrandColor} onChange={e => setCompany(c => ({ ...c, primaryBrandColor: e.target.value }))} className="w-20 h-10" />
             <Textarea label="Quote Footer Text" defaultValue="Thank you for your business! Payment due within 30 days." rows={2} />
             <Textarea label="Invoice Footer Text" defaultValue="Questions? Contact us at admin@printco.com" rows={2} />
-            <div className="flex gap-3 pt-2"><Button variant="primary">Save Branding</Button></div>
+            <div className="flex gap-3 pt-2"><Button variant="primary" onClick={saveCompanySettings}>Save Branding</Button></div>
           </div>
         </Card>
       )}

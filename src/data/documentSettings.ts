@@ -342,6 +342,7 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   zip: '33101',
   website: 'www.printco.com',
   tagline: 'Quality Print. Fast Delivery.',
+  primaryBrandColor: '#2563eb',
   defaultTaxRate: 7,
   defaultMarkup: 45,
   defaultLaborRate: 45,
