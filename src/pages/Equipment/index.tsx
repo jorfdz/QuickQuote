@@ -347,12 +347,35 @@ export const Equipment: React.FC = () => {
 
   const handleConfirmComplete = () => {
     if (!editingEquipId || !showCompletionForm) return;
+    const currentRecord = editingEquipment?.maintenanceHistory?.find(
+      (record) => record.id === showCompletionForm
+    );
+    const nextVendorId = currentRecord?.servicedByVendorId || editingEquipment?.maintenanceVendorId;
+    const nextVendorName = nextVendorId
+      ? vendors.find((vendor) => vendor.id === nextVendorId)?.name
+      : undefined;
+
     updateMaintenanceRecord(editingEquipId, showCompletionForm, {
       status: 'Completed',
       serviceDate: new Date().toISOString().split('T')[0],
-      nextMaintenanceDate: nextMaintDate || undefined,
+      nextMaintenanceDate: undefined,
     });
+
+    if (currentRecord && nextMaintDate) {
+      addMaintenanceRecord(editingEquipId, {
+        description: currentRecord.description,
+        scheduledOn: nextMaintDate,
+        serviceDate: undefined,
+        servicedByVendorId: nextVendorId,
+        servicedByVendorName: nextVendorName,
+        status: 'Scheduled',
+        notes: undefined,
+        nextMaintenanceDate: undefined,
+      });
+    }
+
     setShowCompletionForm(null);
+    setNextMaintDate('');
   };
 
   // Helpers for form display
@@ -960,7 +983,7 @@ export const Equipment: React.FC = () => {
                   <input type="date" value={nextMaintDate}
                     onChange={e => setNextMaintDate(e.target.value)}
                     className="w-full max-w-xs px-3 py-2 text-sm border border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white" />
-                  <p className="text-[10px] text-gray-500 mt-1">Set a date for the next maintenance reminder.</p>
+                  <p className="text-[10px] text-gray-500 mt-1">If set, this creates a new scheduled maintenance record for the same vendor on that date.</p>
                 </div>
                 <div className="flex gap-2 justify-end">
                   <Button variant="secondary" size="sm" onClick={() => setShowCompletionForm(null)}>Cancel</Button>
