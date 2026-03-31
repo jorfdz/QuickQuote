@@ -244,6 +244,94 @@ export const DEFAULT_INVOICE_TEMPLATE = `<!DOCTYPE html>
 </body>
 </html>`;
 
+export const DEFAULT_PURCHASE_ORDER_TEMPLATE = `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1f2937; margin: 0; padding: 40px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1f2937; padding-bottom: 20px; margin-bottom: 30px; }
+    .company-name { font-size: 22px; font-weight: bold; color: #1f2937; }
+    .company-info { font-size: 13px; color: #6b7280; margin-top: 4px; }
+    .doc-title { font-size: 28px; font-weight: bold; color: #1f2937; text-align: right; }
+    .doc-number { font-size: 16px; font-weight: 600; color: #d97706; text-align: right; margin-top: 4px; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
+    .section-label { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+    .vendor-name { font-size: 16px; font-weight: 600; color: #1f2937; }
+    .vendor-detail { font-size: 13px; color: #6b7280; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    thead th { background: #1f2937; color: white; padding: 10px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; text-align: left; }
+    thead th:last-child, thead th:nth-child(3), thead th:nth-child(4) { text-align: right; }
+    thead th:nth-child(2) { text-align: center; }
+    tbody td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid #e5e7eb; }
+    tbody tr:nth-child(even) { background: #f9fafb; }
+    .totals { display: flex; justify-content: flex-end; margin: 20px 0 30px; }
+    .totals-box { width: 260px; }
+    .totals-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; }
+    .totals-row.total { border-top: 2px solid #1f2937; padding-top: 12px; margin-top: 8px; font-size: 18px; font-weight: bold; }
+    .notes { border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 30px; }
+    .notes p { font-size: 11px; color: #9ca3af; line-height: 1.6; }
+    .footer { text-align: center; font-size: 11px; color: #9ca3af; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="company-name">{{companyName}}</div>
+      <div class="company-info">{{companyAddress}}<br>{{companyPhone}} &middot; {{companyEmail}}</div>
+    </div>
+    <div>
+      <div class="doc-title">PURCHASE ORDER</div>
+      <div class="doc-number">{{purchaseOrderNumber}}</div>
+    </div>
+  </div>
+
+  <div class="meta-grid">
+    <div>
+      <div class="section-label">Vendor</div>
+      <div class="vendor-name">{{vendorName}}</div>
+      <div class="vendor-detail">{{vendorAddress}}</div>
+      <div class="vendor-detail">{{vendorPhone}}</div>
+      <div class="vendor-detail">{{vendorEmail}}</div>
+    </div>
+    <div>
+      <div class="section-label">PO Details</div>
+      <div class="vendor-detail">PO Date: {{purchaseOrderDate}}</div>
+      <div class="vendor-detail">Expected Date: {{expectedDate}}</div>
+      <div class="vendor-detail">Status: {{purchaseOrderStatus}}</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th>Qty</th>
+        <th>Unit Cost</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{lineItems}}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div class="totals-box">
+      <div class="totals-row"><span>Subtotal</span><span>{{subtotal}}</span></div>
+      <div class="totals-row"><span>Tax</span><span>{{tax}}</span></div>
+      <div class="totals-row total"><span>TOTAL</span><span>{{total}}</span></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="section-label">Notes</div>
+    <p>{{purchaseOrderNotes}}</p>
+  </div>
+
+  <div class="footer">{{companyName}} &middot; {{companyAddress}} &middot; {{companyPhone}}</div>
+</body>
+</html>`;
+
 export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   name: 'PrintCo Solutions',
   email: 'admin@printco.com',
@@ -270,4 +358,5 @@ export const DEFAULT_DOCUMENT_TEMPLATES: DocumentTemplates = {
   quote: DEFAULT_QUOTE_TEMPLATE,
   order: DEFAULT_ORDER_TEMPLATE,
   invoice: DEFAULT_INVOICE_TEMPLATE,
+  purchaseOrder: DEFAULT_PURCHASE_ORDER_TEMPLATE,
 };
