@@ -135,7 +135,7 @@ export const Vendors: React.FC = () => {
         )}
       </Card>
 
-      <Modal isOpen={showModal} onClose={handleClose} title={editingId ? 'Edit Vendor' : 'New Vendor'}>
+      <Modal isOpen={showModal} onClose={handleClose} title={editingId ? 'Edit Vendor' : 'New Vendor'} size="full">
         {editingId && (
           <div className="flex border-b border-gray-200 -mx-5 px-5 mb-5 -mt-1">
             <button
