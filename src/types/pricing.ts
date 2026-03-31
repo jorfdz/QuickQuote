@@ -205,7 +205,7 @@ export interface PricingMaterial {
   sizeHeight: number;              // inches (parsed)
   pricePerM: number;               // price per 1,000 sheets
   markup: number;                  // percentage markup (70 = 70%)
-  materialGroupId?: string;        // which material group it belongs to
+  materialGroupIds: string[];       // which material groups it belongs to
   categoryIds: string[];           // direct product-category assignments
   productIds: string[];            // direct product assignments
   favoriteProductIds: string[];    // products marked as favorites for this material

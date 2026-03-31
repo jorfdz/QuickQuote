@@ -34,7 +34,7 @@ const MATERIAL_FIELD_LABELS: Record<string, string> = {
   sizeHeight: 'Height (in)',
   pricePerM: 'Price per M',
   markup: 'Markup %',
-  materialGroupId: 'Material Group',
+  materialGroupIds: 'Material Groups',
   categoryIds: 'Categories',
   productIds: 'Products',
   favoriteProductIds: 'Favorite Products',
@@ -503,7 +503,7 @@ export const usePricingStore = create<PricingStore>()(
           .map((g) => g.id);
         // Return materials in those groups
         return materials.filter(
-          (m) => m.materialGroupId && matchingGroupIds.includes(m.materialGroupId)
+          (m) => m.materialGroupIds && m.materialGroupIds.some((gid) => matchingGroupIds.includes(gid))
         );
       },
 
