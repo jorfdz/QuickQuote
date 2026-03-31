@@ -1579,7 +1579,7 @@ export const Materials: React.FC = () => {
             {form.materialType === 'roll_media' && (
               <div className="flex items-end gap-2">
                 <span className="text-[10px] text-amber-600 font-semibold pb-1.5">←</span>
-                <div className="w-20">
+                <div className="w-28">
                   <Input label="Roll $" type="number" value={form.rollCost || ''} prefix="$"
                     onChange={e => {
                       const rollCost = parseFloat(e.target.value) || 0;
@@ -1590,7 +1590,7 @@ export const Materials: React.FC = () => {
                       });
                     }} />
                 </div>
-                <div className="w-20">
+                <div className="w-28">
                   <Input label="Length (ft)" type="number" value={form.rollLength || ''} suffix="ft"
                     onChange={e => {
                       const rollLength = parseFloat(e.target.value) || 0;
@@ -1626,13 +1626,13 @@ export const Materials: React.FC = () => {
               <p className="text-[10px] text-gray-400">No tiers — base cost above applies to all quantities.</p>
             ) : (
               <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="grid grid-cols-[80px_80px_24px] gap-1 bg-gray-50 border-b border-gray-200 px-2 py-1">
+                <div className="grid grid-cols-[112px_112px_24px] gap-1 bg-gray-50 border-b border-gray-200 px-2 py-1">
                   <span className="text-[10px] font-semibold text-gray-400 uppercase">Min Qty</span>
                   <span className="text-[10px] font-semibold text-gray-400 uppercase">Cost</span>
                   <span></span>
                 </div>
                 {form.pricingTiers.map((tier, i) => (
-                  <div key={i} className="grid grid-cols-[80px_80px_24px] gap-1 items-center px-2 py-1 border-b border-gray-100 last:border-0">
+                  <div key={i} className="grid grid-cols-[112px_112px_24px] gap-1 items-center px-2 py-1 border-b border-gray-100 last:border-0">
                     <input type="number" value={tier.minQty || ''} placeholder="0"
                       className="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                       onChange={e => setForm(f => ({
