@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   Plus, Trash2, Edit3, X, Search, Copy, Info,
-  ChevronDown, ChevronUp, Globe, Camera, Image as ImageIcon, Loader2
+  ChevronDown, ChevronUp, Camera, Image as ImageIcon
 } from 'lucide-react';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Table, Modal, Input } from '../../components/ui';
@@ -29,51 +29,6 @@ const emptyEquipmentForm = {
   timeCostPerHour: undefined as number | undefined,
   timeCostMarkup: undefined as number | undefined,
   imageUrl: '' as string | undefined,
-};
-
-// ─── Web Search Suggestion Logic ────────────────────────────────────────────
-type WebSearchState = 'idle' | 'searching' | 'done';
-
-interface WebSearchSuggestion {
-  message: string;
-  costUnit?: EquipmentCostUnit;
-  categoryApplies?: string;
-  type?: string;
-}
-
-const getWebSearchSuggestion = (name: string): WebSearchSuggestion | null => {
-  const lower = name.toLowerCase();
-  if (lower.includes('hp latex') || lower.includes('hp designjet')) {
-    return {
-      message: 'Based on the name, this appears to be a wide-format printer. Common specs for similar models have been suggested below.',
-      costUnit: 'per_sqft',
-      categoryApplies: 'Signs',
-      type: 'wide-format printer',
-    };
-  }
-  if (lower.includes('epson') && (lower.includes('sure') || lower.includes('wide') || lower.includes('p'))) {
-    return {
-      message: 'Based on the name, this appears to be a wide-format printer. Common specs for similar models have been suggested below.',
-      costUnit: 'per_sqft',
-      categoryApplies: 'Signs',
-      type: 'wide-format printer',
-    };
-  }
-  if (lower.includes('ricoh') || lower.includes('xerox') || lower.includes('canon') || lower.includes('konica')) {
-    return {
-      message: 'Based on the name, this appears to be a digital press. Common specs for similar models have been suggested below.',
-      costUnit: 'per_click',
-      categoryApplies: 'Digital Press',
-      type: 'digital press',
-    };
-  }
-  if (lower.includes('hp') || lower.includes('epson')) {
-    return {
-      message: 'Based on the name, this appears to be a printer. Enter the details below for accurate pricing.',
-      type: 'printer',
-    };
-  }
-  return null;
 };
 
 // ─── Tier Editor Sub-Component ───────────────────────────────────────────────
@@ -126,12 +81,6 @@ export const Equipment: React.FC = () => {
   const [equipForm, setEquipForm] = useState(emptyEquipmentForm);
   const [deleteEquipConfirm, setDeleteEquipConfirm] = useState<string | null>(null);
 
-  // ── Web Search state (Item 21) ──
-  const [webSearchState, setWebSearchState] = useState<WebSearchState>('idle');
-  const [webSearchResult, setWebSearchResult] = useState<string>('');
-  const [webSearchSuggestion, setWebSearchSuggestion] = useState<WebSearchSuggestion | null>(null);
-  const [showWebSearchPanel, setShowWebSearchPanel] = useState(false);
-
   // ── Image preview error state (Item 22) ──
   const [imageError, setImageError] = useState(false);
 
@@ -164,49 +113,8 @@ export const Equipment: React.FC = () => {
     });
     setShowNewEquip(false);
     setEquipForm(emptyEquipmentForm);
-    resetWebSearch();
-  };
-
-  const resetWebSearch = () => {
-    setWebSearchState('idle');
-    setWebSearchResult('');
-    setWebSearchSuggestion(null);
-    setShowWebSearchPanel(false);
     setImageError(false);
   };
-
-  const handleWebSearch = useCallback(() => {
-    if (!equipForm.name.trim()) {
-      setShowWebSearchPanel(true);
-      setWebSearchResult('Enter the model name above, then click Search to look up equipment specs online.');
-      return;
-    }
-    setShowWebSearchPanel(true);
-    setWebSearchState('searching');
-    setWebSearchResult('');
-    setWebSearchSuggestion(null);
-
-    setTimeout(() => {
-      const suggestion = getWebSearchSuggestion(equipForm.name);
-      const baseMessage = `For best results, search for '${equipForm.name}' specs on the manufacturer's website and enter the details below.`;
-
-      if (suggestion) {
-        setWebSearchSuggestion(suggestion);
-        setWebSearchResult(suggestion.message);
-        // Auto-apply suggestions
-        if (suggestion.costUnit || suggestion.categoryApplies) {
-          setEquipForm(f => ({
-            ...f,
-            ...(suggestion.costUnit ? { costUnit: suggestion.costUnit } : {}),
-            ...(suggestion.categoryApplies ? { categoryApplies: suggestion.categoryApplies } : {}),
-          }));
-        }
-      } else {
-        setWebSearchResult(baseMessage);
-      }
-      setWebSearchState('done');
-    }, 1000);
-  }, [equipForm.name]);
 
   const handleStartEditEquip = (e: PricingEquipment) => {
     setEditingEquipId(e.id);
@@ -227,7 +135,7 @@ export const Equipment: React.FC = () => {
       timeCostMarkup: e.timeCostMarkup,
       imageUrl: e.imageUrl || '',
     });
-    resetWebSearch();
+    setImageError(false);
   };
 
   const handleSaveEditEquip = () => {
@@ -250,7 +158,7 @@ export const Equipment: React.FC = () => {
       imageUrl: equipForm.imageUrl || undefined,
     });
     setEditingEquipId(null);
-    resetWebSearch();
+    setImageError(false);
   };
 
   const handleCloneEquip = (eq: PricingEquipment) => {
@@ -453,7 +361,7 @@ export const Equipment: React.FC = () => {
       </Card>
 
       {/* ═══════════════ ADD / EDIT EQUIPMENT MODAL ═══════════════ */}
-      <Modal isOpen={showNewEquip || editingEquipId !== null} onClose={() => { setShowNewEquip(false); setEditingEquipId(null); resetWebSearch(); }}
+      <Modal isOpen={showNewEquip || editingEquipId !== null} onClose={() => { setShowNewEquip(false); setEditingEquipId(null); setImageError(false); }}
         title={editingEquipId ? 'Edit Equipment' : 'Add Equipment'} size="lg">
         <div className="space-y-4">
 
@@ -489,28 +397,12 @@ export const Equipment: React.FC = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Equipment Name</label>
-              <div className="flex gap-2">
-                <input
-                  value={equipForm.name}
-                  onChange={e => setEquipForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Ricoh 9200"
-                  className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
-                />
-                <button
-                  type="button"
-                  onClick={handleWebSearch}
-                  disabled={webSearchState === 'searching'}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-50"
-                  title="Search web for equipment specs"
-                >
-                  {webSearchState === 'searching' ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Globe className="w-3.5 h-3.5" />
-                  )}
-                  Search
-                </button>
-              </div>
+              <input
+                value={equipForm.name}
+                onChange={e => setEquipForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Ricoh 9200"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+              />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Category</label>
@@ -521,47 +413,6 @@ export const Equipment: React.FC = () => {
               </select>
             </div>
           </div>
-
-          {/* Web Search Result Panel (Item 21) */}
-          {showWebSearchPanel && (
-            <div className={`rounded-lg border p-3 text-sm ${
-              webSearchState === 'searching'
-                ? 'bg-blue-50 border-blue-200 text-blue-700'
-                : webSearchSuggestion
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                  : 'bg-amber-50 border-amber-200 text-amber-700'
-            }`}>
-              <div className="flex items-start gap-2">
-                {webSearchState === 'searching' ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin flex-shrink-0 mt-0.5" />
-                    <span>Searching for equipment specs...</span>
-                  </>
-                ) : (
-                  <>
-                    <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p>{webSearchResult}</p>
-                      {webSearchSuggestion && (webSearchSuggestion.costUnit || webSearchSuggestion.categoryApplies) && (
-                        <p className="mt-1 text-xs opacity-75">
-                          Suggested: {webSearchSuggestion.costUnit && `Cost unit = ${webSearchSuggestion.costUnit === 'per_sqft' ? 'Per Sq Ft' : 'Per Click'}`}
-                          {webSearchSuggestion.costUnit && webSearchSuggestion.categoryApplies && ', '}
-                          {webSearchSuggestion.categoryApplies && `Category = ${webSearchSuggestion.categoryApplies}`}
-                          {' (applied)'}
-                        </p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => setShowWebSearchPanel(false)}
-                      className="ml-auto p-0.5 opacity-50 hover:opacity-100 flex-shrink-0"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
 
           <div className="grid grid-cols-3 gap-4">
             <div>
@@ -671,7 +522,7 @@ export const Equipment: React.FC = () => {
           )}
 
           <div className="flex gap-3 justify-end pt-2">
-            <Button variant="secondary" onClick={() => { setShowNewEquip(false); setEditingEquipId(null); resetWebSearch(); }}>Cancel</Button>
+            <Button variant="secondary" onClick={() => { setShowNewEquip(false); setEditingEquipId(null); setImageError(false); }}>Cancel</Button>
             <Button variant="primary" onClick={editingEquipId ? handleSaveEditEquip : handleAddEquip} disabled={!equipForm.name}>
               {editingEquipId ? 'Save Changes' : 'Add Equipment'}
             </Button>
