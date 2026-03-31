@@ -429,6 +429,39 @@ export const Materials: React.FC = () => {
   const costPerSheet = (m: PricingMaterial) => m.pricePerM / 1000;
   const sellPerSheet = (m: PricingMaterial) => costPerSheet(m) * (1 + m.markup / 100);
 
+  // ── Change History helpers ──
+  const formatChangeValue = useCallback((field: string, value: unknown): string => {
+    if (value === null || value === undefined || value === '') return '(empty)';
+    if (Array.isArray(value)) {
+      if (value.length === 0) return '(none)';
+      if (field === 'categoryIds' || field === 'favoriteCategoryIds') {
+        return value.map(id => categories.find(c => c.id === id)?.name || id).join(', ');
+      }
+      if (field === 'productIds' || field === 'favoriteProductIds') {
+        return value.map(id => products.find(p => p.id === id)?.name || id).join(', ');
+      }
+      return value.join(', ');
+    }
+    if (field === 'materialGroupId') {
+      return materialGroups.find(g => g.id === value)?.name || String(value);
+    }
+    if (field === 'pricePerM') return `$${Number(value).toFixed(2)}`;
+    if (field === 'markup') return `${value}%`;
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    return String(value);
+  }, [categories, products, materialGroups]);
+
+  const formatTimestamp = (iso: string): string => {
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+      ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  };
+
+  const historyRecords = useMemo(() => {
+    if (!editingId) return [];
+    return getMaterialHistory(editingId);
+  }, [editingId, getMaterialHistory]);
+
   // ── Material Group management helpers ──
   const handleOpenGroupForm = (group?: MaterialGroup) => {
     if (group) {
