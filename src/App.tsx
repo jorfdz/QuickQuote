@@ -4,7 +4,6 @@ import { Dashboard } from './pages/Dashboard';
 import { QuotesList } from './pages/Quotes/QuotesList';
 import { QuoteBuilder } from './pages/Quotes/QuoteBuilder';
 import { QuoteDetail } from './pages/Quotes/QuoteDetail';
-import { QuotePrint } from './pages/Quotes/QuotePrint';
 import { OrdersList } from './pages/Orders/OrdersList';
 import { OrderDetail } from './pages/Orders/OrderDetail';
 import { NewOrder } from './pages/Orders/NewOrder';
@@ -38,7 +37,6 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* Standalone views - no layout wrapper */}
-        <Route path="/quotes/:id/print" element={<QuotePrint />} />
         <Route path="/onboarding" element={<Onboarding />} />
 
         <Route element={<Layout />}>

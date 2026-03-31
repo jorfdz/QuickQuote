@@ -1,15 +1,25 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Edit, ArrowRight, Printer, Copy, Trash2, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Badge, Card, PageHeader, Modal, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
 import type { QuoteStatus } from '../../types';
+import { buildQuoteTemplateHtml } from '../../utils/documentTemplates';
 
 export const QuoteDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { quotes, updateQuote, deleteQuote, users } = useStore();
+  const {
+    quotes,
+    updateQuote,
+    deleteQuote,
+    users,
+    customers,
+    contacts,
+    companySettings,
+    documentTemplates,
+  } = useStore();
   const [showDelete, setShowDelete] = useState(false);
   const [statusModal, setStatusModal] = useState(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
@@ -30,6 +40,35 @@ export const QuoteDetail: React.FC = () => {
 
   const csr = users.find(u => u.id === quote.csrId);
   const salesRep = users.find(u => u.id === quote.salesId);
+  const customer = customers.find(c => c.id === quote.customerId) || null;
+  const primaryContact = contacts.find(c => c.customerId === quote.customerId && c.isPrimary)
+    || contacts.find(c => c.customerId === quote.customerId)
+    || null;
+
+  const printHtml = useMemo(() => buildQuoteTemplateHtml({
+    template: documentTemplates.quote,
+    company: companySettings,
+    quote,
+    customer,
+    contact: primaryContact,
+    assignedUser: csr || null,
+  }), [companySettings, csr, customer, documentTemplates.quote, primaryContact, quote]);
+
+  const openPrintWindow = () => {
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+
+    if (!printWindow) {
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    window.setTimeout(() => {
+      printWindow.print();
+    }, 150);
+  };
 
   const statuses: { value: QuoteStatus; label: string }[] = [
     { value: 'pending', label: 'Pending' }, { value: 'hot', label: 'Hot 🔥' },
@@ -45,7 +84,7 @@ export const QuoteDetail: React.FC = () => {
         actions={
           <>
             <Button variant="ghost" size="sm" onClick={() => setStatusModal(true)}>Change Status</Button>
-            <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />} onClick={() => window.open(`/quotes/${id}/print`, '_blank')}>Print PDF</Button>
+            <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />} onClick={openPrintWindow}>Print PDF</Button>
             {/* Convert to... dropdown */}
             <div className="relative" ref={convertRef}>
               <Button variant="primary" icon={<ArrowRight className="w-4 h-4" />} onClick={() => setConvertOpen(!convertOpen)}>

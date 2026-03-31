@@ -249,6 +249,34 @@ export interface Quote {
   updatedAt: string;
 }
 
+export interface CompanySettings {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  website: string;
+  tagline: string;
+  defaultTaxRate: number;
+  defaultMarkup: number;
+  defaultLaborRate: number;
+  quoteValidDays: number;
+  currency: string;
+  timezone: string;
+  defaultBleed: number;
+  defaultGutter: number;
+  defaultBleedWide: number;
+  defaultGutterWide: number;
+}
+
+export interface DocumentTemplates {
+  quote: string;
+  order: string;
+  invoice: string;
+}
+
 // ─── ORDERS ─────────────────────────────────────────────────────────────────
 
 export type OrderStatus = 'in_progress' | 'on_hold' | 'completed' | 'canceled';
