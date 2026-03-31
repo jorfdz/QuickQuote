@@ -70,6 +70,7 @@ export interface PricingEquipment {
   unitCost: number;                // base cost per unit (click or sqft)
   colorTiers?: EquipmentPricingTier[];
   blackTiers?: EquipmentPricingTier[];
+  sqftTiers?: EquipmentPricingTier[];   // tiered pricing for per_sqft cost unit
   initialSetupFee: number;
   unitsPerHour?: number;
   timeCostPerHour?: number;

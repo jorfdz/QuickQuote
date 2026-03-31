@@ -101,6 +101,7 @@ interface PricingStore {
 
   // Pricing calculations
   lookupClickPrice: (equipmentId: string, totalClicks: number, colorMode: 'Color' | 'Black') => number;
+  lookupSqftPrice: (equipmentId: string, totalSqft: number) => number;
   calculateImposition: (
     finalW: number, finalH: number, sheetW: number, sheetH: number
   ) => { upsAcross: number; upsDown: number; totalUps: number };
@@ -402,6 +403,26 @@ export const usePricingStore = create<PricingStore>()(
         let price = tiers[0].pricePerUnit;
         for (const tier of tiers) {
           if (totalClicks >= tier.minQty) price = tier.pricePerUnit;
+        }
+        return price;
+      },
+
+      lookupSqftPrice: (equipmentId: string, totalSqft: number) => {
+        const eq = get().equipment.find((e) => e.id === equipmentId);
+        if (!eq) return 0;
+
+        const tiers: EquipmentPricingTier[] = eq.sqftTiers || [];
+
+        if (tiers.length === 0) {
+          // Fallback: use multiplier or flat cost
+          if (eq.markupMultiplier) return eq.unitCost * eq.markupMultiplier;
+          return eq.unitCost;
+        }
+
+        // Find the tier: largest minQty that is <= totalSqft
+        let price = tiers[0].pricePerUnit;
+        for (const tier of tiers) {
+          if (totalSqft >= tier.minQty) price = tier.pricePerUnit;
         }
         return price;
       },
