@@ -46,6 +46,7 @@ export interface PricingProduct {
   defaultSides: 'Single' | 'Double';
   defaultFolding?: string;         // e.g. "Tri-Fold", "Bi-Fold"
   isTemplate: boolean;             // whether this product is starred as a template
+  defaultFinishingIds?: string[];   // default finishing services for this product
   createdAt: string;
 }
 

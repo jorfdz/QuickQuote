@@ -555,7 +555,7 @@ export const Finishing: React.FC = () => {
           {/* ── Line 1: Name + Description side by side ── */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                 Finish Service Name
               </label>
               <input
@@ -566,7 +566,7 @@ export const Finishing: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                 Description
               </label>
               <input
@@ -582,7 +582,7 @@ export const Finishing: React.FC = () => {
           <div className="grid grid-cols-2 gap-4">
             {/* Categories */}
             <div>
-              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                 Categories <span className="text-red-400">*</span>
               </label>
               <div className="flex flex-wrap gap-1">
@@ -611,7 +611,7 @@ export const Finishing: React.FC = () => {
 
             {/* Finish Groups */}
             <div>
-              <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                 Finish Groups
               </label>
               <div className="flex flex-wrap gap-1">
@@ -655,11 +655,11 @@ export const Finishing: React.FC = () => {
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Cost ($)</label>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost ($)</label>
                     <input type="number" value={form.fixedChargeCost || ''} onChange={e => setForm(f => ({ ...f, fixedChargeCost: parseFloat(e.target.value) || 0 }))} placeholder="Your cost" className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400" />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Fixed Price ($)</label>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Fixed Price ($)</label>
                     <input type="number" value={form.fixedChargeAmount || ''} onChange={e => setForm(f => ({ ...f, fixedChargeAmount: parseFloat(e.target.value) || 0 }))} placeholder="Client charge" className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400" />
                   </div>
                 </div>
@@ -680,7 +680,7 @@ export const Finishing: React.FC = () => {
                 {/* Row 1: Charge Basis + Cost Type */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                       Charge Basis
                     </label>
                     <select
@@ -694,7 +694,7 @@ export const Finishing: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                       Cost Type
                     </label>
                     <select
@@ -714,7 +714,7 @@ export const Finishing: React.FC = () => {
                   <div className="space-y-2">
                     <div className="grid grid-cols-4 gap-4">
                       <div>
-                        <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                           Hourly Cost ($)
                         </label>
                         <input
@@ -726,7 +726,7 @@ export const Finishing: React.FC = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                           <Tip
                             label="Sheets Per Stack"
                             tip="How many sheets of paper can be processed at once. Example: A guillotine cutter can cut 500 sheets in a single pass."
@@ -741,7 +741,7 @@ export const Finishing: React.FC = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                           <Tip
                             label="Stacks Per Hour"
                             tip="How many stack operations can be completed per hour. Example: 150 cuts per hour on a guillotine cutter."
@@ -776,7 +776,7 @@ export const Finishing: React.FC = () => {
                     {(form.costType === 'time_only' || form.costType === 'cost_plus_time') && (
                       <>
                         <div>
-                          <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                             <Tip
                               label="Units Per Hour"
                               tip="How many units of this service can be completed per hour. Units are determined by the item's quantity or square footage."
@@ -839,7 +839,7 @@ export const Finishing: React.FC = () => {
                           prefix="$"
                         />
                         <div>
-                          <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                             <Tip
                               label="Units Per Hour (sqft/hr)"
                               tip="How many units of this service can be completed per hour. Units are determined by the item's quantity or square footage."
@@ -913,7 +913,7 @@ export const Finishing: React.FC = () => {
                     prefix="$"
                   />
                   <div>
-                    <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                       <Tip label="Minimum Charge ($)" tip="If the calculated price is below this amount, this minimum will be charged instead." />
                     </label>
                     <input
