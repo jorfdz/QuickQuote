@@ -38,9 +38,22 @@ export const getUnitLabel = (m: PricingMaterial): string => {
   }
 };
 
-/** Sell price per unit, applying markup */
+/** Look up the tier cost for a given quantity. Returns null if no tiers or qty doesn't hit any. */
+export const getTierCost = (m: PricingMaterial, qty: number): number | null => {
+  const tiers = m.pricingTiers;
+  if (!tiers || tiers.length === 0) return null;
+  // Sort descending by minQty, pick the first where qty >= minQty
+  const sorted = [...tiers].sort((a, b) => b.minQty - a.minQty);
+  const tier = sorted.find(t => qty >= t.minQty);
+  return tier ? tier.costPerUnit : null;
+};
+
+/** Sell price per unit, applying markup (percent or fixed) */
 export const getUnitSell = (m: PricingMaterial): number => {
   const cost = getUnitCost(m);
+  if ((m.markupType || 'percent') === 'fixed') {
+    return cost + (m.markup || 0);
+  }
   return cost * (1 + (m.markup || 0) / 100);
 };
 

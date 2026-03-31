@@ -229,6 +229,13 @@ export const MATERIAL_TYPE_PRICING_MODELS: Record<MaterialType, MaterialPricingM
 
 // ─── MATERIALS ──────────────────────────────────────────────────────────────
 
+export interface MaterialPricingTier {
+  minQty: number;                   // minimum quantity threshold (units, sheets, sqft)
+  costPerUnit: number;              // cost at this tier
+}
+
+export type MaterialMarkupType = 'percent' | 'fixed';
+
 export interface PricingMaterial {
   id: string;
   materialType: MaterialType;       // paper | roll_media | rigid_substrate | blanks
@@ -243,8 +250,10 @@ export interface PricingMaterial {
   costPerSqft?: number;            // cost per sqft (when pricingModel = 'cost_per_sqft')
   rollCost?: number;               // full roll cost — reference field for roll media, auto-derives costPerSqft
   rollLength?: number;             // roll length in feet — reference field for roll media, auto-derives costPerSqft
+  pricingTiers: MaterialPricingTier[];  // optional quantity-based tier pricing (overrides base cost when set)
   minimumCharge: number;           // minimum charge floor — 0 means no minimum
-  markup: number;                  // percentage markup (70 = 70%)
+  markupType: MaterialMarkupType;  // 'percent' = percentage on top, 'fixed' = flat dollar amount added
+  markup: number;                  // percentage markup (70 = 70%) or fixed dollar amount
   materialGroupIds: string[];       // which material groups it belongs to
   categoryIds: string[];           // direct product-category assignments
   productIds: string[];            // direct product assignments

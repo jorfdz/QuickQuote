@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Modal, Input, Checkbox } from '../../components/ui';
 
-import type { PricingMaterial, MaterialGroup, MaterialChangeRecord, MaterialType, MaterialPricingModel } from '../../types/pricing';
+import type { PricingMaterial, MaterialGroup, MaterialChangeRecord, MaterialType, MaterialPricingModel, MaterialMarkupType } from '../../types/pricing';
 import { MATERIAL_TYPE_LABELS, PRICING_MODEL_LABELS, MATERIAL_TYPE_PRICING_MODELS } from '../../types/pricing';
 import { getUnitCost, getUnitLabel, getUnitSell, deriveRollCostPerSqft } from '../../utils/materialCost';
 
@@ -26,7 +26,9 @@ const emptyForm = {
   costPerSqft: 0,
   rollCost: 0,
   rollLength: 0,
+  pricingTiers: [] as { minQty: number; costPerUnit: number }[],
   minimumCharge: 0,
+  markupType: 'percent' as 'percent' | 'fixed',
   markup: 70,
   materialGroupIds: [] as string[],
   categoryIds: [] as string[],
@@ -350,7 +352,9 @@ export const Materials: React.FC = () => {
       costPerSqft: form.costPerSqft || undefined,
       rollCost: form.rollCost || undefined,
       rollLength: form.rollLength || undefined,
+      pricingTiers: form.pricingTiers,
       minimumCharge: form.minimumCharge,
+      markupType: form.markupType,
       markup: form.markup,
       materialGroupIds: form.materialGroupIds,
       categoryIds: form.categoryIds,
@@ -385,7 +389,9 @@ export const Materials: React.FC = () => {
       costPerSqft: m.costPerSqft || 0,
       rollCost: m.rollCost || 0,
       rollLength: m.rollLength || 0,
+      pricingTiers: m.pricingTiers || [],
       minimumCharge: m.minimumCharge || 0,
+      markupType: m.markupType || 'percent',
       markup: m.markup,
       materialGroupIds: m.materialGroupIds || [],
       categoryIds: m.categoryIds || [],
@@ -423,7 +429,9 @@ export const Materials: React.FC = () => {
       costPerSqft: form.costPerSqft || undefined,
       rollCost: form.rollCost || undefined,
       rollLength: form.rollLength || undefined,
+      pricingTiers: form.pricingTiers,
       minimumCharge: form.minimumCharge,
+      markupType: form.markupType,
       markup: form.markup,
       materialGroupIds: form.materialGroupIds,
       categoryIds: form.categoryIds,
@@ -457,7 +465,9 @@ export const Materials: React.FC = () => {
       costPerSqft: m.costPerSqft || 0,
       rollCost: m.rollCost || 0,
       rollLength: m.rollLength || 0,
+      pricingTiers: m.pricingTiers || [],
       minimumCharge: m.minimumCharge || 0,
+      markupType: m.markupType || 'percent',
       markup: m.markup,
       materialGroupIds: m.materialGroupIds || [],
       categoryIds: m.categoryIds || [],
@@ -1547,60 +1557,148 @@ export const Materials: React.FC = () => {
             </div>
           </div>
 
-          {/* ── Roll cost / length (optional helpers for roll media) ── */}
-          {form.materialType === 'roll_media' && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Roll Reference</span>
-                <span className="text-[10px] text-amber-500">Optional — enter roll cost &amp; length to auto-calculate cost/sqft</span>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Input label="Cost of Roll" type="number" value={form.rollCost || ''} prefix="$"
-                  onChange={e => {
-                    const rollCost = parseFloat(e.target.value) || 0;
-                    setForm(f => {
-                      const derived = rollCost > 0 && f.rollLength > 0 && f.sizeWidth > 0
-                        ? deriveRollCostPerSqft(rollCost, f.rollLength, f.sizeWidth) : null;
-                      return { ...f, rollCost, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
-                    });
-                  }} />
-                <Input label="Roll Length (ft)" type="number" value={form.rollLength || ''} suffix="ft"
-                  onChange={e => {
-                    const rollLength = parseFloat(e.target.value) || 0;
-                    setForm(f => {
-                      const derived = f.rollCost > 0 && rollLength > 0 && f.sizeWidth > 0
-                        ? deriveRollCostPerSqft(f.rollCost, rollLength, f.sizeWidth) : null;
-                      return { ...f, rollLength, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
-                    });
-                  }} />
-              </div>
-              {form.rollCost > 0 && form.rollLength > 0 && form.sizeWidth > 0 && (
-                <p className="text-[10px] text-amber-600">
-                  Roll total: {form.rollLength} ft × {(form.sizeWidth / 12).toFixed(2)} ft wide = {(form.rollLength * (form.sizeWidth / 12)).toFixed(1)} sqft
-                  → <span className="font-semibold">{formatCurrency(deriveRollCostPerSqft(form.rollCost, form.rollLength, form.sizeWidth))}/sqft</span>
-                </p>
+          {/* ── Base cost + roll reference (inline) ── */}
+          <div className="flex gap-4 items-start">
+            {/* Primary cost input */}
+            <div className="flex-1">
+              {form.pricingModel === 'cost_per_m' && (
+                <Input label="Price per M (per 1,000)" type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
+              )}
+              {form.pricingModel === 'cost_per_unit' && (
+                <Input label="Cost per Unit" type="number" value={form.costPerUnit || ''} onChange={e => setForm(f => ({ ...f, costPerUnit: parseFloat(e.target.value) || 0 }))} prefix="$" />
+              )}
+              {form.pricingModel === 'cost_per_sqft' && (
+                <Input label="Cost per Sq Ft" type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
               )}
             </div>
-          )}
+            {/* Roll reference calculator (compact, inline with cost) */}
+            {form.materialType === 'roll_media' && (
+              <div className="flex-1 bg-amber-50/70 border border-amber-200 rounded-lg px-3 py-2">
+                <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide mb-1.5">Roll Calculator</p>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="block text-[10px] text-amber-500 mb-0.5">Roll $</label>
+                    <input type="number" value={form.rollCost || ''} placeholder="0"
+                      className="w-full px-2 py-1 text-xs border border-amber-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      onChange={e => {
+                        const rollCost = parseFloat(e.target.value) || 0;
+                        setForm(f => {
+                          const derived = rollCost > 0 && f.rollLength > 0 && f.sizeWidth > 0
+                            ? deriveRollCostPerSqft(rollCost, f.rollLength, f.sizeWidth) : null;
+                          return { ...f, rollCost, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
+                        });
+                      }} />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-[10px] text-amber-500 mb-0.5">Length (ft)</label>
+                    <input type="number" value={form.rollLength || ''} placeholder="0"
+                      className="w-full px-2 py-1 text-xs border border-amber-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      onChange={e => {
+                        const rollLength = parseFloat(e.target.value) || 0;
+                        setForm(f => {
+                          const derived = f.rollCost > 0 && rollLength > 0 && f.sizeWidth > 0
+                            ? deriveRollCostPerSqft(f.rollCost, rollLength, f.sizeWidth) : null;
+                          return { ...f, rollLength, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
+                        });
+                      }} />
+                  </div>
+                </div>
+                {form.rollCost > 0 && form.rollLength > 0 && form.sizeWidth > 0 && (
+                  <p className="text-[10px] text-amber-600 mt-1">
+                    {(form.rollLength * (form.sizeWidth / 12)).toFixed(0)} sqft → <span className="font-semibold">{formatCurrency(deriveRollCostPerSqft(form.rollCost, form.rollLength, form.sizeWidth))}/sqft</span>
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
-          {/* ── Price inputs (conditional by pricing model) ── */}
-          <div className="grid grid-cols-2 gap-4">
-            {form.pricingModel === 'cost_per_m' && (
-              <Input label="Price per M (per 1,000)" type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
+          {/* ── Tier Pricing (optional) ── */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Quantity Tier Pricing</label>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, pricingTiers: [...f.pricingTiers, { minQty: 0, costPerUnit: 0 }] }))}
+                className="text-[10px] text-blue-600 hover:text-blue-700 font-medium"
+              >
+                + Add Tier
+              </button>
+            </div>
+            {form.pricingTiers.length === 0 ? (
+              <p className="text-[10px] text-gray-400">No tiers — base cost above applies to all quantities.</p>
+            ) : (
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="grid grid-cols-[1fr_1fr_32px] gap-0 bg-gray-50 border-b border-gray-200 px-3 py-1.5">
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase">Min Qty</span>
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase">Cost/Unit</span>
+                  <span></span>
+                </div>
+                {form.pricingTiers.map((tier, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_1fr_32px] gap-2 items-center px-3 py-1.5 border-b border-gray-100 last:border-0">
+                    <input type="number" value={tier.minQty || ''} placeholder="0"
+                      className="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      onChange={e => setForm(f => ({
+                        ...f,
+                        pricingTiers: f.pricingTiers.map((t, idx) => idx === i ? { ...t, minQty: parseFloat(e.target.value) || 0 } : t),
+                      }))} />
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                      <input type="number" value={tier.costPerUnit || ''} placeholder="0.00"
+                        className="w-full pl-5 pr-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        onChange={e => setForm(f => ({
+                          ...f,
+                          pricingTiers: f.pricingTiers.map((t, idx) => idx === i ? { ...t, costPerUnit: parseFloat(e.target.value) || 0 } : t),
+                        }))} />
+                    </div>
+                    <button type="button" onClick={() => setForm(f => ({ ...f, pricingTiers: f.pricingTiers.filter((_, idx) => idx !== i) }))}
+                      className="p-1 text-gray-300 hover:text-red-500 transition-colors">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
-            {form.pricingModel === 'cost_per_unit' && (
-              <Input label="Cost per Unit" type="number" value={form.costPerUnit || ''} onChange={e => setForm(f => ({ ...f, costPerUnit: parseFloat(e.target.value) || 0 }))} prefix="$" />
-            )}
-            {form.pricingModel === 'cost_per_sqft' && (
-              <Input label="Cost per Square Foot" type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
-            )}
-            <Input label="Markup %" type="number" value={form.markup} onChange={e => setForm(f => ({ ...f, markup: parseFloat(e.target.value) || 0 }))} suffix="%" />
           </div>
 
           {/* ── Minimum Charge ── */}
           <div className="max-w-xs">
             <Input label="Minimum Charge" type="number" value={form.minimumCharge || ''} onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))} prefix="$" />
-            <p className="text-[10px] text-gray-400 mt-1">If calculated cost is below this amount, this amount will be charged instead. Leave at 0 for no minimum.</p>
+            <p className="text-[10px] text-gray-400 mt-1">Floor price — charged if calculated cost is lower. 0 = no minimum.</p>
+          </div>
+
+          {/* ── Markup (last — applies on top of everything) ── */}
+          <div className="border-t border-gray-200 pt-4">
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Markup</label>
+            <div className="flex gap-3 items-end">
+              <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'percent' }))}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    form.markupType === 'percent' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
+                  }`}>
+                  Percentage
+                </button>
+                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'fixed' }))}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    form.markupType === 'fixed' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
+                  }`}>
+                  Fixed Amount
+                </button>
+              </div>
+              <div className="w-40">
+                <Input
+                  type="number"
+                  value={form.markup}
+                  onChange={e => setForm(f => ({ ...f, markup: parseFloat(e.target.value) || 0 }))}
+                  prefix={form.markupType === 'fixed' ? '$' : undefined}
+                  suffix={form.markupType === 'percent' ? '%' : undefined}
+                />
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1.5">
+              {form.markupType === 'percent'
+                ? 'Added as a percentage on top of the cost.'
+                : 'Added as a flat dollar amount on top of the cost.'}
+            </p>
           </div>
 
           {/* ── Live cost preview ── */}
@@ -1608,7 +1706,7 @@ export const Materials: React.FC = () => {
             const preview = { ...form, materialType: form.materialType || 'paper', pricingModel: form.pricingModel || 'cost_per_m' } as PricingMaterial;
             const cost = getUnitCost(preview);
             const label = getUnitLabel(preview);
-            const sell = cost * (1 + (form.markup || 0) / 100);
+            const sell = form.markupType === 'fixed' ? cost + (form.markup || 0) : cost * (1 + (form.markup || 0) / 100);
             if (cost <= 0) return null;
             return (
               <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
@@ -1617,6 +1715,12 @@ export const Materials: React.FC = () => {
                   <span className="font-medium">{formatCurrency(cost)}</span>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-gray-500">+ Markup:</span>
+                  <span className="font-medium text-gray-600">
+                    {form.markupType === 'fixed' ? `$${form.markup.toFixed(2)}` : `${form.markup}%`}
+                  </span>
+                </div>
+                <div className="flex justify-between border-t border-gray-200 pt-1">
                   <span className="text-gray-500">Sell{label}:</span>
                   <span className="font-bold text-blue-700">{formatCurrency(sell)}</span>
                 </div>
