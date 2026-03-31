@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown, Clock, ArrowRight, ImageIcon, User } from 'lucide-react';
+import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown, Clock, ArrowRight, ImageIcon, User, Truck } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Modal, Input, Checkbox } from '../../components/ui';
@@ -19,7 +19,7 @@ const emptyForm = {
   sizeHeight: 0,
   pricePerM: 0,
   markup: 70,
-  materialGroupId: '',
+  materialGroupIds: [] as string[],
   categoryIds: [] as string[],
   productIds: [] as string[],
   favoriteProductIds: [] as string[],
@@ -88,7 +88,7 @@ export const Materials: React.FC = () => {
   const [deleteGroupConfirm, setDeleteGroupConfirm] = useState<string | null>(null);
 
   // Modal tab state: 'details' or 'history'
-  const [modalTab, setModalTab] = useState<'details' | 'photos' | 'history'>('details');
+  const [modalTab, setModalTab] = useState<'details' | 'vendor' | 'photos' | 'history'>('details');
 
   // Product & category assignment state
   const [productSearch, setProductSearch] = useState('');
@@ -173,9 +173,10 @@ export const Materials: React.FC = () => {
     }));
   }, []);
 
-  const getGroupName = (groupId?: string) => {
-    if (!groupId) return '--';
-    return materialGroups.find(g => g.id === groupId)?.name || '--';
+  const getGroupNames = (groupIds?: string[]) => {
+    if (!groupIds || groupIds.length === 0) return '--';
+    const names = groupIds.map(gid => materialGroups.find(g => g.id === gid)?.name).filter(Boolean);
+    return names.length > 0 ? names.join(', ') : '--';
   };
 
   // Derive group IDs matching selected category filter
@@ -198,8 +199,8 @@ export const Materials: React.FC = () => {
         || (m.vendorContactName && m.vendorContactName.toLowerCase().includes(q))
         || (m.vendorSalesRep && m.vendorSalesRep.toLowerCase().includes(q));
       const matchSize = sizeFilter === 'all' || m.size === sizeFilter;
-      const matchGroup = groupFilter === 'all' || m.materialGroupId === groupFilter;
-      const matchCategory = !groupIdsForCategory || (m.materialGroupId && groupIdsForCategory.includes(m.materialGroupId));
+      const matchGroup = groupFilter === 'all' || (m.materialGroupIds && m.materialGroupIds.includes(groupFilter));
+      const matchCategory = !groupIdsForCategory || (m.materialGroupIds && m.materialGroupIds.some(gid => groupIdsForCategory.includes(gid)));
       const matchVendor = vendorFilter === 'all' || m.vendorName === vendorFilter;
       const matchFav = favFilter === 'all' || m.isFavorite;
       return matchSearch && matchSize && matchGroup && matchCategory && matchVendor && matchFav;
@@ -216,7 +217,7 @@ export const Materials: React.FC = () => {
       let cmp = 0;
       switch (sortCol) {
         case 'name':        cmp = a.name.localeCompare(b.name); break;
-        case 'group':        cmp = (getGroupName(a.materialGroupId)).localeCompare(getGroupName(b.materialGroupId)); break;
+        case 'group':        cmp = (getGroupNames(a.materialGroupIds)).localeCompare(getGroupNames(b.materialGroupIds)); break;
         case 'size':         cmp = a.size.localeCompare(b.size); break;
         case 'sizeWidth':    cmp = a.sizeWidth - b.sizeWidth; break;
         case 'sizeHeight':   cmp = a.sizeHeight - b.sizeHeight; break;
@@ -318,7 +319,7 @@ export const Materials: React.FC = () => {
       sizeHeight: form.sizeHeight,
       pricePerM: form.pricePerM,
       markup: form.markup,
-      materialGroupId: form.materialGroupId || undefined,
+      materialGroupIds: form.materialGroupIds,
       categoryIds: form.categoryIds,
       productIds: form.productIds,
       favoriteProductIds: form.favoriteProductIds,
@@ -346,7 +347,7 @@ export const Materials: React.FC = () => {
       sizeHeight: m.sizeHeight,
       pricePerM: m.pricePerM,
       markup: m.markup,
-      materialGroupId: m.materialGroupId || '',
+      materialGroupIds: m.materialGroupIds || [],
       categoryIds: m.categoryIds || [],
       productIds: m.productIds || [],
       favoriteProductIds: m.favoriteProductIds || [],
@@ -375,7 +376,7 @@ export const Materials: React.FC = () => {
       sizeHeight: form.sizeHeight,
       pricePerM: form.pricePerM,
       markup: form.markup,
-      materialGroupId: form.materialGroupId || undefined,
+      materialGroupIds: form.materialGroupIds,
       categoryIds: form.categoryIds,
       productIds: form.productIds,
       favoriteProductIds: form.favoriteProductIds,
@@ -402,7 +403,7 @@ export const Materials: React.FC = () => {
       sizeHeight: m.sizeHeight,
       pricePerM: m.pricePerM,
       markup: m.markup,
-      materialGroupId: m.materialGroupId || '',
+      materialGroupIds: m.materialGroupIds || [],
       categoryIds: m.categoryIds || [],
       productIds: m.productIds || [],
       favoriteProductIds: m.favoriteProductIds || [],
@@ -457,8 +458,8 @@ export const Materials: React.FC = () => {
       }
       return value.join(', ');
     }
-    if (field === 'materialGroupId') {
-      return materialGroups.find(g => g.id === value)?.name || String(value);
+    if (field === 'materialGroupIds') {
+      return (value as string[]).map(id => materialGroups.find(g => g.id === id)?.name || id).join(', ');
     }
     if (field === 'pricePerM') return `$${Number(value).toFixed(2)}`;
     if (field === 'markup') return `${value}%`;
@@ -700,7 +701,7 @@ export const Materials: React.FC = () => {
                       <p className="text-sm font-semibold text-gray-900">{m.name}</p>
                     </div>
                   </td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{getGroupName(m.materialGroupId)}</td>
+                  <td className="py-3 px-4 text-sm text-gray-500">{getGroupNames(m.materialGroupIds)}</td>
                   <td className="py-3 px-4 text-sm text-gray-500 truncate max-w-[120px]" title={m.vendorName || '--'}>{m.vendorName || '--'}</td>
                   <td className="py-3 px-4 text-sm text-gray-600 font-medium">{m.size}</td>
                   <td className="py-3 px-4 text-sm text-gray-500">{m.sizeWidth}"</td>
@@ -769,6 +770,18 @@ export const Materials: React.FC = () => {
             }`}
           >
             Details
+          </button>
+          <button
+            type="button"
+            onClick={() => setModalTab('vendor')}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              modalTab === 'vendor'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Truck className="w-3.5 h-3.5" />
+            Vendor Info
           </button>
           <button
             type="button"
@@ -982,18 +995,52 @@ export const Materials: React.FC = () => {
                   <Input label="Material Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                     placeholder="e.g. 100lb Gloss Cover" />
                 </div>
-                <div className="flex-[1]">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Material Group</label>
-                  <select
-                    value={form.materialGroupId}
-                    onChange={e => setForm(f => ({ ...f, materialGroupId: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">None</option>
-                    {materialGroups.map(g => (
-                      <option key={g.id} value={g.id}>{g.name}</option>
-                    ))}
-                  </select>
+                <div className="flex-[2]">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    Material Groups
+                    {form.materialGroupIds.length > 0 && (
+                      <span className="ml-1.5 text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                        {form.materialGroupIds.length}
+                      </span>
+                    )}
+                  </label>
+                  <div className="border border-gray-200 rounded-lg max-h-[120px] overflow-y-auto">
+                    {materialGroups.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-gray-400">No material groups available</div>
+                    ) : (
+                      materialGroups.map(g => {
+                        const isChecked = form.materialGroupIds.includes(g.id);
+                        return (
+                          <label
+                            key={g.id}
+                            className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
+                              isChecked ? 'bg-blue-50' : 'hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                              isChecked ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
+                            }`}>
+                              {isChecked && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => setForm(f => ({
+                                ...f,
+                                materialGroupIds: isChecked
+                                  ? f.materialGroupIds.filter(id => id !== g.id)
+                                  : [...f.materialGroupIds, g.id],
+                              }))}
+                              className="sr-only"
+                            />
+                            <span className={`text-sm ${isChecked ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
+                              {g.name}
+                            </span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               </div>
               <div>
@@ -1361,9 +1408,11 @@ export const Materials: React.FC = () => {
             </div>
           )}
 
-          {/* Vendor Information */}
-          <div className="border-t border-gray-200 pt-4">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Vendor Information</h3>
+        </div>}
+
+        {/* ── Vendor Info Tab ── */}
+        {modalTab === 'vendor' && (
+          <div className="space-y-4">
             <div className="space-y-3">
               <div className="grid grid-cols-3 gap-4">
                 <Input label="Vendor Name" value={form.vendorName} onChange={e => setForm(f => ({ ...f, vendorName: e.target.value }))}
@@ -1383,14 +1432,15 @@ export const Materials: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
 
-          <div className="flex gap-3 justify-end pt-2">
-            <Button variant="secondary" onClick={() => { setShowNew(false); setEditingId(null); }}>Cancel</Button>
-            <Button variant="primary" onClick={editingId ? handleSaveEdit : handleAdd} disabled={!form.name || form.sizeWidth <= 0 || form.sizeHeight <= 0}>
-              {editingId ? 'Save Changes' : 'Add Material'}
-            </Button>
-          </div>
-        </div>}
+        {/* Save / Cancel buttons (visible on all tabs) */}
+        <div className="flex gap-3 justify-end pt-4 border-t border-gray-100 mt-4">
+          <Button variant="secondary" onClick={() => { setShowNew(false); setEditingId(null); }}>Cancel</Button>
+          <Button variant="primary" onClick={editingId ? handleSaveEdit : handleAdd} disabled={!form.name || form.sizeWidth <= 0 || form.sizeHeight <= 0}>
+            {editingId ? 'Save Changes' : 'Add Material'}
+          </Button>
+        </div>
       </Modal>
 
       {/* Material Groups Manager Modal */}

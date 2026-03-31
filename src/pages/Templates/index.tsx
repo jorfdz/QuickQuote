@@ -82,7 +82,7 @@ export const Templates: React.FC = () => {
       .filter(g => g.categoryIds.some(cid => selectedProduct.categoryIds.includes(cid)))
       .map(g => g.id);
     if (matchingGroupIds.length === 0) return materials;
-    return materials.filter(m => m.materialGroupId && matchingGroupIds.includes(m.materialGroupId));
+    return materials.filter(m => m.materialGroupIds && m.materialGroupIds.some(gid => matchingGroupIds.includes(gid)));
   }, [selectedProduct, materials, materialGroups]);
 
   const filteredMaterials = useMemo(() => {
