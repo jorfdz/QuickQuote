@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown } from 'lucide-react';
+import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown, Clock, ArrowRight } from 'lucide-react';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Modal, Input, Checkbox } from '../../components/ui';
 import { ImageUploadCropper } from '../../components/ui/ImageUploadCropper';
-import type { PricingMaterial, MaterialGroup } from '../../types/pricing';
+import type { PricingMaterial, MaterialGroup, MaterialChangeRecord } from '../../types/pricing';
 
 // ─── Sort / Pagination types ────────────────────────────────────────────────
 
@@ -45,6 +45,7 @@ export const Materials: React.FC = () => {
     materials, addMaterial, updateMaterial, deleteMaterial, toggleMaterialFavorite,
     materialGroups, addMaterialGroup, updateMaterialGroup, deleteMaterialGroup,
     categories, products,
+    getMaterialHistory, clearMaterialHistory,
   } = usePricingStore();
 
   const [search, setSearch] = useState('');
@@ -83,6 +84,9 @@ export const Materials: React.FC = () => {
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [groupForm, setGroupForm] = useState(emptyGroupForm);
   const [deleteGroupConfirm, setDeleteGroupConfirm] = useState<string | null>(null);
+
+  // Modal tab state: 'details' or 'history'
+  const [modalTab, setModalTab] = useState<'details' | 'history'>('details');
 
   // Product & category assignment state
   const [productSearch, setProductSearch] = useState('');
@@ -285,6 +289,7 @@ export const Materials: React.FC = () => {
   const handleOpenNew = () => {
     setForm(emptyForm);
     setProductSearch('');
+    setModalTab('details');
     setShowNew(true);
   };
 
@@ -342,6 +347,7 @@ export const Materials: React.FC = () => {
       vendorSalesRep: m.vendorSalesRep || '',
     });
     setProductSearch('');
+    setModalTab('details');
   };
 
   const handleSaveEdit = () => {
@@ -590,20 +596,16 @@ export const Materials: React.FC = () => {
                   className="hover:bg-gray-50 transition-colors cursor-pointer"
                   onClick={() => handleStartEdit(m)}
                 >
-                  <td className="py-3 px-2 w-8" onClick={e => e.stopPropagation()}>
+                  <td className="py-3 px-2 w-8">
                     {(() => {
                       const favCats = (m.favoriteCategoryIds || []).map(id => categories.find(c => c.id === id)).filter(Boolean);
                       const favProds = (m.favoriteProductIds || []).map(id => products.find(p => p.id === id)).filter(Boolean);
                       const hasFavItems = favCats.length > 0 || favProds.length > 0;
                       return (
                         <div className="relative group/fav">
-                          <button
-                            onClick={() => toggleMaterialFavorite(m.id)}
-                            className="p-1 hover:bg-amber-50 rounded transition-colors"
-                            title={!hasFavItems ? (m.isFavorite ? 'Remove from favorites' : 'Add to favorites') : undefined}
-                          >
-                            <Star className={`w-4 h-4 ${m.isFavorite ? 'fill-amber-400 text-amber-400' : 'text-gray-300 hover:text-amber-300'}`} />
-                          </button>
+                          <div className="p-1">
+                            <Star className={`w-4 h-4 ${hasFavItems ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}`} />
+                          </div>
                           {hasFavItems && (
                             <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover/fav:block">
                               <div className="bg-gray-900 text-white rounded-lg shadow-xl px-3 py-2.5 text-xs whitespace-nowrap min-w-[200px] max-w-[300px]">

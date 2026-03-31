@@ -174,6 +174,24 @@ export interface PricingBrokered {
   createdAt: string;
 }
 
+// ─── MATERIAL CHANGE HISTORY ────────────────────────────────────────────────
+
+export interface MaterialFieldChange {
+  field: string;
+  fieldLabel: string;
+  oldValue: string | number | boolean | string[] | null;
+  newValue: string | number | boolean | string[] | null;
+}
+
+export interface MaterialChangeRecord {
+  id: string;
+  materialId: string;
+  materialName: string;
+  action: 'created' | 'updated' | 'deleted';
+  changes: MaterialFieldChange[];
+  timestamp: string;
+}
+
 // ─── MATERIALS ──────────────────────────────────────────────────────────────
 
 export interface PricingMaterial {
