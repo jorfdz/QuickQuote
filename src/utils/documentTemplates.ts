@@ -48,14 +48,14 @@ const ensureWorkOrderQrMarkup = (template: string): string => {
   if (next.includes('.header-right {')) {
     next = next.replace(
       /\.header-right\s*\{[^}]*\}/,
-      '.header-right { display: grid; grid-template-columns: minmax(170px, 1fr) 84px; align-items: start; gap: 18px; width: 320px; }',
+      '.header-right { display: flex; align-items: flex-start; justify-content: flex-end; gap: 18px; width: 320px; }',
     );
   }
 
   if (next.includes('.header-copy {')) {
     next = next.replace(
       /\.header-copy\s*\{[^}]*\}/,
-      '.header-copy { text-align: right; padding-top: 2px; min-width: 0; }',
+      '.header-copy { text-align: right; padding-top: 2px; width: 218px; flex: 0 0 218px; }',
     );
   }
 
@@ -69,6 +69,20 @@ const ensureWorkOrderQrMarkup = (template: string): string => {
   next = next.replace(/<div class="qr-caption">[\s\S]*?<\/div>/g, '');
   next = next.replace(/Tracker Link/gi, '');
 
+  next = next.replace(
+    /<div class="header-right">[\s\S]*?<\/div>\s*<\/div>/i,
+    `<div class="header-right">
+      <div class="header-copy">
+        <div class="doc-title">WORK ORDER</div>
+        <div class="doc-number">{{orderNumber}}</div>
+      </div>
+      <div class="qr-box">
+        <img src="{{qrCodeUrl}}" alt="Work order QR code" />
+      </div>
+    </div>
+  </div>`,
+  );
+
   if (!next.includes('{{qrCodeUrl}}')) {
     const standardizedHeaderRight = `<div class="header-right">
       <div class="header-copy">
@@ -80,10 +94,7 @@ const ensureWorkOrderQrMarkup = (template: string): string => {
       </div>
     </div>`;
 
-    if (/<div class="header-right">[\s\S]*?<\/div>\s*<\/div>/i.test(next)) {
-      next = next.replace(/<div class="header-right">[\s\S]*?<\/div>\s*<\/div>/i, `${standardizedHeaderRight}
-    </div>`);
-    } else if (/<div>\s*<div class="doc-title">WORK ORDER<\/div>[\s\S]*?<div class="doc-number">\{\{orderNumber\}\}<\/div>\s*<\/div>/i.test(next)) {
+    if (/<div>\s*<div class="doc-title">WORK ORDER<\/div>[\s\S]*?<div class="doc-number">\{\{orderNumber\}\}<\/div>\s*<\/div>/i.test(next)) {
       next = next.replace(
         /<div>\s*<div class="doc-title">WORK ORDER<\/div>[\s\S]*?<div class="doc-number">\{\{orderNumber\}\}<\/div>\s*<\/div>/i,
         standardizedHeaderRight,
