@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Plus, Trash2, Edit3, Search, Clock, X, Info, Copy,
+  Plus, Trash2, Edit3, Search, Clock, X, Info, Copy, Settings,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Table, Modal, Input } from '../../components/ui';
-import type { PricingLabor } from '../../types/pricing';
+import type { PricingLabor, LaborGroup } from '../../types/pricing';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const formatCurrency = (n: number) => `$${n.toFixed(2)}`;
@@ -29,6 +29,7 @@ const emptyLaborForm = {
   initialSetupFee: 0,
   markupPercent: 0,
   categoryIds: [] as string[],
+  laborGroupIds: [] as string[],
   isFixedCharge: false,
   fixedChargeAmount: 0,
   fixedChargeCost: 0,
@@ -37,20 +38,31 @@ const emptyLaborForm = {
   notes: '',
 };
 
+const emptyGroupForm = { name: '', description: '' };
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 export const Labor: React.FC = () => {
   const [searchParams] = useSearchParams();
   const {
     labor, addLabor, updateLabor, deleteLabor,
+    laborGroups, addLaborGroup, updateLaborGroup, deleteLaborGroup,
     categories,
   } = usePricingStore();
 
   const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [filterCategory, setFilterCategory] = useState('');
+  const [filterGroup, setFilterGroup] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyLaborForm);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  // Group manager state
+  const [showGroupManager, setShowGroupManager] = useState(false);
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [groupForm, setGroupForm] = useState(emptyGroupForm);
+  const [deleteGroupConfirm, setDeleteGroupConfirm] = useState<string | null>(null);
 
   // ── Category lookup map ──
   const categoryMap = useMemo(() => {
@@ -58,6 +70,13 @@ export const Labor: React.FC = () => {
     categories.forEach(c => m.set(c.id, c.name));
     return m;
   }, [categories]);
+
+  // ── Group lookup map ──
+  const groupMap = useMemo(() => {
+    const m = new Map<string, string>();
+    laborGroups.forEach(g => m.set(g.id, g.name));
+    return m;
+  }, [laborGroups]);
 
   // ── Filtered list ──
   const filteredLabor = useMemo(() => {
@@ -73,8 +92,11 @@ export const Labor: React.FC = () => {
     if (filterCategory) {
       list = list.filter(l => l.categoryIds?.includes(filterCategory));
     }
+    if (filterGroup) {
+      list = list.filter(l => l.laborGroupIds?.includes(filterGroup));
+    }
     return list;
-  }, [labor, search, filterCategory]);
+  }, [labor, search, filterCategory, filterGroup]);
 
   // ── Compute sell rate ──
   const computeSellRate = (hourlyCost: number, markupPercent: number, minimumCharge?: number) => {
@@ -99,6 +121,7 @@ export const Labor: React.FC = () => {
       initialSetupFee: l.initialSetupFee,
       markupPercent: l.markupPercent,
       categoryIds: l.categoryIds || [],
+      laborGroupIds: l.laborGroupIds || [],
       isFixedCharge: l.isFixedCharge ?? false,
       fixedChargeAmount: l.fixedChargeAmount ?? 0,
       fixedChargeCost: l.fixedChargeCost ?? 0,
@@ -122,6 +145,7 @@ export const Labor: React.FC = () => {
       initialSetupFee: form.initialSetupFee,
       markupPercent: form.markupPercent,
       categoryIds: form.categoryIds,
+      laborGroupIds: form.laborGroupIds,
       isFixedCharge: form.isFixedCharge,
       fixedChargeAmount: form.fixedChargeAmount,
       fixedChargeCost: form.fixedChargeCost,
@@ -145,6 +169,7 @@ export const Labor: React.FC = () => {
       initialSetupFee: l.initialSetupFee,
       markupPercent: l.markupPercent,
       categoryIds: l.categoryIds || [],
+      laborGroupIds: l.laborGroupIds || [],
       isFixedCharge: l.isFixedCharge ?? false,
       fixedChargeAmount: l.fixedChargeAmount ?? 0,
       fixedChargeCost: l.fixedChargeCost ?? 0,
@@ -163,6 +188,49 @@ export const Labor: React.FC = () => {
     }));
   };
 
+  const toggleLaborGroup = (gId: string) => {
+    setForm(f => ({
+      ...f,
+      laborGroupIds: f.laborGroupIds.includes(gId)
+        ? f.laborGroupIds.filter(id => id !== gId)
+        : [...f.laborGroupIds, gId],
+    }));
+  };
+
+  // ── Group Manager Handlers ──
+  const handleOpenGroupForm = (group?: LaborGroup) => {
+    if (group) {
+      setEditingGroupId(group.id);
+      setGroupForm({ name: group.name, description: group.description || '' });
+    } else {
+      setEditingGroupId(null);
+      setGroupForm(emptyGroupForm);
+    }
+    setShowGroupForm(true);
+  };
+
+  const handleSaveGroup = () => {
+    if (!groupForm.name) return;
+    if (editingGroupId) {
+      updateLaborGroup(editingGroupId, {
+        name: groupForm.name,
+        description: groupForm.description || undefined,
+      });
+    } else {
+      addLaborGroup({
+        name: groupForm.name,
+        description: groupForm.description || undefined,
+      });
+    }
+    setShowGroupForm(false);
+    setEditingGroupId(null);
+  };
+
+  const handleDeleteGroup = (id: string) => {
+    deleteLaborGroup(id);
+    setDeleteGroupConfirm(null);
+  };
+
   const sellRate = form.isFixedCharge
     ? form.fixedChargeAmount
     : computeSellRate(form.hourlyCost, form.markupPercent, form.minimumCharge);
@@ -174,9 +242,14 @@ export const Labor: React.FC = () => {
         title="Labor"
         subtitle={`${labor.length} labor service${labor.length !== 1 ? 's' : ''}`}
         actions={
-          <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={openNewModal}>
-            Add Labor
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" icon={<Settings className="w-4 h-4" />} onClick={() => setShowGroupManager(true)}>
+              Manage Groups
+            </Button>
+            <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={openNewModal}>
+              Add Labor
+            </Button>
+          </div>
         }
       />
 
@@ -201,6 +274,18 @@ export const Labor: React.FC = () => {
               <option value="">All Categories</option>
               {categories.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <select
+              value={filterGroup}
+              onChange={e => setFilterGroup(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Groups</option>
+              {laborGroups.map(g => (
+                <option key={g.id} value={g.id}>{g.name}</option>
               ))}
             </select>
           </div>
@@ -475,27 +560,55 @@ export const Labor: React.FC = () => {
             )}
           </div>
 
-          {/* Categories multi-select */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              Categories
-            </label>
-            <div className="border border-gray-200 rounded-lg p-3 max-h-32 overflow-y-auto">
-              {categories.length === 0 && (
-                <p className="text-xs text-gray-400 italic">No categories defined</p>
-              )}
-              <div className="grid grid-cols-2 gap-2">
-                {categories.map(c => (
-                  <label key={c.id} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.categoryIds.includes(c.id)}
-                      onChange={() => toggleCategory(c.id)}
-                      className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700">{c.name}</span>
-                  </label>
-                ))}
+          {/* Categories + Labor Groups side by side */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Categories multi-select */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Categories
+              </label>
+              <div className="border border-gray-200 rounded-lg p-3 max-h-32 overflow-y-auto">
+                {categories.length === 0 && (
+                  <p className="text-xs text-gray-400 italic">No categories defined</p>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  {categories.map(c => (
+                    <label key={c.id} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.categoryIds.includes(c.id)}
+                        onChange={() => toggleCategory(c.id)}
+                        className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{c.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Labor Groups multi-select */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Labor Groups
+              </label>
+              <div className="border border-gray-200 rounded-lg p-3 max-h-32 overflow-y-auto">
+                {laborGroups.length === 0 && (
+                  <p className="text-xs text-gray-400 italic">No groups defined</p>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  {laborGroups.map(g => (
+                    <label key={g.id} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.laborGroupIds.includes(g.id)}
+                        onChange={() => toggleLaborGroup(g.id)}
+                        className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{g.name}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -519,6 +632,80 @@ export const Labor: React.FC = () => {
               {editingId ? 'Save Changes' : 'Add Labor'}
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* ═══════════════ MANAGE GROUPS MODAL ═══════════════ */}
+      <Modal
+        isOpen={showGroupManager}
+        onClose={() => { setShowGroupManager(false); setShowGroupForm(false); }}
+        title="Manage Labor Groups"
+        size="lg"
+      >
+        <div className="space-y-4">
+          {/* Group list */}
+          {!showGroupForm && (
+            <>
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-gray-500">{laborGroups.length} labor groups</p>
+                <Button variant="primary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={() => handleOpenGroupForm()}>
+                  Add Group
+                </Button>
+              </div>
+              <div className="divide-y divide-gray-100 border border-gray-100 rounded-lg">
+                {laborGroups.map(g => (
+                  <div key={g.id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{g.name}</p>
+                      {g.description && <p className="text-xs text-gray-500 mt-0.5">{g.description}</p>}
+                    </div>
+                    <div className="flex gap-1">
+                      {deleteGroupConfirm === g.id ? (
+                        <div className="flex gap-1 items-center">
+                          <button onClick={() => handleDeleteGroup(g.id)} className="px-2 py-0.5 text-xs bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
+                          <button onClick={() => setDeleteGroupConfirm(null)} className="px-2 py-0.5 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                        </div>
+                      ) : (
+                        <>
+                          <button onClick={() => handleOpenGroupForm(g)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => setDeleteGroupConfirm(g.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {laborGroups.length === 0 && (
+                  <div className="text-center py-8 text-gray-400 text-sm">No labor groups yet</div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Group add/edit form */}
+          {showGroupForm && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-700">{editingGroupId ? 'Edit Group' : 'New Group'}</h3>
+                <button onClick={() => { setShowGroupForm(false); setEditingGroupId(null); }} className="p-1 hover:bg-gray-100 rounded">
+                  <X className="w-4 h-4 text-gray-400" />
+                </button>
+              </div>
+              <Input label="Group Name" value={groupForm.name} onChange={e => setGroupForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Design & Prepress" />
+              <Input label="Description" value={groupForm.description} onChange={e => setGroupForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Optional description" />
+              <div className="flex gap-3 justify-end pt-2">
+                <Button variant="secondary" size="sm" onClick={() => { setShowGroupForm(false); setEditingGroupId(null); }}>Cancel</Button>
+                <Button variant="primary" size="sm" onClick={handleSaveGroup} disabled={!groupForm.name}>
+                  {editingGroupId ? 'Save Changes' : 'Add Group'}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
     </div>

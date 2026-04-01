@@ -823,6 +823,9 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [impositionBleed, setImpositionBleed] = useState(0.125);
   const [impositionGutter, setImpositionGutter] = useState(0);
   const [impositionOrientation, setImpositionOrientation] = useState<'auto' | 'A' | 'B'>('auto');
+  const [runSizeInput, setRunSizeInput] = useState('');
+  const [customRunWidth, setCustomRunWidth] = useState(0);
+  const [customRunHeight, setCustomRunHeight] = useState(0);
 
   // ── Template panel state ─────────────────────────────────────────────
   const [templatePanelCollapsed, setTemplatePanelCollapsed] = useState(false);
@@ -861,8 +864,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
     originals: 1,
   }]);
 
-  // ── Finishing groups expanded state ───────────────────────────────────
-  const [expandedFinishingGroups, setExpandedFinishingGroups] = useState<Record<string, boolean>>({});
+  // ── Services selection state ──────────────────────────────────────────
   const [selectedFinishingIds, setSelectedFinishingIds] = useState<string[]>(() => {
     const ids: string[] = [];
     if (ps.cuttingEnabled) {
@@ -879,6 +881,8 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
     }
     return ids;
   });
+  const [selectedLaborIds, setSelectedLaborIds] = useState<string[]>([]);
+  const [selectedBrokeredIds, setSelectedBrokeredIds] = useState<string[]>([]);
 
   // Sync first material entry to pricing state
   useEffect(() => {
@@ -944,6 +948,13 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const selectedMaterial = useMemo(() => materials.find(m => m.id === ps.materialId), [materials, ps.materialId]);
   const selectedEquipment = useMemo(() => equipment.find(e => e.id === ps.equipmentId), [equipment, ps.equipmentId]);
 
+  // Initialize run size input from selected material
+  useEffect(() => {
+    if (selectedMaterial) {
+      setRunSizeInput(`${selectedMaterial.sizeWidth}x${selectedMaterial.sizeHeight}`);
+    }
+  }, [selectedMaterial]);
+
   const availableEquipment = useMemo(() => {
     if (!ps.categoryName) return equipment;
     const catEq = getEquipmentForCategory(ps.categoryName);
@@ -989,8 +1000,8 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
     const bleed2 = impositionBleed * 2;
     const runW = ps.finalWidth + bleed2;
     const runH = ps.finalHeight + bleed2;
-    const sheetW = selectedMaterial.sizeWidth;
-    const sheetH = selectedMaterial.sizeHeight;
+    const sheetW = customRunWidth > 0 ? customRunWidth : selectedMaterial.sizeWidth;
+    const sheetH = customRunHeight > 0 ? customRunHeight : selectedMaterial.sizeHeight;
     const gutter = impositionGutter;
 
     // Orientation A: finalW along sheetW
@@ -1023,7 +1034,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
       waste: Math.max(0, waste),
       orientationA, orientationB, bestOrientation
     };
-  }, [selectedMaterial, ps.finalWidth, ps.finalHeight, ps.quantity, impositionBleed, impositionGutter, impositionOrientation]);
+  }, [selectedMaterial, ps.finalWidth, ps.finalHeight, ps.quantity, impositionBleed, impositionGutter, impositionOrientation, customRunWidth, customRunHeight]);
 
   // ── Price Calculation ─────────────────────────────────────────────────
   const computeServiceLines = useCallback((): PricingServiceLine[] => {
@@ -1700,21 +1711,21 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           </div>
                           <div className="bg-white rounded-lg p-2 text-center border border-blue-100">
                             <p className="text-[10px] text-blue-600 font-medium">Run Size</p>
-                            <div className="flex items-center justify-center gap-0.5">
-                              <input type="number" step="0.001" value={parseFloat(enhancedImposition.runWidth.toFixed(3))}
-                                onChange={e => {
-                                  const val = parseFloat(e.target.value) || 0;
-                                  setImpositionBleed(Math.max(0, (val - ps.finalWidth) / 2));
-                                }}
-                                className="w-12 text-center text-xs font-bold bg-blue-50 border border-blue-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#F890E7]" />
-                              <span className="text-[10px] text-gray-400">x</span>
-                              <input type="number" step="0.001" value={parseFloat(enhancedImposition.runHeight.toFixed(3))}
-                                onChange={e => {
-                                  const val = parseFloat(e.target.value) || 0;
-                                  setImpositionBleed(Math.max(0, (val - ps.finalHeight) / 2));
-                                }}
-                                className="w-12 text-center text-xs font-bold bg-blue-50 border border-blue-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#F890E7]" />
-                            </div>
+                            <input
+                              type="text"
+                              value={runSizeInput}
+                              onChange={e => {
+                                setRunSizeInput(e.target.value);
+                                const match = e.target.value.match(/^(\d+\.?\d*)\s*[xX\u00D7]\s*(\d+\.?\d*)$/);
+                                if (match) {
+                                  setCustomRunWidth(parseFloat(match[1]));
+                                  setCustomRunHeight(parseFloat(match[2]));
+                                }
+                              }}
+                              placeholder="LxH"
+                              className="w-full text-center text-xs font-bold bg-blue-50 border border-blue-200 rounded px-1 py-0.5 mt-0.5 focus:outline-none focus:ring-1 focus:ring-[#F890E7]"
+                            />
+                            <p className="text-[8px] text-gray-400 mt-0.5">Default = Parent</p>
                           </div>
                           <div className="bg-white rounded-lg p-2 text-center border border-emerald-100">
                             <p className="text-[10px] text-emerald-600 font-medium">Finish Size</p>
@@ -1817,109 +1828,126 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
               {/* ── FINISHING ─────────────────────────────────────────── */}
               <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Scissors className="w-3 h-3 text-purple-500" />
+                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                  <Scissors className="w-3 h-3 text-purple-500 flex-shrink-0" />
                   <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Finishing</span>
-                  {/* Selected finishing pills */}
-                  {selectedFinishingIds.length > 0 && (
-                    <div className="flex flex-wrap gap-1 ml-1">
-                      {selectedFinishingIds.map(id => {
-                        const svc = finishing.find(f => f.id === id);
-                        return svc ? (
-                          <span key={id} className="px-2 py-0.5 rounded-full text-[9px] font-medium bg-purple-100 text-purple-700 border border-purple-200">
-                            {svc.name}
-                          </span>
-                        ) : null;
-                      })}
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {groupedFinishing.map(({ group, services }) => {
-                    const isExpanded = expandedFinishingGroups[group.id] !== false;
-                    const selectedInGroup = services.filter(s => selectedFinishingIds.includes(s.id));
-                    return (
-                      <div key={group.id} className="rounded-lg border border-gray-100 overflow-hidden flex-1 min-w-[140px] max-w-[200px]">
-                        <button
-                          onClick={() => setExpandedFinishingGroups(prev => ({ ...prev, [group.id]: !isExpanded }))}
-                          className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-50 transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            {isExpanded ? <ChevronDown className="w-3 h-3 text-gray-400" /> : <ChevronRight className="w-3 h-3 text-gray-400" />}
-                            <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">{group.name}</span>
-                            {selectedInGroup.length > 0 && <Badge color="blue" className="text-[9px]">{selectedInGroup.length} selected</Badge>}
-                          </div>
-                          <span className="text-[10px] text-gray-400">{services.length}</span>
-                        </button>
-                        {isExpanded && (
-                          <div className="px-3 pb-2 flex flex-wrap gap-1.5">
-                            {services.map(svc => {
-                              const isSelected = selectedFinishingIds.includes(svc.id);
-                              return (
-                                <button
-                                  key={svc.id}
-                                  onClick={() => {
-                                    trackInteraction();
-                                    const nextIds = isSelected
-                                      ? selectedFinishingIds.filter(id => id !== svc.id)
-                                      : [...selectedFinishingIds, svc.id];
-                                    setSelectedFinishingIds(nextIds);
-                                    const selectedServices = finishing.filter(f => nextIds.includes(f.id));
-                                    const hasCut = selectedServices.some(f => f.name === 'Cut');
-                                    const fold = selectedServices.find(f => f.finishingGroupIds?.includes('fg2'));
-                                    const drill = selectedServices.find(f => f.finishingGroupIds?.includes('fg3'));
-                                    onUpdatePricing({ cuttingEnabled: hasCut, foldingType: fold?.name || '', drillingType: drill?.name || '' });
-                                  }}
-                                  className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-all ${
-                                    isSelected
-                                      ? 'border-[#F890E7] bg-pink-50 text-[#F890E7]'
-                                      : 'border-gray-200 bg-white text-gray-600 hover:border-pink-200 hover:bg-pink-50/50'
-                                  }`}
-                                  title={svc.description || svc.name}
-                                >{svc.name}</button>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
+                  {selectedFinishingIds.map(id => {
+                    const svc = finishing.find(f => f.id === id);
+                    return svc ? (
+                      <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                        {svc.name}
+                        <button onClick={() => {
+                          const nextIds = selectedFinishingIds.filter(x => x !== id);
+                          setSelectedFinishingIds(nextIds);
+                          const selectedServices = finishing.filter(f => nextIds.includes(f.id));
+                          onUpdatePricing({
+                            cuttingEnabled: selectedServices.some(f => f.name === 'Cut'),
+                            foldingType: selectedServices.find(f => f.finishingGroupIds?.includes('fg2'))?.name || '',
+                            drillingType: selectedServices.find(f => f.finishingGroupIds?.includes('fg3'))?.name || '',
+                          });
+                        }} className="hover:text-purple-900"><X className="w-2.5 h-2.5" /></button>
+                      </span>
+                    ) : null;
                   })}
                 </div>
+                <select
+                  value=""
+                  onChange={e => {
+                    if (!e.target.value) return;
+                    trackInteraction();
+                    const nextIds = [...selectedFinishingIds, e.target.value];
+                    setSelectedFinishingIds(nextIds);
+                    const selectedServices = finishing.filter(f => nextIds.includes(f.id));
+                    onUpdatePricing({
+                      cuttingEnabled: selectedServices.some(f => f.name === 'Cut'),
+                      foldingType: selectedServices.find(f => f.finishingGroupIds?.includes('fg2'))?.name || '',
+                      drillingType: selectedServices.find(f => f.finishingGroupIds?.includes('fg3'))?.name || '',
+                    });
+                  }}
+                  className="w-full px-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#F890E7] appearance-none text-gray-500"
+                >
+                  <option value="">+ Add finishing service...</option>
+                  {groupedFinishing.map(({ group, services }) => (
+                    <optgroup key={group.id} label={group.name}>
+                      {services.filter(s => !selectedFinishingIds.includes(s.id)).map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
               </div>
 
               {/* ── LABOR ─────────────────────────────────────────────── */}
               {pricing.labor.length > 0 && (
                 <div>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <Wrench className="w-3 h-3 text-blue-500" />
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <Wrench className="w-3 h-3 text-blue-500 flex-shrink-0" />
                     <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Labor</span>
+                    {selectedLaborIds.map(id => {
+                      const svc = pricing.labor.find(l => l.id === id);
+                      return svc ? (
+                        <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                          {svc.name}
+                          <button onClick={() => setSelectedLaborIds(prev => prev.filter(x => x !== id))} className="hover:text-blue-900"><X className="w-2.5 h-2.5" /></button>
+                        </span>
+                      ) : null;
+                    })}
                   </div>
-                  <div className="flex flex-wrap gap-1.5 px-1">
-                    {pricing.labor.map(l => (
-                      <button key={l.id}
-                        className="px-2.5 py-1 rounded-full text-[10px] font-medium border border-gray-200 bg-white text-gray-600 hover:border-blue-200 hover:bg-blue-50/50 transition-all"
-                        title={l.description || l.name}
-                      >{l.name}</button>
+                  <select
+                    value=""
+                    onChange={e => { if (e.target.value) { trackInteraction(); setSelectedLaborIds(prev => [...prev, e.target.value]); } }}
+                    className="w-full px-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#F890E7] appearance-none text-gray-500"
+                  >
+                    <option value="">+ Add labor service...</option>
+                    {pricing.laborGroups.map(lg => {
+                      const services = pricing.labor.filter(l => l.laborGroupIds?.includes(lg.id) && !selectedLaborIds.includes(l.id));
+                      return services.length > 0 ? (
+                        <optgroup key={lg.id} label={lg.name}>
+                          {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </optgroup>
+                      ) : null;
+                    })}
+                    {pricing.labor.filter(l => (!l.laborGroupIds || l.laborGroupIds.length === 0) && !selectedLaborIds.includes(l.id)).map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
-                  </div>
+                  </select>
                 </div>
               )}
 
               {/* ── BROKERED ──────────────────────────────────────────── */}
               {pricing.brokered.length > 0 && (
                 <div>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <Package className="w-3 h-3 text-amber-500" />
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <Package className="w-3 h-3 text-amber-500 flex-shrink-0" />
                     <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Brokered</span>
+                    {selectedBrokeredIds.map(id => {
+                      const svc = pricing.brokered.find(b => b.id === id);
+                      return svc ? (
+                        <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium bg-amber-100 text-amber-700 border border-amber-200">
+                          {svc.name}
+                          <button onClick={() => setSelectedBrokeredIds(prev => prev.filter(x => x !== id))} className="hover:text-amber-900"><X className="w-2.5 h-2.5" /></button>
+                        </span>
+                      ) : null;
+                    })}
                   </div>
-                  <div className="flex flex-wrap gap-1.5 px-1">
-                    {pricing.brokered.map(b => (
-                      <button key={b.id}
-                        className="px-2.5 py-1 rounded-full text-[10px] font-medium border border-gray-200 bg-white text-gray-600 hover:border-amber-200 hover:bg-amber-50/50 transition-all"
-                        title={b.description || b.name}
-                      >{b.name}</button>
+                  <select
+                    value=""
+                    onChange={e => { if (e.target.value) { trackInteraction(); setSelectedBrokeredIds(prev => [...prev, e.target.value]); } }}
+                    className="w-full px-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#F890E7] appearance-none text-gray-500"
+                  >
+                    <option value="">+ Add brokered service...</option>
+                    {pricing.brokeredGroups.map(bg => {
+                      const services = pricing.brokered.filter(b => b.brokeredGroupIds?.includes(bg.id) && !selectedBrokeredIds.includes(b.id));
+                      return services.length > 0 ? (
+                        <optgroup key={bg.id} label={bg.name}>
+                          {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </optgroup>
+                      ) : null;
+                    })}
+                    {pricing.brokered.filter(b => (!b.brokeredGroupIds || b.brokeredGroupIds.length === 0) && !selectedBrokeredIds.includes(b.id)).map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
-                  </div>
+                  </select>
                 </div>
               )}
 
