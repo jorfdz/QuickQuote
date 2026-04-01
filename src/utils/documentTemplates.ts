@@ -69,19 +69,26 @@ const ensureWorkOrderQrMarkup = (template: string): string => {
   next = next.replace(/<div class="qr-caption">[\s\S]*?<\/div>/g, '');
   next = next.replace(/Tracker Link/gi, '');
 
-  if (!next.includes('{{qrCodeUrl}}') && next.includes('</style>')) {
-    next = next.replace('</style>', `
-    body { position: relative; }
-    .work-order-qr-fallback { position: absolute; top: 40px; right: 40px; width: 84px; text-align: center; }
-    .work-order-qr-fallback img { width: 84px; height: 84px; display: block; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; }
-  </style>`);
-  }
+  if (!next.includes('{{qrCodeUrl}}')) {
+    const standardizedHeaderRight = `<div class="header-right">
+      <div class="header-copy">
+        <div class="doc-title">WORK ORDER</div>
+        <div class="doc-number">{{orderNumber}}</div>
+      </div>
+      <div class="qr-box">
+        <img src="{{qrCodeUrl}}" alt="Work order QR code" />
+      </div>
+    </div>`;
 
-  if (!next.includes('{{qrCodeUrl}}') && next.includes('<body>')) {
-    next = next.replace('<body>', `<body>
-  <div class="work-order-qr-fallback">
-    <img src="{{qrCodeUrl}}" alt="Work order QR code" />
-  </div>`);
+    if (/<div class="header-right">[\s\S]*?<\/div>\s*<\/div>/i.test(next)) {
+      next = next.replace(/<div class="header-right">[\s\S]*?<\/div>\s*<\/div>/i, `${standardizedHeaderRight}
+    </div>`);
+    } else if (/<div>\s*<div class="doc-title">WORK ORDER<\/div>[\s\S]*?<div class="doc-number">\{\{orderNumber\}\}<\/div>\s*<\/div>/i.test(next)) {
+      next = next.replace(
+        /<div>\s*<div class="doc-title">WORK ORDER<\/div>[\s\S]*?<div class="doc-number">\{\{orderNumber\}\}<\/div>\s*<\/div>/i,
+        standardizedHeaderRight,
+      );
+    }
   }
 
   return next;
