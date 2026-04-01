@@ -785,6 +785,15 @@ export const QuoteBuilder: React.FC = () => {
 // PRODUCT EDIT MODAL — full pricing engine in a modal dialog
 // ═════════════════════════════════════════════════════════════════════════════
 
+interface SavedPart {
+  id: string;
+  partName: string;
+  description: string;
+  totalCost: number;
+  totalSell: number;
+  serviceLines: PricingServiceLine[];
+}
+
 interface ProductEditModalProps {
   item: QuoteLineItem;
   pricingState: LineItemPricingState;
@@ -838,20 +847,12 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   // ── Multi-part state ───────────────────────────────────────────────
   const [isMultiPart, setIsMultiPart] = useState(false);
-  const [parts, setParts] = useState<Array<{
-    id: string;
-    partName: string;
-    description: string;
-    materialId: string;
-    sides: 'Single' | 'Double';
-    colorMode: 'Color' | 'Black';
-    equipmentId: string;
-    foldingType: string;
-    drillingType: string;
-    cuttingEnabled: boolean;
-  }>>([]);
-  const [activePartIndex, setActivePartIndex] = useState(0);
-  const [globalDescription, setGlobalDescription] = useState(item.description || '');
+  const [globalProduct, setGlobalProduct] = useState('');
+  const [globalDescription, setGlobalDescription] = useState('');
+  const [savedParts, setSavedParts] = useState<SavedPart[]>([]);
+  const [activePartName, setActivePartName] = useState('Cover');
+  const [partDescription, setPartDescription] = useState('');
+  const [expandedPartId, setExpandedPartId] = useState<string | null>(null);
 
   // ── Multi-material entries ────────────────────────────────────────────
   const [materialEntries, setMaterialEntries] = useState<Array<{
@@ -1331,65 +1332,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
     setTimeout(() => setSavedAsTemplate(false), 2000);
   };
 
-  // ── Multi-part handlers ────────────────────────────────────────────
-  const addPart = () => {
-    const newPart = {
-      id: nanoid(),
-      partName: parts.length === 0 ? 'Cover' : `Part ${parts.length + 1}`,
-      description: '',
-      materialId: ps.materialId || '',
-      sides: ps.sides,
-      colorMode: ps.colorMode,
-      equipmentId: ps.equipmentId || '',
-      foldingType: '',
-      drillingType: '',
-      cuttingEnabled: true,
-    };
-    setParts(prev => [...prev, newPart]);
-    setActivePartIndex(parts.length);
-  };
-
-  const updatePart = (idx: number, updates: Partial<typeof parts[0]>) => {
-    setParts(prev => prev.map((p, i) => i === idx ? { ...p, ...updates } : p));
-  };
-
-  const removePart = (idx: number) => {
-    setParts(prev => prev.filter((_, i) => i !== idx));
-    if (activePartIndex >= parts.length - 1) setActivePartIndex(Math.max(0, parts.length - 2));
-  };
-
-  // Sync active part to pricing state when switching parts
-  useEffect(() => {
-    if (isMultiPart && parts.length > 0 && parts[activePartIndex]) {
-      const part = parts[activePartIndex];
-      onUpdatePricing({
-        materialId: part.materialId,
-        sides: part.sides,
-        colorMode: part.colorMode,
-        equipmentId: part.equipmentId,
-        foldingType: part.foldingType,
-        drillingType: part.drillingType,
-        cuttingEnabled: part.cuttingEnabled,
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePartIndex, isMultiPart]);
-
-  // When pricing fields change while in multi-part mode, save back to active part
-  useEffect(() => {
-    if (isMultiPart && parts.length > 0) {
-      updatePart(activePartIndex, {
-        materialId: ps.materialId,
-        sides: ps.sides,
-        colorMode: ps.colorMode,
-        equipmentId: ps.equipmentId,
-        foldingType: ps.foldingType,
-        drillingType: ps.drillingType,
-        cuttingEnabled: ps.cuttingEnabled,
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ps.materialId, ps.sides, ps.colorMode, ps.equipmentId, ps.foldingType, ps.drillingType, ps.cuttingEnabled]);
+  // (multi-part handlers removed — replaced by new savedParts flow)
 
   // Finishing options from pricing store
   const foldingOptions = finishing.filter(f => f.finishingGroupIds?.includes('fg2')).map(f => f.name);
@@ -1471,20 +1414,12 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 onChange={e => {
                   const checked = e.target.checked;
                   setIsMultiPart(checked);
-                  if (checked && parts.length === 0) {
-                    setParts([{
-                      id: nanoid(), partName: 'Cover', description: '',
-                      materialId: ps.materialId || '', sides: ps.sides, colorMode: ps.colorMode,
-                      equipmentId: ps.equipmentId || '', foldingType: ps.foldingType || '',
-                      drillingType: ps.drillingType || '', cuttingEnabled: ps.cuttingEnabled,
-                    }, {
-                      id: nanoid(), partName: 'Interior', description: '',
-                      materialId: '', sides: 'Double', colorMode: 'Color',
-                      equipmentId: ps.equipmentId || '', foldingType: '',
-                      drillingType: '', cuttingEnabled: false,
-                    }]);
-                    setActivePartIndex(0);
-                    setGlobalDescription(item.description || ps.productName || '');
+                  if (checked) {
+                    setActivePartName('Cover');
+                    setPartDescription('');
+                    setSavedParts([]);
+                    setGlobalProduct(ps.productName || '');
+                    setGlobalDescription(item.description || '');
                   }
                 }}
                 className="w-3.5 h-3.5 rounded border-gray-300 text-[#F890E7] focus:ring-[#F890E7]"
@@ -1500,6 +1435,27 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
           <div className="flex gap-4">
             {/* ── Main Form Column ──────────────────────────────────────── */}
             <div className={`flex-1 space-y-4 min-w-0 ${matchingTemplates.length > 0 && !templatePanelCollapsed ? '' : ''}`}>
+
+              {/* ── Global Item Section (Multi-Part only) ────────────── */}
+              {isMultiPart && (
+                <div className="bg-blue-50/60 rounded-lg px-3 py-2.5 border border-blue-100 mb-4">
+                  <p className="text-[9px] font-semibold text-blue-400 uppercase tracking-widest mb-2">Global Item (Parent)</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Item Product</label>
+                      <input value={globalProduct} onChange={e => setGlobalProduct(e.target.value)}
+                        placeholder="e.g., Catalog, Booklet..."
+                        className="w-full px-2.5 py-1.5 text-sm bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Item Description</label>
+                      <input value={globalDescription} onChange={e => setGlobalDescription(e.target.value)}
+                        placeholder="Overall item description..."
+                        className="w-full px-2.5 py-1.5 text-sm bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* ── Product Search Row ────────────────────────────────── */}
               <div>
@@ -1555,36 +1511,55 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </label>
               </div>
 
-              {/* ── Multi-Part Tabs ───────────────────────────────────── */}
-              {isMultiPart && (
-                <div className="flex items-center gap-1 border-b border-gray-100 mb-4">
-                  {parts.map((part, idx) => (
-                    <button key={part.id} onClick={() => setActivePartIndex(idx)}
-                      className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-all -mb-px ${
-                        activePartIndex === idx ? 'border-[#F890E7] text-[#F890E7]' : 'border-transparent text-gray-400 hover:text-gray-600'
-                      }`}>{part.partName || `Part ${idx + 1}`}</button>
+              {/* ── Saved Parts List ──────────────────────────────────── */}
+              {isMultiPart && savedParts.length > 0 && (
+                <div className="space-y-2 mb-4">
+                  <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Saved Parts</div>
+                  {savedParts.map((part, idx) => (
+                    <div key={part.id} className="bg-gray-50 rounded-lg border border-gray-200 px-3 py-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 rounded-full bg-[#F890E7]/20 text-[#F890E7] text-[10px] font-bold flex items-center justify-center">{idx + 1}</div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-800">{part.partName}</p>
+                          {part.description && <p className="text-[10px] text-gray-400">{part.description}</p>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-mono text-gray-700">{formatCurrency(part.totalSell)}</span>
+                        <button onClick={() => setSavedParts(prev => prev.filter(p => p.id !== part.id))}
+                          className="p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
                   ))}
-                  <button onClick={addPart} className="px-2 py-1.5 text-xs text-gray-400 hover:text-[#F890E7] transition-colors flex items-center gap-1">
-                    <Plus className="w-3 h-3" /> Add Part
-                  </button>
+                  <div className="flex justify-between text-[10px] text-gray-500 px-1">
+                    <span>{savedParts.length} part{savedParts.length !== 1 ? 's' : ''} saved</span>
+                    <span>Subtotal: {formatCurrency(savedParts.reduce((s, p) => s + p.totalSell, 0))}</span>
+                  </div>
                 </div>
               )}
 
-              {isMultiPart && parts.length > 0 && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Part Name</label>
-                    <input value={parts[activePartIndex]?.partName || ''}
-                      onChange={e => updatePart(activePartIndex, { partName: e.target.value })}
-                      className="w-full px-3 py-2 text-sm font-medium bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#F890E7] focus:outline-none" />
+              {/* ── Current Part Header ───────────────────────────────── */}
+              {isMultiPart && (
+                <div className="bg-[#F890E7]/8 border border-[#F890E7]/20 rounded-lg px-3 py-2.5 mb-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-5 h-5 rounded-full bg-[#F890E7]/20 text-[#F890E7] text-[10px] font-bold flex items-center justify-center">
+                      {savedParts.length + 1}
+                    </div>
+                    <input
+                      value={activePartName}
+                      onChange={e => setActivePartName(e.target.value)}
+                      className="text-sm font-semibold bg-transparent border-0 border-b border-dashed border-[#F890E7]/40 focus:outline-none focus:border-[#F890E7] text-gray-800 pb-0.5"
+                      placeholder="Part name..."
+                    />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Part Description</label>
-                    <input value={parts[activePartIndex]?.description || ''}
-                      onChange={e => updatePart(activePartIndex, { description: e.target.value })}
-                      placeholder="e.g., Cover stock, 4/4, laminated..."
-                      className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]" />
-                  </div>
+                  <input
+                    value={partDescription}
+                    onChange={e => setPartDescription(e.target.value)}
+                    placeholder="Part description (optional)..."
+                    className="w-full text-xs bg-transparent border-0 text-gray-500 focus:outline-none placeholder-gray-300"
+                  />
                 </div>
               )}
 
@@ -2218,16 +2193,74 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
         {/* ═══ Modal Footer ═══════════════════════════════════════════════ */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
           <div className="flex items-center gap-2">
-            <Button variant="danger" size="sm" onClick={onRemove} icon={<Trash2 className="w-3.5 h-3.5" />}>Remove Item</Button>
-            {isMultiPart && parts.length > 1 && (
-              <Button variant="ghost" size="sm" onClick={() => removePart(activePartIndex)}>Remove Part</Button>
+            {!isMultiPart && (
+              <Button variant="danger" size="sm" onClick={onRemove} icon={<Trash2 className="w-3.5 h-3.5" />}>Remove Item</Button>
+            )}
+            {isMultiPart && savedParts.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => {
+                setActivePartName(`Part ${savedParts.length + 2}`);
+                setPartDescription('');
+                onUpdatePricing(DEFAULT_PRICING_STATE());
+                setProductQuery('');
+                setMultiQtyInput('1000');
+                setMaterialEntries([{ materialId: '', sides: 'Double', colorMode: 'Color', originals: 1 }]);
+                setSelectedFinishingIds([]);
+                setSizeInput('');
+              }}>
+                Discard Part
+              </Button>
             )}
           </div>
           <div className="flex items-center gap-2">
-            {isMultiPart && (
-              <Button variant="secondary" size="sm" onClick={() => { addPart(); }} icon={<Plus className="w-3.5 h-3.5" />}>Save Part & Add Next</Button>
+            {isMultiPart ? (
+              <>
+                <Button variant="secondary" size="sm" onClick={() => {
+                  const part: SavedPart = {
+                    id: nanoid(),
+                    partName: activePartName,
+                    description: partDescription,
+                    totalCost: item.totalCost,
+                    totalSell: item.sellPrice,
+                    serviceLines: [...ps.serviceLines],
+                  };
+                  setSavedParts(prev => [...prev, part]);
+                  const nextName = savedParts.length === 0 ? 'Interior' : `Part ${savedParts.length + 2}`;
+                  setActivePartName(nextName);
+                  setPartDescription('');
+                  onUpdatePricing(DEFAULT_PRICING_STATE());
+                  setProductQuery('');
+                  setMultiQtyInput('1000');
+                  setMaterialEntries([{ materialId: '', sides: 'Double', colorMode: 'Color', originals: 1 }]);
+                  setSelectedFinishingIds([]);
+                  setSizeInput('');
+                }} icon={<Plus className="w-3.5 h-3.5" />}>
+                  Save Part
+                </Button>
+                <Button variant="success" onClick={() => {
+                  const allParts = [...savedParts];
+                  if (item.totalCost > 0 || item.sellPrice > 0) {
+                    allParts.push({
+                      id: nanoid(),
+                      partName: activePartName,
+                      description: partDescription,
+                      totalCost: item.totalCost,
+                      totalSell: item.sellPrice,
+                      serviceLines: ps.serviceLines,
+                    });
+                  }
+                  const totalCost = allParts.reduce((s, p) => s + p.totalCost, 0);
+                  const totalSell = allParts.reduce((s, p) => s + p.totalSell, 0);
+                  const overallMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
+                  const desc = globalDescription || globalProduct || item.description;
+                  onUpdateItem({ description: desc, totalCost, sellPrice: totalSell, markup: Math.round(overallMarkup) });
+                  onClose();
+                }}>
+                  Save Item ({savedParts.length + (item.sellPrice > 0 ? 1 : 0)} part{(savedParts.length + (item.sellPrice > 0 ? 1 : 0)) !== 1 ? 's' : ''})
+                </Button>
+              </>
+            ) : (
+              <Button variant="primary" onClick={onClose}>Done</Button>
             )}
-            <Button variant="primary" onClick={onClose}>Done</Button>
           </div>
         </div>
       </div>
