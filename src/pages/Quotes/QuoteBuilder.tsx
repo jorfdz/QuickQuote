@@ -18,7 +18,8 @@ import { nanoid } from '../../utils/nanoid';
 
 const fmt = (n: number) => formatCurrency(n);
 const fmtPct = (n: number) => `${n.toFixed(1)}%`;
-const slId = () => `sl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+// Stable deterministic IDs — must not change between renders so edit mode survives re-renders
+const slId = (service: string, index = 0) => `sl_${service.toLowerCase().replace(/\s+/g, '_')}_${index}`;
 
 /** Returns a date string N days from now in YYYY-MM-DD format */
 const daysFromNow = (n: number) => {
@@ -1040,20 +1041,20 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const computeServiceLines = useCallback((): PricingServiceLine[] => {
     const lines: PricingServiceLine[] = [];
 
-    // MATERIAL
+    // MATERIAL — stable id: sl_material_0
     if (selectedMaterial && imposition.sheetsNeeded > 0) {
       const costPerSheet = selectedMaterial.pricePerM / 1000;
       const totalCost = imposition.sheetsNeeded * costPerSheet;
       const markup = selectedMaterial.markup;
       lines.push({
-        id: slId(), service: 'Material',
+        id: slId('material'), service: 'Material',
         description: `${selectedMaterial.name} (${selectedMaterial.size}) — ${imposition.sheetsNeeded} sheets`,
         quantity: imposition.sheetsNeeded, unit: 'sheets', unitCost: costPerSheet,
         totalCost, markupPercent: markup, sellPrice: totalCost * (1 + markup / 100), editable: true,
       });
     }
 
-    // PRINTING
+    // PRINTING — stable id: sl_printing_0
     if (selectedEquipment) {
       if (selectedEquipment.costUnit === 'per_click') {
         const totalClicks = imposition.sheetsNeeded * (ps.sides === 'Double' ? 2 : 1);
@@ -1063,7 +1064,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
         const totalSell = totalClicks * sellPerClick;
         const markupPct = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
         lines.push({
-          id: slId(), service: 'Printing',
+          id: slId('printing'), service: 'Printing',
           description: `${selectedEquipment.name} — ${totalClicks} clicks (${ps.colorMode}, ${ps.sides === 'Double' ? '2-sided' : '1-sided'}) @ ${fmt(sellPerClick)}/click`,
           quantity: totalClicks, unit: 'clicks', unitCost: costPerClick,
           totalCost, markupPercent: markupPct, sellPrice: totalSell, editable: true,
@@ -1076,7 +1077,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
         const totalSell = sqft * costPerSqft * mult;
         const markupPct = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
         lines.push({
-          id: slId(), service: 'Printing',
+          id: slId('printing'), service: 'Printing',
           description: `${selectedEquipment.name} — ${sqft.toFixed(1)} sqft @ ${fmt(costPerSqft * mult)}/sqft`,
           quantity: parseFloat(sqft.toFixed(1)), unit: 'sqft', unitCost: costPerSqft,
           totalCost, markupPercent: markupPct, sellPrice: totalSell, editable: true,
@@ -1084,7 +1085,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
       }
       if (selectedEquipment.initialSetupFee > 0) {
         lines.push({
-          id: slId(), service: 'Setup',
+          id: slId('setup'), service: 'Setup',
           description: `${selectedEquipment.name} — Setup fee`,
           quantity: 1, unit: 'flat', unitCost: selectedEquipment.initialSetupFee,
           totalCost: selectedEquipment.initialSetupFee, markupPercent: 0,
@@ -1093,7 +1094,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
       }
     }
 
-    // CUTTING
+    // CUTTING — stable id: sl_cutting_0
     if (ps.cuttingEnabled && imposition.sheetsNeeded > 0 && imposition.cutsPerSheet > 0) {
       const cutSvc = finishing.find(f => f.name === 'Cut');
       if (cutSvc) {
@@ -1103,7 +1104,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
         const totalCost = hours * cutSvc.hourlyCost;
         const markup = cutSvc.markupPercent;
         lines.push({
-          id: slId(), service: 'Cutting',
+          id: slId('cutting'), service: 'Cutting',
           description: `${totalCuts} cuts (${imposition.cutsPerSheet}/sheet x ${totalStacks} stacks) — ${(hours * 60).toFixed(0)} min`,
           quantity: totalCuts, unit: 'cuts', unitCost: cutSvc.hourlyCost / cutSvc.outputPerHour,
           totalCost, markupPercent: markup, sellPrice: totalCost * (1 + markup / 100), editable: true,
@@ -1111,14 +1112,14 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
       }
     }
 
-    // FOLDING
+    // FOLDING — stable id: sl_folding_0
     if (ps.foldingType) {
       const fSvc = finishing.find(f => f.name.toLowerCase().replace('-', '') === ps.foldingType.toLowerCase().replace('-', ''));
       if (fSvc) {
         const hours = ps.quantity / fSvc.outputPerHour;
         const totalCost = hours * fSvc.hourlyCost;
         lines.push({
-          id: slId(), service: 'Folding',
+          id: slId('folding'), service: 'Folding',
           description: `${ps.foldingType} — ${ps.quantity} pcs @ ${fSvc.outputPerHour}/hr`,
           quantity: ps.quantity, unit: 'pcs', unitCost: fSvc.hourlyCost / fSvc.outputPerHour,
           totalCost, markupPercent: fSvc.markupPercent, sellPrice: totalCost * (1 + fSvc.markupPercent / 100), editable: true,
@@ -1126,14 +1127,14 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
       }
     }
 
-    // DRILLING
+    // DRILLING — stable id: sl_drilling_0
     if (ps.drillingType) {
       const dSvc = finishing.find(f => f.name === ps.drillingType);
       if (dSvc) {
         const hours = ps.quantity / dSvc.outputPerHour;
         const totalCost = hours * dSvc.hourlyCost;
         lines.push({
-          id: slId(), service: 'Drilling',
+          id: slId('drilling'), service: 'Drilling',
           description: `${ps.drillingType} — ${ps.quantity} pcs @ ${dSvc.outputPerHour}/hr`,
           quantity: ps.quantity, unit: 'pcs', unitCost: dSvc.hourlyCost / dSvc.outputPerHour,
           totalCost, markupPercent: dSvc.markupPercent, sellPrice: totalCost * (1 + dSvc.markupPercent / 100), editable: true,
@@ -1142,11 +1143,19 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
     }
 
     return lines;
-  }, [selectedMaterial, selectedEquipment, imposition, ps, finishing, lookupClickPrice]);
+  // Depend only on the specific ps fields that actually affect calculations — NOT ps.serviceLines
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMaterial, selectedEquipment, imposition,
+      ps.quantity, ps.sides, ps.colorMode, ps.materialId, ps.equipmentId,
+      ps.cuttingEnabled, ps.sheetsPerStack, ps.foldingType, ps.drillingType,
+      ps.finalWidth, ps.finalHeight,
+      finishing, lookupClickPrice]);
 
-  // Recompute and sync to parent — but SKIP if user has manual overrides
+  // Recompute and sync to parent — but SKIP if user is currently editing or has saved overrides
   useEffect(() => {
-    // If there are any manual overrides, don't recompute (user edited values)
+    // Never recompute while a row is being edited (would wipe the edit inputs)
+    if (editingLineId !== null) return;
+    // Never recompute if there are saved manual overrides
     if (Object.keys(manualOverrides).length > 0) return;
 
     const lines = computeServiceLines();
