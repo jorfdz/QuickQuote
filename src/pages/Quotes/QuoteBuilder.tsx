@@ -834,6 +834,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   // ── Price breakdown state ────────────────────────────────────────────
   const [manualOverrides, setManualOverrides] = useState<Record<string, boolean>>({});
+  const [showBreakdownDialog, setShowBreakdownDialog] = useState(false);
 
   // ── Multi-part state ───────────────────────────────────────────────
   const [isMultiPart, setIsMultiPart] = useState(false);
@@ -2002,170 +2003,103 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
               )}
 
               {/* ═══ PRICE BREAKDOWN ══════════════════════════════════ */}
-              {(ps.serviceLines.length > 0 || materialEntries.length > 1) && (
-                <div className="rounded-xl border border-emerald-200 bg-gray-50 overflow-hidden">
-                  <div className="px-4 py-2.5 flex items-center justify-between border-b border-emerald-200/60 bg-emerald-50/40">
-                    <h4 className="text-[10px] font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+              {ps.serviceLines.length > 0 && (
+                <div className="rounded-xl border border-emerald-200 overflow-hidden">
+                  {/* Header — click anywhere on the section to open edit dialog */}
+                  <button
+                    type="button"
+                    onClick={() => setShowBreakdownDialog(true)}
+                    className="w-full text-left px-4 py-2.5 flex items-center justify-between bg-emerald-50/60 hover:bg-emerald-50 transition-colors border-b border-emerald-200/60"
+                  >
+                    <span className="text-[10px] font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
                       <DollarSign className="w-3.5 h-3.5 text-emerald-500" /> Price Breakdown
-                    </h4>
-                    <div className="flex items-center gap-2">
-                      <button onClick={handleRecalculate}
-                        className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium text-gray-500 hover:text-[#F890E7] hover:bg-pink-50 transition-colors"
-                        title="Reset manual overrides and recalculate">
-                        <RefreshCw className="w-3 h-3" /> Recalculate
-                      </button>
-                      <span className="text-[10px] text-gray-400">Click row to edit</span>
-                    </div>
-                  </div>
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-200/60">
-                        <th className="text-left py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Service</th>
-                        <th className="text-right py-2 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[9px]">Qty</th>
-                        <th className="text-center py-2 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[9px]">Unit</th>
-                        <th className="text-left py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Description</th>
-                        <th className="text-right py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Cost</th>
-                        <th className="text-right py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Markup</th>
-                        <th className="text-right py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Sell Price</th>
-                        <th className="w-10"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {/* Extra material entries (informational) */}
-                      {materialEntries.length > 1 && materialEntries.slice(1).map((entry, idx) => {
-                        const mat = materials.find(m => m.id === entry.materialId);
-                        return mat ? (
-                          <tr key={`extra-mat-${idx}`} className="bg-amber-50/30">
-                            <td className="py-2 px-4">
-                              <div className="flex items-center gap-1.5">
-                                <Package className="w-3 h-3 text-amber-400" />
-                                <span className="font-medium text-gray-600">Material</span>
-                              </div>
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono text-[10px] text-gray-400">--</td>
-                            <td className="py-2 px-3 text-center text-[10px] text-gray-400">--</td>
-                            <td className="py-2 px-4 text-gray-400 italic max-w-[200px] truncate">
-                              {mat.name} ({mat.size}) -- {entry.sides}, {entry.colorMode}
-                            </td>
-                            <td className="py-2 px-4 text-right font-mono text-gray-400">--</td>
-                            <td className="py-2 px-4 text-right font-mono text-gray-400">--</td>
-                            <td className="py-2 px-4 text-right font-mono text-gray-400 italic text-[10px]">pricing TBD</td>
-                            <td className="py-2 px-1"></td>
-                          </tr>
-                        ) : null;
-                      })}
-                      {ps.serviceLines.map(line => {
-                        const isEditing = editingLineId === line.id;
-                        const isOverridden = manualOverrides[line.id];
-                        return (
-                          <tr key={line.id}
-                            className={`transition-colors ${isEditing ? 'bg-blue-50' : 'hover:bg-white cursor-pointer'}`}
-                            onClick={() => {
-                              if (!isEditing) {
-                                setEditingLineId(line.id);
-                                setEditValues({ totalCost: line.totalCost, markupPercent: line.markupPercent, sellPrice: line.sellPrice });
-                              }
-                            }}>
-                            <td className="py-2 px-4">
-                              <div className="flex items-center gap-1.5">
-                                {line.service === 'Material' && <Package className="w-3 h-3 text-amber-500" />}
-                                {line.service === 'Printing' && <Printer className="w-3 h-3 text-blue-500" />}
-                                {line.service === 'Setup' && <Settings2 className="w-3 h-3 text-gray-400" />}
-                                {line.service === 'Cutting' && <Scissors className="w-3 h-3 text-purple-500" />}
-                                {line.service === 'Folding' && <FoldVertical className="w-3 h-3 text-emerald-500" />}
-                                {line.service === 'Drilling' && <CircleDot className="w-3 h-3 text-orange-500" />}
-                                <span className="font-medium text-gray-800">{line.service}</span>
-                                {isOverridden && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Manually overridden" />}
-                              </div>
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono text-[10px] text-gray-600">{line.quantity?.toLocaleString() || '--'}</td>
-                            <td className="py-2 px-3 text-center text-[10px] text-gray-500">{line.unit || '--'}</td>
-                            <td className="py-2 px-4 text-gray-500 max-w-[200px] truncate">{line.description}</td>
-                            <td className="py-2 px-4 text-right font-mono">
-                              {isEditing ? (
-                                <input type="number" step="0.01" value={editValues.totalCost ?? line.totalCost}
-                                  onChange={e => setEditValues(v => ({ ...v, totalCost: parseFloat(e.target.value) || 0 }))}
-                                  onClick={e => e.stopPropagation()}
-                                  className="w-20 px-1.5 py-0.5 text-right text-xs border border-[#F890E7] rounded bg-white focus:outline-none focus:ring-1 focus:ring-[#F890E7]" />
-                              ) : fmt(line.totalCost)}
-                            </td>
-                            <td className="py-2 px-4 text-right font-mono">
-                              {isEditing ? (
-                                <div className="flex items-center justify-end gap-0.5">
-                                  <input type="number" step="0.1" value={editValues.markupPercent ?? line.markupPercent}
-                                    onChange={e => setEditValues(v => ({ ...v, markupPercent: parseFloat(e.target.value) || 0 }))}
-                                    onClick={e => e.stopPropagation()}
-                                    className="w-16 px-1.5 py-0.5 text-right text-xs border border-[#F890E7] rounded bg-white focus:outline-none focus:ring-1 focus:ring-[#F890E7]" />
-                                  <span className="text-gray-400">%</span>
-                                </div>
-                              ) : (
-                                <span className={line.markupPercent > 0 ? 'text-emerald-600' : 'text-gray-400'}>{fmtPct(line.markupPercent)}</span>
-                              )}
-                            </td>
-                            <td className="py-2 px-4 text-right font-mono font-semibold text-gray-900">
-                              {isEditing ? (
-                                <input type="number" step="0.01"
-                                  value={editValues.sellPrice ?? line.sellPrice}
-                                  onChange={e => {
-                                    const sell = parseFloat(e.target.value) || 0;
-                                    const cost = editValues.totalCost ?? line.totalCost;
-                                    const mk = cost > 0 ? ((sell - cost) / cost) * 100 : 0;
-                                    setEditValues(v => ({ ...v, sellPrice: sell, markupPercent: parseFloat(mk.toFixed(1)) }));
-                                  }}
-                                  onClick={e => e.stopPropagation()}
-                                  className="w-20 px-1.5 py-0.5 text-right text-xs border border-[#F890E7] rounded bg-white focus:outline-none focus:ring-1 focus:ring-[#F890E7]" />
-                              ) : fmt(line.sellPrice)}
-                            </td>
-                            <td className="py-2 px-1">
-                              {isEditing ? (
-                                <div className="flex items-center gap-0.5">
-                                  <button onClick={e => {
-                                    e.stopPropagation();
-                                    setManualOverrides(prev => ({ ...prev, [line.id]: true }));
-                                    applyEditLine();
-                                  }} className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded"><Check className="w-3 h-3" /></button>
-                                  <button onClick={e => { e.stopPropagation(); setEditingLineId(null); }}
-                                    className="p-0.5 text-red-500 hover:bg-red-50 rounded"><X className="w-3 h-3" /></button>
-                                </div>
-                              ) : <Edit3 className="w-3 h-3 text-gray-300" />}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    {/* Footer totals row */}
-                    <tfoot>
-                      <tr className="border-t-2 border-gray-200 bg-white font-semibold">
-                        <td className="py-2.5 px-4 text-gray-900 uppercase text-[10px] tracking-wide" colSpan={4}>Total</td>
-                        <td className="py-2.5 px-4 text-right font-mono text-gray-800">{fmt(itemTotalCost)}</td>
-                        <td className="py-2.5 px-4 text-right font-mono">
-                          <span className={itemTotalCost > 0 ? 'text-emerald-600' : 'text-gray-400'}>
-                            {itemTotalCost > 0 ? fmtPct(((itemTotalSell - itemTotalCost) / itemTotalCost) * 100) : '0.0%'}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-4 text-right font-mono text-lg text-gray-900">{fmt(itemTotalSell)}</td>
-                        <td className="py-2.5 px-1">
-                          <Edit3 className="w-3 h-3 text-gray-300" />
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                      {Object.keys(manualOverrides).length > 0 && (
+                        <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px]">
+                          {Object.keys(manualOverrides).length} override{Object.keys(manualOverrides).length > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-[10px] text-[#F890E7] font-medium flex items-center gap-1">
+                      <Edit3 className="w-3 h-3" /> Edit Pricing
+                    </span>
+                  </button>
 
-                  {/* Cost / Margin summary bar */}
-                  <div className="px-4 py-2.5 border-t border-emerald-200/60 bg-white flex items-center justify-between">
-                    <div className="flex items-center gap-6">
-                      <div>
-                        <span className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide mr-1">Markup:</span>
-                        <span className="text-xs font-bold text-blue-700">{fmt(itemMarkupAmt)}</span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide mr-1">Margin:</span>
-                        <span className={`text-xs font-bold ${itemMarginPct >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{fmtPct(itemMarginPct)}</span>
-                      </div>
+                  {/* Read-only summary — click to open dialog */}
+                  <div
+                    className="bg-white cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => setShowBreakdownDialog(true)}
+                  >
+                    <table className="w-full text-xs">
+                      <tbody className="divide-y divide-gray-50">
+                        {ps.serviceLines.map(line => (
+                          <tr key={line.id}>
+                            <td className="py-2 px-4">
+                              <div className="flex items-center gap-1.5">
+                                {line.service === 'Material' && <Package className="w-3 h-3 text-amber-400" />}
+                                {line.service === 'Printing' && <Printer className="w-3 h-3 text-blue-400" />}
+                                {line.service === 'Setup' && <Settings2 className="w-3 h-3 text-gray-400" />}
+                                {line.service === 'Cutting' && <Scissors className="w-3 h-3 text-purple-400" />}
+                                {line.service === 'Folding' && <FoldVertical className="w-3 h-3 text-emerald-400" />}
+                                {line.service === 'Drilling' && <CircleDot className="w-3 h-3 text-orange-400" />}
+                                <span className="text-gray-700 font-medium">{line.service}</span>
+                                {manualOverrides[line.id] && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Manually overridden" />}
+                              </div>
+                            </td>
+                            <td className="py-2 px-3 text-gray-400 text-[10px] truncate max-w-[160px]">{line.description}</td>
+                            <td className="py-2 px-3 text-right font-mono text-gray-500">{fmt(line.totalCost)}</td>
+                            <td className="py-2 px-3 text-right font-mono">
+                              <span className={line.markupPercent > 0 ? 'text-emerald-600' : 'text-gray-400'}>{fmtPct(line.markupPercent)}</span>
+                            </td>
+                            <td className="py-2 px-4 text-right font-mono font-semibold text-gray-900">{fmt(line.sellPrice)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t border-gray-100 bg-gray-50">
+                          <td className="py-2 px-4 text-[10px] font-semibold text-gray-500 uppercase" colSpan={2}>Total</td>
+                          <td className="py-2 px-3 text-right font-mono text-gray-600 text-[11px]">{fmt(itemTotalCost)}</td>
+                          <td className="py-2 px-3 text-right font-mono text-emerald-600 text-[11px]">
+                            {itemTotalCost > 0 ? fmtPct(((itemTotalSell - itemTotalCost) / itemTotalCost) * 100) : '—'}
+                          </td>
+                          <td className="py-2 px-4 text-right font-mono font-bold text-gray-900">{fmt(itemTotalSell)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                    <div className="px-4 py-1.5 flex items-center justify-between bg-gray-50 border-t border-gray-100">
+                      <span className="text-[10px] text-gray-400">Margin: <span className={`font-semibold ${itemMarginPct >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{fmtPct(itemMarginPct)}</span></span>
+                      <span className="text-[10px] text-gray-400">Click anywhere to edit →</span>
                     </div>
-                    <span className="text-sm font-bold text-emerald-700">Sell: {fmt(itemTotalSell)}</span>
                   </div>
                 </div>
+              )}
+
+              {/* ═══ PRICE BREAKDOWN EDIT DIALOG ══════════════════════ */}
+              {showBreakdownDialog && (
+                <PriceBreakdownDialog
+                  lines={ps.serviceLines}
+                  onSave={(updatedLines) => {
+                    onUpdatePricing({ serviceLines: updatedLines });
+                    const totalCost = updatedLines.reduce((s, l) => s + l.totalCost, 0);
+                    const totalSell = updatedLines.reduce((s, l) => s + l.sellPrice, 0);
+                    const overallMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
+                    onUpdateItem({ totalCost, sellPrice: totalSell, markup: Math.round(overallMarkup) });
+                    // Mark all lines with changes as overridden
+                    const newOverrides: Record<string, boolean> = {};
+                    updatedLines.forEach((l, i) => {
+                      const orig = ps.serviceLines[i];
+                      if (orig && (l.totalCost !== orig.totalCost || l.markupPercent !== orig.markupPercent)) {
+                        newOverrides[l.id] = true;
+                      }
+                    });
+                    setManualOverrides(prev => ({ ...prev, ...newOverrides }));
+                    setShowBreakdownDialog(false);
+                  }}
+                  onRecalculate={() => {
+                    handleRecalculate();
+                    setShowBreakdownDialog(false);
+                  }}
+                  onClose={() => setShowBreakdownDialog(false)}
+                />
               )}
 
               {/* ── Notes ─────────────────────────────────────────────── */}
@@ -2249,6 +2183,187 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
               <Button variant="secondary" size="sm" onClick={() => { addPart(); }} icon={<Plus className="w-3.5 h-3.5" />}>Save Part & Add Next</Button>
             )}
             <Button variant="primary" onClick={onClose}>Done</Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PRICE BREAKDOWN DIALOG — fully isolated from the parent, owns its own state
+// ═════════════════════════════════════════════════════════════════════════════
+
+interface PriceBreakdownDialogProps {
+  lines: PricingServiceLine[];
+  onSave: (updatedLines: PricingServiceLine[]) => void;
+  onRecalculate: () => void;
+  onClose: () => void;
+}
+
+const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ lines, onSave, onRecalculate, onClose }) => {
+  // Own a local deep copy — completely isolated from any re-renders in the parent
+  const [localLines, setLocalLines] = useState<PricingServiceLine[]>(() =>
+    lines.map(l => ({ ...l }))
+  );
+
+  const updateLine = (id: string, field: 'totalCost' | 'markupPercent' | 'sellPrice', raw: string) => {
+    const val = parseFloat(raw);
+    if (isNaN(val)) return;
+    setLocalLines(prev => prev.map(l => {
+      if (l.id !== id) return l;
+      if (field === 'totalCost') {
+        const sell = l.sellPrice; // keep sell, adjust markup
+        const mk = val > 0 ? ((sell - val) / val) * 100 : l.markupPercent;
+        return { ...l, totalCost: val, markupPercent: parseFloat(mk.toFixed(2)) };
+      }
+      if (field === 'markupPercent') {
+        const sell = l.totalCost * (1 + val / 100);
+        return { ...l, markupPercent: val, sellPrice: parseFloat(sell.toFixed(4)) };
+      }
+      if (field === 'sellPrice') {
+        const mk = l.totalCost > 0 ? ((val - l.totalCost) / l.totalCost) * 100 : 0;
+        return { ...l, sellPrice: val, markupPercent: parseFloat(mk.toFixed(2)) };
+      }
+      return l;
+    }));
+  };
+
+  const totalCost = localLines.reduce((s, l) => s + l.totalCost, 0);
+  const totalSell = localLines.reduce((s, l) => s + l.sellPrice, 0);
+  const totalMarkupPct = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
+  const marginPct = totalSell > 0 ? ((totalSell - totalCost) / totalSell) * 100 : 0;
+
+  const serviceIcon = (service: string) => {
+    if (service === 'Material') return <Package className="w-3.5 h-3.5 text-amber-500" />;
+    if (service === 'Printing') return <Printer className="w-3.5 h-3.5 text-blue-500" />;
+    if (service === 'Setup') return <Settings2 className="w-3.5 h-3.5 text-gray-400" />;
+    if (service === 'Cutting') return <Scissors className="w-3.5 h-3.5 text-purple-500" />;
+    if (service === 'Folding') return <FoldVertical className="w-3.5 h-3.5 text-emerald-500" />;
+    if (service === 'Drilling') return <CircleDot className="w-3.5 h-3.5 text-orange-500" />;
+    return <DollarSign className="w-3.5 h-3.5 text-gray-400" />;
+  };
+
+  const inputCls = "w-full px-2.5 py-1.5 text-sm text-right font-mono bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] focus:border-transparent";
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col"
+           onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+            <DollarSign className="w-4 h-4 text-emerald-500" />
+            Edit Price Breakdown
+          </h2>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+            <X className="w-4 h-4 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-y-auto flex-1 px-6 py-4">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b-2 border-gray-100">
+                <th className="text-left pb-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide w-32">Service</th>
+                <th className="text-left pb-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Description</th>
+                <th className="text-center pb-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide w-24">Cost ($)</th>
+                <th className="text-center pb-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide w-24">Markup %</th>
+                <th className="text-center pb-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide w-28">Sell Price ($)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {localLines.map(line => (
+                <tr key={line.id} className="group">
+                  <td className="py-3 pr-3">
+                    <div className="flex items-center gap-1.5">
+                      {serviceIcon(line.service)}
+                      <span className="font-medium text-gray-800 text-xs">{line.service}</span>
+                    </div>
+                    {line.quantity != null && (
+                      <div className="text-[10px] text-gray-400 mt-0.5 ml-5">
+                        {line.quantity.toLocaleString()} {line.unit}
+                      </div>
+                    )}
+                  </td>
+                  <td className="py-3 pr-3">
+                    <span className="text-xs text-gray-500 leading-tight block">{line.description}</span>
+                  </td>
+                  <td className="py-3 px-1">
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={line.totalCost}
+                      onChange={e => updateLine(line.id, 'totalCost', e.target.value)}
+                      className={inputCls}
+                    />
+                  </td>
+                  <td className="py-3 px-1">
+                    <div className="relative">
+                      <input
+                        type="number" step="0.1"
+                        value={line.markupPercent}
+                        onChange={e => updateLine(line.id, 'markupPercent', e.target.value)}
+                        className={`${inputCls} pr-6`}
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none">%</span>
+                    </div>
+                  </td>
+                  <td className="py-3 pl-1">
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={line.sellPrice}
+                      onChange={e => updateLine(line.id, 'sellPrice', e.target.value)}
+                      className={`${inputCls} font-semibold text-gray-900`}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-gray-200 bg-gray-50">
+                <td className="py-3 pr-3 text-xs font-bold text-gray-700 uppercase tracking-wide" colSpan={2}>Total</td>
+                <td className="py-3 px-1 text-right font-mono font-semibold text-gray-700 text-sm">{formatCurrency(totalCost)}</td>
+                <td className="py-3 px-1 text-right font-mono text-sm">
+                  <span className={totalMarkupPct > 0 ? 'text-emerald-600 font-semibold' : 'text-gray-400'}>
+                    {totalMarkupPct.toFixed(1)}%
+                  </span>
+                </td>
+                <td className="py-3 pl-1 text-right font-mono font-bold text-gray-900 text-base">{formatCurrency(totalSell)}</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          {/* Margin bar */}
+          <div className="mt-3 bg-gray-50 rounded-lg px-4 py-2.5 flex items-center justify-between">
+            <div className="flex items-center gap-6 text-xs">
+              <span className="text-gray-500">
+                Gross Profit: <span className="font-semibold text-gray-900">{formatCurrency(totalSell - totalCost)}</span>
+              </span>
+              <span className="text-gray-500">
+                Margin: <span className={`font-semibold ${marginPct >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{marginPct.toFixed(1)}%</span>
+              </span>
+            </div>
+            <span className="text-[10px] text-gray-400">Edit any field — changes are live</span>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
+          <button
+            type="button"
+            onClick={onRecalculate}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-[#F890E7] hover:bg-pink-50 rounded-lg transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Reset to calculated values
+          </button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button variant="success" onClick={() => onSave(localLines)}>
+              Apply Changes
+            </Button>
           </div>
         </div>
       </div>
