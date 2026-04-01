@@ -119,6 +119,7 @@ export const Materials: React.FC = () => {
   // Product & category assignment state
   const [productSearch, setProductSearch] = useState('');
   const [assignmentsCollapsed, setAssignmentsCollapsed] = useState(false);
+  const [costConfigCollapsed, setCostConfigCollapsed] = useState(false);
   const [browseCategoryFilter, setBrowseCategoryFilter] = useState<string>('all');
   const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
   const groupDropdownRef = useRef<HTMLDivElement>(null);
@@ -1544,6 +1545,29 @@ export const Materials: React.FC = () => {
             </div>
           </div>
 
+          {/* ── Material Type Attributes & Cost Configurations (collapsible) ── */}
+          <div className="border-t border-gray-200 pt-4">
+            <button
+              type="button"
+              onClick={() => setCostConfigCollapsed(c => !c)}
+              className="w-full flex items-center justify-between group"
+            >
+              <div className="flex items-center gap-2">
+                {costConfigCollapsed
+                  ? <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                  : <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />}
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Material Type Attributes &amp; Cost Configurations</h3>
+              </div>
+              {costConfigCollapsed && (
+                <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                  {MATERIAL_TYPE_LABELS[form.materialType]} · {PRICING_MODEL_LABELS[form.pricingModel]} · {form.markupType === 'percent' ? `${form.markup}%` : form.markupType === 'fixed' ? `$${form.markup}/u` : `$${form.markup} flat`}
+                </span>
+              )}
+            </button>
+
+            {!costConfigCollapsed && (
+              <div className="mt-3 space-y-4 pl-6">
+
           {/* ── Dimensions (conditional by type) ── */}
           {form.materialType !== 'blanks' && (
             <div className={`grid gap-4 ${form.materialType === 'roll_media' ? 'grid-cols-1 max-w-xs' : 'grid-cols-2 max-w-sm'}`}>
@@ -1686,7 +1710,7 @@ export const Materials: React.FC = () => {
           </div>
 
           {/* ── Markup (last — applies on top of everything) ── */}
-          <div className="border-t border-gray-200 pt-4">
+          <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Markup</label>
             <div className="flex gap-3 items-end">
               <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
@@ -1852,6 +1876,10 @@ export const Materials: React.FC = () => {
               </div>
             );
           })()}
+
+              </div>
+            )}
+          </div>
 
         </div>}
 
