@@ -813,6 +813,10 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [savedAsTemplate, setSavedAsTemplate] = useState(false);
   const [multiQtyInput, setMultiQtyInput] = useState(String(ps.quantity || 1000));
   const [autoDescribe, setAutoDescribe] = useState(true);
+  const [sizeInput, setSizeInput] = useState(
+    ps.finalWidth > 0 && ps.finalHeight > 0 ? `${ps.finalWidth}x${ps.finalHeight}` : ''
+  );
+  const [sizeError, setSizeError] = useState('');
 
   // ── Imposition calculator state ──────────────────────────────────────
   const [showImpositionCalc, setShowImpositionCalc] = useState(false);
@@ -905,6 +909,11 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // Sync product query when pricing state changes externally (e.g. template load)
   useEffect(() => { setProductQuery(ps.productName || ''); }, [ps.productName]);
   useEffect(() => { setMultiQtyInput(String(ps.quantity || 1000)); }, [ps.quantity]);
+  useEffect(() => {
+    if (ps.finalWidth > 0 && ps.finalHeight > 0) {
+      setSizeInput(`${ps.finalWidth}x${ps.finalHeight}`);
+    }
+  }, [ps.finalWidth, ps.finalHeight]);
 
   // ── Auto-describe helper ──────────────────────────────────────────────
   const buildDescription = useCallback(() => {
@@ -1390,6 +1399,12 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const orientB = enhancedImposition.orientationB;
   const activeOrientation = enhancedImposition.bestOrientation as string;
 
+  // Proportional diagram sizes for imposition orientation
+  const maxDiagramSize = 80;
+  const sheetRatio = selectedMaterial ? selectedMaterial.sizeWidth / selectedMaterial.sizeHeight : 1;
+  const diagWidth = sheetRatio >= 1 ? maxDiagramSize : Math.round(maxDiagramSize * sheetRatio);
+  const diagHeight = sheetRatio >= 1 ? Math.round(maxDiagramSize / sheetRatio) : maxDiagramSize;
+
   // Helper: mark userInteracted on any pricing field change
   const trackInteraction = () => { if (!userInteracted) setUserInteracted(true); };
 
@@ -1553,16 +1568,27 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   {isMultiQty && <p className="text-[10px] text-purple-500 mt-0.5">{parsedQuantities.length} quantities</p>}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Size (W x H)</label>
-                  <div className="flex items-center gap-1">
-                    <input type="number" step="0.125" value={ps.finalWidth} min={0}
-                      onChange={e => { trackInteraction(); onUpdatePricing({ finalWidth: parseFloat(e.target.value) || 0 }); }}
-                      className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]" />
-                    <span className="text-gray-400 text-xs">x</span>
-                    <input type="number" step="0.125" value={ps.finalHeight} min={0}
-                      onChange={e => { trackInteraction(); onUpdatePricing({ finalHeight: parseFloat(e.target.value) || 0 }); }}
-                      className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]" />
-                  </div>
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Size (L x H, in)</label>
+                  <input
+                    type="text"
+                    value={sizeInput}
+                    onChange={e => {
+                      trackInteraction();
+                      setSizeInput(e.target.value);
+                      const match = e.target.value.match(/^(\d+\.?\d*)\s*[xX×]\s*(\d+\.?\d*)$/);
+                      if (match) {
+                        onUpdatePricing({ finalWidth: parseFloat(match[1]), finalHeight: parseFloat(match[2]) });
+                        setSizeError('');
+                      } else if (e.target.value && !e.target.value.match(/^[\d.]+\s*[xX×]?\s*[\d.]*$/)) {
+                        setSizeError('Use format: LxH (e.g., 3.5x2)');
+                      } else {
+                        setSizeError('');
+                      }
+                    }}
+                    placeholder="e.g., 3.5x2"
+                    className={`w-full px-3 py-2 text-sm bg-white border ${sizeError ? 'border-red-400' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]`}
+                  />
+                  {sizeError && <p className="text-[9px] text-red-500 mt-0.5">{sizeError}</p>}
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sides</label>
@@ -1739,7 +1765,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               <div className="grid gap-px bg-gray-300 p-px" style={{
                                 gridTemplateColumns: `repeat(${orientA.upsAcross || 1}, 1fr)`,
                                 gridTemplateRows: `repeat(${orientA.upsDown || 1}, 1fr)`,
-                                width: 70, height: 54
+                                width: diagWidth, height: diagHeight
                               }}>
                                 {Array.from({ length: orientA.totalUps || 0 }).map((_, i) => (
                                   <div key={i} className={activeOrientation === 'A' ? 'bg-pink-100' : 'bg-gray-100'} />
@@ -1758,7 +1784,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               <div className="grid gap-px bg-gray-300 p-px" style={{
                                 gridTemplateColumns: `repeat(${orientB.upsAcross || 1}, 1fr)`,
                                 gridTemplateRows: `repeat(${orientB.upsDown || 1}, 1fr)`,
-                                width: 70, height: 54
+                                width: diagWidth, height: diagHeight
                               }}>
                                 {Array.from({ length: orientB.totalUps || 0 }).map((_, i) => (
                                   <div key={i} className={activeOrientation === 'B' ? 'bg-pink-100' : 'bg-gray-100'} />
@@ -1808,12 +1834,12 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     </div>
                   )}
                 </div>
-                <div className="space-y-1.5">
+                <div className="flex flex-wrap gap-2">
                   {groupedFinishing.map(({ group, services }) => {
                     const isExpanded = expandedFinishingGroups[group.id] !== false;
                     const selectedInGroup = services.filter(s => selectedFinishingIds.includes(s.id));
                     return (
-                      <div key={group.id} className="rounded-lg border border-gray-100 overflow-hidden">
+                      <div key={group.id} className="rounded-lg border border-gray-100 overflow-hidden flex-1 min-w-[140px] max-w-[200px]">
                         <button
                           onClick={() => setExpandedFinishingGroups(prev => ({ ...prev, [group.id]: !isExpanded }))}
                           className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-50 transition-colors"
@@ -1858,14 +1884,6 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       </div>
                     );
                   })}
-                  {ps.cuttingEnabled && (
-                    <div className="flex items-center gap-2 pl-1">
-                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Sheets/Stack:</label>
-                      <input type="number" value={ps.sheetsPerStack} min={1}
-                        onChange={e => onUpdatePricing({ sheetsPerStack: parseInt(e.target.value) || 1 })}
-                        className="w-20 px-2 py-1 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]" />
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -1954,6 +1972,8 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     <thead>
                       <tr className="border-b border-gray-200/60">
                         <th className="text-left py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Service</th>
+                        <th className="text-right py-2 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[9px]">Qty</th>
+                        <th className="text-center py-2 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[9px]">Unit</th>
                         <th className="text-left py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Description</th>
                         <th className="text-right py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Cost</th>
                         <th className="text-right py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Markup</th>
@@ -1973,6 +1993,8 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                 <span className="font-medium text-gray-600">Material</span>
                               </div>
                             </td>
+                            <td className="py-2 px-3 text-right font-mono text-[10px] text-gray-400">--</td>
+                            <td className="py-2 px-3 text-center text-[10px] text-gray-400">--</td>
                             <td className="py-2 px-4 text-gray-400 italic max-w-[200px] truncate">
                               {mat.name} ({mat.size}) -- {entry.sides}, {entry.colorMode}
                             </td>
@@ -2007,6 +2029,8 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                 {isOverridden && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Manually overridden" />}
                               </div>
                             </td>
+                            <td className="py-2 px-3 text-right font-mono text-[10px] text-gray-600">{line.quantity?.toLocaleString() || '--'}</td>
+                            <td className="py-2 px-3 text-center text-[10px] text-gray-500">{line.unit || '--'}</td>
                             <td className="py-2 px-4 text-gray-500 max-w-[200px] truncate">{line.description}</td>
                             <td className="py-2 px-4 text-right font-mono">
                               {isEditing ? (
@@ -2063,7 +2087,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     {/* Footer totals row */}
                     <tfoot>
                       <tr className="border-t-2 border-gray-200 bg-white font-semibold">
-                        <td className="py-2.5 px-4 text-gray-900 uppercase text-[10px] tracking-wide" colSpan={2}>Total</td>
+                        <td className="py-2.5 px-4 text-gray-900 uppercase text-[10px] tracking-wide" colSpan={4}>Total</td>
                         <td className="py-2.5 px-4 text-right font-mono text-gray-800">{fmt(itemTotalCost)}</td>
                         <td className="py-2.5 px-4 text-right font-mono">
                           <span className={itemTotalCost > 0 ? 'text-emerald-600' : 'text-gray-400'}>
