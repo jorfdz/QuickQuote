@@ -1674,8 +1674,15 @@ export const Materials: React.FC = () => {
 
           {/* ── Minimum Charge ── */}
           <div className="w-36">
-            <Input label="Minimum Charge" type="number" value={form.minimumCharge || ''} onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))} prefix="$"
-              title="If the calculated total is below this amount, this amount will be charged instead. Set to 0 for no minimum." />
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+              <Tip label="Minimum Charge" tip="If the calculated total is below this amount, this minimum will be charged instead. Set to 0 for no minimum." />
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+              <input type="number" value={form.minimumCharge || ''}
+                onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))}
+                className="w-full pl-8 px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent placeholder-gray-400 transition-all" />
+            </div>
           </div>
 
           {/* ── Markup (last — applies on top of everything) ── */}
@@ -1713,8 +1720,8 @@ export const Materials: React.FC = () => {
               </div>
             </div>
             <p className="text-[10px] text-gray-400 mt-1.5">
-              {form.markupType === 'percent' && 'Percentage added to each unit's cost.'}
-              {form.markupType === 'fixed' && 'Fixed dollar amount added to each unit's cost.'}
+              {form.markupType === 'percent' && 'Percentage added to each unit cost.'}
+              {form.markupType === 'fixed' && 'Fixed dollar amount added to each unit cost.'}
               {form.markupType === 'global_flat' && 'Flat dollar amount added to the order total, regardless of quantity.'}
             </p>
           </div>
