@@ -234,7 +234,7 @@ export interface MaterialPricingTier {
   costPerUnit: number;              // cost at this tier
 }
 
-export type MaterialMarkupType = 'percent' | 'fixed' | 'global_flat';
+export type MaterialMarkupType = 'percent' | 'fixed' | 'global_flat' | 'global_percent';
 
 export interface PricingMaterial {
   id: string;
@@ -252,7 +252,7 @@ export interface PricingMaterial {
   rollLength?: number;             // roll length in feet — reference field for roll media, auto-derives costPerSqft
   pricingTiers: MaterialPricingTier[];  // optional quantity-based tier pricing (overrides base cost when set)
   minimumCharge: number;           // minimum charge floor — 0 means no minimum
-  markupType: MaterialMarkupType;  // 'percent' = percentage on top, 'fixed' = flat dollar amount per unit, 'global_flat' = flat dollar amount on total
+  markupType: MaterialMarkupType;  // 'percent' = percentage per unit, 'fixed' = flat dollar per unit, 'global_flat' = flat dollar on total, 'global_percent' = percentage on total
   markup: number;                  // percentage markup (70 = 70%) or fixed dollar amount
   materialGroupIds: string[];       // which material groups it belongs to
   categoryIds: string[];           // direct product-category assignments
