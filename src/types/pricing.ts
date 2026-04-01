@@ -306,6 +306,10 @@ export interface PricingServiceLine {
   markupPercent: number;           // display as %
   sellPrice: number;
   editable: boolean;
+  // Time-based fields (populated for Cutting, Folding, Drilling, etc.)
+  hourlyCost?: number;             // $ per hour for this service
+  hoursActual?: number;            // system-calculated hours
+  hoursCharge?: number;            // hours to actually charge (user-overridable)
 }
 
 export interface PricingJob {
