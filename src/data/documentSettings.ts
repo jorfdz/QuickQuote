@@ -166,16 +166,15 @@ export const DEFAULT_WORK_ORDER_TEMPLATE = `<!DOCTYPE html>
 <head>
   <style>
     body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1f2937; margin: 0; padding: 40px; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1f2937; padding-bottom: 20px; margin-bottom: 28px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1f2937; padding-bottom: 34px; margin-bottom: 28px; }
     .company-name { font-size: 22px; font-weight: bold; color: #1f2937; }
     .company-info { font-size: 13px; color: #6b7280; margin-top: 4px; }
     .doc-title { font-size: 28px; font-weight: bold; color: #1f2937; text-align: right; }
     .doc-number { font-size: 16px; font-weight: 600; color: #0f766e; text-align: right; margin-top: 4px; }
-    .header-right { display: flex; align-items: flex-start; gap: 18px; }
-    .header-copy { text-align: right; }
-    .qr-box { width: 84px; text-align: center; }
+    .header-right { display: flex; align-items: flex-start; justify-content: flex-end; gap: 18px; min-width: 320px; }
+    .header-copy { text-align: right; padding-top: 2px; min-width: 190px; }
+    .qr-box { width: 84px; text-align: center; flex-shrink: 0; }
     .qr-box img { width: 84px; height: 84px; display: block; border: 1px solid #e5e7eb; border-radius: 8px; }
-    .qr-caption { font-size: 9px; color: #94a3b8; margin-top: 6px; letter-spacing: 0.06em; text-transform: uppercase; }
     .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-bottom: 28px; }
     .section { margin-bottom: 24px; }
     .section-label { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
@@ -203,12 +202,11 @@ export const DEFAULT_WORK_ORDER_TEMPLATE = `<!DOCTYPE html>
     </div>
     <div class="header-right">
       <div class="header-copy">
-      <div class="doc-title">WORK ORDER</div>
-      <div class="doc-number">{{orderNumber}}</div>
+        <div class="doc-title">WORK ORDER</div>
+        <div class="doc-number">{{orderNumber}}</div>
       </div>
       <div class="qr-box">
         <img src="{{qrCodeUrl}}" alt="Work order QR code" />
-        <div class="qr-caption">Tracker Link</div>
       </div>
     </div>
   </div>
