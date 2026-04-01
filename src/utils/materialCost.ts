@@ -48,13 +48,45 @@ export const getTierCost = (m: PricingMaterial, qty: number): number | null => {
   return tier ? tier.costPerUnit : null;
 };
 
-/** Sell price per unit, applying markup (percent or fixed) */
+/** Sell price per unit, applying markup (percent, per-unit fixed, or global flat).
+ *  Note: 'global_flat' is a flat dollar amount on the total — it cannot be expressed
+ *  per-unit without knowing quantity, so we return base cost here. Use getOrderSell()
+ *  for total calculations that include global flat markup. */
 export const getUnitSell = (m: PricingMaterial): number => {
   const cost = getUnitCost(m);
-  if ((m.markupType || 'percent') === 'fixed') {
+  const type = m.markupType || 'percent';
+  if (type === 'fixed') {
     return cost + (m.markup || 0);
   }
+  if (type === 'global_flat') {
+    // Can't express a flat total markup per-unit without qty; return cost as-is
+    return cost;
+  }
   return cost * (1 + (m.markup || 0) / 100);
+};
+
+/** Calculate total sell for a given quantity, properly handling all markup types including global_flat */
+export const getOrderSell = (m: PricingMaterial, qty: number, effectiveCostPerUnit?: number): { sellPerUnit: number; markupPerUnit: number; totalSell: number; globalFlatApplied: boolean } => {
+  const costPerUnit = effectiveCostPerUnit ?? getUnitCost(m);
+  const type = m.markupType || 'percent';
+  const markupVal = m.markup || 0;
+
+  if (type === 'fixed') {
+    const markupPerUnit = markupVal;
+    const sellPerUnit = costPerUnit + markupPerUnit;
+    return { sellPerUnit, markupPerUnit, totalSell: sellPerUnit * qty, globalFlatApplied: false };
+  }
+  if (type === 'global_flat') {
+    const totalCost = costPerUnit * qty;
+    const totalSell = totalCost + markupVal;
+    const sellPerUnit = qty > 0 ? totalSell / qty : costPerUnit;
+    const markupPerUnit = qty > 0 ? markupVal / qty : 0;
+    return { sellPerUnit, markupPerUnit, totalSell, globalFlatApplied: true };
+  }
+  // percent
+  const markupPerUnit = costPerUnit * (markupVal / 100);
+  const sellPerUnit = costPerUnit + markupPerUnit;
+  return { sellPerUnit, markupPerUnit, totalSell: sellPerUnit * qty, globalFlatApplied: false };
 };
 
 /** Format a material's type + size for display (used in dropdowns, etc.) */
