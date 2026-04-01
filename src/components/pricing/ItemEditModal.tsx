@@ -125,6 +125,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [globalDescription, setGlobalDescription] = useState('');
   const [parts, setParts] = useState<PartSnapshot[]>([]);
   const [activePartIdx, setActivePartIdx] = useState(0);
+  // -1 = Main overview tab is active; ≥0 = a specific part is active
+  const [showMainTab, setShowMainTab] = useState(false);
 
   // ── Multi-material entries ────────────────────────────────────────────
   const [materialEntries, setMaterialEntries] = useState<Array<{
@@ -690,7 +692,15 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     const snapped = snapshotCurrentPart(parts, activePartIdx);
     setParts(snapped);
     setActivePartIdx(newIdx);
+    setShowMainTab(false);
     loadPartIntoForm(snapped[newIdx]);
+  };
+
+  // Show the main overview tab (snapshot current part first)
+  const goToMainTab = () => {
+    const snapped = snapshotCurrentPart(parts, activePartIdx);
+    setParts(snapped);
+    setShowMainTab(true);
   };
 
   // Add a new part
@@ -711,6 +721,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     const newParts = [...snapped, newPart];
     setParts(newParts);
     setActivePartIdx(newParts.length - 1);
+    setShowMainTab(false);
     loadPartIntoForm(newPart);
   };
 
