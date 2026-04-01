@@ -1,0 +1,52 @@
+[
+  {
+    "id": "wf1",
+    "name": "Standard Print Workflow",
+    "description": "Core production flow for digital and offset print jobs from intake through completion.",
+    "isActive": true,
+    "productFamilies": ["digital_print", "offset_print"],
+    "stages": [
+      { "id": "s1", "workflowId": "wf1", "name": "Order Received", "order": 1, "color": "#6366f1", "isComplete": false },
+      { "id": "s2", "workflowId": "wf1", "name": "Prepress / Art", "order": 2, "color": "#f59e0b", "isComplete": false },
+      { "id": "s3", "workflowId": "wf1", "name": "Printing", "order": 3, "color": "#3b82f6", "isComplete": false },
+      { "id": "s4", "workflowId": "wf1", "name": "Finishing", "order": 4, "color": "#8b5cf6", "isComplete": false },
+      { "id": "s5", "workflowId": "wf1", "name": "Ready for Pickup", "order": 5, "color": "#10b981", "isComplete": true },
+      { "id": "s6", "workflowId": "wf1", "name": "Completed", "order": 6, "color": "#6b7280", "isComplete": true }
+    ],
+    "isDefault": true,
+    "createdAt": "2024-01-01"
+  },
+  {
+    "id": "wf2",
+    "name": "Sign & Wide Format",
+    "description": "Handles wide format, rigid signage, and install-ready graphics with proofing and finishing stages.",
+    "isActive": true,
+    "productFamilies": ["wide_format", "rigid_sign", "roll_sign"],
+    "stages": [
+      { "id": "s7", "workflowId": "wf2", "name": "Order Received", "order": 1, "color": "#6366f1", "isComplete": false },
+      { "id": "s8", "workflowId": "wf2", "name": "Art / Proof", "order": 2, "color": "#f59e0b", "isComplete": false },
+      { "id": "s9", "workflowId": "wf2", "name": "Printing", "order": 3, "color": "#3b82f6", "isComplete": false },
+      { "id": "s10", "workflowId": "wf2", "name": "Laminating", "order": 4, "color": "#ec4899", "isComplete": false },
+      { "id": "s11", "workflowId": "wf2", "name": "Cutting / Routing", "order": 5, "color": "#8b5cf6", "isComplete": false },
+      { "id": "s12", "workflowId": "wf2", "name": "Installation", "order": 6, "color": "#f97316", "isComplete": false },
+      { "id": "s13", "workflowId": "wf2", "name": "Completed", "order": 7, "color": "#6b7280", "isComplete": true }
+    ],
+    "isDefault": false,
+    "createdAt": "2024-01-01"
+  },
+  {
+    "id": "wf3",
+    "name": "Vendor / Outsourced",
+    "description": "Tracks externally produced jobs from vendor handoff through receipt and QC.",
+    "isActive": true,
+    "productFamilies": ["outsourced", "buyout"],
+    "stages": [
+      { "id": "s14", "workflowId": "wf3", "name": "PO Sent", "order": 1, "color": "#6366f1", "isComplete": false },
+      { "id": "s15", "workflowId": "wf3", "name": "In Production (Vendor)", "order": 2, "color": "#f59e0b", "isComplete": false },
+      { "id": "s16", "workflowId": "wf3", "name": "Received", "order": 3, "color": "#3b82f6", "isComplete": false },
+      { "id": "s17", "workflowId": "wf3", "name": "QC / Fulfilled", "order": 4, "color": "#10b981", "isComplete": true }
+    ],
+    "isDefault": false,
+    "createdAt": "2024-01-01"
+  }
+]

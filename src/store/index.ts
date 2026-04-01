@@ -10,7 +10,7 @@ import {
   mockMaterials, mockEquipment, mockVendors, mockPurchaseOrders,
   mockUsers, mockWorkflows, mockTemplates, currentUser
 } from '../data/mockData';
-import { defaultTrackingDevices } from '../data/trackingDevices';
+import trackingDevicesSeed from '../data/trackingDevices.json';
 import { realCustomers, realContacts, realOrders } from '../data/realData';
 import { DEFAULT_COMPANY_SETTINGS, DEFAULT_DOCUMENT_TEMPLATES } from '../data/documentSettings';
 
@@ -21,6 +21,7 @@ const allOrders: Order[] = [
   ...realOrders,
   ...mockOrders.filter((m) => !realOrders.find((r) => r.id === m.id)),
 ];
+const defaultTrackingDevices = trackingDevicesSeed as TrackingDevice[];
 
 interface AppStore {
   // Auth
@@ -111,6 +112,7 @@ interface AppStore {
   deleteTrackingDevice: (id: string) => void;
   processTrackingDeviceScan: (deviceId: string, orderItemId: string) => void;
   processTrackingDeviceOrderScan: (deviceId: string, orderNumber: string) => { success: boolean; message: string };
+  processOrderScanToDestination: (workflowId: string, stageId: string, orderNumber: string) => { success: boolean; message: string };
   updateCompanySettings: (settings: Partial<CompanySettings>) => void;
   updateDocumentTemplates: (templates: Partial<DocumentTemplates>) => void;
 }
@@ -246,6 +248,18 @@ export const useStore = create<AppStore>()(
         if (!device) {
           return { success: false, message: 'Tracking device is inactive or not found.' };
         }
+        return get().processOrderScanToDestination(device.workflowId, device.stageId, orderNumber);
+      },
+      processOrderScanToDestination: (workflowId, stageId, orderNumber) => {
+        const workflow = get().workflows.find((item) => item.id === workflowId);
+        if (!workflow) {
+          return { success: false, message: 'Selected board was not found.' };
+        }
+
+        const stage = workflow.stages.find((item) => item.id === stageId);
+        if (!stage) {
+          return { success: false, message: 'Selected stage was not found.' };
+        }
 
         const normalizedOrderNumber = orderNumber.trim().toUpperCase();
         const order = get().orders.find((item) => item.number.toUpperCase() === normalizedOrderNumber);
@@ -259,19 +273,19 @@ export const useStore = create<AppStore>()(
             item.id === order.id
               ? {
                   ...item,
-                  workflowId: device.workflowId,
-                  currentStageId: device.stageId,
+                  workflowId,
+                  currentStageId: stageId,
                   updatedAt: now,
                   lineItems: item.lineItems.map((lineItem) => ({
                     ...lineItem,
-                    workflowStageId: device.stageId,
+                    workflowStageId: stageId,
                   })),
                 }
               : item
           )),
         }));
 
-        return { success: true, message: `Moved ${normalizedOrderNumber} to the configured board and stage.` };
+        return { success: true, message: `Moved ${normalizedOrderNumber} to ${workflow.name} / ${stage.name}.` };
       },
       updateCompanySettings: (settings) => set((s) => ({ companySettings: { ...s.companySettings, ...settings } })),
       updateDocumentTemplates: (templates) => set((s) => ({ documentTemplates: { ...s.documentTemplates, ...templates } })),

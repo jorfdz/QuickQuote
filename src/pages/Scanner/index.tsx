@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, CheckCircle2, AlertCircle, ScanLine, Keyboard, ArrowLeft } from 'lucide-react';
+import { Camera, CheckCircle2, AlertCircle, ScanLine, Keyboard, ArrowLeft, ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../../store';
-import { Button, Card, Input } from '../../components/ui';
+import { Button, Card, Input, Select } from '../../components/ui';
 
 type ScanStatus = 'idle' | 'scanning' | 'success' | 'error';
 
@@ -27,7 +27,7 @@ declare global {
 export const ScannerPage: React.FC = () => {
   const { deviceCode = '' } = useParams<{ deviceCode: string }>();
   const navigate = useNavigate();
-  const { trackingDevices, workflows, orders, processTrackingDeviceOrderScan } = useStore();
+  const { trackingDevices, workflows, orders, processOrderScanToDestination } = useStore();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -42,11 +42,46 @@ export const ScannerPage: React.FC = () => {
   const [cameraReady, setCameraReady] = useState(false);
   const [jsQrReady, setJsQrReady] = useState(false);
   const [flashActive, setFlashActive] = useState(false);
+  const [destinationOpen, setDestinationOpen] = useState(true);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState('');
+  const [selectedStageId, setSelectedStageId] = useState('');
 
   const normalizedCode = deviceCode.trim().toUpperCase();
   const device = trackingDevices.find((item) => item.code.toUpperCase() === normalizedCode) || null;
-  const workflow = workflows.find((item) => item.id === device?.workflowId) || null;
-  const stage = workflow?.stages.find((item) => item.id === device?.stageId) || null;
+  const storageKey = `scanner-destination:${normalizedCode}`;
+
+  useEffect(() => {
+    if (!device) return;
+
+    const storedValue = window.localStorage.getItem(storageKey);
+    if (storedValue) {
+      try {
+        const parsed = JSON.parse(storedValue) as { workflowId?: string; stageId?: string; collapsed?: boolean };
+        if (parsed.workflowId) setSelectedWorkflowId(parsed.workflowId);
+        if (parsed.stageId) setSelectedStageId(parsed.stageId);
+        if (typeof parsed.collapsed === 'boolean') setDestinationOpen(!parsed.collapsed);
+        return;
+      } catch {
+        // Ignore invalid stored selection.
+      }
+    }
+
+    setSelectedWorkflowId(device.workflowId);
+    setSelectedStageId(device.stageId);
+  }, [device, storageKey]);
+
+  const workflow = workflows.find((item) => item.id === selectedWorkflowId) || workflows.find((item) => item.id === device?.workflowId) || null;
+  const stageOptions = workflow?.stages.slice().sort((a, b) => a.order - b.order) || [];
+  const stage = stageOptions.find((item) => item.id === selectedStageId) || stageOptions[0] || null;
+
+  useEffect(() => {
+    if (!workflow || !stage) return;
+    window.localStorage.setItem(storageKey, JSON.stringify({
+      workflowId: workflow.id,
+      stageId: stage.id,
+      collapsed: !destinationOpen,
+    }));
+  }, [destinationOpen, stage, storageKey, workflow]);
 
   const canUseBarcodeDetector = useMemo(
     () => typeof window !== 'undefined' && 'BarcodeDetector' in window,
@@ -219,7 +254,7 @@ export const ScannerPage: React.FC = () => {
   };
 
   const handleScannedValue = async (rawValue: string) => {
-    if (!device) return;
+    if (!device || !workflow || !stage) return;
 
     const orderNumber = extractOrderNumber(rawValue);
     if (!orderNumber) {
@@ -228,7 +263,7 @@ export const ScannerPage: React.FC = () => {
       return;
     }
 
-    const result = processTrackingDeviceOrderScan(device.id, orderNumber);
+    const result = processOrderScanToDestination(workflow.id, stage.id, orderNumber);
     if (!result.success) {
       setStatus('error');
       setMessage(result.message);
@@ -237,7 +272,7 @@ export const ScannerPage: React.FC = () => {
 
     setLastOrderNumber(orderNumber);
     setStatus('success');
-    setMessage(`${result.message} Destination: ${workflow?.name || 'Board'} / ${stage?.name || 'Stage'}.`);
+    setMessage(`${result.message} Destination: ${workflow.name} / ${stage.name}.`);
     setManualValue('');
     await playSuccessFeedback();
 
@@ -253,6 +288,7 @@ export const ScannerPage: React.FC = () => {
   };
 
   const scannedOrder = orders.find((item) => item.number === lastOrderNumber) || null;
+  const workflowOptions = workflows.filter((item) => item.isActive).map((item) => ({ value: item.id, label: item.name }));
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] px-4 py-6 sm:px-6">
@@ -278,11 +314,54 @@ export const ScannerPage: React.FC = () => {
             <div className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">Tracking Device Scanner</div>
             <h1 className="mt-1 text-xl font-semibold text-gray-900">{device?.name || 'Unknown Device'}</h1>
             <p className="mt-1 text-sm text-gray-500">
-              {workflow?.name || 'No board assigned'}{stage ? ` • ${stage.name}` : ''}
+              {workflow?.name || 'No board selected'}{stage ? ` • ${stage.name}` : ''}
             </p>
           </div>
 
           <div className="p-5 space-y-4">
+            <div className="rounded-xl border border-gray-200 bg-gray-50/80">
+              <button
+                type="button"
+                onClick={() => setDestinationOpen((current) => !current)}
+                className="flex w-full items-center justify-between px-4 py-3 text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="h-4 w-4 text-gray-500" />
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900">Scan destination</div>
+                    <div className="text-xs text-gray-500">{workflow?.name || 'Select board'}{stage ? ` • ${stage.name}` : ''}</div>
+                  </div>
+                </div>
+                {destinationOpen ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+              </button>
+
+              {destinationOpen && (
+                <div className="border-t border-gray-200 px-4 py-4 space-y-3">
+                  <Select
+                    label="Board"
+                    value={workflow?.id || ''}
+                    onChange={e => {
+                      const workflowId = e.target.value;
+                      const nextWorkflow = workflows.find((item) => item.id === workflowId);
+                      const firstStage = nextWorkflow?.stages.slice().sort((a, b) => a.order - b.order)[0];
+                      setSelectedWorkflowId(workflowId);
+                      setSelectedStageId(firstStage?.id || '');
+                    }}
+                    options={workflowOptions}
+                  />
+                  <Select
+                    label="Stage"
+                    value={stage?.id || ''}
+                    onChange={e => setSelectedStageId(e.target.value)}
+                    options={stageOptions.map((item) => ({ value: item.id, label: item.name }))}
+                  />
+                  <Button variant="primary" className="w-full justify-center" type="button" onClick={() => setDestinationOpen(false)}>
+                    Use This Destination
+                  </Button>
+                </div>
+              )}
+            </div>
+
             <div className="relative overflow-hidden rounded-2xl bg-gray-950">
               <video ref={videoRef} playsInline muted className="aspect-[3/4] w-full object-cover" />
               <div className={`pointer-events-none absolute inset-0 transition-opacity duration-150 ${flashActive ? 'bg-white/75 opacity-100' : 'opacity-0'}`} />
@@ -294,7 +373,7 @@ export const ScannerPage: React.FC = () => {
               )}
               <div className="pointer-events-none absolute inset-x-8 top-12 bottom-12 rounded-[28px] border-2 border-white/70 shadow-[0_0_0_999px_rgba(15,23,42,0.18)]" />
               <div className="absolute bottom-4 left-4 right-4 rounded-xl bg-black/45 px-4 py-3 text-xs text-white backdrop-blur">
-                Scan mode moves the entire work order to this device’s configured board and stage.
+                Scan mode moves the entire work order to the selected board and stage.
               </div>
             </div>
 
