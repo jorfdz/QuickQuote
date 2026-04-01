@@ -1538,9 +1538,9 @@ export const Materials: React.FC = () => {
             {!costConfigCollapsed && (
               <div className="mt-3 space-y-4 pl-6">
 
-          {/* ── Material Type toggle ── */}
+          {/* ── Type toggle ── */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Material Type</label>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Type</label>
             <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
               {(['paper', 'roll_media', 'rigid_substrate', 'blanks'] as MaterialType[]).map(type => (
                 <button
