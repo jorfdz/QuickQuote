@@ -112,26 +112,36 @@ export const OrderDetail: React.FC = () => {
     }
 
     const workOrderHtml = buildWorkOrderHtml(qrCodeSrc);
-    const blob = new Blob([workOrderHtml], { type: 'text/html' });
-    const printUrl = URL.createObjectURL(blob);
-    const printWindow = window.open(printUrl, '_blank');
+    const printWindow = window.open('', '_blank');
 
     if (!printWindow) {
-      URL.revokeObjectURL(printUrl);
       return;
     }
 
-    const cleanup = () => {
-      URL.revokeObjectURL(printUrl);
+    printWindow.document.open();
+    printWindow.document.write(workOrderHtml);
+    printWindow.document.close();
+
+    const waitForImages = async () => {
+      const images = Array.from(printWindow.document.images);
+      if (images.length === 0) return;
+
+      await Promise.all(images.map((image) => (
+        image.complete
+          ? Promise.resolve()
+          : new Promise<void>((resolve) => {
+              const finish = () => resolve();
+              image.addEventListener('load', finish, { once: true });
+              image.addEventListener('error', finish, { once: true });
+            })
+      )));
     };
 
-    printWindow.addEventListener('load', () => {
-      printWindow.focus();
-      window.setTimeout(() => {
-        printWindow.print();
-      }, 150);
-      window.setTimeout(cleanup, 60000);
-    }, { once: true });
+    await waitForImages();
+    printWindow.focus();
+    window.setTimeout(() => {
+      printWindow.print();
+    }, 150);
   };
 
   const createInvoice = () => {
