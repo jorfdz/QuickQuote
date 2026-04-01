@@ -1660,8 +1660,8 @@ export const Materials: React.FC = () => {
 
           {/* ── Minimum Charge ── */}
           <div className="w-36">
-            <Input label="Minimum Charge" type="number" value={form.minimumCharge || ''} onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))} prefix="$" />
-            <p className="text-[10px] text-gray-400 mt-1">Floor if cost is lower. 0 = none.</p>
+            <Input label="Minimum Charge" type="number" value={form.minimumCharge || ''} onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))} prefix="$"
+              title="If the calculated total is below this amount, this amount will be charged instead. Set to 0 for no minimum." />
           </div>
 
           {/* ── Markup (last — applies on top of everything) ── */}
