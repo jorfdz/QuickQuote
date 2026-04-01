@@ -41,6 +41,7 @@ export const ScannerPage: React.FC = () => {
   const [lastOrderNumber, setLastOrderNumber] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
   const [jsQrReady, setJsQrReady] = useState(false);
+  const [flashActive, setFlashActive] = useState(false);
 
   const normalizedCode = deviceCode.trim().toUpperCase();
   const device = trackingDevices.find((item) => item.code.toUpperCase() === normalizedCode) || null;
@@ -186,6 +187,37 @@ export const ScannerPage: React.FC = () => {
     return '';
   };
 
+  const playSuccessFeedback = async () => {
+    setFlashActive(true);
+    window.setTimeout(() => setFlashActive(false), 220);
+
+    try {
+      const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextCtor) return;
+
+      const context = new AudioContextCtor();
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(1174.66, context.currentTime);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+
+      gain.gain.setValueAtTime(0.0001, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.14, context.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.16);
+
+      oscillator.start(context.currentTime);
+      oscillator.stop(context.currentTime + 0.17);
+      oscillator.onended = () => {
+        context.close().catch(() => undefined);
+      };
+    } catch {
+      // Best-effort feedback only.
+    }
+  };
+
   const handleScannedValue = async (rawValue: string) => {
     if (!device) return;
 
@@ -205,8 +237,9 @@ export const ScannerPage: React.FC = () => {
 
     setLastOrderNumber(orderNumber);
     setStatus('success');
-    setMessage(result.message);
+    setMessage(`${result.message} Destination: ${workflow?.name || 'Board'} / ${stage?.name || 'Stage'}.`);
     setManualValue('');
+    await playSuccessFeedback();
 
     window.setTimeout(() => {
       setStatus(cameraReady ? 'scanning' : 'idle');
@@ -252,6 +285,7 @@ export const ScannerPage: React.FC = () => {
           <div className="p-5 space-y-4">
             <div className="relative overflow-hidden rounded-2xl bg-gray-950">
               <video ref={videoRef} playsInline muted className="aspect-[3/4] w-full object-cover" />
+              <div className={`pointer-events-none absolute inset-0 transition-opacity duration-150 ${flashActive ? 'bg-white/75 opacity-100' : 'opacity-0'}`} />
               {!cameraReady && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gray-950/90 text-center text-white">
                   <Camera className="h-8 w-8 text-gray-300" />
