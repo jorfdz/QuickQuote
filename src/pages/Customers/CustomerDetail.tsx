@@ -352,7 +352,7 @@ export const CustomerDetail: React.FC = () => {
             <Table headers={['Quote #', 'Title', 'Status', 'Created', 'Valid Until', 'Total', '']}>
               {custQuotes.map(q => (
                 <tr key={q.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/quotes/${q.id}`)}>
-                  <td className="py-3 px-4 text-sm font-mono font-medium text-brand-600">{q.number}</td>
+                  <td className="py-3 px-4 text-sm obj-num font-medium text-brand-600">{q.number}</td>
                   <td className="py-3 px-4 text-sm text-gray-900">{q.title}</td>
                   <td className="py-3 px-4"><Badge color={statusColor(q.status)}>{q.status}</Badge></td>
                   <td className="py-3 px-4 text-sm text-gray-500">{formatDate(q.createdAt)}</td>
@@ -378,7 +378,7 @@ export const CustomerDetail: React.FC = () => {
             <Table headers={['Order #', 'Description', 'Status', 'Date In', 'Date Out', 'Total', '']}>
               {custOrders.map(o => (
                 <tr key={o.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/orders/${o.id}`)}>
-                  <td className="py-3 px-4 text-sm font-mono font-medium text-brand-600">{o.number}</td>
+                  <td className="py-3 px-4 text-sm obj-num font-medium text-brand-600">{o.number}</td>
                   <td className="py-3 px-4 text-sm text-gray-900 max-w-xs truncate">{o.description || '—'}</td>
                   <td className="py-3 px-4"><Badge color={statusColor(o.status)}>{o.status.replace('_', ' ')}</Badge></td>
                   <td className="py-3 px-4 text-sm text-gray-500">{formatDate(o.createdAt)}</td>
@@ -403,7 +403,7 @@ export const CustomerDetail: React.FC = () => {
             <Table headers={['Invoice #', 'Status', 'Issued', 'Due', 'Total', 'Paid', 'Balance', '']}>
               {custInvoices.map(i => (
                 <tr key={i.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/invoices/${i.id}`)}>
-                  <td className="py-3 px-4 text-sm font-mono font-medium text-brand-600">{i.number}</td>
+                  <td className="py-3 px-4 text-sm obj-num font-medium text-brand-600">{i.number}</td>
                   <td className="py-3 px-4"><Badge color={statusColor(i.status)}>{i.status}</Badge></td>
                   <td className="py-3 px-4 text-sm text-gray-500">{formatDate(i.createdAt)}</td>
                   <td className="py-3 px-4 text-sm text-gray-500">{i.dueDate ? formatDate(i.dueDate) : '—'}</td>

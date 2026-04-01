@@ -23,14 +23,14 @@ export const History: React.FC = () => {
                 onClick={() => navigate(`/orders/${o.id}`)}
               >
                 <td className="py-3 px-4">
-                  <span className="font-mono text-sm font-bold text-gray-900">{o.number}</span>
+                  <span className="obj-num text-sm text-gray-900">{o.number}</span>
                 </td>
                 <td className="py-3 px-4 text-sm font-medium text-gray-900">{o.title}</td>
                 <td className="py-3 px-4 text-sm text-gray-600">{o.customerName || '—'}</td>
                 <td className="py-3 px-4"><Badge label={o.status} /></td>
                 <td className="py-3 px-4 text-sm font-bold">{formatCurrency(o.total)}</td>
                 <td className="py-3 px-4 text-sm text-gray-500">{formatDate(o.updatedAt)}</td>
-                <td className="py-3 px-4">{o.invoiceId ? <span className="text-xs text-emerald-600 font-mono font-medium">{o.invoiceId} ✓</span> : '—'}</td>
+                <td className="py-3 px-4">{o.invoiceId ? <span className="obj-num text-xs text-emerald-600 font-medium">{o.invoiceId} ✓</span> : '—'}</td>
                 <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
                     <button

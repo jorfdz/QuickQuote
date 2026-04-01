@@ -74,7 +74,7 @@ export const OrdersList: React.FC = () => {
               const isOverdue = order.dueDate && order.status === 'in_progress' && new Date(order.dueDate) < new Date();
               return (
                 <tr key={order.id} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => navigate(`/orders/${order.id}`)}>
-                  <td className="py-3 px-4 font-mono text-xs font-semibold text-gray-500">{order.number}</td>
+                  <td className="py-3 px-4 obj-num text-xs text-gray-500">{order.number}</td>
                   <td className="py-3 px-4"><p className="text-sm font-medium text-gray-900">{order.title}</p></td>
                   <td className="py-3 px-4 text-sm text-gray-600">{order.customerName || '—'}</td>
                   <td className="py-3 px-4"><Badge label={order.status} /></td>
@@ -83,7 +83,7 @@ export const OrdersList: React.FC = () => {
                     <span className={`text-sm ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-500'}`}>{order.dueDate ? formatDate(order.dueDate) : '—'}</span>
                     {isOverdue && <span className="ml-1 text-xs text-red-500">⚠️ Overdue</span>}
                   </td>
-                  <td className="py-3 px-4 text-xs font-mono text-gray-400">{order.quoteNumber || '—'}</td>
+                  <td className="py-3 px-4 text-xs obj-num text-gray-400">{order.quoteNumber || '—'}</td>
                   <td className="py-3 px-4">
                     <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); navigate(`/orders/${order.id}`); }}>View</Button>
                   </td>

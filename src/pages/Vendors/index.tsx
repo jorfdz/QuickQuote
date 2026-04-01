@@ -241,13 +241,13 @@ export const Vendors: React.FC = () => {
                             className="border-t border-gray-100 hover:bg-gray-50 cursor-pointer"
                             onClick={() => navigate(`/purchase-orders/${po.id}`)}
                           >
-                            <td className="px-3 py-2 font-mono text-xs font-semibold text-gray-600">{po.number}</td>
+                            <td className="px-3 py-2 obj-num text-xs text-gray-600">{po.number}</td>
                             <td className="px-3 py-2"><Badge label={po.status} /></td>
                             <td className="px-3 py-2 text-gray-600">{formatDate(po.createdAt)}</td>
                             <td className="px-3 py-2 text-gray-600">{po.expectedDate ? formatDate(po.expectedDate) : '—'}</td>
                             <td className="px-3 py-2 font-semibold text-gray-900">{formatCurrency(po.total)}</td>
                             <td className="px-3 py-2 text-gray-600">{receiving.received}/{receiving.ordered}</td>
-                            <td className="px-3 py-2 font-mono text-xs text-gray-500">{po.orderId || '—'}</td>
+                            <td className="px-3 py-2 num text-xs text-gray-500">{po.orderId || '—'}</td>
                           </tr>
                         );
                       })}

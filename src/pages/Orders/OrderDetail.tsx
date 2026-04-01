@@ -210,7 +210,7 @@ export const OrderDetail: React.FC = () => {
           onClick={() => setHeaderCollapsed(!headerCollapsed)}
         >
           <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold text-gray-900 font-mono">{order.number}</h1>
+            <h1 className="text-3xl font-bold text-gray-900 obj-num">{order.number}</h1>
             <span className="text-sm text-gray-500">{order.customerName || 'No customer'}</span>
             <Badge label={order.status} />
           </div>
@@ -435,7 +435,7 @@ export const OrderDetail: React.FC = () => {
             <div className="flex items-center gap-6 text-sm">
               <div>
                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide block">Order</span>
-                <span className="font-mono font-bold text-gray-900">{order.number}</span>
+                <span className="obj-num text-gray-900">{order.number}</span>
               </div>
               <div>
                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide block">Customer</span>

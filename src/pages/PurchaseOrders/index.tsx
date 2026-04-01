@@ -78,13 +78,13 @@ export const PurchaseOrders: React.FC = () => {
             const receiving = summarizePOReceiving(po);
             return (
               <tr key={po.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => navigate(`/purchase-orders/${po.id}`)}>
-                <td className="py-3 px-4 font-mono text-xs font-semibold text-gray-500">{po.number}</td>
+                <td className="py-3 px-4 obj-num text-xs text-gray-500">{po.number}</td>
                 <td className="py-3 px-4 text-sm font-medium text-gray-900">{vendor?.name || '—'}</td>
                 <td className="py-3 px-4"><Badge label={po.status} /></td>
                 <td className="py-3 px-4 text-sm font-bold text-gray-900">{formatCurrency(po.total)}</td>
                 <td className="py-3 px-4 text-sm text-gray-500">{po.expectedDate ? formatDate(po.expectedDate) : '—'}</td>
                 <td className="py-3 px-4 text-sm text-gray-500">{receiving.received}/{receiving.ordered}</td>
-                <td className="py-3 px-4 text-xs font-mono text-gray-400">{po.orderId || '—'}</td>
+                <td className="py-3 px-4 text-xs obj-num text-gray-400">{po.orderId || '—'}</td>
               </tr>
             );
           })}

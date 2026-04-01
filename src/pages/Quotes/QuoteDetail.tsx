@@ -130,7 +130,7 @@ export const QuoteDetail: React.FC = () => {
           onClick={() => setHeaderCollapsed(!headerCollapsed)}
         >
           <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold text-gray-900 font-mono">{quote.number}</h1>
+            <h1 className="text-3xl font-bold text-gray-900 obj-num">{quote.number}</h1>
             <span className="text-sm text-gray-500">{quote.customerName || 'No customer'}</span>
             <Badge label={quote.status} />
           </div>

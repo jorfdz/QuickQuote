@@ -412,7 +412,7 @@ export const ContactDetail: React.FC = () => {
             <Table headers={['Estimate #', 'Title', 'Status', 'Created', 'Valid Until', 'Total', '']}>
               {contactQuotes.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/quotes/${item.id}`)}>
-                  <td className="py-3 px-4 text-sm font-mono font-medium text-brand-600">{item.number}</td>
+                  <td className="py-3 px-4 text-sm obj-num font-medium text-brand-600">{item.number}</td>
                   <td className="py-3 px-4 text-sm text-gray-900">{item.title}</td>
                   <td className="py-3 px-4"><Badge color={statusColor(item.status)}>{item.status}</Badge></td>
                   <td className="py-3 px-4 text-sm text-gray-500">{formatDate(item.createdAt)}</td>
@@ -440,7 +440,7 @@ export const ContactDetail: React.FC = () => {
             <Table headers={['Order #', 'Title', 'Status', 'Created', 'Due Date', 'Total', '']}>
               {contactOrders.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/orders/${item.id}`)}>
-                  <td className="py-3 px-4 text-sm font-mono font-medium text-brand-600">{item.number}</td>
+                  <td className="py-3 px-4 text-sm obj-num font-medium text-brand-600">{item.number}</td>
                   <td className="py-3 px-4 text-sm text-gray-900">{item.title || item.description || 'Order'}</td>
                   <td className="py-3 px-4"><Badge color={statusColor(item.status)}>{item.status.replace('_', ' ')}</Badge></td>
                   <td className="py-3 px-4 text-sm text-gray-500">{formatDate(item.createdAt)}</td>
@@ -465,7 +465,7 @@ export const ContactDetail: React.FC = () => {
             <Table headers={['Invoice #', 'Status', 'Issued', 'Due', 'Total', 'Paid', 'Balance', '']}>
               {contactInvoices.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/invoices/${item.id}`)}>
-                  <td className="py-3 px-4 text-sm font-mono font-medium text-brand-600">{item.number}</td>
+                  <td className="py-3 px-4 text-sm obj-num font-medium text-brand-600">{item.number}</td>
                   <td className="py-3 px-4"><Badge color={statusColor(item.status)}>{item.status}</Badge></td>
                   <td className="py-3 px-4 text-sm text-gray-500">{formatDate(item.createdAt)}</td>
                   <td className="py-3 px-4 text-sm text-gray-500">{item.dueDate ? formatDate(item.dueDate) : '—'}</td>

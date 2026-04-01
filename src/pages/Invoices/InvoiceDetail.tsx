@@ -106,7 +106,7 @@ export const InvoiceDetail: React.FC = () => {
           onClick={() => setHeaderCollapsed(!headerCollapsed)}
         >
           <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold text-gray-900 font-mono">{invoice.number}</h1>
+            <h1 className="text-3xl font-bold text-gray-900 obj-num">{invoice.number}</h1>
             <span className="text-sm text-gray-500">{invoice.customerName || 'No customer'}</span>
             <Badge label={invoice.status} />
           </div>

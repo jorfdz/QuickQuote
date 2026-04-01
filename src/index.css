@@ -45,6 +45,21 @@
   }
 }
 
+/* ─── Numeric typography ─────────────────────────────────────────────────── */
+/* Use Inter's tabular numbers feature for prices/costs — clean sans-serif with digit alignment */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: -0.01em;
+}
+/* Object numbers (Q000001, O000001) — slightly tracked, no monospace */
+.obj-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

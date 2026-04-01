@@ -46,7 +46,7 @@ export const Dashboard: React.FC = () => {
                   <div className="flex items-center gap-3 min-w-0">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-semibold text-gray-400">{quote.number}</span>
+                        <span className="text-xs obj-num text-gray-400">{quote.number}</span>
                         <Badge label={quote.status} />
                       </div>
                       <p className="text-sm font-medium text-gray-900 mt-0.5 truncate">{quote.title}</p>
@@ -77,7 +77,7 @@ export const Dashboard: React.FC = () => {
                       <div className={`w-2 h-2 rounded-full ${isOverdue ? 'bg-red-500' : 'bg-emerald-500'}`} />
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono font-semibold text-gray-400">{order.number}</span>
+                          <span className="text-xs obj-num text-gray-400">{order.number}</span>
                           {isOverdue && <Badge label="overdue" />}
                         </div>
                         <p className="text-sm font-medium text-gray-900 mt-0.5">{order.title}</p>

@@ -53,7 +53,7 @@ export const Invoices: React.FC = () => {
             return (
               <tr key={inv.id} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => navigate(`/invoices/${inv.id}`)}>
                 <td className="py-3 px-4">
-                  <button onClick={(e) => { e.stopPropagation(); navigate(`/invoices/${inv.id}`); }} className="font-mono text-sm font-bold text-gray-900 hover:text-blue-600">
+                  <button onClick={(e) => { e.stopPropagation(); navigate(`/invoices/${inv.id}`); }} className="obj-num text-sm text-gray-900 hover:text-blue-600">
                     {inv.number}
                   </button>
                 </td>

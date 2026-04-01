@@ -792,7 +792,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-xs font-mono text-gray-700">{formatCurrency(part.totalSell)}</span>
+                        <span className="text-xs num text-gray-700">{formatCurrency(part.totalSell)}</span>
                         <button onClick={() => setSavedParts(prev => prev.filter(p => p.id !== part.id))}
                           className="p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500">
                           <X className="w-3 h-3" />
@@ -1279,9 +1279,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       {multiQtyPricing.map((row, idx) => (
                         <tr key={idx} className={idx === 0 ? 'bg-purple-100/30 font-semibold' : ''}>
                           <td className="py-1.5 px-3 text-gray-900">{row.qty.toLocaleString()}{idx === 0 && <span className="text-[10px] text-purple-500 ml-1">(primary)</span>}</td>
-                          <td className="py-1.5 px-3 text-right font-mono text-gray-600">{fmt(row.cost)}</td>
-                          <td className="py-1.5 px-3 text-right font-mono text-gray-900">{fmt(row.sell)}</td>
-                          <td className="py-1.5 px-3 text-right font-mono text-gray-500">{row.qty > 0 ? fmt(row.sell / row.qty) : '--'}</td>
+                          <td className="py-1.5 px-3 text-right num text-gray-600">{fmt(row.cost)}</td>
+                          <td className="py-1.5 px-3 text-right num text-gray-900">{fmt(row.sell)}</td>
+                          <td className="py-1.5 px-3 text-right num text-gray-500">{row.qty > 0 ? fmt(row.sell / row.qty) : '--'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1333,22 +1333,22 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               </div>
                             </td>
                             <td className="py-2 px-3 text-gray-400 text-[10px] truncate max-w-[160px]">{line.description}</td>
-                            <td className="py-2 px-3 text-right font-mono text-gray-500">{fmt(line.totalCost)}</td>
-                            <td className="py-2 px-3 text-right font-mono">
+                            <td className="py-2 px-3 text-right num text-gray-500">{fmt(line.totalCost)}</td>
+                            <td className="py-2 px-3 text-right num">
                               <span className={line.markupPercent > 0 ? 'text-emerald-600' : 'text-gray-400'}>{fmtPct(line.markupPercent)}</span>
                             </td>
-                            <td className="py-2 px-4 text-right font-mono font-semibold text-gray-900">{fmt(line.sellPrice)}</td>
+                            <td className="py-2 px-4 text-right num font-semibold text-gray-900">{fmt(line.sellPrice)}</td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot>
                         <tr className="border-t border-gray-100 bg-gray-50">
                           <td className="py-2 px-4 text-[10px] font-semibold text-gray-500 uppercase" colSpan={2}>Total</td>
-                          <td className="py-2 px-3 text-right font-mono text-gray-600 text-[11px]">{fmt(itemTotalCost)}</td>
-                          <td className="py-2 px-3 text-right font-mono text-emerald-600 text-[11px]">
+                          <td className="py-2 px-3 text-right num text-gray-600 text-[11px]">{fmt(itemTotalCost)}</td>
+                          <td className="py-2 px-3 text-right num text-emerald-600 text-[11px]">
                             {itemTotalCost > 0 ? fmtPct(((itemTotalSell - itemTotalCost) / itemTotalCost) * 100) : '—'}
                           </td>
-                          <td className="py-2 px-4 text-right font-mono font-bold text-gray-900">{fmt(itemTotalSell)}</td>
+                          <td className="py-2 px-4 text-right num font-bold text-gray-900">{fmt(itemTotalSell)}</td>
                         </tr>
                       </tfoot>
                     </table>
@@ -1635,7 +1635,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
   const marginPct   = totalSell > 0 ? ((totalSell - totalCost) / totalSell) * 100 : 0;
 
   const inp = (extra = '') =>
-    `w-full px-2 py-1.5 text-xs text-right font-mono bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] focus:border-transparent transition-colors ${extra}`;
+    `w-full px-2 py-1.5 text-xs text-right num bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] focus:border-transparent transition-colors ${extra}`;
 
   const thCls = 'py-1.5 px-2 text-[9px] font-semibold text-gray-400 uppercase tracking-wide text-right';
   const tdCls = 'py-2 px-2';
@@ -1741,14 +1741,14 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
 
                     {/* ── TIME group ── */}
                     {/* Rate/hr */}
-                    <td className={`${tdCls} bg-sky-50/40 border-l border-sky-100 text-right font-mono`}>
+                    <td className={`${tdCls} bg-sky-50/40 border-l border-sky-100 text-right num`}>
                       {timeBased
                         ? <span className="text-sky-700 font-medium">{formatCurrency(line.hourlyCost!)}/hr</span>
                         : <span className={dimCls}>—</span>
                       }
                     </td>
                     {/* Calc Time (read-only) */}
-                    <td className={`${tdCls} bg-sky-50/40 text-right font-mono`}>
+                    <td className={`${tdCls} bg-sky-50/40 text-right num`}>
                       {timeBased
                         ? <span className="text-gray-500">{fmtHours(line.hoursActual!)}</span>
                         : <span className={dimCls}>—</span>
@@ -1772,7 +1772,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                       )}
                     </td>
                     {/* Time Cost */}
-                    <td className={`${tdCls} bg-sky-50/40 text-right font-mono`}>
+                    <td className={`${tdCls} bg-sky-50/40 text-right num`}>
                       {timeBased
                         ? <span className="text-sky-800 font-medium">{formatCurrency(line.totalCost)}</span>
                         : <span className={dimCls}>—</span>
@@ -1781,14 +1781,14 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
 
                     {/* ── PRICING group ── */}
                     {/* Qty */}
-                    <td className={`${tdCls} bg-violet-50/30 border-l border-violet-100 text-right font-mono`}>
+                    <td className={`${tdCls} bg-violet-50/30 border-l border-violet-100 text-right num`}>
                       {qtyBased && line.quantity != null
                         ? <span className="text-gray-600">{line.quantity.toLocaleString()}<span className="text-[9px] text-gray-400 ml-0.5">{line.unit}</span></span>
                         : <span className={dimCls}>—</span>
                       }
                     </td>
                     {/* Unit Cost */}
-                    <td className={`${tdCls} bg-violet-50/30 text-right font-mono`}>
+                    <td className={`${tdCls} bg-violet-50/30 text-right num`}>
                       {(qtyBased || line.service === 'Setup') && line.unitCost > 0
                         ? <span className="text-gray-600">{formatCurrency(line.unitCost)}</span>
                         : <span className={dimCls}>—</span>
@@ -1835,23 +1835,23 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                 <td className="py-2.5 pl-4 text-[10px] text-gray-600 uppercase tracking-wide" colSpan={2}>Total</td>
                 {/* TIME cols — sum of time costs */}
                 <td className="py-2.5 px-2 bg-sky-50/60 border-l border-sky-100" colSpan={2} />
-                <td className="py-2.5 px-2 bg-sky-50/60 text-right font-mono text-[10px] text-sky-600">
+                <td className="py-2.5 px-2 bg-sky-50/60 text-right num text-[10px] text-sky-600">
                   {fmtHours(localLines.reduce((s, l) => s + (l.hoursCharge ?? l.hoursActual ?? 0), 0))}
                 </td>
-                <td className="py-2.5 px-2 bg-sky-50/60 text-right font-mono text-sky-800">
+                <td className="py-2.5 px-2 bg-sky-50/60 text-right num text-sky-800">
                   {formatCurrency(localLines.filter(isTimeBased).reduce((s, l) => s + l.totalCost, 0))}
                 </td>
                 {/* PRICING cols */}
                 <td className="py-2.5 px-2 bg-violet-50/60 border-l border-violet-100" colSpan={2} />
-                <td className="py-2.5 px-2 bg-violet-50/60 text-right font-mono text-gray-700">
+                <td className="py-2.5 px-2 bg-violet-50/60 text-right num text-gray-700">
                   {formatCurrency(totalCost)}
                 </td>
-                <td className="py-2.5 px-2 bg-violet-50/60 text-right font-mono">
+                <td className="py-2.5 px-2 bg-violet-50/60 text-right num">
                   <span className={totalMarkup > 0 ? 'text-emerald-700 font-bold' : 'text-gray-400'}>
                     {totalMarkup.toFixed(1)}%
                   </span>
                 </td>
-                <td className="py-2.5 px-2 pr-4 bg-violet-50/60 text-right font-mono font-bold text-gray-900 text-sm">
+                <td className="py-2.5 px-2 pr-4 bg-violet-50/60 text-right num font-bold text-gray-900 text-sm">
                   {formatCurrency(totalSell)}
                 </td>
               </tr>
