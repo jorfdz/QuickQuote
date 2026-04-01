@@ -36,73 +36,57 @@ ${html}
 };
 
 const ensureWorkOrderQrMarkup = (template: string): string => {
-  let next = template;
+  const html = ensureHtmlDocument(template);
 
-  if (next.includes('.header {')) {
-    next = next.replace(
-      /\.header\s*\{[^}]*\}/,
-      '.header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1f2937; padding-bottom: 34px; margin-bottom: 28px; }',
-    );
+  if (typeof DOMParser === 'undefined') {
+    return html;
   }
 
-  if (next.includes('.header-right {')) {
-    next = next.replace(
-      /\.header-right\s*\{[^}]*\}/,
-      '.header-right { display: flex; align-items: flex-start; justify-content: flex-end; gap: 18px; width: 320px; }',
-    );
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const header = doc.querySelector('.header');
+
+  if (!header) {
+    return html;
   }
 
-  if (next.includes('.header-copy {')) {
-    next = next.replace(
-      /\.header-copy\s*\{[^}]*\}/,
-      '.header-copy { text-align: right; padding-top: 2px; width: 218px; flex: 0 0 218px; }',
-    );
+  const children = Array.from(header.children);
+  const companyBlock = children[0] || null;
+
+  while (header.firstChild) {
+    header.removeChild(header.firstChild);
   }
 
-  if (next.includes('.qr-box {')) {
-    next = next.replace(
-      /\.qr-box\s*\{[^}]*\}/,
-      '.qr-box { width: 84px; text-align: center; flex-shrink: 0; }',
-    );
+  if (companyBlock) {
+    header.appendChild(companyBlock);
   }
 
-  next = next.replace(/<div class="qr-caption">[\s\S]*?<\/div>/g, '');
-  next = next.replace(/Tracker Link/gi, '');
-
-  next = next.replace(
-    /<div class="header-right">[\s\S]*?<\/div>\s*<\/div>/i,
-    `<div class="header-right">
-      <div class="header-copy">
-        <div class="doc-title">WORK ORDER</div>
-        <div class="doc-number">{{orderNumber}}</div>
-      </div>
-      <div class="qr-box">
-        <img src="{{qrCodeUrl}}" alt="Work order QR code" />
-      </div>
+  const headerRight = doc.createElement('div');
+  headerRight.className = 'header-right';
+  headerRight.innerHTML = `
+    <div class="header-copy">
+      <div class="doc-title">WORK ORDER</div>
+      <div class="doc-number">{{orderNumber}}</div>
     </div>
-  </div>`,
-  );
+    <div class="qr-box">
+      <img src="{{qrCodeUrl}}" alt="Work order QR code" />
+    </div>
+  `;
+  header.appendChild(headerRight);
 
-  if (!next.includes('{{qrCodeUrl}}')) {
-    const standardizedHeaderRight = `<div class="header-right">
-      <div class="header-copy">
-        <div class="doc-title">WORK ORDER</div>
-        <div class="doc-number">{{orderNumber}}</div>
-      </div>
-      <div class="qr-box">
-        <img src="{{qrCodeUrl}}" alt="Work order QR code" />
-      </div>
-    </div>`;
+  doc.querySelectorAll('.qr-caption, .work-order-qr-fallback').forEach((node) => node.remove());
 
-    if (/<div>\s*<div class="doc-title">WORK ORDER<\/div>[\s\S]*?<div class="doc-number">\{\{orderNumber\}\}<\/div>\s*<\/div>/i.test(next)) {
-      next = next.replace(
-        /<div>\s*<div class="doc-title">WORK ORDER<\/div>[\s\S]*?<div class="doc-number">\{\{orderNumber\}\}<\/div>\s*<\/div>/i,
-        standardizedHeaderRight,
-      );
-    }
-  }
+  const style = doc.createElement('style');
+  style.textContent = `
+    .header { display: flex !important; justify-content: space-between !important; align-items: flex-start !important; border-bottom: 2px solid #1f2937 !important; padding-bottom: 34px !important; margin-bottom: 28px !important; }
+    .header-right { display: flex !important; align-items: flex-start !important; justify-content: flex-end !important; gap: 18px !important; width: 320px !important; }
+    .header-copy { text-align: right !important; padding-top: 2px !important; width: 218px !important; flex: 0 0 218px !important; }
+    .qr-box { width: 84px !important; text-align: center !important; flex-shrink: 0 !important; }
+    .qr-box img { width: 84px !important; height: 84px !important; display: block !important; border: 1px solid #e5e7eb !important; border-radius: 8px !important; background: #fff !important; }
+  `;
+  doc.head.appendChild(style);
 
-  return next;
+  return `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`;
 };
 
 const buildCompanyAddress = (company: CompanySettings): string => (
