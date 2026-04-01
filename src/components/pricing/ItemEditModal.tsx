@@ -821,25 +821,40 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Parts tabs */}
+                  {/* Tab strip — Main + one per Part */}
                   <div className="flex items-center gap-0 overflow-x-auto px-3 py-2 border-b border-gray-100 bg-white/60">
+                    {/* Main overview tab */}
+                    <button
+                      onClick={goToMainTab}
+                      className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all mr-2 ${
+                        showMainTab
+                          ? 'bg-gray-800 text-white shadow-sm'
+                          : 'text-gray-500 hover:bg-gray-100'
+                      }`}
+                    >
+                      <Layers className="w-3 h-3" />
+                      Overview
+                    </button>
+                    <div className="w-px h-4 bg-gray-200 mr-2 flex-shrink-0" />
+
+                    {/* Part tabs */}
                     {parts.map((part, idx) => (
                       <div key={part.id} className="flex-shrink-0 flex items-center">
                         <button
                           onClick={() => switchToPart(idx)}
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all mr-1 ${
-                            activePartIdx === idx
+                            !showMainTab && activePartIdx === idx
                               ? 'bg-[#F890E7] text-white shadow-sm'
                               : 'text-gray-500 hover:bg-gray-100'
                           }`}
                         >
                           <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${
-                            activePartIdx === idx ? 'bg-white/20' : 'bg-gray-200 text-gray-600'
+                            !showMainTab && activePartIdx === idx ? 'bg-white/20' : 'bg-gray-200 text-gray-600'
                           }`}>{idx + 1}</span>
                           {part.partName || `Part ${idx + 1}`}
-                          {part.totalSell > 0 && (
-                            <span className={`text-[9px] ${activePartIdx === idx ? 'text-white/70' : 'text-gray-400'}`}>
-                              {formatCurrency(part.totalSell)}
+                          {(idx === activePartIdx && !showMainTab ? item.sellPrice : part.totalSell) > 0 && (
+                            <span className={`text-[9px] ${!showMainTab && activePartIdx === idx ? 'text-white/70' : 'text-gray-400'}`}>
+                              {formatCurrency(idx === activePartIdx && !showMainTab ? item.sellPrice : part.totalSell)}
                             </span>
                           )}
                         </button>
@@ -861,8 +876,94 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     </button>
                   </div>
 
-                  {/* Active part name/description */}
-                  {parts[activePartIdx] && (
+                  {/* ── MAIN OVERVIEW TAB content ───────────────────────── */}
+                  {showMainTab && (
+                    <div className="p-4 space-y-3">
+                      {/* Parts table */}
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-100">
+                            <th className="text-left py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide w-7">#</th>
+                            <th className="text-left py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Part</th>
+                            <th className="text-left py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Description</th>
+                            <th className="text-right py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Cost</th>
+                            <th className="text-right py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Margin</th>
+                            <th className="text-right py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Sell</th>
+                            <th className="w-6"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {parts.map((part, idx) => {
+                            const sell = idx === activePartIdx ? item.sellPrice : part.totalSell;
+                            const cost = idx === activePartIdx ? item.totalCost : part.totalCost;
+                            const margin = sell > 0 ? ((sell - cost) / sell) * 100 : 0;
+                            return (
+                              <tr
+                                key={part.id}
+                                className="hover:bg-[#F890E7]/5 cursor-pointer transition-colors group"
+                                onClick={() => switchToPart(idx)}
+                              >
+                                <td className="py-2.5 pr-2">
+                                  <span className="w-5 h-5 rounded-full bg-[#F890E7]/15 text-[#F890E7] text-[9px] font-bold flex items-center justify-center">
+                                    {idx + 1}
+                                  </span>
+                                </td>
+                                <td className="py-2.5 pr-3">
+                                  <span className="font-semibold text-gray-800 group-hover:text-[#F890E7] transition-colors">
+                                    {part.partName || `Part ${idx + 1}`}
+                                  </span>
+                                </td>
+                                <td className="py-2.5 pr-3 max-w-[180px]">
+                                  <span className="text-gray-400 truncate block">{part.partDescription || '—'}</span>
+                                </td>
+                                <td className="py-2.5 pr-3 text-right num text-gray-600">{cost > 0 ? formatCurrency(cost) : '—'}</td>
+                                <td className="py-2.5 pr-3 text-right num">
+                                  {sell > 0 ? (
+                                    <span className={margin >= 30 ? 'text-emerald-600 font-semibold' : 'text-amber-600'}>
+                                      {margin.toFixed(1)}%
+                                    </span>
+                                  ) : '—'}
+                                </td>
+                                <td className="py-2.5 text-right num font-semibold text-gray-900">{sell > 0 ? formatCurrency(sell) : '—'}</td>
+                                <td className="py-2.5 pl-2">
+                                  <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-[#F890E7] transition-colors" />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-gray-200">
+                            <td colSpan={3} className="py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                              Total · {parts.length} part{parts.length !== 1 ? 's' : ''}
+                            </td>
+                            <td className="py-2.5 text-right num font-semibold text-gray-700">
+                              {formatCurrency(parts.reduce((s, p, i) => s + (i === activePartIdx ? item.totalCost : p.totalCost), 0))}
+                            </td>
+                            <td className="py-2.5 text-right num">
+                              {(() => {
+                                const tSell = parts.reduce((s, p, i) => s + (i === activePartIdx ? item.sellPrice : p.totalSell), 0);
+                                const tCost = parts.reduce((s, p, i) => s + (i === activePartIdx ? item.totalCost : p.totalCost), 0);
+                                const m = tSell > 0 ? ((tSell - tCost) / tSell) * 100 : 0;
+                                return tSell > 0 ? (
+                                  <span className={m >= 30 ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold'}>{m.toFixed(1)}%</span>
+                                ) : '—';
+                              })()}
+                            </td>
+                            <td className="py-2.5 text-right num font-bold text-gray-900 text-sm">
+                              {formatCurrency(parts.reduce((s, p, i) => s + (i === activePartIdx ? item.sellPrice : p.totalSell), 0))}
+                            </td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+
+                      <p className="text-[10px] text-gray-400 text-center pt-1">Click a part row to edit its specs and pricing →</p>
+                    </div>
+                  )}
+
+                  {/* Active part name/description (shown only when NOT on main tab) */}
+                  {!showMainTab && parts[activePartIdx] && (
                     <div className="px-4 py-2 flex items-center gap-3 bg-[#F890E7]/5">
                       <input
                         value={parts[activePartIdx].partName}
@@ -885,7 +986,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         placeholder="Part description..."
                         className="flex-1 text-xs bg-transparent border-0 focus:outline-none text-gray-500 placeholder-gray-300"
                       />
-                      {/* Part total */}
                       {(item.sellPrice > 0) && (
                         <span className="text-xs num text-gray-500 flex-shrink-0">
                           {formatCurrency(item.sellPrice)}
@@ -894,17 +994,21 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     </div>
                   )}
 
-                  {/* Grand total if multiple parts */}
-                  {parts.length > 1 && (
+                  {/* Grand total bar */}
+                  {!showMainTab && parts.length > 1 && (
                     <div className="px-4 py-1.5 flex items-center justify-between bg-gray-50 border-t border-gray-100 text-[10px] text-gray-400">
                       <span>{parts.length} parts</span>
                       <span className="num font-semibold text-gray-600">
-                        Total: {formatCurrency(parts.reduce((s, p) => s + (p.id === parts[activePartIdx].id ? item.sellPrice : p.totalSell), 0))}
+                        Total: {formatCurrency(parts.reduce((s, p, i) => s + (i === activePartIdx ? item.sellPrice : p.totalSell), 0))}
                       </span>
                     </div>
                   )}
                 </div>
               )}
+
+              {/* ─────────────────────────────────────────────────────── */}
+              {/* Hide the full pricing form when the Main overview tab is active */}
+              {(!isMultiPart || !showMainTab) && (<>
 
               {/* ── Product Search Row ────────────────────────────────── */}
               <div>
@@ -1543,6 +1647,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   />
                 </div>
               </div>
+
+              {/* End of conditional pricing form — hidden when Main overview tab is active */}
+              </>)}
             </div>
 
             {/* ── Right panel: Templates ──────────────────────────────── */}
