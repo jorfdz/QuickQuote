@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { APP_VERSION, BUILD_TIMESTAMP } from '../../version';
 import {
   LayoutDashboard, FileText, ClipboardList, KanbanSquare, History,
   Receipt, Users, UserCheck, Truck, ShoppingCart, Settings,
@@ -46,7 +47,7 @@ export const Sidebar: React.FC = () => {
             </div>
             <div>
               <span className="font-bold text-white text-sm tracking-tight">QuikQuote</span>
-              <p className="text-[9px] text-gray-500 leading-none mt-0.5">V3 3/31/26 11:45AM</p>
+              <p className="text-[9px] text-gray-500 leading-none mt-0.5">{APP_VERSION} {BUILD_TIMESTAMP}</p>
             </div>
           </div>
         )}

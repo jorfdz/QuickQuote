@@ -308,6 +308,7 @@ export const Catalog: React.FC = () => {
       <PageHeader
         title="Catalog"
         subtitle="Manage product categories, product definitions, and item templates"
+        back={() => navigate(-1)}
         actions={
           subTab === 'categories' ? (
             <Button variant="primary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={openAddCategory}>Add Category</Button>

@@ -1,54 +1,26 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Plus, Trash2, ChevronDown, ChevronRight, ChevronUp, Calculator, Copy,
-  ArrowRight, Search, X, Scissors, FoldVertical, CircleDot, Printer,
-  Package, DollarSign, Grid3X3, Edit3, Check, Star, Settings2,
+  Plus, Trash2, ChevronRight, ChevronUp, Calculator, Copy,
+  Search, X, Edit3, Package,
   FileText, Calendar,
 } from 'lucide-react';
 import { useStore } from '../../store';
 import { usePricingStore } from '../../store/pricingStore';
-import { Button, Input, Textarea, Card, Badge, Modal } from '../../components/ui';
-import type { QuoteLineItem, Order, OrderItem } from '../../types';
-import type { PricingProduct, PricingServiceLine } from '../../types/pricing';
+import { Button, Textarea, Card, Badge, Modal } from '../../components/ui';
+import type { Order, OrderItem } from '../../types';
 import { formatCurrency } from '../../data/mockData';
 import { nanoid } from '../../utils/nanoid';
+import {
+  ProductEditModal,
+  LineItemPricingState,
+  DEFAULT_PRICING_STATE,
+} from '../../components/pricing/ItemEditModal';
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
 const fmt = (n: number) => formatCurrency(n);
 const fmtPct = (n: number) => `${n.toFixed(1)}%`;
-const slId = () => `sl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-
-// ─── PER-LINE-ITEM PRICING STATE ────────────────────────────────────────────
-
-interface LineItemPricingState {
-  productId: string;
-  productName: string;
-  categoryName: string;
-  quantity: number;
-  finalWidth: number;
-  finalHeight: number;
-  materialId: string;
-  equipmentId: string;
-  colorMode: 'Color' | 'Black';
-  sides: 'Single' | 'Double';
-  foldingType: string;
-  drillingType: string;
-  cuttingEnabled: boolean;
-  sheetsPerStack: number;
-  serviceLines: PricingServiceLine[];
-}
-
-const DEFAULT_PRICING_STATE = (): LineItemPricingState => ({
-  productId: '', productName: '', categoryName: '',
-  quantity: 1000, finalWidth: 0, finalHeight: 0,
-  materialId: '', equipmentId: '',
-  colorMode: 'Color', sides: 'Double',
-  foldingType: '', drillingType: '',
-  cuttingEnabled: true, sheetsPerStack: 500,
-  serviceLines: [],
-});
 
 // ─── EMPTY LINE ITEM ────────────────────────────────────────────────────────
 
@@ -65,7 +37,7 @@ export const NewOrder: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const {
-    customers, contacts, quotes, addOrder, nextOrderNumber, addInvoice, nextInvoiceNumber,
+    customers, contacts, quotes, orders, addOrder, nextOrderNumber, addInvoice, nextInvoiceNumber,
     currentUser, users, workflows, addCustomer, addContact,
   } = useStore();
   const pricing = usePricingStore();
@@ -76,30 +48,42 @@ export const NewOrder: React.FC = () => {
   const initialCustomerId = searchParams.get('customerId') || '';
   const initialContactId = searchParams.get('contactId') || '';
 
+  // ── Clone handling ────────────────────────────────────────────────────
+  const cloneOrderId = searchParams.get('cloneOrderId');
+  const cloneId = searchParams.get('cloneId');
+  const cloneParamSource = searchParams.get('source');
+  const sourceOrder = cloneOrderId ? orders.find(o => o.id === cloneOrderId) : null;
+  const orderCloneSource = (cloneId && cloneParamSource === 'order') ? orders.find(o => o.id === cloneId) : null;
+  const quoteCloneSource = (cloneId && !cloneParamSource) ? quotes.find(q => q.id === cloneId) : null;
+  // Unified clone base: prefer explicit clone sources over quote conversion
+  const cloneBase = sourceOrder || orderCloneSource || quoteCloneSource;
+
   // ── Generate order number immediately on mount ──────────────────────
   const [orderNumber] = useState(() => nextOrderNumber());
 
   // ── Order-level state ────────────────────────────────────────────────
+  const effectiveBase = cloneBase || sourceQuote;
   const [form, setForm] = useState({
-    title: sourceQuote?.title || '',
-    customerId: sourceQuote?.customerId || initialCustomerId,
-    contactId: sourceQuote?.contactId || initialContactId,
+    title: cloneBase ? `Copy of ${cloneBase.title || ''}` : (sourceQuote?.title || ''),
+    customerId: (effectiveBase as any)?.customerId || initialCustomerId,
+    contactId: (effectiveBase as any)?.contactId || initialContactId,
     status: 'in_progress' as Order['status'],
-    taxRate: sourceQuote?.taxRate ?? 7,
+    taxRate: (effectiveBase as any)?.taxRate ?? 7,
     dueDate: '',
     workflowId: workflows[0]?.id || '',
     poNumber: '',
-    csrId: sourceQuote?.csrId || currentUser.id,
-    salesId: sourceQuote?.salesId || '',
-    notes: sourceQuote?.notes || '',
-    internalNotes: sourceQuote?.internalNotes || '',
+    csrId: (effectiveBase as any)?.csrId || currentUser.id,
+    salesId: (effectiveBase as any)?.salesId || '',
+    notes: (effectiveBase as any)?.notes || '',
+    internalNotes: (effectiveBase as any)?.internalNotes || '',
     shipToAddress: '',
   });
 
-  // Build initial line items: either from source quote or one empty item
+  // Build initial line items: from clone source, quote source, or empty
   const buildInitialLineItems = (): OrderItem[] => {
-    if (sourceQuote && sourceQuote.lineItems.length > 0) {
-      return sourceQuote.lineItems.map(li => ({ ...li, id: nanoid() }));
+    const source = cloneBase || sourceQuote;
+    if (source && source.lineItems && source.lineItems.length > 0) {
+      return source.lineItems.map(li => ({ ...li, id: nanoid() }));
     }
     return [EMPTY_LINE_ITEM()];
   };
@@ -107,18 +91,19 @@ export const NewOrder: React.FC = () => {
   const [lineItems, setLineItems] = useState<OrderItem[]>(buildInitialLineItems);
   const [pricingStates, setPricingStates] = useState<Record<string, LineItemPricingState>>(() => {
     const states: Record<string, LineItemPricingState> = {};
-    if (sourceQuote && sourceQuote.lineItems.length > 0) {
-      // For quote-sourced items, create pricing states seeded with known data
+    const source = cloneBase || sourceQuote;
+    if (source && source.lineItems && source.lineItems.length > 0) {
+      // For sourced items, create pricing states seeded with known data
       const items = buildInitialLineItems();
       items.forEach((item) => {
         states[item.id] = {
           ...DEFAULT_PRICING_STATE(),
           productName: item.description || '',
           quantity: item.quantity || 1000,
-          finalWidth: item.width || 0,
-          finalHeight: item.height || 0,
-          materialId: item.materialId || '',
-          equipmentId: item.equipmentId || '',
+          finalWidth: (item as any).width || 0,
+          finalHeight: (item as any).height || 0,
+          materialId: (item as any).materialId || '',
+          equipmentId: (item as any).equipmentId || '',
         };
       });
     } else {
@@ -128,9 +113,9 @@ export const NewOrder: React.FC = () => {
     return states;
   });
 
-  const [expandedItem, setExpandedItem] = useState<string | null>(lineItems[0]?.id || null);
+  const [editingItemModal, setEditingItemModal] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [showTemplates, setShowTemplates] = useState(!sourceQuote);
+  const [showTemplates, setShowTemplates] = useState(!effectiveBase);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showShipToModal, setShowShipToModal] = useState(false);
@@ -188,12 +173,13 @@ export const NewOrder: React.FC = () => {
     const item = EMPTY_LINE_ITEM();
     setLineItems(prev => [...prev, item]);
     setPricingStates(prev => ({ ...prev, [item.id]: DEFAULT_PRICING_STATE() }));
-    setExpandedItem(item.id);
+    setEditingItemModal(item.id);
   };
 
   const removeLineItem = (id: string) => {
     setLineItems(prev => prev.filter(i => i.id !== id));
     setPricingStates(prev => { const next = { ...prev }; delete next[id]; return next; });
+    if (editingItemModal === id) setEditingItemModal(null);
   };
 
   const duplicateLineItem = (item: OrderItem) => {
@@ -201,7 +187,7 @@ export const NewOrder: React.FC = () => {
     const newItem = { ...item, id: newId };
     setLineItems(prev => [...prev, newItem]);
     setPricingStates(prev => ({ ...prev, [newId]: { ...(prev[item.id] || DEFAULT_PRICING_STATE()) } }));
-    setExpandedItem(newId);
+    setEditingItemModal(newId);
   };
 
   // ── Load from pricing template ────────────────────────────────────────
@@ -243,7 +229,7 @@ export const NewOrder: React.FC = () => {
         sheetsPerStack: 500,
       },
     }));
-    setExpandedItem(item.id);
+    setEditingItemModal(item.id);
     setShowTemplates(false);
   };
 
@@ -330,6 +316,54 @@ export const NewOrder: React.FC = () => {
     [pricing.templates]
   );
 
+  // ── Apply template to a specific item ────────────────────────────────
+  const applyTemplateToItem = (tmplId: string, targetItemId: string) => {
+    const tmpl = pricing.templates.find(t => t.id === tmplId);
+    if (!tmpl) return;
+    pricing.incrementTemplateUsage(tmplId);
+
+    const mat = tmpl.materialId
+      ? pricing.materials.find(m => m.id === tmpl.materialId)
+      : tmpl.materialName
+        ? pricing.materials.find(m => m.name === tmpl.materialName)
+        : undefined;
+
+    setLineItems(prev => prev.map(i => i.id === targetItemId ? {
+      ...i,
+      description: tmpl.productName,
+      quantity: tmpl.quantity,
+      unit: 'each' as const,
+      width: tmpl.finalWidth || undefined,
+      height: tmpl.finalHeight || undefined,
+    } : i));
+
+    setPricingStates(prev => ({
+      ...prev,
+      [targetItemId]: {
+        ...DEFAULT_PRICING_STATE(),
+        productId: tmpl.productId || '',
+        productName: tmpl.productName,
+        categoryName: tmpl.categoryName,
+        quantity: tmpl.quantity,
+        finalWidth: tmpl.finalWidth,
+        finalHeight: tmpl.finalHeight,
+        materialId: mat?.id || '',
+        equipmentId: tmpl.equipmentId || '',
+        colorMode: (tmpl.color === 'Black' ? 'Black' : 'Color') as 'Color' | 'Black',
+        sides: tmpl.sides,
+        foldingType: tmpl.folding || '',
+        cuttingEnabled: true,
+        sheetsPerStack: 500,
+        serviceLines: [],
+      },
+    }));
+  };
+
+  // ── Currently editing item ────────────────────────────────────────────
+  const editingItem = editingItemModal ? lineItems.find(i => i.id === editingItemModal) : null;
+  const editingPs = editingItemModal ? getPricingState(editingItemModal) : null;
+  const isNewItem = editingItem ? !editingItem.description : false;
+
   // ═══════════════════════════════════════════════════════════════════════
   // RENDER
   // ═══════════════════════════════════════════════════════════════════════
@@ -359,6 +393,13 @@ export const NewOrder: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {cloneBase && (
+        <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-center gap-2">
+          <Copy className="w-3.5 h-3.5" />
+          Cloning from {(cloneBase as any).number} — {(cloneBase as any).title}
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-6">
         {/* ─── Main form ─────────────────────────────────────────────── */}
@@ -673,20 +714,34 @@ export const NewOrder: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-              {lineItems.map((item, idx) => (
-                <PricingLineItemRow
-                  key={item.id}
-                  item={item}
-                  index={idx}
-                  pricingState={getPricingState(item.id)}
-                  isExpanded={expandedItem === item.id}
-                  onToggle={() => setExpandedItem(expandedItem === item.id ? null : item.id)}
-                  onUpdateItem={(updates) => setLineItems(prev => prev.map(i => i.id === item.id ? { ...i, ...updates } : i))}
-                  onUpdatePricing={(updates) => updatePricingState(item.id, updates)}
-                  onRemove={() => removeLineItem(item.id)}
-                  onDuplicate={() => duplicateLineItem(item)}
-                />
-              ))}
+              {lineItems.map((item, idx) => {
+                const ps = getPricingState(item.id);
+                return (
+                  <Card key={item.id} className="overflow-hidden hover:border-gray-200 transition-all">
+                    <div className="flex items-center gap-3 px-4 py-3">
+                      <span className="w-5 h-5 bg-gray-100 rounded text-xs font-bold text-gray-500 flex items-center justify-center flex-shrink-0">{idx + 1}</span>
+                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setEditingItemModal(item.id)}>
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {item.description || <span className="text-gray-400 italic">New line item -- click to configure</span>}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {ps.categoryName && <Badge color="blue" className="text-[10px]">{ps.categoryName}</Badge>}
+                          {ps.quantity > 0 && <span className="text-xs text-gray-400">{ps.quantity.toLocaleString()} pcs</span>}
+                          {ps.finalWidth > 0 && ps.finalHeight > 0 && <span className="text-xs text-gray-400">{ps.finalWidth}" x {ps.finalHeight}"</span>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <p className="text-sm font-bold text-gray-900">{fmt(item.sellPrice || 0)}</p>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => setEditingItemModal(item.id)} className="p-1 hover:bg-blue-50 rounded text-gray-400 hover:text-blue-600" title="Edit"><Edit3 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => duplicateLineItem(item)} className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600" title="Duplicate"><Copy className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => removeLineItem(item.id)} className="p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
             </div>
 
             <button onClick={addLineItem}
@@ -772,6 +827,28 @@ export const NewOrder: React.FC = () => {
         </div>
       </div>
 
+      {/* ─── Product Edit Modal ──────────────────────────────────────── */}
+      {editingItemModal && editingItem && editingPs && (
+        <ProductEditModal
+          item={editingItem}
+          pricingState={editingPs}
+          isNew={isNewItem}
+          onUpdateItem={(updates) => setLineItems(prev => prev.map(i => i.id === editingItemModal ? { ...i, ...updates } : i))}
+          onUpdatePricing={(updates) => updatePricingState(editingItemModal, updates)}
+          onClose={() => setEditingItemModal(null)}
+          onRemove={() => removeLineItem(editingItemModal)}
+          matchingTemplates={editingPs?.productName
+            ? sortedTemplates.filter(t =>
+                t.productName.toLowerCase() === editingPs.productName.toLowerCase() ||
+                t.productName.toLowerCase().includes(editingPs.productName.toLowerCase()) ||
+                editingPs.productName.toLowerCase().includes(t.productName.toLowerCase())
+              )
+            : []
+          }
+          onApplyTemplate={(tmplId) => applyTemplateToItem(tmplId, editingItemModal)}
+        />
+      )}
+
       {/* ─── Cancel Confirmation Modal ───────────────────────────────── */}
       <Modal isOpen={showCancelConfirm} onClose={() => setShowCancelConfirm(false)} title="Discard Changes?" size="sm">
         <p className="text-sm text-gray-600 mb-6">
@@ -783,568 +860,5 @@ export const NewOrder: React.FC = () => {
         </div>
       </Modal>
     </div>
-  );
-};
-
-// ═════════════════════════════════════════════════════════════════════════════
-// PRICING LINE ITEM ROW — each line item has the full pricing engine
-// ═════════════════════════════════════════════════════════════════════════════
-
-interface PricingLineItemRowProps {
-  item: OrderItem;
-  index: number;
-  pricingState: LineItemPricingState;
-  isExpanded: boolean;
-  onToggle: () => void;
-  onUpdateItem: (u: Partial<OrderItem>) => void;
-  onUpdatePricing: (u: Partial<LineItemPricingState>) => void;
-  onRemove: () => void;
-  onDuplicate: () => void;
-}
-
-const PricingLineItemRow: React.FC<PricingLineItemRowProps> = ({
-  item, index, pricingState: ps, isExpanded, onToggle,
-  onUpdateItem, onUpdatePricing, onRemove, onDuplicate,
-}) => {
-  const pricing = usePricingStore();
-  const { categories, products, equipment, finishing, materials,
-    searchProducts, getEquipmentForCategory, calculateImposition, lookupClickPrice } = pricing;
-
-  // ── Local UI state ────────────────────────────────────────────────────
-  const [productQuery, setProductQuery] = useState(ps.productName || '');
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [editingLineId, setEditingLineId] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<Partial<PricingServiceLine>>({});
-
-  // Sync product query when pricing state changes externally (e.g. template load)
-  useEffect(() => { setProductQuery(ps.productName || ''); }, [ps.productName]);
-
-  // ── Derived data ──────────────────────────────────────────────────────
-  const selectedMaterial = useMemo(() => materials.find(m => m.id === ps.materialId), [materials, ps.materialId]);
-  const selectedEquipment = useMemo(() => equipment.find(e => e.id === ps.equipmentId), [equipment, ps.equipmentId]);
-
-  const availableEquipment = useMemo(() => {
-    if (!ps.categoryName) return equipment;
-    const catEq = getEquipmentForCategory(ps.categoryName);
-    return catEq.length > 0 ? catEq : equipment;
-  }, [ps.categoryName, equipment, getEquipmentForCategory]);
-
-  const availableMaterials = useMemo(() => {
-    if (ps.finalWidth <= 0 || ps.finalHeight <= 0) return materials;
-    return materials.filter(m => {
-      return (m.sizeWidth >= ps.finalWidth && m.sizeHeight >= ps.finalHeight) ||
-        (m.sizeHeight >= ps.finalWidth && m.sizeWidth >= ps.finalHeight);
-    });
-  }, [materials, ps.finalWidth, ps.finalHeight]);
-
-  const suggestions = useMemo(() => {
-    if (!productQuery.trim() || productQuery.length < 1) return [];
-    return searchProducts(productQuery).slice(0, 6);
-  }, [productQuery, searchProducts]);
-
-  // ── Imposition ────────────────────────────────────────────────────────
-  const imposition = useMemo(() => {
-    if (!selectedMaterial || ps.finalWidth <= 0 || ps.finalHeight <= 0)
-      return { upsAcross: 0, upsDown: 0, totalUps: 0, sheetsNeeded: 0, cutsPerSheet: 0 };
-    const r = calculateImposition(ps.finalWidth, ps.finalHeight, selectedMaterial.sizeWidth, selectedMaterial.sizeHeight);
-    const sheetsNeeded = r.totalUps > 0 ? Math.ceil(ps.quantity / r.totalUps) : 0;
-    const cutsPerSheet = r.upsAcross + r.upsDown;
-    return { ...r, sheetsNeeded, cutsPerSheet };
-  }, [selectedMaterial, ps.finalWidth, ps.finalHeight, ps.quantity, calculateImposition]);
-
-  // ── Price Calculation ─────────────────────────────────────────────────
-  const computeServiceLines = useCallback((): PricingServiceLine[] => {
-    const lines: PricingServiceLine[] = [];
-
-    // MATERIAL
-    if (selectedMaterial && imposition.sheetsNeeded > 0) {
-      const costPerSheet = selectedMaterial.pricePerM / 1000;
-      const totalCost = imposition.sheetsNeeded * costPerSheet;
-      const markup = selectedMaterial.markup;
-      lines.push({
-        id: slId(), service: 'Material',
-        description: `${selectedMaterial.name} (${selectedMaterial.size}) — ${imposition.sheetsNeeded} sheets`,
-        quantity: imposition.sheetsNeeded, unit: 'sheets', unitCost: costPerSheet,
-        totalCost, markupPercent: markup, sellPrice: totalCost * (1 + markup / 100), editable: true,
-      });
-    }
-
-    // PRINTING
-    if (selectedEquipment) {
-      if (selectedEquipment.costUnit === 'per_click') {
-        const totalClicks = imposition.sheetsNeeded * (ps.sides === 'Double' ? 2 : 1);
-        const costPerClick = selectedEquipment.unitCost;
-        const totalCost = totalClicks * costPerClick;
-        const sellPerClick = lookupClickPrice(selectedEquipment.id, totalClicks, ps.colorMode);
-        const totalSell = totalClicks * sellPerClick;
-        const markupPct = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
-        lines.push({
-          id: slId(), service: 'Printing',
-          description: `${selectedEquipment.name} — ${totalClicks} clicks (${ps.colorMode}, ${ps.sides === 'Double' ? '2-sided' : '1-sided'}) @ ${fmt(sellPerClick)}/click`,
-          quantity: totalClicks, unit: 'clicks', unitCost: costPerClick,
-          totalCost, markupPercent: markupPct, sellPrice: totalSell, editable: true,
-        });
-      } else if (selectedEquipment.costUnit === 'per_sqft') {
-        const sqft = (ps.finalWidth * ps.finalHeight * ps.quantity) / 144;
-        const costPerSqft = selectedEquipment.unitCost;
-        const totalCost = sqft * costPerSqft;
-        const mult = selectedEquipment.markupMultiplier || 1;
-        const totalSell = sqft * costPerSqft * mult;
-        const markupPct = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
-        lines.push({
-          id: slId(), service: 'Printing',
-          description: `${selectedEquipment.name} — ${sqft.toFixed(1)} sqft @ ${fmt(costPerSqft * mult)}/sqft`,
-          quantity: parseFloat(sqft.toFixed(1)), unit: 'sqft', unitCost: costPerSqft,
-          totalCost, markupPercent: markupPct, sellPrice: totalSell, editable: true,
-        });
-      }
-      if (selectedEquipment.initialSetupFee > 0) {
-        lines.push({
-          id: slId(), service: 'Setup',
-          description: `${selectedEquipment.name} — Setup fee`,
-          quantity: 1, unit: 'flat', unitCost: selectedEquipment.initialSetupFee,
-          totalCost: selectedEquipment.initialSetupFee, markupPercent: 0,
-          sellPrice: selectedEquipment.initialSetupFee, editable: true,
-        });
-      }
-    }
-
-    // CUTTING
-    if (ps.cuttingEnabled && imposition.sheetsNeeded > 0 && imposition.cutsPerSheet > 0) {
-      const cutSvc = finishing.find(f => f.name === 'Cut');
-      if (cutSvc) {
-        const totalStacks = Math.ceil(imposition.sheetsNeeded / ps.sheetsPerStack);
-        const totalCuts = imposition.cutsPerSheet * totalStacks;
-        const hours = totalCuts / cutSvc.outputPerHour;
-        const totalCost = hours * cutSvc.hourlyCost;
-        const markup = cutSvc.markupPercent;
-        lines.push({
-          id: slId(), service: 'Cutting',
-          description: `${totalCuts} cuts (${imposition.cutsPerSheet}/sheet × ${totalStacks} stacks) — ${(hours * 60).toFixed(0)} min`,
-          quantity: totalCuts, unit: 'cuts', unitCost: cutSvc.hourlyCost / cutSvc.outputPerHour,
-          totalCost, markupPercent: markup, sellPrice: totalCost * (1 + markup / 100), editable: true,
-        });
-      }
-    }
-
-    // FOLDING
-    if (ps.foldingType) {
-      const fSvc = finishing.find(f => f.name.toLowerCase().replace('-', '') === ps.foldingType.toLowerCase().replace('-', ''));
-      if (fSvc) {
-        const hours = ps.quantity / fSvc.outputPerHour;
-        const totalCost = hours * fSvc.hourlyCost;
-        lines.push({
-          id: slId(), service: 'Folding',
-          description: `${ps.foldingType} — ${ps.quantity} pcs @ ${fSvc.outputPerHour}/hr`,
-          quantity: ps.quantity, unit: 'pcs', unitCost: fSvc.hourlyCost / fSvc.outputPerHour,
-          totalCost, markupPercent: fSvc.markupPercent, sellPrice: totalCost * (1 + fSvc.markupPercent / 100), editable: true,
-        });
-      }
-    }
-
-    // DRILLING
-    if (ps.drillingType) {
-      const dSvc = finishing.find(f => f.name === ps.drillingType);
-      if (dSvc) {
-        const hours = ps.quantity / dSvc.outputPerHour;
-        const totalCost = hours * dSvc.hourlyCost;
-        lines.push({
-          id: slId(), service: 'Drilling',
-          description: `${ps.drillingType} — ${ps.quantity} pcs @ ${dSvc.outputPerHour}/hr`,
-          quantity: ps.quantity, unit: 'pcs', unitCost: dSvc.hourlyCost / dSvc.outputPerHour,
-          totalCost, markupPercent: dSvc.markupPercent, sellPrice: totalCost * (1 + dSvc.markupPercent / 100), editable: true,
-        });
-      }
-    }
-
-    return lines;
-  }, [selectedMaterial, selectedEquipment, imposition, ps, finishing, lookupClickPrice]);
-
-  // Recompute and sync to parent
-  useEffect(() => {
-    const lines = computeServiceLines();
-    onUpdatePricing({ serviceLines: lines });
-
-    const totalCost = lines.reduce((s, l) => s + l.totalCost, 0);
-    const totalSell = lines.reduce((s, l) => s + l.sellPrice, 0);
-    const overallMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
-
-    // Map to OrderItem fields
-    const matLine = lines.find(l => l.service === 'Material');
-    const printLine = lines.find(l => l.service === 'Printing');
-    const setupLine = lines.find(l => l.service === 'Setup');
-    const finishingCost = lines.filter(l => ['Cutting', 'Folding', 'Drilling'].includes(l.service)).reduce((s, l) => s + l.totalCost, 0);
-
-    onUpdateItem({
-      description: ps.productName || item.description,
-      quantity: ps.quantity || item.quantity,
-      width: ps.finalWidth || undefined,
-      height: ps.finalHeight || undefined,
-      materialId: ps.materialId || undefined,
-      materialName: selectedMaterial?.name,
-      materialCost: matLine?.totalCost || 0,
-      equipmentId: ps.equipmentId || undefined,
-      equipmentName: selectedEquipment?.name,
-      equipmentCost: printLine?.totalCost || 0,
-      laborCost: finishingCost,
-      setupCost: setupLine?.totalCost || 0,
-      totalCost,
-      markup: Math.round(overallMarkup),
-      sellPrice: totalSell,
-      upsPerSheet: imposition.totalUps || undefined,
-      sheetSize: selectedMaterial?.size,
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [computeServiceLines]);
-
-  // ── Select product from search ────────────────────────────────────────
-  const selectProduct = (product: PricingProduct) => {
-    setProductQuery(product.name);
-    setShowSuggestions(false);
-    const cat = categories.find(c => product.categoryIds.includes(c.id));
-
-    // Find a matching material
-    const matMatch = materials.find(m =>
-      m.name.toLowerCase().includes((product.defaultMaterialName || '').toLowerCase().split(' ').slice(-2).join(' '))
-    );
-
-    onUpdatePricing({
-      productId: product.id,
-      productName: product.name,
-      categoryName: cat?.name || '',
-      quantity: product.defaultQuantity,
-      finalWidth: product.defaultFinalWidth,
-      finalHeight: product.defaultFinalHeight,
-      materialId: matMatch?.id || '',
-      equipmentId: product.defaultEquipmentId || '',
-      colorMode: product.defaultColor === 'Black' ? 'Black' : 'Color',
-      sides: product.defaultSides,
-      foldingType: product.defaultFolding || '',
-      drillingType: '',
-      cuttingEnabled: true,
-      sheetsPerStack: 500,
-    });
-    onUpdateItem({ description: product.name, quantity: product.defaultQuantity });
-  };
-
-  // ── Inline edit service line ──────────────────────────────────────────
-  const applyEditLine = () => {
-    if (!editingLineId) return;
-    const updatedLines = ps.serviceLines.map(l => {
-      if (l.id !== editingLineId) return l;
-      const cost = editValues.totalCost ?? l.totalCost;
-      const markup = editValues.markupPercent ?? l.markupPercent;
-      return { ...l, totalCost: cost, markupPercent: markup, sellPrice: cost * (1 + markup / 100) };
-    });
-    onUpdatePricing({ serviceLines: updatedLines });
-
-    // Recalc item totals from edited lines
-    const totalCost = updatedLines.reduce((s, l) => s + l.totalCost, 0);
-    const totalSell = updatedLines.reduce((s, l) => s + l.sellPrice, 0);
-    const overallMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
-    onUpdateItem({ totalCost, sellPrice: totalSell, markup: Math.round(overallMarkup) });
-
-    setEditingLineId(null);
-    setEditValues({});
-  };
-
-  // Finishing options from pricing store
-  const foldingOptions = finishing.filter(f => f.finishingGroupIds?.includes('fg2')).map(f => f.name);
-  const drillingOptions = finishing.filter(f => f.finishingGroupIds?.includes('fg3')).map(f => f.name);
-
-  // ═══ RENDER LINE ITEM ═════════════════════════════════════════════════
-
-  return (
-    <Card className={`overflow-hidden transition-all ${isExpanded ? 'ring-2 ring-blue-500' : ''}`}>
-      {/* Collapsed header */}
-      <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50" onClick={onToggle}>
-        <span className="w-5 h-5 bg-gray-100 rounded text-xs font-bold text-gray-500 flex items-center justify-center flex-shrink-0">{index + 1}</span>
-        {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900 truncate">{item.description || <span className="text-gray-400">New line item — search a product</span>}</p>
-          <p className="text-xs text-gray-400">
-            {ps.categoryName && <><Badge color="blue" className="mr-1">{ps.categoryName}</Badge></>}
-            {ps.quantity > 0 && `${ps.quantity.toLocaleString()} pcs`}
-            {ps.finalWidth > 0 && ps.finalHeight > 0 && ` · ${ps.finalWidth}" × ${ps.finalHeight}"`}
-          </p>
-        </div>
-        <div className="flex items-center gap-4 flex-shrink-0">
-          {item.totalCost > 0 && (
-            <div className="text-right hidden md:block">
-              <p className="text-xs text-gray-400">Cost: {fmt(item.totalCost)}</p>
-            </div>
-          )}
-          <p className="text-sm font-bold text-gray-900">{fmt(item.sellPrice || 0)}</p>
-          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-            <button onClick={onDuplicate} className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600"><Copy className="w-3.5 h-3.5" /></button>
-            <button onClick={onRemove} className="p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
-          </div>
-        </div>
-      </div>
-
-      {/* Expanded pricing form */}
-      {isExpanded && (
-        <div className="px-4 pb-5 border-t border-gray-50 pt-4 space-y-4">
-          {/* ── Product Search ──────────────────────────────────────── */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Product</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text" value={productQuery}
-                onChange={e => { setProductQuery(e.target.value); setShowSuggestions(true); if (!e.target.value.trim()) onUpdatePricing({ productId: '', productName: '' }); }}
-                onFocus={() => productQuery && setShowSuggestions(true)}
-                placeholder="Type product name (Business Cards, Postcards, Trifold, Brochures...)"
-                className="w-full pl-9 pr-8 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
-              />
-              {productQuery && (
-                <button onClick={() => { setProductQuery(''); onUpdatePricing({ productId: '', productName: '', categoryName: '' }); }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 rounded-full">
-                  <X className="w-3.5 h-3.5 text-gray-400" />
-                </button>
-              )}
-              {showSuggestions && suggestions.length > 0 && !ps.productId && (
-                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
-                  {suggestions.map(p => {
-                    const cat = categories.find(c => p.categoryIds.includes(c.id));
-                    return (
-                      <button key={p.id} onClick={() => selectProduct(p)}
-                        className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0">
-                        <div>
-                          <span className="text-sm font-medium text-gray-900">{p.name}</span>
-                          {p.aliases.length > 0 && <span className="text-xs text-gray-400 ml-2">aka {p.aliases.slice(0, 3).join(', ')}</span>}
-                        </div>
-                        <Badge color="gray">{cat?.name}</Badge>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── Configuration Grid ─────────────────────────────────── */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Quantity</label>
-              <input type="number" value={ps.quantity} min={1}
-                onChange={e => onUpdatePricing({ quantity: parseInt(e.target.value) || 0 })}
-                className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Width (in)</label>
-              <input type="number" step="0.125" value={ps.finalWidth} min={0}
-                onChange={e => onUpdatePricing({ finalWidth: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Height (in)</label>
-              <input type="number" step="0.125" value={ps.finalHeight} min={0}
-                onChange={e => onUpdatePricing({ finalHeight: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Color</label>
-              <select value={ps.colorMode} onChange={e => onUpdatePricing({ colorMode: e.target.value as 'Color' | 'Black' })}
-                className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
-                <option value="Color">Color</option>
-                <option value="Black">Black & White</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Sides</label>
-              <select value={ps.sides} onChange={e => onUpdatePricing({ sides: e.target.value as 'Single' | 'Double' })}
-                className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
-                <option value="Single">Single Sided</option>
-                <option value="Double">Double Sided</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Equipment</label>
-              <select value={ps.equipmentId} onChange={e => onUpdatePricing({ equipmentId: e.target.value })}
-                className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
-                <option value="">— Select —</option>
-                {availableEquipment.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-              </select>
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Material</label>
-              <select value={ps.materialId} onChange={e => onUpdatePricing({ materialId: e.target.value })}
-                className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
-                <option value="">— Select material —</option>
-                {availableMaterials.map(m => <option key={m.id} value={m.id}>{m.name} ({m.size}) — {fmt(m.pricePerM)}/M</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* ── Imposition ─────────────────────────────────────────── */}
-          {selectedMaterial && imposition.totalUps > 0 && (
-            <div className="bg-blue-50/50 rounded-xl p-4">
-              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <Grid3X3 className="w-3.5 h-3.5 text-blue-500" /> Imposition
-              </h4>
-              <div className="grid grid-cols-5 gap-2">
-                <div className="bg-white rounded-lg p-2 text-center border border-blue-100">
-                  <p className="text-[10px] text-blue-600 font-medium">Parent</p>
-                  <p className="text-sm font-bold text-blue-900">{selectedMaterial.size}</p>
-                </div>
-                <div className="bg-white rounded-lg p-2 text-center border border-emerald-100">
-                  <p className="text-[10px] text-emerald-600 font-medium">Ups</p>
-                  <p className="text-sm font-bold text-emerald-900">{imposition.totalUps}</p>
-                </div>
-                <div className="bg-white rounded-lg p-2 text-center border border-purple-100">
-                  <p className="text-[10px] text-purple-600 font-medium">Layout</p>
-                  <p className="text-sm font-bold text-purple-900">{imposition.upsAcross}x{imposition.upsDown}</p>
-                </div>
-                <div className="bg-white rounded-lg p-2 text-center border border-amber-100">
-                  <p className="text-[10px] text-amber-600 font-medium">Sheets</p>
-                  <p className="text-sm font-bold text-amber-900">{imposition.sheetsNeeded.toLocaleString()}</p>
-                </div>
-                <div className="bg-white rounded-lg p-2 text-center border border-gray-200">
-                  <p className="text-[10px] text-gray-500 font-medium">Cuts/Sheet</p>
-                  <p className="text-sm font-bold text-gray-900">{imposition.cutsPerSheet}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── Finishing ──────────────────────────────────────────── */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className={`rounded-xl border p-3 transition-all ${ps.cuttingEnabled ? 'border-blue-200 bg-blue-50/30' : 'border-gray-100'}`}>
-              <label className="flex items-center gap-1.5 cursor-pointer mb-2">
-                <input type="checkbox" checked={ps.cuttingEnabled} onChange={e => onUpdatePricing({ cuttingEnabled: e.target.checked })}
-                  className="w-3.5 h-3.5 text-blue-600 rounded" />
-                <Scissors className="w-3.5 h-3.5 text-gray-500" />
-                <span className="text-xs font-semibold text-gray-700">Cutting</span>
-              </label>
-              {ps.cuttingEnabled && (
-                <input type="number" value={ps.sheetsPerStack} min={1} placeholder="Sheets/stack"
-                  onChange={e => onUpdatePricing({ sheetsPerStack: parseInt(e.target.value) || 1 })}
-                  className="w-full px-2 py-1 text-xs bg-white border border-gray-200 rounded-lg" />
-              )}
-            </div>
-            <div className={`rounded-xl border p-3 transition-all ${ps.foldingType ? 'border-blue-200 bg-blue-50/30' : 'border-gray-100'}`}>
-              <div className="flex items-center gap-1.5 mb-2">
-                <FoldVertical className="w-3.5 h-3.5 text-gray-500" />
-                <span className="text-xs font-semibold text-gray-700">Folding</span>
-              </div>
-              <select value={ps.foldingType} onChange={e => onUpdatePricing({ foldingType: e.target.value })}
-                className="w-full px-2 py-1 text-xs bg-white border border-gray-200 rounded-lg appearance-none">
-                <option value="">None</option>
-                {foldingOptions.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </div>
-            <div className={`rounded-xl border p-3 transition-all ${ps.drillingType ? 'border-blue-200 bg-blue-50/30' : 'border-gray-100'}`}>
-              <div className="flex items-center gap-1.5 mb-2">
-                <CircleDot className="w-3.5 h-3.5 text-gray-500" />
-                <span className="text-xs font-semibold text-gray-700">Drilling</span>
-              </div>
-              <select value={ps.drillingType} onChange={e => onUpdatePricing({ drillingType: e.target.value })}
-                className="w-full px-2 py-1 text-xs bg-white border border-gray-200 rounded-lg appearance-none">
-                <option value="">None</option>
-                {drillingOptions.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* ── Price Breakdown Table ─────────────────────────────── */}
-          {ps.serviceLines.length > 0 && (
-            <div className="bg-gray-50 rounded-xl overflow-hidden">
-              <div className="px-4 py-2.5 flex items-center justify-between border-b border-gray-200/60">
-                <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center gap-1.5">
-                  <DollarSign className="w-3.5 h-3.5 text-gray-400" /> Price Breakdown
-                </h4>
-                <span className="text-[10px] text-gray-400">Click row to edit</span>
-              </div>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-gray-200/60">
-                    <th className="text-left py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Service</th>
-                    <th className="text-left py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Description</th>
-                    <th className="text-right py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Cost</th>
-                    <th className="text-right py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Markup</th>
-                    <th className="text-right py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Sell Price</th>
-                    <th className="w-8"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {ps.serviceLines.map(line => {
-                    const isEditing = editingLineId === line.id;
-                    return (
-                      <tr key={line.id}
-                        className={`transition-colors ${isEditing ? 'bg-blue-50' : 'hover:bg-white cursor-pointer'}`}
-                        onClick={() => { if (!isEditing) { setEditingLineId(line.id); setEditValues({ totalCost: line.totalCost, markupPercent: line.markupPercent }); } }}>
-                        <td className="py-2 px-4">
-                          <div className="flex items-center gap-1.5">
-                            {line.service === 'Material' && <Package className="w-3 h-3 text-amber-500" />}
-                            {line.service === 'Printing' && <Printer className="w-3 h-3 text-blue-500" />}
-                            {line.service === 'Setup' && <Settings2 className="w-3 h-3 text-gray-400" />}
-                            {line.service === 'Cutting' && <Scissors className="w-3 h-3 text-purple-500" />}
-                            {line.service === 'Folding' && <FoldVertical className="w-3 h-3 text-emerald-500" />}
-                            {line.service === 'Drilling' && <CircleDot className="w-3 h-3 text-orange-500" />}
-                            <span className="font-medium text-gray-800">{line.service}</span>
-                          </div>
-                        </td>
-                        <td className="py-2 px-4 text-gray-500 max-w-[200px] truncate">{line.description}</td>
-                        <td className="py-2 px-4 text-right font-mono">
-                          {isEditing ? (
-                            <input type="number" step="0.01" value={editValues.totalCost ?? line.totalCost}
-                              onChange={e => setEditValues(v => ({ ...v, totalCost: parseFloat(e.target.value) || 0 }))}
-                              onClick={e => e.stopPropagation()}
-                              className="w-20 px-1.5 py-0.5 text-right text-xs border border-blue-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                          ) : fmt(line.totalCost)}
-                        </td>
-                        <td className="py-2 px-4 text-right font-mono">
-                          {isEditing ? (
-                            <div className="flex items-center justify-end gap-0.5">
-                              <input type="number" step="0.1" value={editValues.markupPercent ?? line.markupPercent}
-                                onChange={e => setEditValues(v => ({ ...v, markupPercent: parseFloat(e.target.value) || 0 }))}
-                                onClick={e => e.stopPropagation()}
-                                className="w-16 px-1.5 py-0.5 text-right text-xs border border-blue-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                              <span className="text-gray-400">%</span>
-                            </div>
-                          ) : (
-                            <span className={line.markupPercent > 0 ? 'text-emerald-600' : 'text-gray-400'}>{fmtPct(line.markupPercent)}</span>
-                          )}
-                        </td>
-                        <td className="py-2 px-4 text-right font-mono font-semibold text-gray-900">
-                          {isEditing
-                            ? fmt((editValues.totalCost ?? line.totalCost) * (1 + (editValues.markupPercent ?? line.markupPercent) / 100))
-                            : fmt(line.sellPrice)
-                          }
-                        </td>
-                        <td className="py-2 px-1">
-                          {isEditing ? (
-                            <div className="flex items-center gap-0.5">
-                              <button onClick={e => { e.stopPropagation(); applyEditLine(); }}
-                                className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded"><Check className="w-3 h-3" /></button>
-                              <button onClick={e => { e.stopPropagation(); setEditingLineId(null); }}
-                                className="p-0.5 text-red-500 hover:bg-red-50 rounded"><X className="w-3 h-3" /></button>
-                            </div>
-                          ) : <Edit3 className="w-3 h-3 text-gray-300" />}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              {/* Line totals */}
-              <div className="px-4 py-2.5 border-t border-gray-200/60 flex items-center justify-between bg-white">
-                <div className="flex items-center gap-4">
-                  <span className="text-xs text-gray-500">Cost: <b className="text-gray-700">{fmt(item.totalCost)}</b></span>
-                  <span className="text-xs text-gray-500">Margin: <b className={item.sellPrice > 0 && ((item.sellPrice - item.totalCost) / item.sellPrice) * 100 >= 30 ? 'text-emerald-600' : 'text-amber-600'}>
-                    {item.sellPrice > 0 ? fmtPct(((item.sellPrice - item.totalCost) / item.sellPrice) * 100) : '0%'}
-                  </b></span>
-                </div>
-                <span className="text-sm font-bold text-blue-700">Sell: {fmt(item.sellPrice)}</span>
-              </div>
-            </div>
-          )}
-
-          {/* Notes */}
-          <Input label="Line Item Notes" value={item.notes || ''} onChange={e => onUpdateItem({ notes: e.target.value })} placeholder="Notes for this item..." />
-        </div>
-      )}
-    </Card>
   );
 };
