@@ -975,7 +975,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // ── Enhanced imposition with bleed/gutter/orientation ────────────────
   const enhancedImposition = useMemo(() => {
     if (!selectedMaterial || ps.finalWidth <= 0 || ps.finalHeight <= 0)
-      return { ...imposition, runWidth: 0, runHeight: 0, waste: 0, orientationA: imposition, orientationB: { upsAcross: 0, upsDown: 0, totalUps: 0 } };
+      return { ...imposition, runWidth: 0, runHeight: 0, waste: 0, orientationA: imposition, orientationB: { upsAcross: 0, upsDown: 0, totalUps: 0 }, bestOrientation: 'A' as const };
 
     const bleed2 = impositionBleed * 2;
     const runW = ps.finalWidth + bleed2;
