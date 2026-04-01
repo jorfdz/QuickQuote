@@ -1515,6 +1515,29 @@ export const Materials: React.FC = () => {
             );
           })()}
 
+          {/* ── Material Type Attributes & Cost Configurations (collapsible) ── */}
+          <div className="border-t border-gray-200 pt-4">
+            <button
+              type="button"
+              onClick={() => setCostConfigCollapsed(c => !c)}
+              className="w-full flex items-center justify-between group"
+            >
+              <div className="flex items-center gap-2">
+                {costConfigCollapsed
+                  ? <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                  : <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />}
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Material Type Attributes &amp; Cost Configurations</h3>
+              </div>
+              {costConfigCollapsed && (
+                <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                  {MATERIAL_TYPE_LABELS[form.materialType]} · {PRICING_MODEL_LABELS[form.pricingModel]} · {form.markupType === 'percent' ? `${form.markup}%` : form.markupType === 'fixed' ? `$${form.markup}/u` : `$${form.markup} flat`}
+                </span>
+              )}
+            </button>
+
+            {!costConfigCollapsed && (
+              <div className="mt-3 space-y-4 pl-6">
+
           {/* ── Material Type toggle ── */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Material Type</label>
@@ -1544,29 +1567,6 @@ export const Materials: React.FC = () => {
               ))}
             </div>
           </div>
-
-          {/* ── Material Type Attributes & Cost Configurations (collapsible) ── */}
-          <div className="border-t border-gray-200 pt-4">
-            <button
-              type="button"
-              onClick={() => setCostConfigCollapsed(c => !c)}
-              className="w-full flex items-center justify-between group"
-            >
-              <div className="flex items-center gap-2">
-                {costConfigCollapsed
-                  ? <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
-                  : <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />}
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Material Type Attributes &amp; Cost Configurations</h3>
-              </div>
-              {costConfigCollapsed && (
-                <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                  {MATERIAL_TYPE_LABELS[form.materialType]} · {PRICING_MODEL_LABELS[form.pricingModel]} · {form.markupType === 'percent' ? `${form.markup}%` : form.markupType === 'fixed' ? `$${form.markup}/u` : `$${form.markup} flat`}
-                </span>
-              )}
-            </button>
-
-            {!costConfigCollapsed && (
-              <div className="mt-3 space-y-4 pl-6">
 
           {/* ── Dimensions (conditional by type) ── */}
           {form.materialType !== 'blanks' && (
