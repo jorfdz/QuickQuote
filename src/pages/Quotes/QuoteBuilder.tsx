@@ -4,7 +4,7 @@ import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronRight, Calculator, Copy,
   ArrowRight, Search, X, Scissors, FoldVertical, CircleDot, Printer,
   Package, DollarSign, Grid3X3, Edit3, Check, Star, Settings2,
-  ChevronUp, Percent, Hash, Info,
+  ChevronUp, Percent, Hash, Info, RefreshCw, Eye, Layers, Wrench,
 } from 'lucide-react';
 import { useStore } from '../../store';
 import { usePricingStore } from '../../store/pricingStore';
@@ -814,6 +814,19 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [multiQtyInput, setMultiQtyInput] = useState(String(ps.quantity || 1000));
   const [autoDescribe, setAutoDescribe] = useState(true);
 
+  // ── Imposition calculator state ──────────────────────────────────────
+  const [showImpositionCalc, setShowImpositionCalc] = useState(false);
+  const [impositionBleed, setImpositionBleed] = useState(0.125);
+  const [impositionGutter, setImpositionGutter] = useState(0);
+  const [impositionOrientation, setImpositionOrientation] = useState<'auto' | 'A' | 'B'>('auto');
+
+  // ── Template panel state ─────────────────────────────────────────────
+  const [templatePanelCollapsed, setTemplatePanelCollapsed] = useState(false);
+  const [userInteracted, setUserInteracted] = useState(false);
+
+  // ── Price breakdown state ────────────────────────────────────────────
+  const [manualOverrides, setManualOverrides] = useState<Record<string, boolean>>({});
+
   // ── Multi-part state ───────────────────────────────────────────────
   const [isMultiPart, setIsMultiPart] = useState(false);
   const [parts, setParts] = useState<Array<{
@@ -911,6 +924,13 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoDescribe, buildDescription]);
 
+  // Auto-collapse template panel when user starts filling fields
+  useEffect(() => {
+    if (userInteracted && matchingTemplates.length > 0 && !templatePanelCollapsed) {
+      setTemplatePanelCollapsed(true);
+    }
+  }, [userInteracted]);
+
   // ── Derived data ──────────────────────────────────────────────────────
   const selectedMaterial = useMemo(() => materials.find(m => m.id === ps.materialId), [materials, ps.materialId]);
   const selectedEquipment = useMemo(() => equipment.find(e => e.id === ps.equipmentId), [equipment, ps.equipmentId]);
@@ -951,6 +971,50 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
     const cutsPerSheet = r.upsAcross + r.upsDown;
     return { ...r, sheetsNeeded, cutsPerSheet };
   }, [selectedMaterial, ps.finalWidth, ps.finalHeight, ps.quantity, calculateImposition]);
+
+  // ── Enhanced imposition with bleed/gutter/orientation ────────────────
+  const enhancedImposition = useMemo(() => {
+    if (!selectedMaterial || ps.finalWidth <= 0 || ps.finalHeight <= 0)
+      return { ...imposition, runWidth: 0, runHeight: 0, waste: 0, orientationA: imposition, orientationB: { upsAcross: 0, upsDown: 0, totalUps: 0 } };
+
+    const bleed2 = impositionBleed * 2;
+    const runW = ps.finalWidth + bleed2;
+    const runH = ps.finalHeight + bleed2;
+    const sheetW = selectedMaterial.sizeWidth;
+    const sheetH = selectedMaterial.sizeHeight;
+    const gutter = impositionGutter;
+
+    // Orientation A: finalW along sheetW
+    const aAcross = Math.floor((sheetW + gutter) / (runW + gutter));
+    const aDown = Math.floor((sheetH + gutter) / (runH + gutter));
+    const aTotal = aAcross * aDown;
+
+    // Orientation B: finalH along sheetW (rotated)
+    const bAcross = Math.floor((sheetW + gutter) / (runH + gutter));
+    const bDown = Math.floor((sheetH + gutter) / (runW + gutter));
+    const bTotal = bAcross * bDown;
+
+    const orientationA = { upsAcross: aAcross, upsDown: aDown, totalUps: aTotal };
+    const orientationB = { upsAcross: bAcross, upsDown: bDown, totalUps: bTotal };
+
+    let chosen = impositionOrientation === 'A' ? orientationA :
+                 impositionOrientation === 'B' ? orientationB :
+                 aTotal >= bTotal ? orientationA : orientationB;
+    const bestOrientation = impositionOrientation !== 'auto' ? impositionOrientation : (aTotal >= bTotal ? 'A' : 'B');
+
+    const sheetsNeeded = chosen.totalUps > 0 ? Math.ceil(ps.quantity / chosen.totalUps) : 0;
+    const cutsPerSheet = chosen.upsAcross > 0 && chosen.upsDown > 0 ? (chosen.upsAcross - 1) + (chosen.upsDown - 1) + 2 : 0;
+    const usedArea = chosen.totalUps * runW * runH;
+    const sheetArea = sheetW * sheetH;
+    const waste = sheetArea > 0 ? ((sheetArea - usedArea) / sheetArea) * 100 : 0;
+
+    return {
+      ...chosen, sheetsNeeded, cutsPerSheet,
+      runWidth: runW, runHeight: runH,
+      waste: Math.max(0, waste),
+      orientationA, orientationB, bestOrientation
+    };
+  }, [selectedMaterial, ps.finalWidth, ps.finalHeight, ps.quantity, impositionBleed, impositionGutter, impositionOrientation]);
 
   // ── Price Calculation ─────────────────────────────────────────────────
   const computeServiceLines = useCallback((): PricingServiceLine[] => {
@@ -1188,6 +1252,15 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
     setEditValues({});
   };
 
+  // ── Recalculate (reset manual overrides) ─────────────────────────────
+  const handleRecalculate = () => {
+    setManualOverrides({});
+    setEditingLineId(null);
+    setEditValues({});
+    // Force recompute by triggering a no-op update
+    onUpdatePricing({ sheetsPerStack: ps.sheetsPerStack });
+  };
+
   // ── Save as template ──────────────────────────────────────────────────
   const handleSaveAsTemplate = () => {
     if (!ps.productName) return;
@@ -1313,11 +1386,19 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   // ═══ RENDER MODAL ═════════════════════════════════════════════════════
 
+  const orientA = enhancedImposition.orientationA;
+  const orientB = enhancedImposition.orientationB;
+  const activeOrientation = enhancedImposition.bestOrientation as string;
+
+  // Helper: mark userInteracted on any pricing field change
+  const trackInteraction = () => { if (!userInteracted) setUserInteracted(true); };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
-        {/* Modal Header */}
+
+        {/* ═══ Modal Header ═══════════════════════════════════════════════ */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold text-gray-900">{isNew ? 'Add Item' : 'Edit Item'}</h2>
@@ -1331,15 +1412,8 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
               </button>
             )}
             {savedAsTemplate && <span className="text-xs text-amber-600 font-medium">Item saved as Template</span>}
-          </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-5 h-5 text-gray-400" /></button>
-        </div>
-
-        {/* Modal Body */}
-        <div className="overflow-y-auto flex-1 px-6 py-4">
-          {/* Multi-Part Toggle */}
-          <div className="flex items-center gap-3 mb-3 pb-3 border-b border-gray-100">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
+            {/* Multi-Part Toggle */}
+            <label className="flex items-center gap-2 cursor-pointer select-none ml-4">
               <input
                 type="checkbox"
                 checked={isMultiPart}
@@ -1347,29 +1421,16 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   const checked = e.target.checked;
                   setIsMultiPart(checked);
                   if (checked && parts.length === 0) {
-                    // Create first two parts from current item settings
                     setParts([{
-                      id: nanoid(),
-                      partName: 'Cover',
-                      description: '',
-                      materialId: ps.materialId || '',
-                      sides: ps.sides,
-                      colorMode: ps.colorMode,
-                      equipmentId: ps.equipmentId || '',
-                      foldingType: ps.foldingType || '',
-                      drillingType: ps.drillingType || '',
-                      cuttingEnabled: ps.cuttingEnabled,
+                      id: nanoid(), partName: 'Cover', description: '',
+                      materialId: ps.materialId || '', sides: ps.sides, colorMode: ps.colorMode,
+                      equipmentId: ps.equipmentId || '', foldingType: ps.foldingType || '',
+                      drillingType: ps.drillingType || '', cuttingEnabled: ps.cuttingEnabled,
                     }, {
-                      id: nanoid(),
-                      partName: 'Interior',
-                      description: '',
-                      materialId: '',
-                      sides: 'Double',
-                      colorMode: 'Color',
-                      equipmentId: ps.equipmentId || '',
-                      foldingType: '',
-                      drillingType: '',
-                      cuttingEnabled: false,
+                      id: nanoid(), partName: 'Interior', description: '',
+                      materialId: '', sides: 'Double', colorMode: 'Color',
+                      equipmentId: ps.equipmentId || '', foldingType: '',
+                      drillingType: '', cuttingEnabled: false,
                     }]);
                     setActivePartIndex(0);
                     setGlobalDescription(item.description || ps.productName || '');
@@ -1377,15 +1438,19 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 }}
                 className="w-3.5 h-3.5 rounded border-gray-300 text-[#F890E7] focus:ring-[#F890E7]"
               />
-              <span className="text-xs font-semibold text-gray-600">Multi-Part Item</span>
+              <span className="text-xs font-semibold text-gray-600">Multi-Part</span>
             </label>
-            <span className="text-[10px] text-gray-400">Enable for items with multiple parts (e.g., booklet cover + interior)</span>
           </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-5 h-5 text-gray-400" /></button>
+        </div>
 
-          <div className="flex gap-6">
-            {/* Main pricing form */}
-            <div className="flex-1 space-y-4 min-w-0">
-              {/* ── Product Search ──────────────────────────────────────── */}
+        {/* ═══ Modal Body ═════════════════════════════════════════════════ */}
+        <div className="overflow-y-auto flex-1 px-6 py-4">
+          <div className="flex gap-4">
+            {/* ── Main Form Column ──────────────────────────────────────── */}
+            <div className={`flex-1 space-y-4 min-w-0 ${matchingTemplates.length > 0 && !templatePanelCollapsed ? '' : ''}`}>
+
+              {/* ── Product Search Row ────────────────────────────────── */}
               <div>
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Product</label>
                 <div className="relative">
@@ -1395,7 +1460,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     onChange={e => { setProductQuery(e.target.value); setShowSuggestions(true); if (!e.target.value.trim()) onUpdatePricing({ productId: '', productName: '' }); }}
                     onFocus={() => productQuery && setShowSuggestions(true)}
                     placeholder="Type product name (Business Cards, Postcards, Trifold, Brochures...)"
-                    className="w-full pl-9 pr-8 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+                    className="w-full pl-9 pr-8 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400"
                   />
                   {productQuery && (
                     <button onClick={() => { setProductQuery(''); onUpdatePricing({ productId: '', productName: '', categoryName: '' }); }}
@@ -1423,7 +1488,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </div>
               </div>
 
-              {/* ── Item Description ─────────────────────────────────── */}
+              {/* ── Description + Auto-describe ──────────────────────── */}
               <div>
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</label>
                 <input
@@ -1431,40 +1496,29 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   value={item.description}
                   onChange={e => { setAutoDescribe(false); onUpdateItem({ description: e.target.value }); }}
                   placeholder="Item description..."
-                  className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+                  className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400"
                 />
-                <label className="flex items-center gap-1.5 text-[10px] text-gray-400 mt-1">
-                  <input type="checkbox" checked={autoDescribe} onChange={e => { setAutoDescribe(e.target.checked); if (e.target.checked) onUpdateItem({ description: buildDescription() }); }} className="w-3 h-3" />
+                <label className="flex items-center gap-1.5 text-[10px] text-gray-400 mt-1 cursor-pointer">
+                  <input type="checkbox" checked={autoDescribe} onChange={e => { setAutoDescribe(e.target.checked); if (e.target.checked) onUpdateItem({ description: buildDescription() }); }} className="w-3 h-3 rounded border-gray-300 text-[#F890E7] focus:ring-[#F890E7]" />
                   Auto-describe
                 </label>
               </div>
 
-              {/* ── Multi-Part Tabs ─────────────────────────────────── */}
+              {/* ── Multi-Part Tabs ───────────────────────────────────── */}
               {isMultiPart && (
                 <div className="flex items-center gap-1 border-b border-gray-100 mb-4">
                   {parts.map((part, idx) => (
-                    <button
-                      key={part.id}
-                      onClick={() => setActivePartIndex(idx)}
+                    <button key={part.id} onClick={() => setActivePartIndex(idx)}
                       className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-all -mb-px ${
-                        activePartIndex === idx
-                          ? 'border-[#F890E7] text-[#F890E7]'
-                          : 'border-transparent text-gray-400 hover:text-gray-600'
-                      }`}
-                    >
-                      {part.partName || `Part ${idx + 1}`}
-                    </button>
+                        activePartIndex === idx ? 'border-[#F890E7] text-[#F890E7]' : 'border-transparent text-gray-400 hover:text-gray-600'
+                      }`}>{part.partName || `Part ${idx + 1}`}</button>
                   ))}
-                  <button
-                    onClick={addPart}
-                    className="px-2 py-1.5 text-xs text-gray-400 hover:text-[#F890E7] transition-colors flex items-center gap-1"
-                  >
+                  <button onClick={addPart} className="px-2 py-1.5 text-xs text-gray-400 hover:text-[#F890E7] transition-colors flex items-center gap-1">
                     <Plus className="w-3 h-3" /> Add Part
                   </button>
                 </div>
               )}
 
-              {/* ── Multi-Part: Part Name & Description ──────────────── */}
               {isMultiPart && parts.length > 0 && (
                 <div className="space-y-3">
                   <div>
@@ -1483,251 +1537,373 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </div>
               )}
 
-              {/* ── SECTION: Equipment & Specs ─────────────────────────── */}
-              <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide pt-3 pb-1">Equipment & Specs</div>
-
-              {/* Row 1: Quantity, Width, Height */}
-              <div className="grid grid-cols-3 gap-3">
+              {/* ── Quantity / Size / Sides / Color (4-col row) ────── */}
+              <div className="grid grid-cols-4 gap-3">
                 <div>
                   <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Quantity</label>
                   <input type="text" value={multiQtyInput}
                     onChange={e => {
+                      trackInteraction();
                       setMultiQtyInput(e.target.value);
-                      const parts = e.target.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
-                      if (parts.length > 0) onUpdatePricing({ quantity: parts[0] });
+                      const qParts = e.target.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
+                      if (qParts.length > 0) onUpdatePricing({ quantity: qParts[0] });
                     }}
-                    placeholder="e.g. 250, 500, 1000"
-                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  <p className="text-[10px] text-gray-400 mt-0.5">Separate with commas for multiple quantities</p>
+                    placeholder="e.g. 1000"
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]" />
+                  {isMultiQty && <p className="text-[10px] text-purple-500 mt-0.5">{parsedQuantities.length} quantities</p>}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Width (in)</label>
-                  <input type="number" step="0.125" value={ps.finalWidth} min={0}
-                    onChange={e => onUpdatePricing({ finalWidth: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Size (W x H)</label>
+                  <div className="flex items-center gap-1">
+                    <input type="number" step="0.125" value={ps.finalWidth} min={0}
+                      onChange={e => { trackInteraction(); onUpdatePricing({ finalWidth: parseFloat(e.target.value) || 0 }); }}
+                      className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]" />
+                    <span className="text-gray-400 text-xs">x</span>
+                    <input type="number" step="0.125" value={ps.finalHeight} min={0}
+                      onChange={e => { trackInteraction(); onUpdatePricing({ finalHeight: parseFloat(e.target.value) || 0 }); }}
+                      className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]" />
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Height (in)</label>
-                  <input type="number" step="0.125" value={ps.finalHeight} min={0}
-                    onChange={e => onUpdatePricing({ finalHeight: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sides</label>
+                  <select value={materialEntries[0]?.sides || ps.sides}
+                    onChange={e => {
+                      trackInteraction();
+                      const updated = [...materialEntries];
+                      updated[0] = { ...updated[0], sides: e.target.value as 'Single' | 'Double' };
+                      setMaterialEntries(updated);
+                    }}
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
+                    <option value="Single">Single</option>
+                    <option value="Double">Double</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Color</label>
+                  <select value={materialEntries[0]?.colorMode || ps.colorMode}
+                    onChange={e => {
+                      trackInteraction();
+                      const updated = [...materialEntries];
+                      updated[0] = { ...updated[0], colorMode: e.target.value as 'Color' | 'Black' };
+                      setMaterialEntries(updated);
+                    }}
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
+                    <option value="Color">Color</option>
+                    <option value="Black">B&W</option>
+                  </select>
                 </div>
               </div>
 
-              {/* Row 2: Equipment (full width) */}
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Equipment</label>
-                <select value={ps.equipmentId} onChange={e => onUpdatePricing({ equipmentId: e.target.value })}
-                  className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
-                  <option value="">-- Select --</option>
-                  {availableEquipment.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                </select>
-              </div>
-
-              {/* ── SECTION: Materials & Sides ─────────────────────────── */}
-              <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide pt-3 pb-1">Materials & Sides</div>
-
-              {/* Multi-material entries */}
-              <div className="space-y-2">
-                {materialEntries.map((entry, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-2 items-end">
-                    {/* Material dropdown - wider */}
-                    <div className="col-span-5">
-                      {idx === 0 && <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Material</label>}
+              {/* ── Material / Equipment (2-col equal width) ──────── */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Material</label>
+                  <select value={materialEntries[0]?.materialId || ps.materialId}
+                    onChange={e => {
+                      trackInteraction();
+                      const updated = [...materialEntries];
+                      updated[0] = { ...updated[0], materialId: e.target.value };
+                      setMaterialEntries(updated);
+                    }}
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
+                    <option value="">-- Select material --</option>
+                    {availableMaterials.map(m => <option key={m.id} value={m.id}>{m.name} ({m.size}) -- {fmt(m.pricePerM)}/M</option>)}
+                  </select>
+                  {/* Additional material entries */}
+                  {materialEntries.length > 1 && materialEntries.slice(1).map((entry, idx) => (
+                    <div key={idx} className="flex items-center gap-1 mt-1">
                       <select value={entry.materialId}
                         onChange={e => {
                           const updated = [...materialEntries];
-                          updated[idx] = { ...updated[idx], materialId: e.target.value };
+                          updated[idx + 1] = { ...updated[idx + 1], materialId: e.target.value };
                           setMaterialEntries(updated);
                         }}
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
-                        <option value="">-- Select material --</option>
-                        {availableMaterials.map(m => <option key={m.id} value={m.id}>{m.name} ({m.size}) -- {fmt(m.pricePerM)}/M</option>)}
+                        className="flex-1 px-2 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
+                        <option value="">-- Select --</option>
+                        {availableMaterials.map(m => <option key={m.id} value={m.id}>{m.name} ({m.size})</option>)}
                       </select>
+                      <button onClick={() => setMaterialEntries(prev => prev.filter((_, i) => i !== idx + 1))}
+                        className="p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500"><X className="w-3 h-3" /></button>
                     </div>
-                    {/* Sides */}
-                    <div className="col-span-2">
-                      {idx === 0 && <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sides</label>}
-                      <select value={entry.sides}
-                        onChange={e => {
-                          const updated = [...materialEntries];
-                          updated[idx] = { ...updated[idx], sides: e.target.value as 'Single' | 'Double' };
-                          setMaterialEntries(updated);
-                        }}
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
-                        <option value="Single">Single</option>
-                        <option value="Double">Double</option>
-                      </select>
-                    </div>
-                    {/* Color */}
-                    <div className="col-span-2">
-                      {idx === 0 && <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Color</label>}
-                      <select value={entry.colorMode}
-                        onChange={e => {
-                          const updated = [...materialEntries];
-                          updated[idx] = { ...updated[idx], colorMode: e.target.value as 'Color' | 'Black' };
-                          setMaterialEntries(updated);
-                        }}
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
-                        <option value="Color">Color</option>
-                        <option value="Black">B&W</option>
-                      </select>
-                    </div>
-                    {/* Originals */}
-                    <div className="col-span-2">
-                      {idx === 0 && (
-                        <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1 flex items-center gap-1">
-                          Originals
-                          <span title="Number of originals/impressions per sheet. Example: 2 originals for an 8-page booklet on 12x18.">
-                            <Info className="w-3 h-3 text-gray-400 inline" />
-                          </span>
-                        </label>
-                      )}
-                      <input type="number" min={1} value={entry.originals}
-                        onChange={e => {
-                          const updated = [...materialEntries];
-                          updated[idx] = { ...updated[idx], originals: parseInt(e.target.value) || 1 };
-                          setMaterialEntries(updated);
-                        }}
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    {/* Remove button (only for additional materials) */}
-                    <div className="col-span-1 flex items-center justify-center">
-                      {idx > 0 ? (
-                        <button
-                          onClick={() => setMaterialEntries(prev => prev.filter((_, i) => i !== idx))}
-                          className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-500 transition-colors"
-                          title="Remove material"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      ) : <div className="w-3.5" />}
-                    </div>
-                  </div>
-                ))}
-
-                {/* + Add Material button */}
-                <button
-                  onClick={() => setMaterialEntries(prev => [...prev, {
-                    materialId: '',
-                    sides: 'Single',
-                    colorMode: 'Color',
-                    originals: 1,
-                  }])}
-                  className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-1 mt-1"
-                >
-                  <Plus className="w-3 h-3" /> Add Material
-                </button>
+                  ))}
+                  <button
+                    onClick={() => setMaterialEntries(prev => [...prev, { materialId: '', sides: 'Single', colorMode: 'Color', originals: 1 }])}
+                    className="text-[10px] font-semibold text-[#F890E7] hover:text-pink-600 transition-colors flex items-center gap-1 mt-1"
+                  >
+                    <Plus className="w-3 h-3" /> Add Material
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Equipment</label>
+                  <select value={ps.equipmentId}
+                    onChange={e => { trackInteraction(); onUpdatePricing({ equipmentId: e.target.value }); }}
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
+                    <option value="">-- Select --</option>
+                    {availableEquipment.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                  </select>
+                </div>
               </div>
 
-              {/* ── Imposition ─────────────────────────────────────────── */}
+              {/* ═══ IMPOSITION (collapsible) ═════════════════════════ */}
               {selectedMaterial && imposition.totalUps > 0 && (
-                <div className="bg-blue-50/50 rounded-xl p-4">
-                  <h4 className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                    <Grid3X3 className="w-3.5 h-3.5 text-blue-500" /> Imposition
-                  </h4>
-                  <div className="grid grid-cols-5 gap-2">
-                    <div className="bg-white rounded-lg p-2 text-center border border-blue-100">
-                      <p className="text-[10px] text-blue-600 font-medium">Parent</p>
-                      <p className="text-sm font-bold text-blue-900">{selectedMaterial.size}</p>
+                <div className="rounded-xl border border-blue-200 overflow-hidden">
+                  <button
+                    onClick={() => setShowImpositionCalc(prev => !prev)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 bg-blue-50/60 hover:bg-blue-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Grid3X3 className="w-3.5 h-3.5 text-blue-500" />
+                      <span className="text-[10px] font-semibold text-gray-700 uppercase tracking-wide">Imposition</span>
+                      {!showImpositionCalc && (
+                        <span className="text-[10px] text-gray-500 ml-2 font-normal normal-case">
+                          {selectedMaterial.size} | {enhancedImposition.totalUps} ups | {enhancedImposition.sheetsNeeded.toLocaleString()} sheets | {enhancedImposition.waste.toFixed(1)}% waste
+                        </span>
+                      )}
                     </div>
-                    <div className="bg-white rounded-lg p-2 text-center border border-emerald-100">
-                      <p className="text-[10px] text-emerald-600 font-medium">Ups</p>
-                      <p className="text-sm font-bold text-emerald-900">{imposition.totalUps}</p>
+                    {showImpositionCalc ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                  </button>
+
+                  {showImpositionCalc && (
+                    <div className="px-4 py-3 bg-blue-50/30">
+                      <div className="flex gap-4">
+                        {/* LEFT: 3x3 grid of values */}
+                        <div className="flex-1 grid grid-cols-3 gap-2">
+                          <div className="bg-white rounded-lg p-2 text-center border border-blue-100">
+                            <p className="text-[10px] text-blue-600 font-medium">Parent</p>
+                            <p className="text-sm font-bold text-blue-900">{selectedMaterial.size}</p>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 text-center border border-blue-100">
+                            <p className="text-[10px] text-blue-600 font-medium">Run Size</p>
+                            <div className="flex items-center justify-center gap-0.5">
+                              <input type="number" step="0.001" value={parseFloat(enhancedImposition.runWidth.toFixed(3))}
+                                onChange={e => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  setImpositionBleed(Math.max(0, (val - ps.finalWidth) / 2));
+                                }}
+                                className="w-12 text-center text-xs font-bold bg-blue-50 border border-blue-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#F890E7]" />
+                              <span className="text-[10px] text-gray-400">x</span>
+                              <input type="number" step="0.001" value={parseFloat(enhancedImposition.runHeight.toFixed(3))}
+                                onChange={e => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  setImpositionBleed(Math.max(0, (val - ps.finalHeight) / 2));
+                                }}
+                                className="w-12 text-center text-xs font-bold bg-blue-50 border border-blue-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#F890E7]" />
+                            </div>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 text-center border border-emerald-100">
+                            <p className="text-[10px] text-emerald-600 font-medium">Finish Size</p>
+                            <p className="text-sm font-bold text-emerald-900">{ps.finalWidth}x{ps.finalHeight}</p>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 text-center border border-emerald-100">
+                            <p className="text-[10px] text-emerald-600 font-medium">Ups</p>
+                            <p className="text-sm font-bold text-emerald-900">{enhancedImposition.totalUps}</p>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 text-center border border-amber-100">
+                            <p className="text-[10px] text-amber-600 font-medium">Sheets</p>
+                            <p className="text-sm font-bold text-amber-900">{enhancedImposition.sheetsNeeded.toLocaleString()}</p>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 text-center border border-gray-200">
+                            <p className="text-[10px] text-gray-500 font-medium">Cuts/Sheet</p>
+                            <p className="text-sm font-bold text-gray-900">{enhancedImposition.cutsPerSheet}</p>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 text-center border border-blue-100">
+                            <p className="text-[10px] text-blue-600 font-medium">Bleed</p>
+                            <input type="number" step="0.0625" value={impositionBleed} min={0}
+                              onChange={e => setImpositionBleed(parseFloat(e.target.value) || 0)}
+                              className="w-full text-center text-xs font-bold bg-blue-50 border border-blue-200 rounded px-1 py-0.5 mt-0.5 focus:outline-none focus:ring-1 focus:ring-[#F890E7]" />
+                          </div>
+                          <div className="bg-white rounded-lg p-2 text-center border border-purple-100">
+                            <p className="text-[10px] text-purple-600 font-medium">Gutter</p>
+                            <input type="number" step="0.0625" value={impositionGutter} min={0}
+                              onChange={e => setImpositionGutter(parseFloat(e.target.value) || 0)}
+                              className="w-full text-center text-xs font-bold bg-purple-50 border border-purple-200 rounded px-1 py-0.5 mt-0.5 focus:outline-none focus:ring-1 focus:ring-[#F890E7]" />
+                          </div>
+                          <div className="bg-white rounded-lg p-2 text-center border border-red-100">
+                            <p className="text-[10px] text-red-500 font-medium">Waste</p>
+                            <p className="text-sm font-bold text-red-700">{enhancedImposition.waste.toFixed(1)}%</p>
+                          </div>
+                        </div>
+
+                        {/* RIGHT: Orientation diagrams A & B */}
+                        <div className="flex flex-col gap-2 w-[200px] flex-shrink-0">
+                          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Orientation</p>
+                          <div className="flex gap-3">
+                            {/* Orientation A */}
+                            <button
+                              onClick={() => setImpositionOrientation('A')}
+                              className={`flex-1 rounded-lg p-2 border-2 transition-all flex flex-col items-center gap-1 ${
+                                activeOrientation === 'A' ? 'border-[#F890E7] bg-pink-50/50 shadow-sm' : 'border-gray-200 hover:border-gray-300'
+                              }`}
+                            >
+                              <span className={`text-[10px] font-bold ${activeOrientation === 'A' ? 'text-[#F890E7]' : 'text-gray-500'}`}>A</span>
+                              <div className="grid gap-px bg-gray-300 p-px" style={{
+                                gridTemplateColumns: `repeat(${orientA.upsAcross || 1}, 1fr)`,
+                                gridTemplateRows: `repeat(${orientA.upsDown || 1}, 1fr)`,
+                                width: 70, height: 54
+                              }}>
+                                {Array.from({ length: orientA.totalUps || 0 }).map((_, i) => (
+                                  <div key={i} className={activeOrientation === 'A' ? 'bg-pink-100' : 'bg-gray-100'} />
+                                ))}
+                              </div>
+                              <span className="text-[9px] text-gray-500">{orientA.upsAcross}x{orientA.upsDown} = {orientA.totalUps}</span>
+                            </button>
+                            {/* Orientation B */}
+                            <button
+                              onClick={() => setImpositionOrientation('B')}
+                              className={`flex-1 rounded-lg p-2 border-2 transition-all flex flex-col items-center gap-1 ${
+                                activeOrientation === 'B' ? 'border-[#F890E7] bg-pink-50/50 shadow-sm' : 'border-gray-200 hover:border-gray-300'
+                              }`}
+                            >
+                              <span className={`text-[10px] font-bold ${activeOrientation === 'B' ? 'text-[#F890E7]' : 'text-gray-500'}`}>B</span>
+                              <div className="grid gap-px bg-gray-300 p-px" style={{
+                                gridTemplateColumns: `repeat(${orientB.upsAcross || 1}, 1fr)`,
+                                gridTemplateRows: `repeat(${orientB.upsDown || 1}, 1fr)`,
+                                width: 70, height: 54
+                              }}>
+                                {Array.from({ length: orientB.totalUps || 0 }).map((_, i) => (
+                                  <div key={i} className={activeOrientation === 'B' ? 'bg-pink-100' : 'bg-gray-100'} />
+                                ))}
+                              </div>
+                              <span className="text-[9px] text-gray-500">{orientB.upsAcross}x{orientB.upsDown} = {orientB.totalUps}</span>
+                            </button>
+                          </div>
+                          <button
+                            onClick={() => setImpositionOrientation('auto')}
+                            className={`text-[10px] px-2 py-1 rounded-md transition-colors ${
+                              impositionOrientation === 'auto'
+                                ? 'bg-[#F890E7]/10 text-[#F890E7] font-semibold'
+                                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                            }`}
+                          >
+                            Auto (best fit)
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="bg-white rounded-lg p-2 text-center border border-purple-100">
-                      <p className="text-[10px] text-purple-600 font-medium">Layout</p>
-                      <p className="text-sm font-bold text-purple-900">{imposition.upsAcross}x{imposition.upsDown}</p>
+                  )}
+                </div>
+              )}
+
+              {/* ═══ SERVICES ═════════════════════════════════════════ */}
+              <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide pt-3 pb-1 flex items-center gap-1.5">
+                <Layers className="w-3 h-3" /> Services
+              </div>
+
+              {/* ── FINISHING ─────────────────────────────────────────── */}
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Scissors className="w-3 h-3 text-purple-500" />
+                  <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Finishing</span>
+                  {/* Selected finishing pills */}
+                  {selectedFinishingIds.length > 0 && (
+                    <div className="flex flex-wrap gap-1 ml-1">
+                      {selectedFinishingIds.map(id => {
+                        const svc = finishing.find(f => f.id === id);
+                        return svc ? (
+                          <span key={id} className="px-2 py-0.5 rounded-full text-[9px] font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                            {svc.name}
+                          </span>
+                        ) : null;
+                      })}
                     </div>
-                    <div className="bg-white rounded-lg p-2 text-center border border-amber-100">
-                      <p className="text-[10px] text-amber-600 font-medium">Sheets</p>
-                      <p className="text-sm font-bold text-amber-900">{imposition.sheetsNeeded.toLocaleString()}</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  {groupedFinishing.map(({ group, services }) => {
+                    const isExpanded = expandedFinishingGroups[group.id] !== false;
+                    const selectedInGroup = services.filter(s => selectedFinishingIds.includes(s.id));
+                    return (
+                      <div key={group.id} className="rounded-lg border border-gray-100 overflow-hidden">
+                        <button
+                          onClick={() => setExpandedFinishingGroups(prev => ({ ...prev, [group.id]: !isExpanded }))}
+                          className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            {isExpanded ? <ChevronDown className="w-3 h-3 text-gray-400" /> : <ChevronRight className="w-3 h-3 text-gray-400" />}
+                            <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">{group.name}</span>
+                            {selectedInGroup.length > 0 && <Badge color="blue" className="text-[9px]">{selectedInGroup.length} selected</Badge>}
+                          </div>
+                          <span className="text-[10px] text-gray-400">{services.length}</span>
+                        </button>
+                        {isExpanded && (
+                          <div className="px-3 pb-2 flex flex-wrap gap-1.5">
+                            {services.map(svc => {
+                              const isSelected = selectedFinishingIds.includes(svc.id);
+                              return (
+                                <button
+                                  key={svc.id}
+                                  onClick={() => {
+                                    trackInteraction();
+                                    const nextIds = isSelected
+                                      ? selectedFinishingIds.filter(id => id !== svc.id)
+                                      : [...selectedFinishingIds, svc.id];
+                                    setSelectedFinishingIds(nextIds);
+                                    const selectedServices = finishing.filter(f => nextIds.includes(f.id));
+                                    const hasCut = selectedServices.some(f => f.name === 'Cut');
+                                    const fold = selectedServices.find(f => f.finishingGroupIds?.includes('fg2'));
+                                    const drill = selectedServices.find(f => f.finishingGroupIds?.includes('fg3'));
+                                    onUpdatePricing({ cuttingEnabled: hasCut, foldingType: fold?.name || '', drillingType: drill?.name || '' });
+                                  }}
+                                  className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-all ${
+                                    isSelected
+                                      ? 'border-[#F890E7] bg-pink-50 text-[#F890E7]'
+                                      : 'border-gray-200 bg-white text-gray-600 hover:border-pink-200 hover:bg-pink-50/50'
+                                  }`}
+                                  title={svc.description || svc.name}
+                                >{svc.name}</button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {ps.cuttingEnabled && (
+                    <div className="flex items-center gap-2 pl-1">
+                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Sheets/Stack:</label>
+                      <input type="number" value={ps.sheetsPerStack} min={1}
+                        onChange={e => onUpdatePricing({ sheetsPerStack: parseInt(e.target.value) || 1 })}
+                        className="w-20 px-2 py-1 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]" />
                     </div>
-                    <div className="bg-white rounded-lg p-2 text-center border border-gray-200">
-                      <p className="text-[10px] text-gray-500 font-medium">Cuts/Sheet</p>
-                      <p className="text-sm font-bold text-gray-900">{imposition.cutsPerSheet}</p>
-                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── LABOR ─────────────────────────────────────────────── */}
+              {pricing.labor.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Wrench className="w-3 h-3 text-blue-500" />
+                    <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Labor</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 px-1">
+                    {pricing.labor.map(l => (
+                      <button key={l.id}
+                        className="px-2.5 py-1 rounded-full text-[10px] font-medium border border-gray-200 bg-white text-gray-600 hover:border-blue-200 hover:bg-blue-50/50 transition-all"
+                        title={l.description || l.name}
+                      >{l.name}</button>
+                    ))}
                   </div>
                 </div>
               )}
 
-              {/* ── SECTION: Finishing ─────────────────────────────────── */}
-              <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide pt-3 pb-1">Finishing</div>
-
-              {/* Dynamic finishing groups */}
-              <div className="space-y-2">
-                {groupedFinishing.map(({ group, services }) => {
-                  const isExpanded = expandedFinishingGroups[group.id] !== false; // default expanded
-                  const selectedInGroup = services.filter(s => selectedFinishingIds.includes(s.id));
-                  return (
-                    <div key={group.id} className="rounded-xl border border-gray-100 overflow-hidden">
-                      <button
-                        onClick={() => setExpandedFinishingGroups(prev => ({ ...prev, [group.id]: !isExpanded }))}
-                        className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center gap-2">
-                          {isExpanded ? <ChevronDown className="w-3 h-3 text-gray-400" /> : <ChevronRight className="w-3 h-3 text-gray-400" />}
-                          <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">{group.name}</span>
-                          {selectedInGroup.length > 0 && (
-                            <Badge color="blue" className="text-[9px]">{selectedInGroup.length} selected</Badge>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-gray-400">{services.length} services</span>
-                      </button>
-                      {isExpanded && (
-                        <div className="px-3 pb-2.5 flex flex-wrap gap-1.5">
-                          {services.map(svc => {
-                            const isSelected = selectedFinishingIds.includes(svc.id);
-                            return (
-                              <button
-                                key={svc.id}
-                                onClick={() => {
-                                  let nextIds: string[];
-                                  if (isSelected) {
-                                    nextIds = selectedFinishingIds.filter(id => id !== svc.id);
-                                  } else {
-                                    nextIds = [...selectedFinishingIds, svc.id];
-                                  }
-                                  setSelectedFinishingIds(nextIds);
-
-                                  // Sync back to legacy pricing fields for calculation compatibility
-                                  const selectedServices = finishing.filter(f => nextIds.includes(f.id));
-                                  const hasCut = selectedServices.some(f => f.name === 'Cut');
-                                  const fold = selectedServices.find(f => f.finishingGroupIds?.includes('fg2'));
-                                  const drill = selectedServices.find(f => f.finishingGroupIds?.includes('fg3'));
-                                  onUpdatePricing({
-                                    cuttingEnabled: hasCut,
-                                    foldingType: fold?.name || '',
-                                    drillingType: drill?.name || '',
-                                  });
-                                }}
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-all ${
-                                  isSelected
-                                    ? 'border-blue-300 bg-blue-50 text-blue-700'
-                                    : 'border-gray-200 bg-white text-gray-600 hover:border-blue-200 hover:bg-blue-50/50'
-                                }`}
-                                title={svc.description || svc.name}
-                              >
-                                {svc.name}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* Sheets per stack (visible when cutting is enabled) */}
-                {ps.cuttingEnabled && (
-                  <div className="flex items-center gap-2 pl-1">
-                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Sheets/Stack:</label>
-                    <input type="number" value={ps.sheetsPerStack} min={1}
-                      onChange={e => onUpdatePricing({ sheetsPerStack: parseInt(e.target.value) || 1 })}
-                      className="w-20 px-2 py-1 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              {/* ── BROKERED ──────────────────────────────────────────── */}
+              {pricing.brokered.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Package className="w-3 h-3 text-amber-500" />
+                    <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Brokered</span>
                   </div>
-                )}
-              </div>
+                  <div className="flex flex-wrap gap-1.5 px-1">
+                    {pricing.brokered.map(b => (
+                      <button key={b.id}
+                        className="px-2.5 py-1 rounded-full text-[10px] font-medium border border-gray-200 bg-white text-gray-600 hover:border-amber-200 hover:bg-amber-50/50 transition-all"
+                        title={b.description || b.name}
+                      >{b.name}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* ── Multi-Quantity Price Table ────────────────────────── */}
               {isMultiQty && multiQtyPricing.length > 0 && (
@@ -1758,14 +1934,21 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </div>
               )}
 
-              {/* ── Price Breakdown Table ─────────────────────────────── */}
+              {/* ═══ PRICE BREAKDOWN ══════════════════════════════════ */}
               {(ps.serviceLines.length > 0 || materialEntries.length > 1) && (
-                <div className="bg-gray-50 rounded-xl overflow-hidden">
-                  <div className="px-4 py-2.5 flex items-center justify-between border-b border-gray-200/60">
-                    <h4 className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide flex items-center gap-1.5">
-                      <DollarSign className="w-3.5 h-3.5 text-gray-400" /> Price Breakdown
+                <div className="rounded-xl border border-emerald-200 bg-gray-50 overflow-hidden">
+                  <div className="px-4 py-2.5 flex items-center justify-between border-b border-emerald-200/60 bg-emerald-50/40">
+                    <h4 className="text-[10px] font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                      <DollarSign className="w-3.5 h-3.5 text-emerald-500" /> Price Breakdown
                     </h4>
-                    <span className="text-[10px] text-gray-400">Click row to edit</span>
+                    <div className="flex items-center gap-2">
+                      <button onClick={handleRecalculate}
+                        className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium text-gray-500 hover:text-[#F890E7] hover:bg-pink-50 transition-colors"
+                        title="Reset manual overrides and recalculate">
+                        <RefreshCw className="w-3 h-3" /> Recalculate
+                      </button>
+                      <span className="text-[10px] text-gray-400">Click row to edit</span>
+                    </div>
                   </div>
                   <table className="w-full text-xs">
                     <thead>
@@ -1775,11 +1958,11 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         <th className="text-right py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Cost</th>
                         <th className="text-right py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Markup</th>
                         <th className="text-right py-2 px-4 font-semibold text-gray-500 uppercase tracking-wide">Sell Price</th>
-                        <th className="w-8"></th>
+                        <th className="w-10"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {/* Show additional material entries (index > 0) as informational rows */}
+                      {/* Extra material entries (informational) */}
                       {materialEntries.length > 1 && materialEntries.slice(1).map((entry, idx) => {
                         const mat = materials.find(m => m.id === entry.materialId);
                         return mat ? (
@@ -1791,7 +1974,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               </div>
                             </td>
                             <td className="py-2 px-4 text-gray-400 italic max-w-[200px] truncate">
-                              {mat.name} ({mat.size}) -- {entry.sides}, {entry.colorMode}, {entry.originals} orig.
+                              {mat.name} ({mat.size}) -- {entry.sides}, {entry.colorMode}
                             </td>
                             <td className="py-2 px-4 text-right font-mono text-gray-400">--</td>
                             <td className="py-2 px-4 text-right font-mono text-gray-400">--</td>
@@ -1802,10 +1985,16 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       })}
                       {ps.serviceLines.map(line => {
                         const isEditing = editingLineId === line.id;
+                        const isOverridden = manualOverrides[line.id];
                         return (
                           <tr key={line.id}
                             className={`transition-colors ${isEditing ? 'bg-blue-50' : 'hover:bg-white cursor-pointer'}`}
-                            onClick={() => { if (!isEditing) { setEditingLineId(line.id); setEditValues({ totalCost: line.totalCost, markupPercent: line.markupPercent }); } }}>
+                            onClick={() => {
+                              if (!isEditing) {
+                                setEditingLineId(line.id);
+                                setEditValues({ totalCost: line.totalCost, markupPercent: line.markupPercent, sellPrice: line.sellPrice });
+                              }
+                            }}>
                             <td className="py-2 px-4">
                               <div className="flex items-center gap-1.5">
                                 {line.service === 'Material' && <Package className="w-3 h-3 text-amber-500" />}
@@ -1815,6 +2004,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                 {line.service === 'Folding' && <FoldVertical className="w-3 h-3 text-emerald-500" />}
                                 {line.service === 'Drilling' && <CircleDot className="w-3 h-3 text-orange-500" />}
                                 <span className="font-medium text-gray-800">{line.service}</span>
+                                {isOverridden && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Manually overridden" />}
                               </div>
                             </td>
                             <td className="py-2 px-4 text-gray-500 max-w-[200px] truncate">{line.description}</td>
@@ -1823,7 +2013,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                 <input type="number" step="0.01" value={editValues.totalCost ?? line.totalCost}
                                   onChange={e => setEditValues(v => ({ ...v, totalCost: parseFloat(e.target.value) || 0 }))}
                                   onClick={e => e.stopPropagation()}
-                                  className="w-20 px-1.5 py-0.5 text-right text-xs border border-blue-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                                  className="w-20 px-1.5 py-0.5 text-right text-xs border border-[#F890E7] rounded bg-white focus:outline-none focus:ring-1 focus:ring-[#F890E7]" />
                               ) : fmt(line.totalCost)}
                             </td>
                             <td className="py-2 px-4 text-right font-mono">
@@ -1832,7 +2022,7 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                   <input type="number" step="0.1" value={editValues.markupPercent ?? line.markupPercent}
                                     onChange={e => setEditValues(v => ({ ...v, markupPercent: parseFloat(e.target.value) || 0 }))}
                                     onClick={e => e.stopPropagation()}
-                                    className="w-16 px-1.5 py-0.5 text-right text-xs border border-blue-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                                    className="w-16 px-1.5 py-0.5 text-right text-xs border border-[#F890E7] rounded bg-white focus:outline-none focus:ring-1 focus:ring-[#F890E7]" />
                                   <span className="text-gray-400">%</span>
                                 </div>
                               ) : (
@@ -1840,16 +2030,27 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               )}
                             </td>
                             <td className="py-2 px-4 text-right font-mono font-semibold text-gray-900">
-                              {isEditing
-                                ? fmt((editValues.totalCost ?? line.totalCost) * (1 + (editValues.markupPercent ?? line.markupPercent) / 100))
-                                : fmt(line.sellPrice)
-                              }
+                              {isEditing ? (
+                                <input type="number" step="0.01"
+                                  value={editValues.sellPrice ?? line.sellPrice}
+                                  onChange={e => {
+                                    const sell = parseFloat(e.target.value) || 0;
+                                    const cost = editValues.totalCost ?? line.totalCost;
+                                    const mk = cost > 0 ? ((sell - cost) / cost) * 100 : 0;
+                                    setEditValues(v => ({ ...v, sellPrice: sell, markupPercent: parseFloat(mk.toFixed(1)) }));
+                                  }}
+                                  onClick={e => e.stopPropagation()}
+                                  className="w-20 px-1.5 py-0.5 text-right text-xs border border-[#F890E7] rounded bg-white focus:outline-none focus:ring-1 focus:ring-[#F890E7]" />
+                              ) : fmt(line.sellPrice)}
                             </td>
                             <td className="py-2 px-1">
                               {isEditing ? (
                                 <div className="flex items-center gap-0.5">
-                                  <button onClick={e => { e.stopPropagation(); applyEditLine(); }}
-                                    className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded"><Check className="w-3 h-3" /></button>
+                                  <button onClick={e => {
+                                    e.stopPropagation();
+                                    setManualOverrides(prev => ({ ...prev, [line.id]: true }));
+                                    applyEditLine();
+                                  }} className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded"><Check className="w-3 h-3" /></button>
                                   <button onClick={e => { e.stopPropagation(); setEditingLineId(null); }}
                                     className="p-0.5 text-red-500 hover:bg-red-50 rounded"><X className="w-3 h-3" /></button>
                                 </div>
@@ -1859,63 +2060,110 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         );
                       })}
                     </tbody>
+                    {/* Footer totals row */}
+                    <tfoot>
+                      <tr className="border-t-2 border-gray-200 bg-white font-semibold">
+                        <td className="py-2.5 px-4 text-gray-900 uppercase text-[10px] tracking-wide" colSpan={2}>Total</td>
+                        <td className="py-2.5 px-4 text-right font-mono text-gray-800">{fmt(itemTotalCost)}</td>
+                        <td className="py-2.5 px-4 text-right font-mono">
+                          <span className={itemTotalCost > 0 ? 'text-emerald-600' : 'text-gray-400'}>
+                            {itemTotalCost > 0 ? fmtPct(((itemTotalSell - itemTotalCost) / itemTotalCost) * 100) : '0.0%'}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-4 text-right font-mono text-lg text-gray-900">{fmt(itemTotalSell)}</td>
+                        <td className="py-2.5 px-1">
+                          <Edit3 className="w-3 h-3 text-gray-300" />
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
 
-                  {/* ── Cost / Markup / Margin Summary (item 33) ──────── */}
-                  <div className="px-4 py-3 border-t border-gray-200/60 bg-white">
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center">
-                        <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide">Total Cost</p>
-                        <p className="text-sm font-bold text-gray-700">{fmt(itemTotalCost)}</p>
+                  {/* Cost / Margin summary bar */}
+                  <div className="px-4 py-2.5 border-t border-emerald-200/60 bg-white flex items-center justify-between">
+                    <div className="flex items-center gap-6">
+                      <div>
+                        <span className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide mr-1">Markup:</span>
+                        <span className="text-xs font-bold text-blue-700">{fmt(itemMarkupAmt)}</span>
                       </div>
-                      <div className="text-center">
-                        <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide">Total Markup</p>
-                        <p className="text-sm font-bold text-blue-700">{fmt(itemMarkupAmt)}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide">Margin</p>
-                        <p className={`text-sm font-bold ${itemMarginPct >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                          {fmtPct(itemMarginPct)}
-                        </p>
+                      <div>
+                        <span className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide mr-1">Margin:</span>
+                        <span className={`text-xs font-bold ${itemMarginPct >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{fmtPct(itemMarginPct)}</span>
                       </div>
                     </div>
-                    <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">
-                      <span className="text-sm font-bold text-blue-700">Sell Price: {fmt(itemTotalSell)}</span>
-                    </div>
+                    <span className="text-sm font-bold text-emerald-700">Sell: {fmt(itemTotalSell)}</span>
                   </div>
                 </div>
               )}
 
-              {/* Notes */}
-              <Input label="Line Item Notes" value={item.notes || ''} onChange={e => onUpdateItem({ notes: e.target.value })} placeholder="Notes for this item..." />
-            </div>
-
-            {/* ── Right panel: Item Templates ──────────────────────────── */}
-            {matchingTemplates.length > 0 && (
-              <div className="w-52 flex-shrink-0">
-                <div className="sticky top-0">
-                  <h4 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Item Templates</h4>
-                  <div className="space-y-1.5 max-h-[60vh] overflow-y-auto">
-                    {matchingTemplates.slice(0, 12).map(t => (
-                      <button key={t.id} onClick={() => onApplyTemplate(t.id)}
-                        className="w-full text-left p-2.5 rounded-lg border border-gray-100 hover:border-blue-300 hover:bg-blue-50/50 transition-all text-xs group">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-gray-900 group-hover:text-blue-700 truncate">{t.name}</span>
-                          {t.isFavorite && <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400 flex-shrink-0" />}
-                        </div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">
-                          {t.categoryName} · {t.quantity.toLocaleString()} pcs
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+              {/* ── Notes ─────────────────────────────────────────────── */}
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Customer Notes</label>
+                  <textarea
+                    value={item.notes || ''}
+                    onChange={e => onUpdateItem({ notes: e.target.value })}
+                    placeholder="Notes visible to the customer..."
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400 resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Internal Notes</label>
+                  <textarea
+                    value={(item as any).internalNotes || ''}
+                    onChange={e => onUpdateItem({ internalNotes: e.target.value } as any)}
+                    placeholder="Internal notes (not shown to customer)..."
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400 resize-none"
+                  />
                 </div>
               </div>
+            </div>
+
+            {/* ── Right panel: Templates ──────────────────────────────── */}
+            {matchingTemplates.length > 0 && (
+              templatePanelCollapsed ? (
+                <div className="flex-shrink-0">
+                  <button
+                    onClick={() => setTemplatePanelCollapsed(false)}
+                    className="p-2 rounded-lg border border-gray-200 hover:border-[#F890E7] hover:bg-pink-50/50 transition-all"
+                    title="Show templates"
+                  >
+                    <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-52 flex-shrink-0 transition-all duration-300">
+                  <div className="sticky top-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Templates</h4>
+                      <button onClick={() => setTemplatePanelCollapsed(true)}
+                        className="p-1 hover:bg-gray-100 rounded transition-colors" title="Collapse">
+                        <ChevronRight className="w-3 h-3 text-gray-400" />
+                      </button>
+                    </div>
+                    <div className="space-y-1.5 max-h-[60vh] overflow-y-auto">
+                      {matchingTemplates.slice(0, 12).map(t => (
+                        <button key={t.id} onClick={() => onApplyTemplate(t.id)}
+                          className="w-full text-left p-2.5 rounded-lg border border-gray-100 hover:border-[#F890E7] hover:bg-pink-50/50 transition-all text-xs group">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-gray-900 group-hover:text-[#F890E7] truncate">{t.name}</span>
+                            {t.isFavorite && <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400 flex-shrink-0" />}
+                          </div>
+                          <div className="text-[10px] text-gray-400 mt-0.5">
+                            {t.categoryName} · {t.quantity.toLocaleString()} pcs
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )
             )}
           </div>
         </div>
 
-        {/* Modal Footer */}
+        {/* ═══ Modal Footer ═══════════════════════════════════════════════ */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
           <div className="flex items-center gap-2">
             <Button variant="danger" size="sm" onClick={onRemove} icon={<Trash2 className="w-3.5 h-3.5" />}>Remove Item</Button>
