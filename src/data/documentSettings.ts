@@ -171,8 +171,8 @@ export const DEFAULT_WORK_ORDER_TEMPLATE = `<!DOCTYPE html>
     .company-info { font-size: 13px; color: #6b7280; margin-top: 4px; }
     .doc-title { font-size: 28px; font-weight: bold; color: #1f2937; text-align: right; }
     .doc-number { font-size: 16px; font-weight: 600; color: #0f766e; text-align: right; margin-top: 4px; }
-    .header-right { display: flex; align-items: flex-start; justify-content: flex-end; gap: 18px; min-width: 320px; }
-    .header-copy { text-align: right; padding-top: 2px; min-width: 190px; }
+    .header-right { display: grid; grid-template-columns: minmax(170px, 1fr) 84px; align-items: start; gap: 18px; width: 320px; }
+    .header-copy { text-align: right; padding-top: 2px; min-width: 0; }
     .qr-box { width: 84px; text-align: center; flex-shrink: 0; }
     .qr-box img { width: 84px; height: 84px; display: block; border: 1px solid #e5e7eb; border-radius: 8px; }
     .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-bottom: 28px; }

@@ -48,14 +48,14 @@ const ensureWorkOrderQrMarkup = (template: string): string => {
   if (next.includes('.header-right {')) {
     next = next.replace(
       /\.header-right\s*\{[^}]*\}/,
-      '.header-right { display: flex; align-items: flex-start; justify-content: flex-end; gap: 18px; min-width: 320px; }',
+      '.header-right { display: grid; grid-template-columns: minmax(170px, 1fr) 84px; align-items: start; gap: 18px; width: 320px; }',
     );
   }
 
   if (next.includes('.header-copy {')) {
     next = next.replace(
       /\.header-copy\s*\{[^}]*\}/,
-      '.header-copy { text-align: right; padding-top: 2px; min-width: 190px; }',
+      '.header-copy { text-align: right; padding-top: 2px; min-width: 0; }',
     );
   }
 
