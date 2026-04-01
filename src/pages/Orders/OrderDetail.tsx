@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Printer, Receipt, KanbanSquare, Edit3, Trash2, CheckCircle, ChevronDown, ChevronUp, Copy, ArrowRight, ShoppingCart, Plus } from 'lucide-react';
 import { useStore } from '../../store';
@@ -68,7 +68,17 @@ export const OrderDetail: React.FC = () => {
   const linkedPurchaseOrders = purchaseOrders.filter((po) => po.orderId === order.id || (order.purchaseOrderIds || []).includes(po.id));
   const linkedInvoice = invoices.find((invoice) => invoice.orderIds.includes(order.id) || invoice.number === order.invoiceId);
 
-  const workOrderHtml = buildWorkOrderTemplateHtml({
+  const trackerUrl = useMemo(
+    () => `${window.location.origin}/OrderTracker/${order.number}`,
+    [order.number],
+  );
+
+  const qrCodeApiUrl = useMemo(
+    () => `https://api.qrserver.com/v1/create-qr-code/?size=84x84&data=${encodeURIComponent(trackerUrl)}`,
+    [trackerUrl],
+  );
+
+  const buildWorkOrderHtml = (qrCodeUrl: string) => buildWorkOrderTemplateHtml({
     template: documentTemplates.workOrder,
     company: companySettings,
     order,
@@ -76,10 +86,32 @@ export const OrderDetail: React.FC = () => {
     contact: primaryContact,
     csr: csr || null,
     salesRep: salesRep || null,
-    qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=84x84&data=${encodeURIComponent(`${window.location.origin}/OrderTracker/${order.number}`)}`,
+    qrCodeUrl,
   });
 
-  const openWorkOrderPrintWindow = () => {
+  const fetchQrCodeDataUrl = async () => {
+    const response = await fetch(qrCodeApiUrl);
+    if (!response.ok) {
+      throw new Error(`QR fetch failed with status ${response.status}`);
+    }
+    const blob = await response.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('QR data URL conversion failed'));
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const openWorkOrderPrintWindow = async () => {
+    let qrCodeSrc = qrCodeApiUrl;
+    try {
+      qrCodeSrc = await fetchQrCodeDataUrl();
+    } catch (error) {
+      console.error('Unable to inline QR code for work order print', error);
+    }
+
+    const workOrderHtml = buildWorkOrderHtml(qrCodeSrc);
     const blob = new Blob([workOrderHtml], { type: 'text/html' });
     const printUrl = URL.createObjectURL(blob);
     const printWindow = window.open(printUrl, '_blank');
