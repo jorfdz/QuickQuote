@@ -1697,26 +1697,45 @@ export const Materials: React.FC = () => {
           {/* ── Test Price Calculator ── */}
           {(() => {
             const preview = { ...form, materialType: form.materialType || 'paper', pricingModel: form.pricingModel || 'cost_per_m' } as PricingMaterial;
-            const baseCost = getUnitCost(preview);
+            const baseCostPerUnit = getUnitCost(preview);
             const unitLabel = getUnitLabel(preview);
-            if (baseCost <= 0 && !showTestPanel) return (
+            const model = form.pricingModel || 'cost_per_m';
+
+            if (baseCostPerUnit <= 0 && !showTestPanel) return (
               <button type="button" onClick={() => setShowTestPanel(true)}
                 className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:text-amber-900 transition-colors opacity-50 cursor-not-allowed" disabled>
                 <FlaskConical className="w-3.5 h-3.5" /> Test Price
               </button>
             );
 
-            // Compute test result
-            const tierCost = getTierCost(preview, testQty);
-            const effectiveCost = tierCost !== null ? tierCost : baseCost;
-            const markupAmt = form.markupType === 'fixed'
+            // Determine quantity label and how to interpret testQty
+            const qtyLabel = model === 'cost_per_sqft' ? 'Sq Ft' : model === 'cost_per_m' ? 'Sheets' : 'Units';
+
+            // Tier lookup: tiers store costPerUnit in the same unit as the base cost field
+            // For cost_per_m, tiers store price-per-M → divide by 1000 to get per-sheet
+            // For cost_per_unit / cost_per_sqft, tiers store the direct per-unit / per-sqft cost
+            const tierRaw = getTierCost(preview, testQty);
+            const tierCostPerUnit = tierRaw !== null
+              ? (model === 'cost_per_m' ? tierRaw / 1000 : tierRaw)
+              : null;
+
+            const effectiveCostPerUnit = tierCostPerUnit !== null ? tierCostPerUnit : baseCostPerUnit;
+
+            // Markup per unit
+            const markupPerUnit = form.markupType === 'fixed'
               ? (form.markup || 0)
-              : effectiveCost * ((form.markup || 0) / 100);
-            const sellPerUnit = effectiveCost + markupAmt;
-            const totalCost = effectiveCost * testQty;
+              : effectiveCostPerUnit * ((form.markup || 0) / 100);
+            const sellPerUnit = effectiveCostPerUnit + markupPerUnit;
+
+            // Totals
+            const totalCost = effectiveCostPerUnit * testQty;
             const totalSell = sellPerUnit * testQty;
             const minApplied = form.minimumCharge > 0 && totalSell < form.minimumCharge;
             const finalTotal = minApplied ? form.minimumCharge : totalSell;
+
+            // For display: show the tier raw value in the user's configured unit
+            const tierDisplayLabel = model === 'cost_per_m' ? '/M' : unitLabel;
+            const tierDisplayValue = tierRaw;
 
             return (
               <div className="space-y-2">
@@ -1741,7 +1760,7 @@ export const Materials: React.FC = () => {
                     {/* Test quantity input */}
                     <div className="flex items-center gap-2">
                       <label className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide whitespace-nowrap">
-                        {form.pricingModel === 'cost_per_sqft' ? 'Test Sq Ft' : form.pricingModel === 'cost_per_m' ? 'Test Sheets' : 'Test Qty'}
+                        Test {qtyLabel}
                       </label>
                       <input type="number" value={testQty}
                         onChange={e => setTestQty(parseInt(e.target.value) || 0)}
@@ -1750,35 +1769,48 @@ export const Materials: React.FC = () => {
 
                     {/* Results */}
                     <div className="bg-white/60 rounded-md px-3 py-2 space-y-1">
+                      {/* Per-unit breakdown */}
                       <div className="flex justify-between text-[11px]">
                         <span className="text-gray-600">Base cost{unitLabel}:</span>
-                        <span className="font-medium text-gray-900">{formatCurrency(baseCost)}</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(baseCostPerUnit)}</span>
                       </div>
-                      {tierCost !== null && (
+                      {tierCostPerUnit !== null && tierDisplayValue !== null && (
                         <div className="flex justify-between text-[11px]">
-                          <span className="text-gray-500">Tier cost{unitLabel} (at {testQty.toLocaleString()}):</span>
-                          <span className="font-medium text-purple-700">{formatCurrency(tierCost)}</span>
+                          <span className="text-gray-500">Tier price{tierDisplayLabel} (≥{testQty.toLocaleString()}):</span>
+                          <span className="font-medium text-purple-700">{formatCurrency(tierDisplayValue)}</span>
+                        </div>
+                      )}
+                      {tierCostPerUnit !== null && model === 'cost_per_m' && (
+                        <div className="flex justify-between text-[11px]">
+                          <span className="text-gray-500">Tier cost{unitLabel}:</span>
+                          <span className="font-medium text-purple-700">{formatCurrency(tierCostPerUnit)}</span>
                         </div>
                       )}
                       <div className="flex justify-between text-[11px]">
-                        <span className="text-gray-500">+ Markup ({form.markupType === 'fixed' ? formatCurrency(form.markup) : `${form.markup}%`}):</span>
-                        <span className="font-medium text-gray-700">{formatCurrency(markupAmt)}</span>
+                        <span className="text-gray-500">+ Markup ({form.markupType === 'fixed' ? formatCurrency(form.markup) + ' flat' : `${form.markup}%`}):</span>
+                        <span className="font-medium text-gray-700">{formatCurrency(markupPerUnit)}{unitLabel}</span>
                       </div>
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-gray-500">Sell{unitLabel}:</span>
+                      <div className="flex justify-between text-[11px] pt-1 border-t border-amber-200/60">
+                        <span className="text-gray-600 font-medium">Sell{unitLabel}:</span>
                         <span className="font-semibold text-blue-700">{formatCurrency(sellPerUnit)}</span>
                       </div>
-                      <div className="flex justify-between text-[11px] pt-1 border-t border-amber-200">
-                        <span className="text-gray-500">Total cost ({testQty.toLocaleString()}):</span>
+
+                      {/* Totals */}
+                      <div className="flex justify-between text-[11px] pt-1.5 mt-1.5 border-t border-amber-200">
+                        <span className="text-gray-500">× {testQty.toLocaleString()} {qtyLabel.toLowerCase()}</span>
+                        <span></span>
+                      </div>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-gray-500">Total cost:</span>
                         <span className="font-medium text-gray-900">{formatCurrency(totalCost)}</span>
                       </div>
                       <div className="flex justify-between text-[11px]">
-                        <span className="font-semibold text-amber-800">Total sell ({testQty.toLocaleString()}):</span>
+                        <span className="font-semibold text-amber-800">Total sell:</span>
                         <span className="font-bold text-amber-900">{formatCurrency(finalTotal)}</span>
                       </div>
                       {minApplied && (
                         <div className="text-[10px] text-amber-700 bg-amber-100 rounded px-2 py-1 mt-1">
-                          Subtotal {formatCurrency(totalSell)} is below minimum — minimum charge of {formatCurrency(form.minimumCharge)} applied
+                          Calculated total {formatCurrency(totalSell)} is below minimum — {formatCurrency(form.minimumCharge)} charged instead
                         </div>
                       )}
                     </div>
