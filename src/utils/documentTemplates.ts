@@ -36,26 +36,51 @@ ${html}
 };
 
 const ensureWorkOrderQrMarkup = (template: string): string => {
-  if (template.includes('{{qrCodeUrl}}')) {
-    return template;
-  }
-
   let next = template;
 
-  if (next.includes('</style>')) {
+  if (next.includes('.header {')) {
+    next = next.replace(
+      /\.header\s*\{[^}]*\}/,
+      '.header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1f2937; padding-bottom: 34px; margin-bottom: 28px; }',
+    );
+  }
+
+  if (next.includes('.header-right {')) {
+    next = next.replace(
+      /\.header-right\s*\{[^}]*\}/,
+      '.header-right { display: flex; align-items: flex-start; justify-content: flex-end; gap: 18px; min-width: 320px; }',
+    );
+  }
+
+  if (next.includes('.header-copy {')) {
+    next = next.replace(
+      /\.header-copy\s*\{[^}]*\}/,
+      '.header-copy { text-align: right; padding-top: 2px; min-width: 190px; }',
+    );
+  }
+
+  if (next.includes('.qr-box {')) {
+    next = next.replace(
+      /\.qr-box\s*\{[^}]*\}/,
+      '.qr-box { width: 84px; text-align: center; flex-shrink: 0; }',
+    );
+  }
+
+  next = next.replace(/<div class="qr-caption">[\s\S]*?<\/div>/g, '');
+  next = next.replace(/Tracker Link/gi, '');
+
+  if (!next.includes('{{qrCodeUrl}}') && next.includes('</style>')) {
     next = next.replace('</style>', `
     body { position: relative; }
     .work-order-qr-fallback { position: absolute; top: 40px; right: 40px; width: 84px; text-align: center; }
     .work-order-qr-fallback img { width: 84px; height: 84px; display: block; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; }
-    .work-order-qr-fallback div { font-size: 9px; color: #94a3b8; margin-top: 6px; letter-spacing: 0.06em; text-transform: uppercase; }
   </style>`);
   }
 
-  if (next.includes('<body>')) {
+  if (!next.includes('{{qrCodeUrl}}') && next.includes('<body>')) {
     next = next.replace('<body>', `<body>
   <div class="work-order-qr-fallback">
     <img src="{{qrCodeUrl}}" alt="Work order QR code" />
-    <div>Tracker Link</div>
   </div>`);
   }
 
