@@ -1,18 +1,28 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown, Clock, ArrowRight, ImageIcon, User, Truck, FlaskConical } from 'lucide-react';
+import { Plus, Trash2, Edit3, Search, Star, Copy, Settings, X, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Check, Layers, Package, ArrowUpDown, Clock, ArrowRight, ImageIcon, User, Truck, FlaskConical, Info } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Modal, Input, Checkbox } from '../../components/ui';
 
 import type { PricingMaterial, MaterialGroup, MaterialChangeRecord, MaterialType, MaterialPricingModel, MaterialMarkupType } from '../../types/pricing';
 import { MATERIAL_TYPE_LABELS, PRICING_MODEL_LABELS, MATERIAL_TYPE_PRICING_MODELS } from '../../types/pricing';
-import { getUnitCost, getUnitLabel, getUnitSell, deriveRollCostPerSqft, getTierCost } from '../../utils/materialCost';
+import { getUnitCost, getUnitLabel, getUnitSell, getOrderSell, deriveRollCostPerSqft, getTierCost } from '../../utils/materialCost';
 
 // ─── Sort / Pagination types ────────────────────────────────────────────────
 
 type SortColumn = 'name' | 'materialType' | 'group' | 'size' | 'sizeWidth' | 'sizeHeight' | 'unitCost' | 'markup' | 'unitSell' | 'vendor';
 type SortDir = 'asc' | 'desc';
 type PageSize = 50 | 100 | 200;
+
+const Tip: React.FC<{ label: string; tip: string }> = ({ label, tip }) => (
+  <span className="inline-flex items-center gap-1 group relative">
+    <span>{label}</span>
+    <Info className="w-3 h-3 text-gray-400" />
+    <span className="invisible group-hover:visible absolute bottom-full left-0 mb-1 w-56 p-2 text-[10px] bg-gray-900 text-white rounded-lg shadow-lg z-10">
+      {tip}
+    </span>
+  </span>
+);
 
 const emptyForm = {
   materialType: 'paper' as MaterialType,
@@ -28,7 +38,7 @@ const emptyForm = {
   rollLength: 0,
   pricingTiers: [] as { minQty: number; costPerUnit: number }[],
   minimumCharge: 0,
-  markupType: 'percent' as 'percent' | 'fixed',
+  markupType: 'percent' as 'percent' | 'fixed' | 'global_flat',
   markup: 70,
   materialGroupIds: [] as string[],
   categoryIds: [] as string[],
@@ -518,9 +528,10 @@ export const Materials: React.FC = () => {
     }
     if (field === 'materialType') return MATERIAL_TYPE_LABELS[value as MaterialType] || String(value);
     if (field === 'pricingModel') return PRICING_MODEL_LABELS[value as MaterialPricingModel] || String(value);
+    if (field === 'markupType') return value === 'percent' ? 'Global %' : value === 'fixed' ? 'Per Unit $' : value === 'global_flat' ? 'Flat Total $' : String(value);
     if (field === 'pricePerM' || field === 'costPerUnit' || field === 'costPerSqft' || field === 'rollCost' || field === 'minimumCharge') return `$${Number(value).toFixed(2)}`;
     if (field === 'rollLength') return `${value} ft`;
-    if (field === 'markup') return `${value}%`;
+    if (field === 'markup') return String(value);
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
     return String(value);
   }, [categories, products, materialGroups]);
@@ -692,7 +703,7 @@ export const Materials: React.FC = () => {
                   ['sizeWidth',    'W'],
                   ['sizeHeight',   'H'],
                   ['unitCost',     'Unit Cost'],
-                  ['markup',       'Markup %'],
+                  ['markup',       'Markup'],
                   ['unitSell',     'Sell Price'],
                 ] as [SortColumn, string][]).map(([col, label]) => (
                   <th
@@ -785,8 +796,11 @@ export const Materials: React.FC = () => {
                   <td className="py-3 px-4 text-sm text-gray-500">{m.materialType === 'blanks' ? '--' : `${m.sizeWidth}"`}</td>
                   <td className="py-3 px-4 text-sm text-gray-500">{m.materialType === 'blanks' || m.materialType === 'roll_media' ? '--' : `${m.sizeHeight}"`}</td>
                   <td className="py-3 px-4 text-sm text-gray-700 font-medium">{formatCurrency(getUnitCost(m))}<span className="text-[10px] text-gray-400 ml-0.5">{getUnitLabel(m)}</span></td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{m.markup}%</td>
-                  <td className="py-3 px-4 text-sm font-bold text-blue-700">{formatCurrency(getUnitSell(m))}<span className="text-[10px] text-gray-400 ml-0.5">{getUnitLabel(m)}</span></td>
+                  <td className="py-3 px-4 text-sm text-gray-500">{m.markupType === 'percent' || !m.markupType ? `${m.markup}%` : m.markupType === 'fixed' ? `$${m.markup}/u` : `$${m.markup} flat`}</td>
+                  <td className="py-3 px-4 text-sm font-bold text-blue-700">
+                    {formatCurrency(getUnitSell(m))}<span className="text-[10px] text-gray-400 ml-0.5">{getUnitLabel(m)}</span>
+                    {m.markupType === 'global_flat' && <span className="text-[9px] text-amber-500 ml-1" title="Markup is a flat amount on the total">+flat</span>}
+                  </td>
                   <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-1">
                       <button onClick={() => handleStartEdit(m)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
@@ -1673,25 +1687,36 @@ export const Materials: React.FC = () => {
                   className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
                     form.markupType === 'percent' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
                   }`}>
-                  Percentage
+                  Global %
                 </button>
                 <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'fixed' }))}
                   className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
                     form.markupType === 'fixed' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
                   }`}>
-                  Fixed $
+                  Per Unit $
+                </button>
+                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'global_flat' }))}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                    form.markupType === 'global_flat' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
+                  }`}>
+                  Flat Total $
                 </button>
               </div>
-              <div className="w-24">
+              <div className="w-28">
                 <Input
                   type="number"
                   value={form.markup}
                   onChange={e => setForm(f => ({ ...f, markup: parseFloat(e.target.value) || 0 }))}
-                  prefix={form.markupType === 'fixed' ? '$' : undefined}
+                  prefix={form.markupType !== 'percent' ? '$' : undefined}
                   suffix={form.markupType === 'percent' ? '%' : undefined}
                 />
               </div>
             </div>
+            <p className="text-[10px] text-gray-400 mt-1.5">
+              {form.markupType === 'percent' && 'Percentage added to each unit's cost.'}
+              {form.markupType === 'fixed' && 'Fixed dollar amount added to each unit's cost.'}
+              {form.markupType === 'global_flat' && 'Flat dollar amount added to the order total, regardless of quantity.'}
+            </p>
           </div>
 
           {/* ── Test Price Calculator ── */}
@@ -1721,15 +1746,16 @@ export const Materials: React.FC = () => {
 
             const effectiveCostPerUnit = tierCostPerUnit !== null ? tierCostPerUnit : baseCostPerUnit;
 
-            // Markup per unit
-            const markupPerUnit = form.markupType === 'fixed'
-              ? (form.markup || 0)
-              : effectiveCostPerUnit * ((form.markup || 0) / 100);
-            const sellPerUnit = effectiveCostPerUnit + markupPerUnit;
+            // Markup & sell via getOrderSell
+            const orderResult = getOrderSell(
+              { ...preview, markupType: form.markupType, markup: form.markup } as PricingMaterial,
+              testQty,
+              effectiveCostPerUnit,
+            );
+            const { sellPerUnit, markupPerUnit, totalSell, globalFlatApplied } = orderResult;
 
             // Totals
             const totalCost = effectiveCostPerUnit * testQty;
-            const totalSell = sellPerUnit * testQty;
             const minApplied = form.minimumCharge > 0 && totalSell < form.minimumCharge;
             const finalTotal = minApplied ? form.minimumCharge : totalSell;
 
@@ -1787,8 +1813,8 @@ export const Materials: React.FC = () => {
                         </div>
                       )}
                       <div className="flex justify-between text-[11px]">
-                        <span className="text-gray-500">+ Markup ({form.markupType === 'fixed' ? formatCurrency(form.markup) + ' flat' : `${form.markup}%`}):</span>
-                        <span className="font-medium text-gray-700">{formatCurrency(markupPerUnit)}{unitLabel}</span>
+                        <span className="text-gray-500">+ Markup ({form.markupType === 'percent' ? `${form.markup}%` : form.markupType === 'fixed' ? `${formatCurrency(form.markup)}/unit` : `${formatCurrency(form.markup)} flat total`}):</span>
+                        <span className="font-medium text-gray-700">{globalFlatApplied ? formatCurrency(form.markup) + ' total' : formatCurrency(markupPerUnit) + unitLabel}</span>
                       </div>
                       <div className="flex justify-between text-[11px] pt-1 border-t border-amber-200/60">
                         <span className="text-gray-600 font-medium">Sell{unitLabel}:</span>
