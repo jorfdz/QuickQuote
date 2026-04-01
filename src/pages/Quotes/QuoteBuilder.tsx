@@ -1144,8 +1144,11 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
     return lines;
   }, [selectedMaterial, selectedEquipment, imposition, ps, finishing, lookupClickPrice]);
 
-  // Recompute and sync to parent
+  // Recompute and sync to parent — but SKIP if user has manual overrides
   useEffect(() => {
+    // If there are any manual overrides, don't recompute (user edited values)
+    if (Object.keys(manualOverrides).length > 0) return;
+
     const lines = computeServiceLines();
     onUpdatePricing({ serviceLines: lines });
 
@@ -1259,7 +1262,11 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
       if (l.id !== editingLineId) return l;
       const cost = editValues.totalCost ?? l.totalCost;
       const markup = editValues.markupPercent ?? l.markupPercent;
-      return { ...l, totalCost: cost, markupPercent: markup, sellPrice: cost * (1 + markup / 100) };
+      // If user directly edited sell price, use that; otherwise compute from cost + markup
+      const sell = editValues.sellPrice != null
+        ? editValues.sellPrice
+        : cost * (1 + markup / 100);
+      return { ...l, totalCost: cost, markupPercent: markup, sellPrice: sell };
     });
     onUpdatePricing({ serviceLines: updatedLines });
 
@@ -1277,8 +1284,13 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
     setManualOverrides({});
     setEditingLineId(null);
     setEditValues({});
-    // Force recompute by triggering a no-op update
-    onUpdatePricing({ sheetsPerStack: ps.sheetsPerStack });
+    // Force fresh recompute now that overrides are cleared
+    const lines = computeServiceLines();
+    onUpdatePricing({ serviceLines: lines });
+    const totalCost = lines.reduce((s, l) => s + l.totalCost, 0);
+    const totalSell = lines.reduce((s, l) => s + l.sellPrice, 0);
+    const overallMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
+    onUpdateItem({ totalCost, sellPrice: totalSell, markup: Math.round(overallMarkup) });
   };
 
   // ── Save as template ──────────────────────────────────────────────────
