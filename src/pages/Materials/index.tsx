@@ -1515,7 +1515,7 @@ export const Materials: React.FC = () => {
             );
           })()}
 
-          {/* ── Material Type Attributes & Cost Configurations (collapsible) ── */}
+          {/* ── Material Attributes & Cost Configurations (collapsible) ── */}
           <div className="border-t border-gray-200 pt-4">
             <button
               type="button"
@@ -1526,7 +1526,7 @@ export const Materials: React.FC = () => {
                 {costConfigCollapsed
                   ? <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
                   : <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />}
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Material Type Attributes &amp; Cost Configurations</h3>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Material Attributes &amp; Cost Configurations</h3>
               </div>
               {costConfigCollapsed && (
                 <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
