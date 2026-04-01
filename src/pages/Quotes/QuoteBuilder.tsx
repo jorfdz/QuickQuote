@@ -1847,134 +1847,176 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
               )}
 
               {/* ═══ SERVICES ═════════════════════════════════════════ */}
-              <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide pt-3 pb-1 flex items-center gap-1.5">
-                <Layers className="w-3 h-3" /> Services
-              </div>
-
-              {/* ── FINISHING ─────────────────────────────────────────── */}
-              <div>
-                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                  <Scissors className="w-3 h-3 text-purple-500 flex-shrink-0" />
-                  <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Finishing</span>
-                  {selectedFinishingIds.map(id => {
-                    const svc = finishing.find(f => f.id === id);
-                    return svc ? (
-                      <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium bg-purple-100 text-purple-700 border border-purple-200">
-                        {svc.name}
-                        <button onClick={() => {
-                          const nextIds = selectedFinishingIds.filter(x => x !== id);
-                          setSelectedFinishingIds(nextIds);
-                          const selectedServices = finishing.filter(f => nextIds.includes(f.id));
-                          onUpdatePricing({
-                            cuttingEnabled: selectedServices.some(f => f.name === 'Cut'),
-                            foldingType: selectedServices.find(f => f.finishingGroupIds?.includes('fg2'))?.name || '',
-                            drillingType: selectedServices.find(f => f.finishingGroupIds?.includes('fg3'))?.name || '',
-                          });
-                        }} className="hover:text-purple-900"><X className="w-2.5 h-2.5" /></button>
-                      </span>
-                    ) : null;
-                  })}
+              <div className="space-y-3 pt-1">
+                {/* Section label */}
+                <div className="flex items-center gap-1.5">
+                  <Layers className="w-3 h-3 text-gray-400" />
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Services</span>
                 </div>
-                <select
-                  value=""
-                  onChange={e => {
-                    if (!e.target.value) return;
-                    trackInteraction();
-                    const nextIds = [...selectedFinishingIds, e.target.value];
-                    setSelectedFinishingIds(nextIds);
-                    const selectedServices = finishing.filter(f => nextIds.includes(f.id));
-                    onUpdatePricing({
-                      cuttingEnabled: selectedServices.some(f => f.name === 'Cut'),
-                      foldingType: selectedServices.find(f => f.finishingGroupIds?.includes('fg2'))?.name || '',
-                      drillingType: selectedServices.find(f => f.finishingGroupIds?.includes('fg3'))?.name || '',
-                    });
-                  }}
-                  className="w-full px-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#F890E7] appearance-none text-gray-500"
-                >
-                  <option value="">+ Add finishing service...</option>
-                  {groupedFinishing.map(({ group, services }) => (
-                    <optgroup key={group.id} label={group.name}>
-                      {services.filter(s => !selectedFinishingIds.includes(s.id)).map(s => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </div>
 
-              {/* ── LABOR ─────────────────────────────────────────────── */}
-              {pricing.labor.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                    <Wrench className="w-3 h-3 text-blue-500 flex-shrink-0" />
-                    <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Labor</span>
-                    {selectedLaborIds.map(id => {
-                      const svc = pricing.labor.find(l => l.id === id);
+                {/* ── FINISHING ─────────────────────────────────────────── */}
+                <div className="space-y-1.5">
+                  {/* Label row + selected pills */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <Scissors className="w-3 h-3 text-purple-500" />
+                      <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wide">Finishing</span>
+                    </div>
+                    {selectedFinishingIds.map(id => {
+                      const svc = finishing.find(f => f.id === id);
                       return svc ? (
-                        <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                        <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-purple-100 text-purple-700 border border-purple-200">
                           {svc.name}
-                          <button onClick={() => setSelectedLaborIds(prev => prev.filter(x => x !== id))} className="hover:text-blue-900"><X className="w-2.5 h-2.5" /></button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextIds = selectedFinishingIds.filter(x => x !== id);
+                              setSelectedFinishingIds(nextIds);
+                              const sel = finishing.filter(f => nextIds.includes(f.id));
+                              onUpdatePricing({
+                                cuttingEnabled: sel.some(f => f.name === 'Cut'),
+                                foldingType: sel.find(f => f.finishingGroupIds?.includes('fg2'))?.name || '',
+                                drillingType: sel.find(f => f.finishingGroupIds?.includes('fg3'))?.name || '',
+                              });
+                            }}
+                            className="hover:text-purple-900 ml-0.5"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
                         </span>
                       ) : null;
                     })}
                   </div>
-                  <select
-                    value=""
-                    onChange={e => { if (e.target.value) { trackInteraction(); setSelectedLaborIds(prev => [...prev, e.target.value]); } }}
-                    className="w-full px-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#F890E7] appearance-none text-gray-500"
-                  >
-                    <option value="">+ Add labor service...</option>
-                    {pricing.laborGroups.map(lg => {
-                      const services = pricing.labor.filter(l => l.laborGroupIds?.includes(lg.id) && !selectedLaborIds.includes(l.id));
-                      return services.length > 0 ? (
-                        <optgroup key={lg.id} label={lg.name}>
-                          {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </optgroup>
-                      ) : null;
-                    })}
-                    {pricing.labor.filter(l => (!l.laborGroupIds || l.laborGroupIds.length === 0) && !selectedLaborIds.includes(l.id)).map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
-              {/* ── BROKERED ──────────────────────────────────────────── */}
-              {pricing.brokered.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                    <Package className="w-3 h-3 text-amber-500 flex-shrink-0" />
-                    <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Brokered</span>
-                    {selectedBrokeredIds.map(id => {
-                      const svc = pricing.brokered.find(b => b.id === id);
-                      return svc ? (
-                        <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium bg-amber-100 text-amber-700 border border-amber-200">
-                          {svc.name}
-                          <button onClick={() => setSelectedBrokeredIds(prev => prev.filter(x => x !== id))} className="hover:text-amber-900"><X className="w-2.5 h-2.5" /></button>
-                        </span>
-                      ) : null;
-                    })}
-                  </div>
-                  <select
-                    value=""
-                    onChange={e => { if (e.target.value) { trackInteraction(); setSelectedBrokeredIds(prev => [...prev, e.target.value]); } }}
-                    className="w-full px-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#F890E7] appearance-none text-gray-500"
-                  >
-                    <option value="">+ Add brokered service...</option>
-                    {pricing.brokeredGroups.map(bg => {
-                      const services = pricing.brokered.filter(b => b.brokeredGroupIds?.includes(bg.id) && !selectedBrokeredIds.includes(b.id));
-                      return services.length > 0 ? (
-                        <optgroup key={bg.id} label={bg.name}>
-                          {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </optgroup>
-                      ) : null;
-                    })}
-                    {pricing.brokered.filter(b => (!b.brokeredGroupIds || b.brokeredGroupIds.length === 0) && !selectedBrokeredIds.includes(b.id)).map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
+                  {/* One dropdown per finishing group — side by side */}
+                  {groupedFinishing.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {groupedFinishing.map(({ group, services }) => {
+                        const available = services.filter(s => !selectedFinishingIds.includes(s.id));
+                        return (
+                          <div key={group.id} className="relative min-w-[140px] max-w-[200px] flex-1">
+                            <select
+                              value=""
+                              onChange={e => {
+                                if (!e.target.value) return;
+                                trackInteraction();
+                                const nextIds = [...selectedFinishingIds, e.target.value];
+                                setSelectedFinishingIds(nextIds);
+                                const sel = finishing.filter(f => nextIds.includes(f.id));
+                                onUpdatePricing({
+                                  cuttingEnabled: sel.some(f => f.name === 'Cut'),
+                                  foldingType: sel.find(f => f.finishingGroupIds?.includes('fg2'))?.name || '',
+                                  drillingType: sel.find(f => f.finishingGroupIds?.includes('fg3'))?.name || '',
+                                });
+                              }}
+                              disabled={available.length === 0}
+                              className="w-full pl-2 pr-7 py-1.5 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-purple-300 appearance-none text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:border-purple-300 transition-colors cursor-pointer"
+                            >
+                              <option value="">{group.name}</option>
+                              {available.map(s => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                              ))}
+                            </select>
+                            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
+
+                {/* ── LABOR ─────────────────────────────────────────────── */}
+                {pricing.labor.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <Wrench className="w-3 h-3 text-blue-500" />
+                        <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wide">Labor</span>
+                      </div>
+                      {selectedLaborIds.map(id => {
+                        const svc = pricing.labor.find(l => l.id === id);
+                        return svc ? (
+                          <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-blue-100 text-blue-700 border border-blue-200">
+                            {svc.name}
+                            <button type="button" onClick={() => setSelectedLaborIds(prev => prev.filter(x => x !== id))} className="hover:text-blue-900 ml-0.5">
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+
+                    {/* One dropdown per labor group */}
+                    {pricing.laborGroups.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {pricing.laborGroups.map(lg => {
+                          const available = pricing.labor.filter(l => l.laborGroupIds?.includes(lg.id) && !selectedLaborIds.includes(l.id));
+                          return (
+                            <div key={lg.id} className="relative min-w-[140px] max-w-[200px] flex-1">
+                              <select
+                                value=""
+                                onChange={e => { if (e.target.value) { trackInteraction(); setSelectedLaborIds(prev => [...prev, e.target.value]); } }}
+                                disabled={available.length === 0}
+                                className="w-full pl-2 pr-7 py-1.5 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-300 appearance-none text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:border-blue-300 transition-colors cursor-pointer"
+                              >
+                                <option value="">{lg.name}</option>
+                                {available.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                              </select>
+                              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── BROKERED ──────────────────────────────────────────── */}
+                {pricing.brokered.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <Package className="w-3 h-3 text-amber-500" />
+                        <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wide">Brokered</span>
+                      </div>
+                      {selectedBrokeredIds.map(id => {
+                        const svc = pricing.brokered.find(b => b.id === id);
+                        return svc ? (
+                          <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                            {svc.name}
+                            <button type="button" onClick={() => setSelectedBrokeredIds(prev => prev.filter(x => x !== id))} className="hover:text-amber-900 ml-0.5">
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+
+                    {/* One dropdown per brokered group */}
+                    {pricing.brokeredGroups.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {pricing.brokeredGroups.map(bg => {
+                          const available = pricing.brokered.filter(b => b.brokeredGroupIds?.includes(bg.id) && !selectedBrokeredIds.includes(b.id));
+                          return (
+                            <div key={bg.id} className="relative min-w-[140px] max-w-[200px] flex-1">
+                              <select
+                                value=""
+                                onChange={e => { if (e.target.value) { trackInteraction(); setSelectedBrokeredIds(prev => [...prev, e.target.value]); } }}
+                                disabled={available.length === 0}
+                                className="w-full pl-2 pr-7 py-1.5 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-300 appearance-none text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:border-amber-300 transition-colors cursor-pointer"
+                              >
+                                <option value="">{bg.name}</option>
+                                {available.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                              </select>
+                              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* ── Multi-Quantity Price Table ────────────────────────── */}
               {isMultiQty && multiQtyPricing.length > 0 && (
