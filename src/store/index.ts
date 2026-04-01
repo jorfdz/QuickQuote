@@ -10,6 +10,7 @@ import {
   mockMaterials, mockEquipment, mockVendors, mockPurchaseOrders,
   mockUsers, mockWorkflows, mockTemplates, currentUser
 } from '../data/mockData';
+import { defaultTrackingDevices } from '../data/trackingDevices';
 import { realCustomers, realContacts, realOrders } from '../data/realData';
 import { DEFAULT_COMPANY_SETTINGS, DEFAULT_DOCUMENT_TEMPLATES } from '../data/documentSettings';
 
@@ -129,7 +130,7 @@ export const useStore = create<AppStore>()(
       purchaseOrders: mockPurchaseOrders,
       users: mockUsers,
       workflows: mockWorkflows,
-      trackingDevices: [],
+      trackingDevices: defaultTrackingDevices,
       templates: mockTemplates,
       companySettings: DEFAULT_COMPANY_SETTINGS,
       documentTemplates: DEFAULT_DOCUMENT_TEMPLATES,
@@ -277,7 +278,7 @@ export const useStore = create<AppStore>()(
     }),
     {
       name: 'quikquote-storage',
-      version: 7,
+      version: 8,
       migrate: (persistedState) => {
         const state = persistedState as Partial<AppStore> | undefined;
 
@@ -295,7 +296,7 @@ export const useStore = create<AppStore>()(
               isActive: nextWorkflow.isActive ?? true,
             };
           }),
-          trackingDevices: state.trackingDevices || [],
+          trackingDevices: mergeTrackingDevices(defaultTrackingDevices, state.trackingDevices || []),
           companySettings: { ...DEFAULT_COMPANY_SETTINGS, ...state.companySettings },
           documentTemplates: { ...DEFAULT_DOCUMENT_TEMPLATES, ...state.documentTemplates },
         };
@@ -303,3 +304,10 @@ export const useStore = create<AppStore>()(
     }
   )
 );
+
+const mergeTrackingDevices = (defaults: TrackingDevice[], stored: TrackingDevice[]) => {
+  const merged = new Map<string, TrackingDevice>();
+  defaults.forEach((device) => merged.set(device.code.toUpperCase(), device));
+  stored.forEach((device) => merged.set(device.code.toUpperCase(), device));
+  return Array.from(merged.values());
+};

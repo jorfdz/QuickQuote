@@ -12,6 +12,11 @@ declare global {
       new (options?: { formats?: string[] }): BarcodeDetectorInstance;
       getSupportedFormats?: () => Promise<string[]>;
     };
+    jsQR?: (
+      data: Uint8ClampedArray,
+      width: number,
+      height: number,
+    ) => { data?: string } | null;
   }
 
   interface BarcodeDetectorInstance {
@@ -24,6 +29,7 @@ export const ScannerPage: React.FC = () => {
   const navigate = useNavigate();
   const { trackingDevices, workflows, orders, processTrackingDeviceOrderScan } = useStore();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const detectorRef = useRef<BarcodeDetectorInstance | null>(null);
@@ -34,6 +40,7 @@ export const ScannerPage: React.FC = () => {
   const [manualValue, setManualValue] = useState('');
   const [lastOrderNumber, setLastOrderNumber] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
+  const [jsQrReady, setJsQrReady] = useState(false);
 
   const normalizedCode = deviceCode.trim().toUpperCase();
   const device = trackingDevices.find((item) => item.code.toUpperCase() === normalizedCode) || null;
@@ -46,15 +53,36 @@ export const ScannerPage: React.FC = () => {
   );
 
   useEffect(() => {
+    if (canUseBarcodeDetector || typeof document === 'undefined') return;
+    if (window.jsQR) {
+      setJsQrReady(true);
+      return;
+    }
+
+    const existing = document.querySelector<HTMLScriptElement>('script[data-jsqr-loader="true"]');
+    if (existing) {
+      existing.addEventListener('load', () => setJsQrReady(true), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+    script.async = true;
+    script.dataset.jsqrLoader = 'true';
+    script.onload = () => setJsQrReady(true);
+    document.head.appendChild(script);
+  }, [canUseBarcodeDetector]);
+
+  useEffect(() => {
     if (!device || !device.isActive) {
       setStatus('error');
       setMessage('This tracking device is invalid or inactive.');
       return;
     }
 
-    if (!canUseBarcodeDetector) {
+    if (!canUseBarcodeDetector && !jsQrReady) {
       setStatus('idle');
-      setMessage('Camera scanning is not available on this browser. Use manual entry below.');
+      setMessage('Preparing scanner engine...');
       return;
     }
 
@@ -62,7 +90,9 @@ export const ScannerPage: React.FC = () => {
 
     const startScanner = async () => {
       try {
-        detectorRef.current = new window.BarcodeDetector!({ formats: ['qr_code'] });
+        if (canUseBarcodeDetector) {
+          detectorRef.current = new window.BarcodeDetector!({ formats: ['qr_code'] });
+        }
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: 'environment' },
@@ -86,12 +116,29 @@ export const ScannerPage: React.FC = () => {
         setMessage('Scanning for Work Order QR codes...');
 
         const scanLoop = async () => {
-          if (cancelled || !videoRef.current || !detectorRef.current) return;
+          if (cancelled || !videoRef.current) return;
 
           if (!processingRef.current && videoRef.current.readyState >= 2) {
             try {
-              const results = await detectorRef.current.detect(videoRef.current);
-              const rawValue = results[0]?.rawValue;
+              let rawValue = '';
+              if (detectorRef.current) {
+                const results = await detectorRef.current.detect(videoRef.current);
+                rawValue = results[0]?.rawValue || '';
+              } else if (window.jsQR) {
+                if (!canvasRef.current) {
+                  canvasRef.current = document.createElement('canvas');
+                }
+                const canvas = canvasRef.current;
+                canvas.width = videoRef.current.videoWidth;
+                canvas.height = videoRef.current.videoHeight;
+                const context = canvas.getContext('2d', { willReadFrequently: true });
+                if (context) {
+                  context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+                  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                  const result = window.jsQR(imageData.data, imageData.width, imageData.height);
+                  rawValue = result?.data || '';
+                }
+              }
               if (rawValue) {
                 processingRef.current = true;
                 await handleScannedValue(rawValue);
@@ -119,7 +166,7 @@ export const ScannerPage: React.FC = () => {
       if (animationFrameRef.current) window.cancelAnimationFrame(animationFrameRef.current);
       if (streamRef.current) streamRef.current.getTracks().forEach((track) => track.stop());
     };
-  }, [canUseBarcodeDetector, device]);
+  }, [canUseBarcodeDetector, device, jsQrReady]);
 
   const extractOrderNumber = (value: string) => {
     const trimmed = value.trim();
