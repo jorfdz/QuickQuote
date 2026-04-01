@@ -3,13 +3,13 @@ import { persist } from 'zustand/middleware';
 import type {
   PricingCategory, PricingProduct, PricingEquipment,
   PricingFinishing, PricingMaterial, ProductPricingTemplate,
-  EquipmentPricingTier, MaterialGroup, MaintenanceRecord, FinishingGroup, PricingLabor, PricingBrokered,
+  EquipmentPricingTier, MaterialGroup, MaintenanceRecord, FinishingGroup, LaborGroup, BrokeredGroup, PricingLabor, PricingBrokered,
   MaterialChangeRecord, MaterialFieldChange,
 } from '../types/pricing';
 import {
   defaultCategories, defaultProducts, defaultPricingEquipment,
   defaultFinishing, defaultPricingMaterials, defaultPricingTemplates,
-  defaultMaterialGroups, defaultFinishingGroups, defaultLabor, defaultBrokered,
+  defaultMaterialGroups, defaultFinishingGroups, defaultLaborGroups, defaultBrokeredGroups, defaultLabor, defaultBrokered,
 } from '../data/pricingData';
 import { useStore } from './index';
 
@@ -76,6 +76,8 @@ interface PricingStore {
   templates: ProductPricingTemplate[];
   materialGroups: MaterialGroup[];
   finishingGroups: FinishingGroup[];
+  laborGroups: LaborGroup[];
+  brokeredGroups: BrokeredGroup[];
   materialChangeHistory: MaterialChangeRecord[];
 
   // Categories CRUD
@@ -132,6 +134,16 @@ interface PricingStore {
   updateFinishingGroup: (id: string, g: Partial<FinishingGroup>) => void;
   deleteFinishingGroup: (id: string) => void;
 
+  // Labor Groups CRUD
+  addLaborGroup: (g: Omit<LaborGroup, 'id' | 'createdAt'>) => LaborGroup;
+  updateLaborGroup: (id: string, g: Partial<LaborGroup>) => void;
+  deleteLaborGroup: (id: string) => void;
+
+  // Brokered Groups CRUD
+  addBrokeredGroup: (g: Omit<BrokeredGroup, 'id' | 'createdAt'>) => BrokeredGroup;
+  updateBrokeredGroup: (id: string, g: Partial<BrokeredGroup>) => void;
+  deleteBrokeredGroup: (id: string) => void;
+
   // Templates CRUD
   addTemplate: (t: Omit<ProductPricingTemplate, 'id' | 'createdAt' | 'usageCount'>) => ProductPricingTemplate;
   updateTemplate: (id: string, t: Partial<ProductPricingTemplate>) => void;
@@ -173,6 +185,8 @@ export const usePricingStore = create<PricingStore>()(
       templates: defaultPricingTemplates,
       materialGroups: defaultMaterialGroups,
       finishingGroups: defaultFinishingGroups,
+      laborGroups: defaultLaborGroups,
+      brokeredGroups: defaultBrokeredGroups,
       materialChangeHistory: [] as MaterialChangeRecord[],
 
       // ── Categories ──────────────────────────────────────────────────────
@@ -422,6 +436,32 @@ export const usePricingStore = create<PricingStore>()(
         finishingGroups: s.finishingGroups.filter((x) => x.id !== id),
       })),
 
+      // ── Labor Groups ───────────────────────────────────────────────────
+      addLaborGroup: (g) => {
+        const item: LaborGroup = { ...g, id: uid(), createdAt: new Date().toISOString() };
+        set((s) => ({ laborGroups: [...s.laborGroups, item] }));
+        return item;
+      },
+      updateLaborGroup: (id, g) => set((s) => ({
+        laborGroups: s.laborGroups.map((x) => (x.id === id ? { ...x, ...g } : x)),
+      })),
+      deleteLaborGroup: (id) => set((s) => ({
+        laborGroups: s.laborGroups.filter((x) => x.id !== id),
+      })),
+
+      // ── Brokered Groups ────────────────────────────────────────────────
+      addBrokeredGroup: (g) => {
+        const item: BrokeredGroup = { ...g, id: uid(), createdAt: new Date().toISOString() };
+        set((s) => ({ brokeredGroups: [...s.brokeredGroups, item] }));
+        return item;
+      },
+      updateBrokeredGroup: (id, g) => set((s) => ({
+        brokeredGroups: s.brokeredGroups.map((x) => (x.id === id ? { ...x, ...g } : x)),
+      })),
+      deleteBrokeredGroup: (id) => set((s) => ({
+        brokeredGroups: s.brokeredGroups.filter((x) => x.id !== id),
+      })),
+
       // ── Toggle helpers ─────────────────────────────────────────────────
       toggleMaterialFavorite: (id) => set((s) => ({
         materials: s.materials.map((x) =>
@@ -590,9 +630,9 @@ export const usePricingStore = create<PricingStore>()(
     }),
     {
       name: 'quikquote-pricing-storage',
-      version: 8,
+      version: 9,
       migrate: (_persisted: unknown) => {
-        // Version 8: added materialChangeHistory for field-level change tracking on materials
+        // Version 9: added laborGroups / brokeredGroups with CRUD
         const prev = _persisted as Record<string, unknown> | null;
         return {
           categories: prev?.categories ?? defaultCategories,
@@ -605,6 +645,8 @@ export const usePricingStore = create<PricingStore>()(
           templates: prev?.templates ?? defaultPricingTemplates,
           materialGroups: prev?.materialGroups ?? defaultMaterialGroups,
           finishingGroups: prev?.finishingGroups ?? defaultFinishingGroups,
+          laborGroups: prev?.laborGroups ?? defaultLaborGroups,
+          brokeredGroups: prev?.brokeredGroups ?? defaultBrokeredGroups,
           materialChangeHistory: (prev?.materialChangeHistory as MaterialChangeRecord[]) ?? [],
         };
       },

@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Plus, Trash2, Edit3, Search, Handshake, Info, Copy, X, Building2,
+  Plus, Trash2, Edit3, Search, Handshake, Info, Copy, X, Building2, Settings,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { useStore } from '../../store';
 import { Button, Card, PageHeader, Table, Modal, Input, Tabs } from '../../components/ui';
-import type { PricingBrokered, BrokeredCostBasis } from '../../types/pricing';
+import type { PricingBrokered, BrokeredCostBasis, BrokeredGroup } from '../../types/pricing';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const formatCurrency = (n: number) => `$${n.toFixed(2)}`;
@@ -41,14 +41,18 @@ const emptyBrokeredForm = {
   vendorId: '' as string | undefined,
   vendorName: '' as string | undefined,
   categoryIds: [] as string[],
+  brokeredGroupIds: [] as string[],
   notes: '',
 };
+
+const emptyGroupForm = { name: '', description: '' };
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 export const Brokered: React.FC = () => {
   const [searchParams] = useSearchParams();
   const {
     brokered, addBrokered, updateBrokered, deleteBrokered,
+    brokeredGroups, addBrokeredGroup, updateBrokeredGroup, deleteBrokeredGroup,
     categories,
   } = usePricingStore();
 
@@ -56,11 +60,19 @@ export const Brokered: React.FC = () => {
 
   const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [filterCategory, setFilterCategory] = useState('');
+  const [filterGroup, setFilterGroup] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyBrokeredForm);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [modalTab, setModalTab] = useState('details');
+
+  // Group manager state
+  const [showGroupManager, setShowGroupManager] = useState(false);
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [groupForm, setGroupForm] = useState(emptyGroupForm);
+  const [deleteGroupConfirm, setDeleteGroupConfirm] = useState<string | null>(null);
 
   // ── Category lookup map ──
   const categoryMap = useMemo(() => {
@@ -68,6 +80,13 @@ export const Brokered: React.FC = () => {
     categories.forEach(c => m.set(c.id, c.name));
     return m;
   }, [categories]);
+
+  // ── Group lookup map ──
+  const groupMap = useMemo(() => {
+    const m = new Map<string, string>();
+    brokeredGroups.forEach(g => m.set(g.id, g.name));
+    return m;
+  }, [brokeredGroups]);
 
   // ── Selected vendor details ──
   const selectedVendor = useMemo(() => {
@@ -90,8 +109,11 @@ export const Brokered: React.FC = () => {
     if (filterCategory) {
       list = list.filter(b => b.categoryIds?.includes(filterCategory));
     }
+    if (filterGroup) {
+      list = list.filter(b => b.brokeredGroupIds?.includes(filterGroup));
+    }
     return list;
-  }, [brokered, search, filterCategory]);
+  }, [brokered, search, filterCategory, filterGroup]);
 
   // ── Handlers ──
   const openNewModal = () => {
@@ -113,6 +135,7 @@ export const Brokered: React.FC = () => {
       vendorId: b.vendorId || '',
       vendorName: b.vendorName || '',
       categoryIds: b.categoryIds || [],
+      brokeredGroupIds: b.brokeredGroupIds || [],
       notes: b.notes || '',
     });
     setModalTab('details');
@@ -135,6 +158,7 @@ export const Brokered: React.FC = () => {
       vendorId: form.vendorId || undefined,
       vendorName: form.vendorName || undefined,
       categoryIds: form.categoryIds,
+      brokeredGroupIds: form.brokeredGroupIds,
       notes: form.notes || undefined,
     };
     if (editingId) {
@@ -156,6 +180,7 @@ export const Brokered: React.FC = () => {
       vendorId: b.vendorId,
       vendorName: b.vendorName,
       categoryIds: b.categoryIds || [],
+      brokeredGroupIds: b.brokeredGroupIds || [],
       notes: b.notes,
     });
   };
@@ -180,6 +205,49 @@ export const Brokered: React.FC = () => {
     }
   };
 
+  const toggleBrokeredGroup = (gId: string) => {
+    setForm(f => ({
+      ...f,
+      brokeredGroupIds: f.brokeredGroupIds.includes(gId)
+        ? f.brokeredGroupIds.filter(id => id !== gId)
+        : [...f.brokeredGroupIds, gId],
+    }));
+  };
+
+  // ── Group Manager Handlers ──
+  const handleOpenGroupForm = (group?: BrokeredGroup) => {
+    if (group) {
+      setEditingGroupId(group.id);
+      setGroupForm({ name: group.name, description: group.description || '' });
+    } else {
+      setEditingGroupId(null);
+      setGroupForm(emptyGroupForm);
+    }
+    setShowGroupForm(true);
+  };
+
+  const handleSaveGroup = () => {
+    if (!groupForm.name) return;
+    if (editingGroupId) {
+      updateBrokeredGroup(editingGroupId, {
+        name: groupForm.name,
+        description: groupForm.description || undefined,
+      });
+    } else {
+      addBrokeredGroup({
+        name: groupForm.name,
+        description: groupForm.description || undefined,
+      });
+    }
+    setShowGroupForm(false);
+    setEditingGroupId(null);
+  };
+
+  const handleDeleteGroup = (id: string) => {
+    deleteBrokeredGroup(id);
+    setDeleteGroupConfirm(null);
+  };
+
   // ── Render ──
   return (
     <div>
@@ -187,9 +255,14 @@ export const Brokered: React.FC = () => {
         title="Brokered"
         subtitle={`${brokered.length} brokered service${brokered.length !== 1 ? 's' : ''}`}
         actions={
-          <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={openNewModal}>
-            Add Brokered
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" icon={<Settings className="w-4 h-4" />} onClick={() => setShowGroupManager(true)}>
+              Manage Groups
+            </Button>
+            <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={openNewModal}>
+              Add Brokered
+            </Button>
+          </div>
         }
       />
 
@@ -214,6 +287,18 @@ export const Brokered: React.FC = () => {
               <option value="">All Categories</option>
               {categories.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <select
+              value={filterGroup}
+              onChange={e => setFilterGroup(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Groups</option>
+              {brokeredGroups.map(g => (
+                <option key={g.id} value={g.id}>{g.name}</option>
               ))}
             </select>
           </div>
@@ -423,27 +508,55 @@ export const Brokered: React.FC = () => {
                 </div>
               )}
 
-              {/* Categories multi-select */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                  Categories
-                </label>
-                <div className="border border-gray-200 rounded-lg p-3 max-h-32 overflow-y-auto">
-                  {categories.length === 0 && (
-                    <p className="text-xs text-gray-400 italic">No categories defined</p>
-                  )}
-                  <div className="grid grid-cols-2 gap-2">
-                    {categories.map(c => (
-                      <label key={c.id} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={form.categoryIds.includes(c.id)}
-                          onChange={() => toggleCategory(c.id)}
-                          className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-700">{c.name}</span>
-                      </label>
-                    ))}
+              {/* Categories + Brokered Groups side by side */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Categories multi-select */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    Categories
+                  </label>
+                  <div className="border border-gray-200 rounded-lg p-3 max-h-32 overflow-y-auto">
+                    {categories.length === 0 && (
+                      <p className="text-xs text-gray-400 italic">No categories defined</p>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      {categories.map(c => (
+                        <label key={c.id} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={form.categoryIds.includes(c.id)}
+                            onChange={() => toggleCategory(c.id)}
+                            className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">{c.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Brokered Groups multi-select */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    Brokered Groups
+                  </label>
+                  <div className="border border-gray-200 rounded-lg p-3 max-h-32 overflow-y-auto">
+                    {brokeredGroups.length === 0 && (
+                      <p className="text-xs text-gray-400 italic">No groups defined</p>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      {brokeredGroups.map(g => (
+                        <label key={g.id} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={form.brokeredGroupIds.includes(g.id)}
+                            onChange={() => toggleBrokeredGroup(g.id)}
+                            className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">{g.name}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -549,6 +662,80 @@ export const Brokered: React.FC = () => {
               {editingId ? 'Save Changes' : 'Add Brokered'}
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* ═══════════════ MANAGE GROUPS MODAL ═══════════════ */}
+      <Modal
+        isOpen={showGroupManager}
+        onClose={() => { setShowGroupManager(false); setShowGroupForm(false); }}
+        title="Manage Brokered Groups"
+        size="lg"
+      >
+        <div className="space-y-4">
+          {/* Group list */}
+          {!showGroupForm && (
+            <>
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-gray-500">{brokeredGroups.length} brokered groups</p>
+                <Button variant="primary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={() => handleOpenGroupForm()}>
+                  Add Group
+                </Button>
+              </div>
+              <div className="divide-y divide-gray-100 border border-gray-100 rounded-lg">
+                {brokeredGroups.map(g => (
+                  <div key={g.id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{g.name}</p>
+                      {g.description && <p className="text-xs text-gray-500 mt-0.5">{g.description}</p>}
+                    </div>
+                    <div className="flex gap-1">
+                      {deleteGroupConfirm === g.id ? (
+                        <div className="flex gap-1 items-center">
+                          <button onClick={() => handleDeleteGroup(g.id)} className="px-2 py-0.5 text-xs bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
+                          <button onClick={() => setDeleteGroupConfirm(null)} className="px-2 py-0.5 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                        </div>
+                      ) : (
+                        <>
+                          <button onClick={() => handleOpenGroupForm(g)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => setDeleteGroupConfirm(g.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {brokeredGroups.length === 0 && (
+                  <div className="text-center py-8 text-gray-400 text-sm">No brokered groups yet</div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Group add/edit form */}
+          {showGroupForm && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-700">{editingGroupId ? 'Edit Group' : 'New Group'}</h3>
+                <button onClick={() => { setShowGroupForm(false); setEditingGroupId(null); }} className="p-1 hover:bg-gray-100 rounded">
+                  <X className="w-4 h-4 text-gray-400" />
+                </button>
+              </div>
+              <Input label="Group Name" value={groupForm.name} onChange={e => setGroupForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Outsourced Print" />
+              <Input label="Description" value={groupForm.description} onChange={e => setGroupForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Optional description" />
+              <div className="flex gap-3 justify-end pt-2">
+                <Button variant="secondary" size="sm" onClick={() => { setShowGroupForm(false); setEditingGroupId(null); }}>Cancel</Button>
+                <Button variant="primary" size="sm" onClick={handleSaveGroup} disabled={!groupForm.name}>
+                  {editingGroupId ? 'Save Changes' : 'Add Group'}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
     </div>

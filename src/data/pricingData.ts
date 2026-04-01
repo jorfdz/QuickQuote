@@ -1,7 +1,7 @@
 import type {
   PricingCategory, PricingProduct, PricingEquipment,
   PricingFinishing, PricingMaterial, ProductPricingTemplate,
-  MaterialGroup, FinishingGroup, PricingLabor, PricingBrokered,
+  MaterialGroup, FinishingGroup, LaborGroup, BrokeredGroup, PricingLabor, PricingBrokered,
 } from '../types/pricing';
 
 // ─── MATERIAL GROUPS ──────────────────────────────────────────────────────────
@@ -22,6 +22,21 @@ export const defaultFinishingGroups: FinishingGroup[] = [
   { id: 'fg4', name: 'Laminating & Coating', description: 'Sheet lamination, roll lamination, UV coating', createdAt: '2024-01-01' },
   { id: 'fg5', name: 'Mailing & Fulfillment', description: 'Inserting, addressing, tabbing, metering', createdAt: '2024-01-01' },
   { id: 'fg6', name: 'Sign Finishing', description: 'Routing, mounting, grommeting, hemming', createdAt: '2024-01-01' },
+];
+
+// ─── LABOR GROUPS ─────────────────────────────────────────────────────────
+
+export const defaultLaborGroups: LaborGroup[] = [
+  { id: 'lg1', name: 'Design & Prepress', description: 'Graphic design, prepress, and proofing services', createdAt: '2024-01-01' },
+  { id: 'lg2', name: 'Assembly & Fulfillment', description: 'Manual assembly, kitting, packaging, and fulfillment', createdAt: '2024-01-01' },
+  { id: 'lg3', name: 'Installation', description: 'On-site installation and application services', createdAt: '2024-01-01' },
+];
+
+// ─── BROKERED GROUPS ──────────────────────────────────────────────────────
+
+export const defaultBrokeredGroups: BrokeredGroup[] = [
+  { id: 'bg1', name: 'Outsourced Print', description: 'Print jobs sent to outside vendors', createdAt: '2024-01-01' },
+  { id: 'bg2', name: 'Specialty Services', description: 'Embroidery, promotional products, specialty finishing', createdAt: '2024-01-01' },
 ];
 
 // ─── CATEGORIES (from Excel tabs) ───────────────────────────────────────────
@@ -283,17 +298,17 @@ export const defaultFinishing: PricingFinishing[] = [
 // ─── LABOR ─────────────────────────────────────────────────────────────────
 
 export const defaultLabor: PricingLabor[] = [
-  { id: 'pl1', name: 'Graphic Design', description: 'Design and layout services', hourlyCost: 30, initialSetupFee: 10, markupPercent: 100, categoryIds: ['pc1', 'pc2', 'pc3'], isFixedCharge: false, fixedChargeAmount: 0, fixedChargeCost: 0, minimumCharge: 0, outputPerHour: 1, notes: '', createdAt: '2024-01-01' },
-  { id: 'pl2', name: 'Installation', description: 'On-site installation of signage and graphics', hourlyCost: 45, initialSetupFee: 25, markupPercent: 80, categoryIds: ['pc2'], isFixedCharge: false, fixedChargeAmount: 0, fixedChargeCost: 0, minimumCharge: 0, outputPerHour: 1, notes: '', createdAt: '2024-01-01' },
-  { id: 'pl3', name: 'Manual Assembly', description: 'Hand assembly, collating, packaging', hourlyCost: 25, initialSetupFee: 0, markupPercent: 100, categoryIds: ['pc1', 'pc3'], isFixedCharge: false, fixedChargeAmount: 0, fixedChargeCost: 0, minimumCharge: 0, outputPerHour: 1, notes: '', createdAt: '2024-01-01' },
-  { id: 'pl4', name: 'Fulfillment', description: 'Kitting, packaging, and shipping prep', hourlyCost: 25, initialSetupFee: 5, markupPercent: 100, categoryIds: ['pc1', 'pc2', 'pc3'], isFixedCharge: false, fixedChargeAmount: 0, fixedChargeCost: 0, minimumCharge: 0, outputPerHour: 1, notes: '', createdAt: '2024-01-01' },
+  { id: 'pl1', name: 'Graphic Design', description: 'Design and layout services', hourlyCost: 30, initialSetupFee: 10, markupPercent: 100, categoryIds: ['pc1', 'pc2', 'pc3'], laborGroupIds: ['lg1'], isFixedCharge: false, fixedChargeAmount: 0, fixedChargeCost: 0, minimumCharge: 0, outputPerHour: 1, notes: '', createdAt: '2024-01-01' },
+  { id: 'pl2', name: 'Installation', description: 'On-site installation of signage and graphics', hourlyCost: 45, initialSetupFee: 25, markupPercent: 80, categoryIds: ['pc2'], laborGroupIds: ['lg3'], isFixedCharge: false, fixedChargeAmount: 0, fixedChargeCost: 0, minimumCharge: 0, outputPerHour: 1, notes: '', createdAt: '2024-01-01' },
+  { id: 'pl3', name: 'Manual Assembly', description: 'Hand assembly, collating, packaging', hourlyCost: 25, initialSetupFee: 0, markupPercent: 100, categoryIds: ['pc1', 'pc3'], laborGroupIds: ['lg2'], isFixedCharge: false, fixedChargeAmount: 0, fixedChargeCost: 0, minimumCharge: 0, outputPerHour: 1, notes: '', createdAt: '2024-01-01' },
+  { id: 'pl4', name: 'Fulfillment', description: 'Kitting, packaging, and shipping prep', hourlyCost: 25, initialSetupFee: 5, markupPercent: 100, categoryIds: ['pc1', 'pc2', 'pc3'], laborGroupIds: ['lg2'], isFixedCharge: false, fixedChargeAmount: 0, fixedChargeCost: 0, minimumCharge: 0, outputPerHour: 1, notes: '', createdAt: '2024-01-01' },
 ];
 
 // ─── BROKERED ──────────────────────────────────────────────────────────────
 
 export const defaultBrokered: PricingBrokered[] = [
-  { id: 'pb1', name: 'Banners (Vendor)', description: 'Outsourced banner printing', costBasis: 'per_sqft', unitCost: 3.50, initialSetupFee: 10, markupPercent: 50, categoryIds: ['pc2'], notes: '', createdAt: '2024-01-01' },
-  { id: 'pb2', name: 'Embroidery', description: 'Outsourced embroidery services', costBasis: 'per_unit', unitCost: 8, initialSetupFee: 25, markupPercent: 40, categoryIds: ['pc3'], notes: '', createdAt: '2024-01-01' },
+  { id: 'pb1', name: 'Banners (Vendor)', description: 'Outsourced banner printing', costBasis: 'per_sqft', unitCost: 3.50, initialSetupFee: 10, markupPercent: 50, categoryIds: ['pc2'], brokeredGroupIds: ['bg1'], notes: '', createdAt: '2024-01-01' },
+  { id: 'pb2', name: 'Embroidery', description: 'Outsourced embroidery services', costBasis: 'per_unit', unitCost: 8, initialSetupFee: 25, markupPercent: 40, categoryIds: ['pc3'], brokeredGroupIds: ['bg2'], notes: '', createdAt: '2024-01-01' },
 ];
 
 // ─── MATERIALS (from Excel — all 50 rows) ───────────────────────────────────

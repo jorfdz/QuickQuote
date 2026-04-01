@@ -19,6 +19,24 @@ export interface FinishingGroup {
   createdAt: string;
 }
 
+// ─── LABOR GROUPS ─────────────────────────────────────────────────────────
+
+export interface LaborGroup {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+}
+
+// ─── BROKERED GROUPS ──────────────────────────────────────────────────────
+
+export interface BrokeredGroup {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+}
+
 // ─── CATEGORIES & PRODUCTS ──────────────────────────────────────────────────
 
 export interface PricingCategory {
@@ -147,6 +165,7 @@ export interface PricingLabor {
   initialSetupFee: number;         // one-time setup fee
   markupPercent: number;           // markup as percentage
   categoryIds: string[];           // which categories this labor applies to
+  laborGroupIds: string[];          // which labor groups this belongs to
   isFixedCharge: boolean;           // if true, charge a fixed amount
   fixedChargeAmount: number;        // fixed amount to charge
   fixedChargeCost: number;          // cost basis for fixed charge
@@ -171,6 +190,7 @@ export interface PricingBrokered {
   vendorId?: string;               // linked vendor
   vendorName?: string;             // cached vendor name
   categoryIds: string[];           // which categories this applies to
+  brokeredGroupIds: string[];       // which brokered groups this belongs to
   notes?: string;
   createdAt: string;
 }
