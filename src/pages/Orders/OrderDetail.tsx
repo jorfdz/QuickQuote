@@ -1,12 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Printer, Receipt, KanbanSquare, Edit, Trash2, CheckCircle, ChevronDown, ChevronUp, Copy, ArrowRight, ShoppingCart } from 'lucide-react';
+import { Printer, Receipt, KanbanSquare, Edit3, Trash2, CheckCircle, ChevronDown, ChevronUp, Copy, ArrowRight, ShoppingCart, Plus } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Badge, Card, PageHeader, Select, Tabs, Modal, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
-import type { OrderStatus } from '../../types';
+import type { OrderStatus, OrderItem } from '../../types';
 import { nanoid } from '../../utils/nanoid';
 import { buildWorkOrderTemplateHtml } from '../../utils/documentTemplates';
+import {
+  ProductEditModal,
+  LineItemPricingState,
+  DEFAULT_PRICING_STATE,
+} from '../../components/pricing/ItemEditModal';
+
+// ─── EMPTY LINE ITEM ────────────────────────────────────────────────────────
+
+const EMPTY_LINE_ITEM = (): OrderItem => ({
+  id: nanoid(), productFamily: 'digital_print', description: '', quantity: 1, unit: 'each',
+  totalCost: 0, markup: 0, sellPrice: 0,
+});
 
 export const OrderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +31,21 @@ export const OrderDetail: React.FC = () => {
   const [convertOpen, setConvertOpen] = useState(false);
   const convertRef = useRef<HTMLDivElement>(null);
 
+  const order = orders.find(o => o.id === id);
+
+  // ── Editable line items state ─────────────────────────────────────────
+  const [editableLineItems, setEditableLineItems] = useState<OrderItem[]>(() => order?.lineItems || []);
+  const [editablePricingStates, setEditablePricingStates] = useState<Record<string, LineItemPricingState>>({});
+  const [editingItemModal, setEditingItemModal] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+
+  // Sync editableLineItems if the order changes externally (e.g. after save) and we're not dirty
+  useEffect(() => {
+    if (!isDirty && order) {
+      setEditableLineItems(order.lineItems || []);
+    }
+  }, [order?.lineItems, isDirty]);
+
   // Close dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -28,7 +55,6 @@ export const OrderDetail: React.FC = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const order = orders.find(o => o.id === id);
   if (!order) return <div className="text-center py-16 text-gray-400">Order not found</div>;
 
   const workflow = workflows.find(w => w.id === order.workflowId) || workflows[0];
@@ -98,6 +124,34 @@ export const OrderDetail: React.FC = () => {
     { value: 'in_progress', label: 'In Progress' }, { value: 'on_hold', label: 'On Hold' },
     { value: 'completed', label: 'Completed' }, { value: 'canceled', label: 'Canceled' },
   ];
+
+  // ── Line item editing helpers ─────────────────────────────────────────
+  const addLineItem = () => {
+    const item = EMPTY_LINE_ITEM();
+    setEditableLineItems(prev => [...prev, item]);
+    setEditablePricingStates(prev => ({ ...prev, [item.id]: DEFAULT_PRICING_STATE() }));
+    setEditingItemModal(item.id);
+    setIsDirty(true);
+  };
+
+  const removeLineItem = (itemId: string) => {
+    setEditableLineItems(prev => prev.filter(i => i.id !== itemId));
+    setEditablePricingStates(prev => { const n = { ...prev }; delete n[itemId]; return n; });
+    setIsDirty(true);
+  };
+
+  const saveChanges = () => {
+    const subtotal = editableLineItems.reduce((s, i) => s + (i.sellPrice || 0), 0);
+    const taxAmount = subtotal * ((order.taxRate || 0) / 100);
+    const total = subtotal + taxAmount;
+    updateOrder(id!, { lineItems: editableLineItems, subtotal, taxAmount, total, updatedAt: new Date().toISOString() });
+    setIsDirty(false);
+  };
+
+  // Derived summary from editable items
+  const editableSubtotal = editableLineItems.reduce((s, i) => s + (i.sellPrice || 0), 0);
+  const editableTaxAmount = editableSubtotal * ((order.taxRate || 0) / 100);
+  const editableTotal = editableSubtotal + editableTaxAmount;
 
   return (
     <div>
@@ -237,43 +291,73 @@ export const OrderDetail: React.FC = () => {
       {activeTab === 'overview' && (
         <div className="grid grid-cols-3 gap-6">
           <div className="col-span-2 space-y-4">
+
+            {/* Unsaved changes banner */}
+            {isDirty && (
+              <div className="sticky top-20 z-10 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center justify-between">
+                <span className="text-sm text-amber-800 font-medium">You have unsaved changes to this order.</span>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => { setEditableLineItems(order.lineItems || []); setIsDirty(false); }}>Discard</Button>
+                  <Button variant="primary" size="sm" onClick={saveChanges}>Save Changes</Button>
+                </div>
+              </div>
+            )}
+
             {/* Line items */}
             <Card>
               <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">Line Items</h2>
+                <Button variant="secondary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={addLineItem}>
+                  Add Item
+                </Button>
               </div>
-              <div className="divide-y divide-gray-50">
-                {order.lineItems.map((item, i) => {
-                  const eq = equipment.find(e => e.id === (item as any).equipmentId);
+              <div className="divide-y divide-gray-50 p-2 space-y-1">
+                {editableLineItems.length === 0 && (
+                  <div className="px-4 py-8 text-center text-gray-400 text-sm">
+                    No line items yet. Click "Add Item" to get started.
+                  </div>
+                )}
+                {editableLineItems.map((item, idx) => {
+                  const ps = editablePricingStates[item.id] || DEFAULT_PRICING_STATE();
                   return (
-                    <div key={item.id} className="px-5 py-4">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <span className="text-xs font-semibold text-gray-400 mr-2">#{i + 1}</span>
-                          <span className="text-sm font-medium text-gray-900">{item.description}</span>
-                          <p className="text-xs text-gray-500 mt-1">{item.quantity} {item.unit}</p>
-                          {eq && (
-                            <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                              <span className="inline-block w-3 h-3 rounded bg-blue-100 text-center text-[8px] leading-3">E</span>
-                              {eq.name}
-                            </p>
-                          )}
-                          {item.productionNotes && <p className="text-xs text-amber-600 mt-1 italic">📝 {item.productionNotes}</p>}
+                    <Card key={item.id} className="overflow-hidden hover:border-gray-200 transition-all">
+                      <div className="flex items-center gap-3 px-4 py-3">
+                        <span className="w-5 h-5 bg-gray-100 rounded text-xs font-bold text-gray-500 flex items-center justify-center flex-shrink-0">{idx + 1}</span>
+                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setEditingItemModal(item.id)}>
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {item.description || <span className="text-gray-400 italic">New line item — click to configure</span>}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {ps.categoryName && <Badge color="blue" className="text-[10px]">{ps.categoryName}</Badge>}
+                            {ps.quantity > 0 && <span className="text-xs text-gray-400">{ps.quantity.toLocaleString()} pcs</span>}
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold text-gray-900">{formatCurrency(item.sellPrice)}</p>
-                          {item.workflowStageId && (
-                            <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                              {workflow?.stages.find(s => s.id === item.workflowStageId)?.name || 'In Progress'}
-                            </span>
-                          )}
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <p className="text-sm font-bold text-gray-900">{formatCurrency(item.sellPrice || 0)}</p>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setEditingItemModal(item.id)}
+                              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                              title="Edit item"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => removeLineItem(item.id)}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Remove item"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </Card>
                   );
                 })}
               </div>
             </Card>
+
             {(order.notes || order.internalNotes) && (
               <Card className="p-5">
                 <div className="grid grid-cols-2 gap-4">
@@ -287,9 +371,23 @@ export const OrderDetail: React.FC = () => {
             <Card className="p-5">
               <h3 className="font-semibold text-gray-900 mb-4">Order Summary</h3>
               <div className="space-y-2">
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Subtotal</span><span>{formatCurrency(order.subtotal)}</span></div>
-                {order.taxRate && <div className="flex justify-between text-sm"><span className="text-gray-500">Tax ({order.taxRate}%)</span><span>{formatCurrency(order.taxAmount || 0)}</span></div>}
-                <div className="flex justify-between text-lg font-bold border-t border-gray-100 pt-2"><span>Total</span><span className="text-blue-600">{formatCurrency(order.total)}</span></div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Subtotal</span>
+                  <span>{formatCurrency(isDirty ? editableSubtotal : order.subtotal)}</span>
+                </div>
+                {order.taxRate && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Tax ({order.taxRate}%)</span>
+                    <span>{formatCurrency(isDirty ? editableTaxAmount : (order.taxAmount || 0))}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-lg font-bold border-t border-gray-100 pt-2">
+                  <span>Total</span>
+                  <span className="text-blue-600">{formatCurrency(isDirty ? editableTotal : order.total)}</span>
+                </div>
+                {isDirty && (
+                  <p className="text-[10px] text-amber-600 text-right">* Unsaved changes</p>
+                )}
               </div>
             </Card>
             <Card className="p-5">
@@ -332,44 +430,162 @@ export const OrderDetail: React.FC = () => {
 
       {activeTab === 'production' && (
         <div className="space-y-4">
-          <Card>
-            <div className="px-5 py-4 border-b border-gray-50">
-              <h2 className="font-semibold text-gray-900">Item-Level Production Tracking</h2>
-            </div>
-            <div className="divide-y divide-gray-50">
-              {order.lineItems.map(item => {
-                const assignedUser = users.find(u => u.id === item.assignedUserId);
-                return (
-                  <div key={item.id} className="px-5 py-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{item.description}</p>
-                        <p className="text-xs text-gray-500">{item.quantity} {item.unit}</p>
-                      </div>
-                      <Badge label={workflow?.stages.find(s => s.id === item.workflowStageId)?.name || 'Not Started'} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Select label="Current Stage" value={item.workflowStageId || ''}
-                        onChange={e => {
-                          const items = order.lineItems.map(li => li.id === item.id ? { ...li, workflowStageId: e.target.value } : li);
-                          updateOrder(id!, { lineItems: items });
-                        }}
-                        options={[{ value: '', label: 'Not started' }, ...(workflow?.stages || []).map(s => ({ value: s.id, label: s.name }))]}
-                      />
-                      <Select label="Assigned To" value={item.assignedUserId || ''}
-                        onChange={e => {
-                          const items = order.lineItems.map(li => li.id === item.id ? { ...li, assignedUserId: e.target.value } : li);
-                          updateOrder(id!, { lineItems: items });
-                        }}
-                        options={[{ value: '', label: 'Unassigned' }, ...users.map(u => ({ value: u.id, label: u.name }))]}
-                      />
-                    </div>
-                    {assignedUser && <p className="text-xs text-gray-500 mt-1">Assigned to: <span className="font-medium">{assignedUser.name}</span></p>}
-                  </div>
-                );
-              })}
+          {/* Compact order info header */}
+          <Card className="p-4">
+            <div className="flex items-center gap-6 text-sm">
+              <div>
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide block">Order</span>
+                <span className="font-mono font-bold text-gray-900">{order.number}</span>
+              </div>
+              <div>
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide block">Customer</span>
+                <span className="font-medium text-gray-900">{order.customerName || '—'}</span>
+              </div>
+              {order.dueDate && (
+                <div>
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide block">Due Date</span>
+                  <span className={`font-medium ${new Date(order.dueDate) < new Date() && order.status === 'in_progress' ? 'text-red-500' : 'text-gray-900'}`}>
+                    {formatDate(order.dueDate)}
+                  </span>
+                </div>
+              )}
+              <div className="ml-auto">
+                <Badge label={order.status} />
+              </div>
             </div>
           </Card>
+
+          {/* Per-item production cards */}
+          {order.lineItems.map((item, idx) => (
+            <Card key={item.id} className="overflow-hidden">
+              {/* Item header */}
+              <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="w-7 h-7 rounded-full bg-gray-200 text-gray-700 text-xs font-bold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{item.description || 'Untitled Item'}</p>
+                    <p className="text-xs text-gray-500">{item.quantity} {item.unit}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-gray-900">{formatCurrency(item.sellPrice)}</span>
+                  {item.workflowStageId && (
+                    <Badge label={workflow?.stages.find(s => s.id === item.workflowStageId)?.name || 'In Progress'} />
+                  )}
+                </div>
+              </div>
+
+              {/* Item specs */}
+              {((item as any).width || (item as any).height || (item as any).materialName || (item as any).equipmentName) && (
+                <div className="px-5 py-3 grid grid-cols-2 md:grid-cols-4 gap-3 border-b border-gray-50 text-xs">
+                  {(item as any).width && (item as any).height && (
+                    <div>
+                      <span className="text-gray-400 block">Size</span>
+                      <span className="font-medium">{(item as any).width}" × {(item as any).height}"</span>
+                    </div>
+                  )}
+                  {(item as any).materialName && (
+                    <div>
+                      <span className="text-gray-400 block">Material</span>
+                      <span className="font-medium">{(item as any).materialName}</span>
+                    </div>
+                  )}
+                  {(item as any).equipmentName && (
+                    <div>
+                      <span className="text-gray-400 block">Equipment</span>
+                      <span className="font-medium">{(item as any).equipmentName}</span>
+                    </div>
+                  )}
+                  {(item as any).colorMode && (
+                    <div>
+                      <span className="text-gray-400 block">Color</span>
+                      <span className="font-medium">{(item as any).colorMode}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Production controls */}
+              <div className="px-5 py-4">
+                <div className="grid grid-cols-2 gap-4 mb-3">
+                  {/* Stage assignment */}
+                  <div>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Tracker Board Stage</label>
+                    <select
+                      value={item.workflowStageId || ''}
+                      onChange={e => {
+                        const items = order.lineItems.map(li => li.id === item.id ? { ...li, workflowStageId: e.target.value } : li);
+                        updateOrder(id!, { lineItems: items });
+                      }}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Not assigned</option>
+                      {workflows.map(wf => (
+                        <optgroup key={wf.id} label={wf.name}>
+                          {wf.stages.map(stage => (
+                            <option key={stage.id} value={stage.id}>{stage.name}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Assignee */}
+                  <div>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Assigned To</label>
+                    <select
+                      value={item.assignedUserId || ''}
+                      onChange={e => {
+                        const items = order.lineItems.map(li => li.id === item.id ? { ...li, assignedUserId: e.target.value } : li);
+                        updateOrder(id!, { lineItems: items });
+                      }}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Unassigned</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Production notes */}
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Production Notes</label>
+                  <textarea
+                    value={item.productionNotes || ''}
+                    onChange={e => {
+                      const items = order.lineItems.map(li => li.id === item.id ? { ...li, productionNotes: e.target.value } : li);
+                      updateOrder(id!, { lineItems: items });
+                    }}
+                    rows={2}
+                    placeholder="Notes for production team..."
+                    className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Track Order button */}
+                {item.workflowStageId && (
+                  <div className="mt-3 flex justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<KanbanSquare className="w-3.5 h-3.5" />}
+                      onClick={() => navigate('/tracker')}
+                    >
+                      Track Order
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </Card>
+          ))}
+
+          {order.lineItems.length === 0 && (
+            <Card className="p-8 text-center text-gray-400 text-sm">
+              No line items to track. Add items in the Overview tab.
+            </Card>
+          )}
         </div>
       )}
 
@@ -404,6 +620,32 @@ export const OrderDetail: React.FC = () => {
       <ConfirmDialog isOpen={showDelete} onClose={() => setShowDelete(false)}
         onConfirm={() => { deleteOrder(id!); navigate('/orders'); }}
         title="Delete Order" message={`Delete ${order.number}? This cannot be undone.`} />
+
+      {/* ProductEditModal */}
+      {editingItemModal && (() => {
+        const editingItem = editableLineItems.find(i => i.id === editingItemModal);
+        const editingPs = editablePricingStates[editingItemModal] || DEFAULT_PRICING_STATE();
+        if (!editingItem) return null;
+        return (
+          <ProductEditModal
+            item={editingItem as any}
+            pricingState={editingPs}
+            isNew={!editingItem.description}
+            onUpdateItem={updates => {
+              setEditableLineItems(prev => prev.map(i => i.id === editingItemModal ? { ...i, ...updates } : i));
+              setIsDirty(true);
+            }}
+            onUpdatePricing={updates => {
+              setEditablePricingStates(prev => ({ ...prev, [editingItemModal]: { ...(prev[editingItemModal] || DEFAULT_PRICING_STATE()), ...updates } }));
+              setIsDirty(true);
+            }}
+            onClose={() => setEditingItemModal(null)}
+            onRemove={() => { removeLineItem(editingItemModal); setEditingItemModal(null); }}
+            matchingTemplates={[]}
+            onApplyTemplate={() => {}}
+          />
+        );
+      })()}
     </div>
   );
 };
