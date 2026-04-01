@@ -33,6 +33,7 @@ import { Services } from './pages/Services';
 import { Labor } from './pages/Labor';
 import { Brokered } from './pages/Brokered';
 import { Onboarding } from './pages/Onboarding';
+import { ScannerPage } from './pages/Scanner';
 
 function App() {
   return (
@@ -40,6 +41,7 @@ function App() {
       <Routes>
         {/* Standalone views - no layout wrapper */}
         <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="/scan/:deviceCode" element={<ScannerPage />} />
 
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
@@ -51,6 +53,7 @@ function App() {
           <Route path="/orders/new" element={<NewOrder />} />
           <Route path="/orders/:id" element={<OrderDetail />} />
           <Route path="/tracker" element={<OrderTracker />} />
+          <Route path="/OrderTracker/:orderNumber" element={<OrderTracker />} />
           <Route path="/history" element={<History />} />
           <Route path="/invoices" element={<Invoices />} />
           <Route path="/invoices/:id" element={<InvoiceDetail />} />

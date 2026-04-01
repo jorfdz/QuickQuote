@@ -109,6 +109,7 @@ interface AppStore {
   updateTrackingDevice: (id: string, device: Partial<TrackingDevice>) => void;
   deleteTrackingDevice: (id: string) => void;
   processTrackingDeviceScan: (deviceId: string, orderItemId: string) => void;
+  processTrackingDeviceOrderScan: (deviceId: string, orderNumber: string) => { success: boolean; message: string };
   updateCompanySettings: (settings: Partial<CompanySettings>) => void;
   updateDocumentTemplates: (templates: Partial<DocumentTemplates>) => void;
 }
@@ -239,6 +240,38 @@ export const useStore = create<AppStore>()(
           }),
         };
       }),
+      processTrackingDeviceOrderScan: (deviceId, orderNumber) => {
+        const device = get().trackingDevices.find((item) => item.id === deviceId && item.isActive);
+        if (!device) {
+          return { success: false, message: 'Tracking device is inactive or not found.' };
+        }
+
+        const normalizedOrderNumber = orderNumber.trim().toUpperCase();
+        const order = get().orders.find((item) => item.number.toUpperCase() === normalizedOrderNumber);
+        if (!order) {
+          return { success: false, message: `Order ${normalizedOrderNumber} was not found.` };
+        }
+
+        const now = new Date().toISOString();
+        set((s) => ({
+          orders: s.orders.map((item) => (
+            item.id === order.id
+              ? {
+                  ...item,
+                  workflowId: device.workflowId,
+                  currentStageId: device.stageId,
+                  updatedAt: now,
+                  lineItems: item.lineItems.map((lineItem) => ({
+                    ...lineItem,
+                    workflowStageId: device.stageId,
+                  })),
+                }
+              : item
+          )),
+        }));
+
+        return { success: true, message: `Moved ${normalizedOrderNumber} to the configured board and stage.` };
+      },
       updateCompanySettings: (settings) => set((s) => ({ companySettings: { ...s.companySettings, ...settings } })),
       updateDocumentTemplates: (templates) => set((s) => ({ documentTemplates: { ...s.documentTemplates, ...templates } })),
     }),

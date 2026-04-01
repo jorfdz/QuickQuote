@@ -18,7 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ChevronDown, ChevronUp, Clock3, GripVertical, Layers3, MoveRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useStore } from '../../store';
 import { Card, PageHeader } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
@@ -48,6 +48,8 @@ const QUEUE_STAGE_ID = '__queue__';
 export const OrderTracker: React.FC = () => {
   const { orders, workflows, updateOrder, companySettings } = useStore();
   const navigate = useNavigate();
+  const { orderNumber } = useParams<{ orderNumber?: string }>();
+  const [searchParams] = useSearchParams();
   const activeBoards = workflows.filter((workflow) => workflow.isActive);
   const [activeWorkflowId, setActiveWorkflowId] = useState(activeBoards[0]?.id || workflows[0]?.id || '');
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -138,6 +140,15 @@ export const OrderTracker: React.FC = () => {
       };
     });
   }, [activeBoards, orders]);
+
+  const highlightedOrderNumber = orderNumber || searchParams.get('order') || '';
+
+  useEffect(() => {
+    if (!highlightedOrderNumber) return;
+    const matchingOrder = orders.find((item) => item.number.toUpperCase() === highlightedOrderNumber.toUpperCase());
+    if (!matchingOrder?.workflowId) return;
+    setActiveWorkflowId(matchingOrder.workflowId);
+  }, [highlightedOrderNumber, orders]);
 
   const brandColor = companySettings.primaryBrandColor || '#2563eb';
   const activeDragItem = trackerItems.find((item) => item.id === activeDragId) || null;
@@ -234,7 +245,7 @@ export const OrderTracker: React.FC = () => {
                     {board.isDefault ? 'Default' : 'Active'}
                   </span>
                 </div>
-                <div className="mt-4 flex items-center gap-4">
+            <div className="mt-4 flex items-center gap-4">
                   <div>
                     <div className={`text-lg font-bold ${selected ? 'text-white' : 'text-gray-900'}`}>{stats?.orderCount || 0}</div>
                     <div className={`text-[11px] ${selected ? 'text-slate-300' : 'text-gray-500'}`}>orders</div>
@@ -260,6 +271,11 @@ export const OrderTracker: React.FC = () => {
           <div>
             <h2 className="text-xl font-semibold text-gray-900">{workflow.name}</h2>
             <p className="mt-1 max-w-3xl text-sm text-gray-500">{workflow.description || 'Track production items across stages.'}</p>
+            {highlightedOrderNumber && (
+              <p className="mt-2 text-xs font-medium uppercase tracking-[0.12em] text-blue-600">
+                Focused order: {highlightedOrderNumber}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3 text-xs text-gray-500">
             <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 shadow-sm">
@@ -282,6 +298,7 @@ export const OrderTracker: React.FC = () => {
                 items={itemsByStage.get(column.id) || []}
                 onNavigate={(orderId) => navigate(`/orders/${orderId}`)}
                 brandColor={brandColor}
+                highlightedOrderNumber={highlightedOrderNumber}
               />
             ))}
           </div>
@@ -302,7 +319,8 @@ const StageLane: React.FC<{
   items: TrackerItemCard[];
   onNavigate: (orderId: string) => void;
   brandColor: string;
-}> = ({ column, items, onNavigate, brandColor }) => {
+  highlightedOrderNumber?: string;
+}> = ({ column, items, onNavigate, brandColor, highlightedOrderNumber }) => {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
   return (
@@ -325,7 +343,7 @@ const StageLane: React.FC<{
         <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-3">
             {items.map((item) => (
-              <SortableTrackerCard key={item.id} item={item} onNavigate={() => onNavigate(item.orderId)} />
+              <SortableTrackerCard key={item.id} item={item} onNavigate={() => onNavigate(item.orderId)} highlighted={item.orderNumber.toUpperCase() === highlightedOrderNumber?.toUpperCase()} />
             ))}
             {items.length === 0 && (
               <div className="flex h-28 items-center justify-center rounded-lg border-2 border-dashed border-gray-200 text-xs text-gray-400">
@@ -342,7 +360,8 @@ const StageLane: React.FC<{
 const SortableTrackerCard: React.FC<{
   item: TrackerItemCard;
   onNavigate: () => void;
-}> = ({ item, onNavigate }) => {
+  highlighted?: boolean;
+}> = ({ item, onNavigate, highlighted = false }) => {
   const {
     attributes,
     listeners,
@@ -358,7 +377,7 @@ const SortableTrackerCard: React.FC<{
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={isDragging ? 'opacity-60' : ''}
     >
-      <TrackerCard item={item} onNavigate={onNavigate} dragHandleProps={{ ...attributes, ...listeners }} />
+      <TrackerCard item={item} onNavigate={onNavigate} dragHandleProps={{ ...attributes, ...listeners }} highlighted={highlighted} />
     </div>
   );
 };
@@ -368,12 +387,13 @@ const TrackerCard: React.FC<{
   onNavigate: () => void;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
   isDragging?: boolean;
-}> = ({ item, onNavigate, dragHandleProps, isDragging = false }) => {
+  highlighted?: boolean;
+}> = ({ item, onNavigate, dragHandleProps, isDragging = false, highlighted = false }) => {
   const isOverdue = item.dueDate && new Date(item.dueDate) < new Date();
 
   return (
     <div
-      className={`group rounded-lg border bg-white p-3 shadow-sm transition-all ${isDragging ? 'rotate-1 shadow-xl' : 'hover:-translate-y-0.5 hover:shadow-md'} ${isOverdue ? 'border-red-200' : 'border-gray-200'}`}
+      className={`group rounded-lg border bg-white p-3 shadow-sm transition-all ${isDragging ? 'rotate-1 shadow-xl' : 'hover:-translate-y-0.5 hover:shadow-md'} ${highlighted ? 'ring-2 ring-blue-300 border-blue-300' : isOverdue ? 'border-red-200' : 'border-gray-200'}`}
     >
       <div className="mb-2 flex items-start justify-between gap-2">
         <div>

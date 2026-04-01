@@ -996,10 +996,11 @@ export const Settings: React.FC = () => {
               </Card>
 
               <Card className="p-0">
-                <Table headers={['Device', 'Device Code', 'Board', 'Stage', 'Status', 'Actions']}>
+                <Table headers={['Device', 'Device Code', 'Board', 'Stage', 'Scanner URL', 'Status', 'Actions']}>
                   {trackingDevices.map((device) => {
                     const workflow = workflows.find((item) => item.id === device.workflowId);
                     const stage = workflow?.stages.find((item) => item.id === device.stageId);
+                    const scannerUrl = `${window.location.origin}/scan/${device.code}`;
                     return (
                       <tr key={device.id} className="hover:bg-gray-50/50">
                         <td className="py-3 px-4">
@@ -1011,6 +1012,13 @@ export const Settings: React.FC = () => {
                         <td className="py-3 px-4"><span className="font-mono text-xs text-gray-700">{device.code}</span></td>
                         <td className="py-3 px-4 text-gray-600">{workflow?.name || '--'}</td>
                         <td className="py-3 px-4 text-gray-600">{stage?.name || '--'}</td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <a href={scannerUrl} target="_blank" rel="noreferrer" className="text-xs font-mono text-blue-600 hover:text-blue-700">
+                              /scan/{device.code}
+                            </a>
+                          </div>
+                        </td>
                         <td className="py-3 px-4">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${device.isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
                             {device.isActive ? 'Active' : 'Inactive'}
@@ -1030,7 +1038,7 @@ export const Settings: React.FC = () => {
                     );
                   })}
                   {trackingDevices.length === 0 && (
-                    <tr><td colSpan={6} className="py-12 text-center text-sm text-gray-400">No tracking devices configured yet. Add a device to map scans to a board and stage.</td></tr>
+                    <tr><td colSpan={7} className="py-12 text-center text-sm text-gray-400">No tracking devices configured yet. Add a device to map scans to a board and stage.</td></tr>
                   )}
                 </Table>
               </Card>
