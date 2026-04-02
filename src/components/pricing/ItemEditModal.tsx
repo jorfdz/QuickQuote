@@ -119,14 +119,32 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [manualOverrides, setManualOverrides] = useState<Record<string, boolean>>({});
   const [showBreakdownDialog, setShowBreakdownDialog] = useState(false);
 
-  // ── Multi-part state ───────────────────────────────────────────────
-  const [isMultiPart, setIsMultiPart] = useState(false);
-  const [globalProduct, setGlobalProduct] = useState('');
-  const [globalDescription, setGlobalDescription] = useState('');
-  const [parts, setParts] = useState<PartSnapshot[]>([]);
+  // ── Multi-part state — restore from item if it was previously saved as multi-part ──
+  const [isMultiPart, setIsMultiPart] = useState(() => !!(item as any).isMultiPart);
+  const [globalProduct, setGlobalProduct] = useState(() => (item as any).multiPartName || '');
+  const [globalDescription, setGlobalDescription] = useState(() => (item as any).multiPartDescription || '');
+  const [parts, setParts] = useState<PartSnapshot[]>(() => {
+    const savedParts = (item as any).parts as Array<{ id: string; partName: string; partDescription: string; totalCost: number; totalSell: number }> | undefined;
+    if (savedParts && savedParts.length > 0) {
+      // Rebuild snapshots from saved lightweight parts — pricing state starts blank (user re-edits to reprice)
+      return savedParts.map(p => ({
+        id: p.id,
+        partName: p.partName,
+        partDescription: p.partDescription,
+        pricingState: DEFAULT_PRICING_STATE(),
+        productQuery: '',
+        sizeInput: '',
+        multiQtyInput: '1000',
+        totalCost: p.totalCost,
+        totalSell: p.totalSell,
+        serviceLines: [],
+      }));
+    }
+    return [];
+  });
   const [activePartIdx, setActivePartIdx] = useState(0);
-  // -1 = Main overview tab is active; ≥0 = a specific part is active
-  const [showMainTab, setShowMainTab] = useState(false);
+  // Show overview tab by default when re-opening an existing multi-part item
+  const [showMainTab, setShowMainTab] = useState(() => !!(item as any).isMultiPart && !!((item as any).parts?.length));
 
   // ── Multi-material entries ────────────────────────────────────────────
   const [materialEntries, setMaterialEntries] = useState<Array<{
@@ -1721,9 +1739,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
           <div className="flex items-center gap-2">
             {isMultiPart ? (
               <Button variant="success" onClick={() => {
-                // Snapshot current part before saving
+                // Snapshot the current part's live pricing into the parts array
                 const snapped = snapshotCurrentPart(parts, activePartIdx);
-                // Update current part's totals
+                // Update current part's totals from live item state
                 const finalParts = snapped.map((p, i) =>
                   i === activePartIdx
                     ? { ...p, totalCost: item.totalCost, totalSell: item.sellPrice, serviceLines: ps.serviceLines }
@@ -1732,8 +1750,25 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 const totalCost = finalParts.reduce((s, p) => s + p.totalCost, 0);
                 const totalSell = finalParts.reduce((s, p) => s + p.totalSell, 0);
                 const overallMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
-                const desc = globalDescription || globalProduct || item.description;
-                onUpdateItem({ description: desc, totalCost, sellPrice: totalSell, markup: Math.round(overallMarkup) });
+                // Use the global product name as the item description
+                const desc = globalProduct || globalDescription || item.description || 'Multi-Part Item';
+                // Persist parts onto the line item so they survive re-opens and show in list view
+                onUpdateItem({
+                  description: desc,
+                  totalCost,
+                  sellPrice: totalSell,
+                  markup: Math.round(overallMarkup),
+                  isMultiPart: true,
+                  multiPartName: globalProduct,
+                  multiPartDescription: globalDescription,
+                  parts: finalParts.map(p => ({
+                    id: p.id,
+                    partName: p.partName,
+                    partDescription: p.partDescription,
+                    totalCost: p.totalCost,
+                    totalSell: p.totalSell,
+                  })),
+                } as any);
                 onClose();
               }}>
                 Save All Parts ({parts.length})

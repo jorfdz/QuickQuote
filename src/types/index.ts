@@ -219,6 +219,17 @@ export interface QuoteLineItem {
   sheetSize?: string;
   // template
   templateId?: string;
+  // multi-part item
+  isMultiPart?: boolean;
+  multiPartName?: string;        // global item/product name (e.g. "Booklet")
+  multiPartDescription?: string; // global item description
+  parts?: Array<{
+    id: string;
+    partName: string;
+    partDescription: string;
+    totalCost: number;
+    totalSell: number;
+  }>;
 }
 
 export interface Quote {
