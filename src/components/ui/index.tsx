@@ -10,9 +10,10 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: React.ReactNode;
 }
 
-export const Button: React.FC<ButtonProps> = ({ variant = 'secondary', size = 'md', loading, icon, children, className = '', ...props }) => {
-  const variants = {
-    primary: 'bg-[#F890E7] text-white hover:bg-[#e57dd6] focus:ring-[#F890E7] border border-[#F890E7]',
+export const Button: React.FC<ButtonProps> = ({ variant = 'secondary', size = 'md', loading, icon, children, className = '', style, ...props }) => {
+  const variantClasses = {
+    // primary uses CSS variable — no hardcoded color
+    primary: 'text-white border',
     secondary: 'bg-white text-gray-700 hover:bg-gray-50 focus:ring-gray-300 border border-gray-200',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 border border-red-600',
     ghost: 'bg-transparent text-gray-600 hover:bg-gray-100 focus:ring-gray-300 border border-transparent',
@@ -23,9 +24,17 @@ export const Button: React.FC<ButtonProps> = ({ variant = 'secondary', size = 'm
     md: 'px-3.5 py-1.5 text-sm rounded-md',
     lg: 'px-4 py-2 text-sm rounded-md',
   };
+  // For primary, inject CSS variable colors via inline style
+  const brandStyle: React.CSSProperties = variant === 'primary' ? {
+    backgroundColor: 'var(--brand)',
+    borderColor: 'var(--brand)',
+    ...style,
+  } : (style || {});
+
   return (
     <button
-      className={`inline-flex items-center gap-1.5 font-medium transition-all duration-150 focus:outline-none focus:ring-1 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`inline-flex items-center gap-1.5 font-medium transition-all duration-150 focus:outline-none focus:ring-1 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed ${variantClasses[variant]} ${sizes[size]} ${className}`}
+      style={brandStyle}
       disabled={loading || props.disabled}
       {...props}
     >
@@ -50,7 +59,7 @@ export const Input: React.FC<InputProps> = ({ label, error, prefix, suffix, clas
     <div className="relative">
       {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{prefix}</span>}
       <input
-        className={`w-full px-3 py-1.5 text-sm bg-white border ${error ? 'border-red-400' : 'border-gray-150'} rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent placeholder-gray-400 transition-all ${prefix ? 'pl-8' : ''} ${suffix ? 'pr-8' : ''} ${className}`}
+        className={`w-full px-3 py-1.5 text-sm bg-white border ${error ? 'border-red-400' : 'border-gray-150'} rounded-md brand-focus placeholder-gray-400 transition-all ${prefix ? 'pl-8' : ''} ${suffix ? 'pr-8' : ''} ${className}`}
         {...props}
       />
       {suffix && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{suffix}</span>}
@@ -67,7 +76,7 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 export const Textarea: React.FC<TextareaProps> = ({ label, className = '', ...props }) => (
   <div>
     {label && <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{label}</label>}
-    <textarea className={`w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent placeholder-gray-400 transition-all resize-none ${className}`} {...props} />
+    <textarea className={`w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md brand-focus placeholder-gray-400 transition-all resize-none ${className}`} {...props} />
   </div>
 );
 
@@ -100,26 +109,26 @@ interface BadgeProps {
 export const Badge: React.FC<BadgeProps> = ({ label, children, color, className = '' }) => {
   const text = (label || (typeof children === 'string' ? children : '')) as string;
   const statusColors: Record<string, string> = {
-    pending: 'bg-amber-50 text-amber-700 border border-amber-200',
-    hot: 'bg-red-50 text-red-700 border border-red-200',
-    cold: 'bg-blue-50 text-blue-600 border border-blue-200',
-    won: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-    lost: 'bg-gray-100 text-gray-500 border border-gray-200',
-    in_progress: 'bg-blue-50 text-blue-700 border border-blue-200',
-    on_hold: 'bg-amber-50 text-amber-700 border border-amber-200',
-    completed: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-    canceled: 'bg-gray-100 text-gray-500 border border-gray-200',
-    draft: 'bg-gray-50 text-gray-600 border border-gray-200',
-    sent: 'bg-blue-50 text-blue-700 border border-blue-200',
-    posted: 'bg-purple-50 text-purple-700 border border-purple-200',
-    paid: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-    overdue: 'bg-red-50 text-red-700 border border-red-200',
-    void: 'bg-gray-100 text-gray-400 border border-gray-200',
-    received: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-    acknowledged: 'bg-blue-50 text-blue-700 border border-blue-200',
-    partial: 'bg-amber-50 text-amber-700 border border-amber-200',
-    vip: 'bg-purple-50 text-purple-700 border border-purple-200',
-    'long-term': 'bg-blue-50 text-blue-700 border border-blue-200',
+    pending: 'bg-amber-100 text-amber-800 border border-amber-300',
+    hot: 'bg-red-100 text-red-800 border border-red-300',
+    cold: 'bg-sky-100 text-sky-800 border border-sky-300',
+    won: 'bg-emerald-100 text-emerald-800 border border-emerald-300',
+    lost: 'bg-gray-200 text-gray-600 border border-gray-300',
+    in_progress: 'bg-blue-100 text-blue-800 border border-blue-300',
+    on_hold: 'bg-amber-100 text-amber-800 border border-amber-300',
+    completed: 'bg-emerald-100 text-emerald-800 border border-emerald-300',
+    canceled: 'bg-gray-200 text-gray-600 border border-gray-300',
+    draft: 'bg-gray-100 text-gray-700 border border-gray-300',
+    sent: 'bg-blue-100 text-blue-800 border border-blue-300',
+    posted: 'bg-purple-100 text-purple-800 border border-purple-300',
+    paid: 'bg-emerald-100 text-emerald-800 border border-emerald-300',
+    overdue: 'bg-red-100 text-red-800 border border-red-300',
+    void: 'bg-gray-200 text-gray-500 border border-gray-300',
+    received: 'bg-emerald-100 text-emerald-800 border border-emerald-300',
+    acknowledged: 'bg-blue-100 text-blue-800 border border-blue-300',
+    partial: 'bg-amber-100 text-amber-800 border border-amber-300',
+    vip: 'bg-purple-100 text-purple-800 border border-purple-300',
+    'long-term': 'bg-blue-100 text-blue-800 border border-blue-300',
   };
   const colorMap: Record<string, string> = {
     blue: 'bg-blue-50 text-blue-700 border border-blue-200',

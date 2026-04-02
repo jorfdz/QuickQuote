@@ -91,7 +91,7 @@ export const Sidebar: React.FC = () => {
               to={item.path}
               end={item.exact}
               className={({ isActive }) =>
-                `flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] transition-all group ${isActive ? 'bg-[#F890E7]/15 text-white font-medium' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'}`
+                `flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] transition-all group ${isActive ? 'nav-brand-active text-white font-medium' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'}`
               }
               title={sidebarCollapsed ? item.label : undefined}
             >

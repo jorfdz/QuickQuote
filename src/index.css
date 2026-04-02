@@ -69,6 +69,14 @@
 .text-brand     { color: var(--brand); }
 .border-brand   { border-color: var(--brand); }
 .ring-brand     { --tw-ring-color: var(--brand-ring); }
+/* Brand-aware focus rings for inputs */
+.brand-focus:focus {
+  outline: none;
+  border-color: transparent;
+  box-shadow: 0 0 0 1px var(--brand-ring);
+}
+/* Active nav/sidebar link highlight */
+.nav-brand-active { background-color: color-mix(in srgb, var(--brand) 15%, transparent); }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

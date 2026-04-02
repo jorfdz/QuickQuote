@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Printer, ArrowRight, Trash2, ChevronDown, ChevronUp, CheckCircle, Copy } from 'lucide-react';
+import { Printer, ArrowRight, Trash2, ChevronDown, ChevronUp, CheckCircle, Copy, Clock } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Badge, Card, PageHeader, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
@@ -14,6 +14,28 @@ const STATUS_OPTIONS: { value: QuoteStatus; label: string; badge: string }[] = [
   { value: 'won',     label: 'Won ✅',  badge: 'won' },
   { value: 'lost',    label: 'Lost ❌', badge: 'lost' },
 ];
+
+/** Format elapsed time from an ISO string into a human-readable string */
+function formatElapsed(isoDate: string): string {
+  const ms = Date.now() - new Date(isoDate).getTime();
+  const totalMinutes = Math.floor(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  if (days >= 1) return `${days}d ${remHours}h`;
+  if (hours >= 1) return `${hours}h ${minutes}m`;
+  if (totalMinutes >= 1) return `${totalMinutes}m`;
+  return 'just now';
+}
+
+/** Format an ISO date as short human-readable: "Apr 2 at 3:45 PM" */
+function formatShortDateTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    + ' at '
+    + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
 
 export const QuoteDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -103,22 +125,38 @@ export const QuoteDetail: React.FC = () => {
             <span className="text-sm text-gray-500 truncate">{quote.customerName || 'No customer'}</span>
 
             {/* Status pills — click one to change status immediately */}
-            <div className="flex items-center gap-1 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap">
               {STATUS_OPTIONS.map(s => (
                 <button
                   key={s.value}
                   onClick={() => updateQuote(id!, { status: s.value })}
                   title={`Set status to ${s.label}`}
-                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition-all ${
+                  className={`transition-all rounded-full ${
                     quote.status === s.value
-                      ? 'opacity-100 ring-2 ring-offset-1 ring-gray-300 scale-105'
-                      : 'opacity-40 hover:opacity-70'
+                      ? 'opacity-100 scale-110 shadow-sm'
+                      : 'opacity-35 hover:opacity-60 hover:scale-105'
                   }`}
                 >
                   <Badge label={s.badge} />
                 </button>
               ))}
             </div>
+
+            {/* Time on this stage */}
+            {(quote.statusChangedAt || quote.createdAt) && (
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="flex items-center gap-1 text-gray-400">
+                  <Clock className="w-3 h-3" />
+                  <span className="text-[10px] font-medium">
+                    {formatElapsed(quote.statusChangedAt || quote.createdAt)}
+                  </span>
+                </div>
+                <span className="text-gray-200 text-[10px]">·</span>
+                <span className="text-[10px] text-gray-400">
+                  Since {formatShortDateTime(quote.statusChangedAt || quote.createdAt)}
+                </span>
+              </div>
+            )}
 
             {quote.convertedToOrderId && (
               <div className="flex items-center gap-1.5 text-emerald-600 text-xs font-medium flex-shrink-0">

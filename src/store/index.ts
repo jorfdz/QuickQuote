@@ -156,7 +156,14 @@ export const useStore = create<AppStore>()(
 
       // Quotes
       addQuote: (q) => set((s) => ({ quotes: [q, ...s.quotes], quoteCount: s.quoteCount + 1 })),
-      updateQuote: (id, q) => set((s) => ({ quotes: s.quotes.map(x => x.id === id ? { ...x, ...q, updatedAt: new Date().toISOString() } : x) })),
+      updateQuote: (id, q) => set((s) => ({
+        quotes: s.quotes.map(x => {
+          if (x.id !== id) return x;
+          const now = new Date().toISOString();
+          const statusChanged = q.status !== undefined && q.status !== x.status;
+          return { ...x, ...q, updatedAt: now, ...(statusChanged ? { statusChangedAt: now } : {}) };
+        }),
+      })),
       deleteQuote: (id) => set((s) => ({ quotes: s.quotes.filter(x => x.id !== id) })),
       nextQuoteNumber: () => { const c = get().quoteCount + 1; return `Q${String(c).padStart(6, '0')}`; },
 

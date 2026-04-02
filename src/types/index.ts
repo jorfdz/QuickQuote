@@ -256,6 +256,7 @@ export interface Quote {
   convertedToOrderId?: string;
   source?: 'scratch' | 'template' | 'ai' | 'clone';
   aiPrompt?: string;
+  statusChangedAt?: string;   // ISO timestamp of last status change
   createdAt: string;
   updatedAt: string;
 }
