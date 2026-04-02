@@ -4,12 +4,14 @@
 @tailwind utilities;
 
 @layer base {
-  html {
-    font-family: Inter, system-ui, sans-serif;
+  :root {
+    --brand: #F890E7;
+    --brand-hover: #e57dd6;
+    --brand-light: rgba(248, 144, 231, 0.10);
+    --brand-ring: rgba(248, 144, 231, 0.50);
   }
-  body {
-    @apply bg-gray-50 text-gray-900 antialiased;
-  }
+  html { font-family: Inter, system-ui, sans-serif; }
+  body { @apply bg-gray-50 text-gray-900 antialiased; }
 }
 
 @layer components {
@@ -59,6 +61,14 @@
   letter-spacing: 0.04em;
   font-weight: 600;
 }
+
+/* ─── Brand color utilities (driven by --brand CSS variable) ──────────── */
+.bg-brand       { background-color: var(--brand); }
+.bg-brand-hover { background-color: var(--brand-hover); }
+.bg-brand-light { background-color: var(--brand-light); }
+.text-brand     { color: var(--brand); }
+.border-brand   { border-color: var(--brand); }
+.ring-brand     { --tw-ring-color: var(--brand-ring); }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

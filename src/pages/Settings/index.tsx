@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { PRESET_SCHEMES, buildSchemeFromColor, applyColorScheme, saveScheme, loadSavedScheme, ColorScheme } from '../../store/colorScheme';
 import { Building, CreditCard, Globe, Bell, Palette, Plus, Pencil, Trash2, Package, Layers, FileText, RotateCcw, Eye, Ruler, Workflow as WorkflowIcon } from 'lucide-react';
 import { Card, PageHeader, Button, Input, Textarea, Tabs, Select, Table, Modal, ConfirmDialog } from '../../components/ui';
 import { DEFAULT_COMPANY_SETTINGS, DEFAULT_INVOICE_TEMPLATE, DEFAULT_ORDER_TEMPLATE, DEFAULT_PURCHASE_ORDER_TEMPLATE, DEFAULT_QUOTE_TEMPLATE, DEFAULT_WORK_ORDER_TEMPLATE } from '../../data/documentSettings';
@@ -10,6 +11,7 @@ import type { PricingCategory, PricingProduct } from '../../types/pricing';
 
 const TABS = [
   { id: 'company', label: 'Company' }, { id: 'branding', label: 'Branding' },
+  { id: 'appearance', label: 'Appearance' },
   { id: 'documents', label: 'Documents' },
   { id: 'defaults', label: 'Quote Defaults' }, { id: 'catalog', label: 'Catalog' },
   { id: 'order-tracker', label: 'Order Tracker' },
@@ -76,6 +78,19 @@ const blankTrackingDeviceForm = (): Omit<TrackingDevice, 'id' | 'createdAt'> => 
 
 export const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState('company');
+
+  // ─── Appearance / Color Scheme state ─────────────────────────────────────
+  const [activeScheme, setActiveScheme] = useState<ColorScheme>(() => loadSavedScheme());
+  const [customColor, setCustomColor] = useState('#F890E7');
+  const [customSchemeActive, setCustomSchemeActive] = useState(false);
+
+  const applyAndSave = (scheme: ColorScheme) => {
+    applyColorScheme(scheme);
+    saveScheme(scheme);
+    setActiveScheme(scheme);
+    setCustomSchemeActive(scheme.id === 'custom');
+  };
+
   const {
     companySettings,
     documentTemplates,
@@ -709,6 +724,114 @@ export const Settings: React.FC = () => {
             <div className="flex gap-3 pt-2"><Button variant="primary" onClick={saveCompanySettings}>Save Branding</Button></div>
           </div>
         </Card>
+      )}
+
+      {/* ── APPEARANCE TAB ───────────────────────────────────────────────── */}
+      {activeTab === 'appearance' && (
+        <div className="max-w-2xl space-y-6">
+          <Card className="p-6">
+            <h2 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
+              <Palette className="w-4 h-4 text-[var(--brand)]" /> Color Scheme
+            </h2>
+            <p className="text-xs text-gray-500 mb-5">Choose a color theme for the entire app. The QQ logo color stays pink — it's our brand.</p>
+
+            {/* Preset swatches */}
+            <div className="grid grid-cols-5 gap-3 mb-6">
+              {PRESET_SCHEMES.map(scheme => {
+                const isActive = activeScheme.id === scheme.id && !customSchemeActive;
+                return (
+                  <button
+                    key={scheme.id}
+                    onClick={() => applyAndSave(scheme)}
+                    className={`group flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                      isActive ? 'border-gray-800 shadow-md scale-105' : 'border-gray-100 hover:border-gray-300'
+                    }`}
+                  >
+                    {/* Color preview circle */}
+                    <div className="w-10 h-10 rounded-full shadow-inner" style={{ backgroundColor: scheme.brand }} />
+                    {/* Name */}
+                    <span className="text-xs font-semibold text-gray-700">{scheme.name}</span>
+                    {/* Description */}
+                    <span className="text-[9px] text-gray-400 text-center leading-tight">{scheme.description}</span>
+                    {/* Active check */}
+                    {isActive && (
+                      <span className="text-[9px] font-bold" style={{ color: scheme.brand }}>✓ Active</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Custom color */}
+            <div className="border-t border-gray-100 pt-5">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Custom Color</h3>
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <input
+                    type="color"
+                    value={customColor}
+                    onChange={e => setCustomColor(e.target.value)}
+                    className="w-12 h-12 rounded-xl border border-gray-200 cursor-pointer p-1 bg-white"
+                  />
+                </div>
+                <div className="flex-1">
+                  <Input
+                    label=""
+                    value={customColor}
+                    onChange={e => {
+                      const v = e.target.value;
+                      setCustomColor(v);
+                    }}
+                    placeholder="#F890E7"
+                    className="font-mono"
+                  />
+                </div>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    const scheme = buildSchemeFromColor(customColor);
+                    applyAndSave(scheme);
+                  }}
+                >
+                  Apply Custom
+                </Button>
+              </div>
+              {customSchemeActive && (
+                <p className="text-xs text-gray-500 mt-2">
+                  Custom color active: <span className="font-semibold font-mono">{activeScheme.brand}</span>
+                </p>
+              )}
+            </div>
+
+            {/* Preview strip */}
+            <div className="border-t border-gray-100 pt-5 mt-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Preview</p>
+              <div className="flex items-center gap-3 flex-wrap">
+                <button className="px-4 py-2 rounded-md text-white text-sm font-medium" style={{ backgroundColor: 'var(--brand)' }}>
+                  Primary Button
+                </button>
+                <button className="px-4 py-2 rounded-md text-sm font-medium border" style={{ color: 'var(--brand)', borderColor: 'var(--brand)', backgroundColor: 'var(--brand-light)' }}>
+                  Outline Button
+                </button>
+                <span className="text-sm font-medium" style={{ color: 'var(--brand)' }}>Link text</span>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold text-white" style={{ backgroundColor: 'var(--brand)' }}>Badge</span>
+                <div className="w-32 h-1.5 rounded-full" style={{ backgroundColor: 'var(--brand-light)' }}>
+                  <div className="h-full w-3/5 rounded-full" style={{ backgroundColor: 'var(--brand)' }} />
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-5 bg-amber-50 border border-amber-200">
+            <div className="flex items-start gap-3">
+              <span className="text-lg flex-shrink-0">🎨</span>
+              <div>
+                <p className="text-sm font-semibold text-amber-800">About the QQ Logo</p>
+                <p className="text-xs text-amber-700 mt-1">The QQ icon in the top-left sidebar stays pink (#F890E7) regardless of your color scheme — it's the QuikQuote brand identity and company logo.</p>
+              </div>
+            </div>
+          </Card>
+        </div>
       )}
 
       {/* ── DOCUMENTS TAB ──────────────────────────────────────────────── */}
