@@ -315,40 +315,22 @@ export const QuoteBuilder: React.FC = () => {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={handleCancel}>Cancel</Button>
-          <Button variant="success" onClick={() => handleSave(false)} loading={saving}>Save Quote</Button>
-          {/* Convert dropdown — auto-saves first then converts */}
-          <div className="relative">
-            <button
-              onClick={() => setShowSaveDropdown(!showSaveDropdown)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-gray-200 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors focus:outline-none focus:ring-1 focus:ring-gray-300"
-            >
-              Convert
-              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-            </button>
-            {showSaveDropdown && (
-              <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-gray-200 rounded-xl shadow-xl z-30 overflow-hidden">
-                <button onClick={() => { setShowSaveDropdown(false); handleSave(true); }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2">
-                  <ArrowRight className="w-3.5 h-3.5 text-gray-400" />
-                  Convert to Order
-                </button>
-                <button onClick={async () => {
-                    setShowSaveDropdown(false);
-                    // Save current quote, then open a clone of it as a new quote
-                    setSaving(true);
-                    const savedId = nanoid();
-                    addQuote({ id: savedId, number: quoteNumber, status: form.status, customerId: form.customerId || undefined, customerName: selectedCustomer?.name, contactId: form.contactId || undefined, title: form.title || `Quote ${quoteNumber}`, lineItems, subtotal, taxRate: form.taxRate, taxAmount, total, validUntil: form.validUntil || undefined, notes: form.notes || undefined, internalNotes: form.internalNotes || undefined, csrId: form.csrId, salesId: form.salesId, source: 'scratch', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-                    await new Promise(r => setTimeout(r, 150));
-                    setSaving(false);
-                    navigate(`/quotes/new?cloneId=${savedId}`);
-                  }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 border-t border-gray-100">
-                  <Copy className="w-3.5 h-3.5 text-gray-400" />
-                  Clone as New Quote
-                </button>
-              </div>
-            )}
-          </div>
+          <Button variant="success" onClick={() => handleSave(false)} loading={saving}>Save</Button>
+          {/* Clone — save first then open clone */}
+          <Button variant="secondary" icon={<Copy className="w-3.5 h-3.5" />} onClick={async () => {
+            setSaving(true);
+            const savedId = isEditMode ? existingQuote!.id : nanoid();
+            if (isEditMode) {
+              updateQuote(savedId, { title: form.title || `Quote ${quoteNumber}`, status: form.status, customerId: form.customerId || undefined, customerName: selectedCustomer?.name, contactId: form.contactId || undefined, lineItems, subtotal, taxRate: form.taxRate, taxAmount, total, validUntil: form.validUntil || undefined, notes: form.notes || undefined, internalNotes: form.internalNotes || undefined, csrId: form.csrId, salesId: form.salesId });
+            } else {
+              addQuote({ id: savedId, number: quoteNumber, status: form.status, customerId: form.customerId || undefined, customerName: selectedCustomer?.name, contactId: form.contactId || undefined, title: form.title || `Quote ${quoteNumber}`, lineItems, subtotal, taxRate: form.taxRate, taxAmount, total, validUntil: form.validUntil || undefined, notes: form.notes || undefined, internalNotes: form.internalNotes || undefined, csrId: form.csrId, salesId: form.salesId, source: 'scratch', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+            }
+            await new Promise(r => setTimeout(r, 150));
+            setSaving(false);
+            navigate(`/quotes/new?cloneId=${savedId}`);
+          }} loading={saving}>Clone</Button>
+          {/* Convert to Order — save first then convert */}
+          <Button variant="primary" icon={<ArrowRight className="w-3.5 h-3.5" />} onClick={() => handleSave(true)} loading={saving}>Convert to Order</Button>
         </div>
       </div>
 
