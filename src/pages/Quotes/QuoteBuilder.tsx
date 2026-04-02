@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus, Trash2, ChevronDown, ChevronRight, Calculator, Copy,
   ArrowRight, Search, X, DollarSign, Edit3,
-  ChevronUp, Percent,
+  ChevronUp, Percent, Layers,
 } from 'lucide-react';
 import { useStore } from '../../store';
 import { usePricingStore } from '../../store/pricingStore';
@@ -89,6 +89,7 @@ export const QuoteBuilder: React.FC = () => {
 
   // ── UI state ──────────────────────────────────────────────────────────
   const [editingItemModal, setEditingItemModal] = useState<string | null>(null);
+  const [expandedParts, setExpandedParts] = useState<Record<string, boolean>>({});
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showSaveDropdown, setShowSaveDropdown] = useState(false);
@@ -587,29 +588,95 @@ export const QuoteBuilder: React.FC = () => {
             <div className="space-y-2">
               {lineItems.map((item, idx) => {
                 const ps = getPricingState(item.id);
+                const mp = (item as any);
+                const isMP = !!mp.isMultiPart && Array.isArray(mp.parts) && mp.parts.length > 0;
+                const partsExpanded = !!expandedParts[item.id];
+                const setPartsExpanded = (v: boolean | ((prev: boolean) => boolean)) => {
+                  const next = typeof v === 'function' ? v(partsExpanded) : v;
+                  setExpandedParts(prev => ({ ...prev, [item.id]: next }));
+                };
                 return (
-                  <Card key={item.id} className="overflow-hidden hover:border-gray-200 transition-all">
+                  <Card key={item.id} className={`overflow-hidden transition-all ${isMP ? 'border-[#F890E7]/30' : 'hover:border-gray-200'}`}>
                     <div className="flex items-center gap-3 px-4 py-3">
                       <span className="w-5 h-5 bg-gray-100 rounded text-xs font-bold text-gray-500 flex items-center justify-center flex-shrink-0">{idx + 1}</span>
                       <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setEditingItemModal(item.id)}>
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {item.description || <span className="text-gray-400 italic">New line item -- click to configure</span>}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          {isMP && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-[#F890E7]/10 text-[#F890E7] border border-[#F890E7]/20 flex-shrink-0">
+                              <Layers className="w-2.5 h-2.5" />
+                              {mp.parts.length} parts
+                            </span>
+                          )}
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {item.description || <span className="text-gray-400 italic">New line item — click to configure</span>}
+                          </p>
+                        </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           {ps.categoryName && <Badge color="blue" className="text-[10px]">{ps.categoryName}</Badge>}
-                          {ps.quantity > 0 && <span className="text-xs text-gray-400">{ps.quantity.toLocaleString()} pcs</span>}
-                          {ps.finalWidth > 0 && ps.finalHeight > 0 && <span className="text-xs text-gray-400">{ps.finalWidth}" x {ps.finalHeight}"</span>}
+                          {!isMP && ps.quantity > 0 && <span className="text-xs text-gray-400">{ps.quantity.toLocaleString()} pcs</span>}
+                          {!isMP && ps.finalWidth > 0 && ps.finalHeight > 0 && <span className="text-xs text-gray-400">{ps.finalWidth}" x {ps.finalHeight}"</span>}
                         </div>
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
-                        <p className="text-sm font-bold text-gray-900">{fmt(item.sellPrice || 0)}</p>
+                        <p className="text-sm font-bold text-gray-900 num">{fmt(item.sellPrice || 0)}</p>
                         <div className="flex items-center gap-1">
+                          {isMP && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setPartsExpanded(v => !v); }}
+                              className="p-1 hover:bg-[#F890E7]/10 rounded text-[#F890E7]/60 hover:text-[#F890E7] transition-colors"
+                              title={partsExpanded ? 'Collapse parts' : 'Expand parts'}
+                            >
+                              {partsExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
                           <button onClick={() => setEditingItemModal(item.id)} className="p-1 hover:bg-blue-50 rounded text-gray-400 hover:text-blue-600" title="Edit"><Edit3 className="w-3.5 h-3.5" /></button>
                           <button onClick={() => duplicateLineItem(item)} className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600" title="Duplicate"><Copy className="w-3.5 h-3.5" /></button>
                           <button onClick={() => removeLineItem(item.id)} className="p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
                       </div>
                     </div>
+
+                    {/* Multi-part expand panel */}
+                    {isMP && partsExpanded && (
+                      <div className="border-t border-[#F890E7]/10 bg-[#F890E7]/3">
+                        <div className="px-4 py-2 divide-y divide-gray-50">
+                          {mp.parts.map((part: any, pIdx: number) => {
+                            const partMargin = part.totalSell > 0 ? ((part.totalSell - part.totalCost) / part.totalSell) * 100 : 0;
+                            return (
+                              <div key={part.id} className="flex items-center justify-between py-2 group">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <span className="w-4 h-4 rounded-full bg-[#F890E7]/20 text-[#F890E7] text-[9px] font-bold flex items-center justify-center flex-shrink-0">{pIdx + 1}</span>
+                                  <div className="min-w-0">
+                                    <span className="text-xs font-semibold text-gray-700">{part.partName}</span>
+                                    {part.partDescription && <span className="text-[10px] text-gray-400 ml-2">{part.partDescription}</span>}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-4 flex-shrink-0">
+                                  <span className="text-[10px] text-gray-400 num">Cost: {fmt(part.totalCost)}</span>
+                                  {part.totalSell > 0 && (
+                                    <span className={`text-[10px] num ${partMargin >= 30 ? 'text-emerald-600' : 'text-amber-500'}`}>
+                                      {partMargin.toFixed(0)}%
+                                    </span>
+                                  )}
+                                  <span className="text-xs font-semibold text-gray-800 num">{fmt(part.totalSell)}</span>
+                                  <button
+                                    onClick={() => setEditingItemModal(item.id)}
+                                    className="opacity-0 group-hover:opacity-100 text-[10px] text-[#F890E7] hover:underline transition-opacity"
+                                  >
+                                    Edit →
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {/* Parts total */}
+                        <div className="px-4 py-1.5 border-t border-[#F890E7]/10 bg-[#F890E7]/5 flex items-center justify-between">
+                          <span className="text-[10px] text-gray-400">{mp.parts.length} parts · click any part to edit in item dialog</span>
+                          <span className="text-xs font-bold text-gray-800 num">{fmt(item.sellPrice)}</span>
+                        </div>
+                      </div>
+                    )}
                   </Card>
                 );
               })}
