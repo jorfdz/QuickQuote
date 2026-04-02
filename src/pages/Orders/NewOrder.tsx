@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Plus, Trash2, ChevronRight, ChevronUp, Calculator, Copy,
+  Plus, Trash2, ChevronDown, ChevronRight, ChevronUp, Calculator, Copy,
   Search, X, Edit3, Package,
   FileText, Calendar,
 } from 'lucide-react';
@@ -115,6 +115,7 @@ export const NewOrder: React.FC = () => {
 
   const [editingItemModal, setEditingItemModal] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showConvertDropdown, setShowConvertDropdown] = useState(false);
   const [showTemplates, setShowTemplates] = useState(!effectiveBase);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -388,9 +389,35 @@ export const NewOrder: React.FC = () => {
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={handleCancel}>Cancel</Button>
           <Button variant="success" onClick={() => handleSave(false)} loading={saving}>Save Order</Button>
-          <Button variant="primary" onClick={() => handleSave(true)} loading={saving} icon={<FileText className="w-4 h-4" />}>
-            Save & Create Invoice
-          </Button>
+          {/* Convert dropdown — auto-saves first then converts */}
+          <div className="relative">
+            <button
+              onClick={() => setShowConvertDropdown(!showConvertDropdown)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-gray-200 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors focus:outline-none focus:ring-1 focus:ring-gray-300"
+            >
+              Convert
+              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+            </button>
+            {showConvertDropdown && (
+              <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-gray-200 rounded-xl shadow-xl z-30 overflow-hidden">
+                <button onClick={() => { setShowConvertDropdown(false); handleSave(true); }}
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2">
+                  <FileText className="w-3.5 h-3.5 text-gray-400" />
+                  Create Invoice
+                </button>
+                <button onClick={async () => { setShowConvertDropdown(false); setSaving(true); const savedId = nanoid(); addOrder({ id: savedId, number: orderNumber, status: form.status, quoteId: sourceQuote?.id, quoteNumber: sourceQuote?.number, customerId: form.customerId || undefined, customerName: selectedCustomer?.name, contactId: form.contactId || undefined, title: form.title || `Order ${orderNumber}`, lineItems, subtotal, taxRate: form.taxRate, taxAmount, total, dueDate: form.dueDate || undefined, workflowId: form.workflowId || undefined, csrId: form.csrId || undefined, salesId: form.salesId || undefined, notes: form.notes || undefined, internalNotes: form.internalNotes || undefined, poNumber: form.poNumber || undefined, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); await new Promise(r => setTimeout(r, 150)); navigate(`/quotes/new?cloneId=${savedId}&source=order`); }}
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 border-t border-gray-100">
+                  <Copy className="w-3.5 h-3.5 text-gray-400" />
+                  Clone as New Quote
+                </button>
+                <button onClick={async () => { setShowConvertDropdown(false); setSaving(true); const savedId = nanoid(); addOrder({ id: savedId, number: orderNumber, status: form.status, quoteId: sourceQuote?.id, quoteNumber: sourceQuote?.number, customerId: form.customerId || undefined, customerName: selectedCustomer?.name, contactId: form.contactId || undefined, title: form.title || `Order ${orderNumber}`, lineItems, subtotal, taxRate: form.taxRate, taxAmount, total, dueDate: form.dueDate || undefined, workflowId: form.workflowId || undefined, csrId: form.csrId || undefined, salesId: form.salesId || undefined, notes: form.notes || undefined, internalNotes: form.internalNotes || undefined, poNumber: form.poNumber || undefined, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); await new Promise(r => setTimeout(r, 150)); navigate(`/orders/new?cloneOrderId=${savedId}`); }}
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 border-t border-gray-100">
+                  <Copy className="w-3.5 h-3.5 text-gray-400" />
+                  Clone as New Order
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -795,12 +822,6 @@ export const NewOrder: React.FC = () => {
               </div>
             )}
 
-            <div className="mt-4 space-y-2">
-              <Button variant="success" className="w-full justify-center" onClick={() => handleSave(false)} loading={saving}>Save Order</Button>
-              <Button variant="success" className="w-full justify-center" onClick={() => handleSave(true)} loading={saving} icon={<FileText className="w-4 h-4" />}>
-                Save & Create Invoice
-              </Button>
-            </div>
           </Card>
 
           {/* Margin analysis */}
