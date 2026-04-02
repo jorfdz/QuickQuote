@@ -92,6 +92,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // ── Local UI state ────────────────────────────────────────────────────
   const [productQuery, setProductQuery] = useState(ps.productName || '');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  // Global product search for multi-part item name
+  const [showGlobalSuggestions, setShowGlobalSuggestions] = useState(false);
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<PricingServiceLine>>({});
   const [savedAsTemplate, setSavedAsTemplate] = useState(false);
@@ -828,20 +830,52 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <Layers className="w-3.5 h-3.5 text-[#F890E7]" />
-                        <span className="text-[10px] font-bold text-[#F890E7] uppercase tracking-widest">Multi-Part Item</span>
+                        <span className="text-[10px] font-bold text-[#F890E7] uppercase tracking-widest whitespace-nowrap">Multi-Part Item</span>
                       </div>
                       <div className="w-px h-4 bg-[#F890E7]/20 flex-shrink-0" />
-                      <input
-                        value={globalProduct}
-                        onChange={e => setGlobalProduct(e.target.value)}
-                        placeholder="Item name (e.g. Booklet, Catalog...)"
-                        className="flex-1 text-sm font-semibold bg-transparent border-0 focus:outline-none text-gray-800 placeholder-gray-300 min-w-0"
-                      />
+                      {/* Item name with product search — fixed narrower width */}
+                      <div className="relative" style={{ width: '28%', minWidth: 140 }}>
+                        <input
+                          value={globalProduct}
+                          onChange={e => {
+                            setGlobalProduct(e.target.value);
+                            setShowGlobalSuggestions(true);
+                          }}
+                          onFocus={() => globalProduct && setShowGlobalSuggestions(true)}
+                          onBlur={() => setTimeout(() => setShowGlobalSuggestions(false), 150)}
+                          placeholder="Item name (e.g. Booklet...)"
+                          className="w-full text-sm font-semibold bg-transparent border-0 focus:outline-none text-gray-800 placeholder-gray-300"
+                        />
+                        {/* Product suggestions dropdown */}
+                        {showGlobalSuggestions && globalProduct.trim().length >= 1 && (() => {
+                          const globalSuggs = searchProducts(globalProduct).slice(0, 6);
+                          return globalSuggs.length > 0 ? (
+                            <div className="absolute z-30 top-full left-0 mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+                              {globalSuggs.map(p => {
+                                const cat = categories.find(c => p.categoryIds.includes(c.id));
+                                return (
+                                  <button key={p.id} type="button"
+                                    onMouseDown={() => {
+                                      setGlobalProduct(p.name);
+                                      setGlobalDescription((prev: string) => prev || p.name);
+                                      setShowGlobalSuggestions(false);
+                                    }}
+                                    className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-[#F890E7]/5 transition-colors border-b border-gray-50 last:border-0">
+                                    <span className="text-xs font-medium text-gray-900">{p.name}</span>
+                                    {cat && <span className="text-[10px] text-gray-400 ml-2">{cat.name}</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
                       <div className="w-px h-4 bg-gray-200 flex-shrink-0" />
+                      {/* Item description — remaining space */}
                       <input
                         value={globalDescription}
                         onChange={e => setGlobalDescription(e.target.value)}
-                        placeholder="Overall description..."
+                        placeholder="Overall item description..."
                         className="flex-1 text-sm bg-transparent border-0 focus:outline-none text-gray-500 placeholder-gray-300 min-w-0"
                       />
                     </div>

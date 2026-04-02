@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Plus, Trash2, Search, X, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Search, X, ChevronDown, Layers } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { Button, Card, PageHeader, Table, Modal, ConfirmDialog, Input, Badge } from '../../components/ui';
 import { usePricingStore } from '../../store/pricingStore';
@@ -51,6 +51,9 @@ export const Templates: React.FC = () => {
 
   // ── New Template modal ──────────────────────────────────────────────────
   const [modalOpen, setModalOpen] = useState(false);
+  const [tplIsMultiPart, setTplIsMultiPart] = useState(false);
+  const [multiPartItemQuery, setMultiPartItemQuery] = useState('');
+  const [showMultiPartSuggestions, setShowMultiPartSuggestions] = useState(false);
   const [tplName, setTplName] = useState('');
   const [productQuery, setProductQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -133,6 +136,11 @@ export const Templates: React.FC = () => {
     }
   };
 
+  const multiPartSuggestions = useMemo(() => {
+    if (!multiPartItemQuery.trim()) return products.slice(0, 6);
+    return pricing.searchProducts(multiPartItemQuery).slice(0, 6);
+  }, [multiPartItemQuery, products, pricing]);
+
   const openNewTemplate = () => {
     setTplName('');
     setProductQuery('');
@@ -147,13 +155,19 @@ export const Templates: React.FC = () => {
     setColorMode('Color');
     setSides('Double');
     setFoldingType('');
+    setTplIsMultiPart(false);
+    setMultiPartItemQuery('');
     setModalOpen(true);
   };
 
   const handleSaveTemplate = () => {
-    if (!tplName || !selectedProduct) return;
+    if (!selectedProduct) return;
+    const finalName = tplIsMultiPart
+      ? (multiPartItemQuery ? `${multiPartItemQuery} — ${selectedProduct.name}` : selectedProduct.name)
+      : (tplName || selectedProduct.name);
+    if (!finalName) return;
     pricing.addTemplate({
-      name: tplName,
+      name: finalName,
       categoryId: categories.find(c => c.name === categoryName)?.id || '',
       categoryName,
       productId: selectedProduct.id,
@@ -252,7 +266,58 @@ export const Templates: React.FC = () => {
       {/* ═══ NEW TEMPLATE MODAL ═══ */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="New Template" size="2xl">
         <div className="space-y-4">
-          {/* Product search */}
+
+          {/* Multi-Part Item toggle */}
+          <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
+            <button
+              type="button"
+              onClick={() => { setTplIsMultiPart(v => !v); setMultiPartItemQuery(''); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                tplIsMultiPart
+                  ? 'bg-[#F890E7]/10 text-[#F890E7] border-[#F890E7]/30'
+                  : 'text-gray-400 border-gray-200 hover:border-gray-300 hover:text-gray-600'
+              }`}
+            >
+              <Layers className="w-3 h-3" />
+              Multi-Part Item
+            </button>
+            {tplIsMultiPart && (
+              <div className="relative flex-1">
+                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={multiPartItemQuery}
+                  onChange={e => { setMultiPartItemQuery(e.target.value); setShowMultiPartSuggestions(true); setTplName(e.target.value); }}
+                  onFocus={() => setShowMultiPartSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowMultiPartSuggestions(false), 150)}
+                  placeholder="Multi-Part Item name (e.g. Booklet, Catalog...)"
+                  className="w-full pl-9 pr-3 py-1.5 text-sm bg-[#F890E7]/5 border border-[#F890E7]/20 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#F890E7] placeholder-gray-300 font-semibold text-gray-800"
+                />
+                {showMultiPartSuggestions && multiPartSuggestions.length > 0 && (
+                  <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">
+                    {multiPartSuggestions.map(p => {
+                      const cat = categories.find(c => p.categoryIds.includes(c.id));
+                      return (
+                        <button key={p.id}
+                          onMouseDown={() => { setMultiPartItemQuery(p.name); setTplName(p.name); setShowMultiPartSuggestions(false); }}
+                          className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-[#F890E7]/5 transition-colors border-b border-gray-50 last:border-0">
+                          <span className="text-xs font-medium text-gray-900">{p.name}</span>
+                          {cat && <span className="text-[10px] text-gray-400">{cat.name}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Product search (for part product or single-item product) */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+              {tplIsMultiPart ? 'Part 1 — Product' : 'Product'}
+            </label>
+          </div>
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Product</label>
             <div className="relative">
@@ -374,7 +439,10 @@ export const Templates: React.FC = () => {
 
           <div className="flex gap-3 justify-end pt-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={handleSaveTemplate} disabled={!tplName || !selectedProduct}>Save Template</Button>
+            <Button variant="primary" onClick={handleSaveTemplate}
+              disabled={!selectedProduct || (tplIsMultiPart ? !multiPartItemQuery : !tplName)}>
+              Save Template
+            </Button>
           </div>
         </div>
       </Modal>

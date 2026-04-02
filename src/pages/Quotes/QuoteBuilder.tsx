@@ -600,18 +600,16 @@ export const QuoteBuilder: React.FC = () => {
                     <div className="flex items-center gap-3 px-4 py-3">
                       <span className="w-5 h-5 bg-gray-100 rounded text-xs font-bold text-gray-500 flex items-center justify-center flex-shrink-0">{idx + 1}</span>
                       <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setEditingItemModal(item.id)}>
-                        <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {item.description || <span className="text-gray-400 italic">New line item — click to configure</span>}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
                           {isMP && (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-[#F890E7]/10 text-[#F890E7] border border-[#F890E7]/20 flex-shrink-0">
                               <Layers className="w-2.5 h-2.5" />
                               {mp.parts.length} parts
                             </span>
                           )}
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {item.description || <span className="text-gray-400 italic">New line item — click to configure</span>}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5">
                           {ps.categoryName && <Badge color="blue" className="text-[10px]">{ps.categoryName}</Badge>}
                           {!isMP && ps.quantity > 0 && <span className="text-xs text-gray-400">{ps.quantity.toLocaleString()} pcs</span>}
                           {!isMP && ps.finalWidth > 0 && ps.finalHeight > 0 && <span className="text-xs text-gray-400">{ps.finalWidth}" x {ps.finalHeight}"</span>}
