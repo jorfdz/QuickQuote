@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import {
   Plus, Trash2, ChevronDown, ChevronRight, Calculator, Copy,
   ArrowRight, Search, X, DollarSign, Edit3,
@@ -43,32 +43,40 @@ const EMPTY_LINE_ITEM = (): QuoteLineItem => ({
 export const QuoteBuilder: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { customers, contacts, quotes, orders, addQuote, nextQuoteNumber, currentUser, users, addCustomer, addContact } = useStore();
+  const { id: editId } = useParams<{ id: string }>();
+  const { customers, contacts, quotes, orders, addQuote, updateQuote, nextQuoteNumber, currentUser, users, addCustomer, addContact } = useStore();
   const pricing = usePricingStore();
   const initialCustomerId = searchParams.get('customerId') || '';
   const initialContactId = searchParams.get('contactId') || '';
   const cloneId = searchParams.get('cloneId');
   const cloneSource = searchParams.get('source'); // 'order' or undefined
-  const sourceClone = cloneId
+
+  // ── Determine mode ──────────────────────────────────────────────────────
+  // editId is present when route is /quotes/:id/edit → load existing quote
+  const existingQuote = editId ? quotes.find(q => q.id === editId) : null;
+  const isEditMode = !!existingQuote;
+  const sourceClone = !isEditMode && cloneId
     ? (cloneSource === 'order' ? orders.find(o => o.id === cloneId) : quotes.find(q => q.id === cloneId))
     : null;
 
-  // ── Generate quote number immediately on mount ───────────────────────
-  const [quoteNumber] = useState(() => nextQuoteNumber());
+  // ── Use existing quote number when editing, else generate new ──────────
+  const [quoteNumber] = useState(() => isEditMode ? existingQuote!.number : nextQuoteNumber());
 
-  // ── Quote-level state ─────────────────────────────────────────────────
+  // ── Seed from existing quote (edit) or clone source or defaults ────────
+  const seed = existingQuote || (sourceClone as any) || null;
+
   const [form, setForm] = useState({
-    title: sourceClone?.title ? `Copy of ${sourceClone.title}` : '',
-    customerId: (sourceClone as any)?.customerId || initialCustomerId,
-    contactId: (sourceClone as any)?.contactId || initialContactId,
-    status: 'pending' as Quote['status'],
-    taxRate: (sourceClone as any)?.taxRate ?? 7,
-    validUntil: daysFromNow(45),
-    notes: (sourceClone as any)?.notes || '',
-    internalNotes: (sourceClone as any)?.internalNotes || '',
-    csrId: (sourceClone as any)?.csrId || currentUser.id,
-    salesId: (sourceClone as any)?.salesId || currentUser.id,
-    dueDate: '',
+    title: isEditMode ? (seed?.title || '') : (sourceClone ? `Copy of ${(sourceClone as any).title}` : ''),
+    customerId: seed?.customerId || initialCustomerId,
+    contactId: seed?.contactId || initialContactId,
+    status: (isEditMode ? seed?.status : 'pending') as Quote['status'],
+    taxRate: seed?.taxRate ?? 7,
+    validUntil: isEditMode ? (seed?.validUntil || daysFromNow(45)) : daysFromNow(45),
+    notes: seed?.notes || '',
+    internalNotes: seed?.internalNotes || '',
+    csrId: seed?.csrId || currentUser.id,
+    salesId: (seed as any)?.salesId || currentUser.id,
+    dueDate: (seed as any)?.dueDate || '',
     shipping: 0,
     discount: 0,
     discountType: 'fixed' as 'fixed' | 'percent',
@@ -76,8 +84,13 @@ export const QuoteBuilder: React.FC = () => {
     shipToAddress: '',
   });
   const [lineItems, setLineItems] = useState<QuoteLineItem[]>(() => {
-    if (sourceClone?.lineItems?.length) {
-      return sourceClone.lineItems.map(li => ({ ...li, id: nanoid() }));
+    // Edit mode: load existing items as-is (same IDs so edits are in-place)
+    if (isEditMode && existingQuote?.lineItems?.length) {
+      return existingQuote.lineItems;
+    }
+    // Clone mode: copy items with fresh IDs
+    if (!isEditMode && sourceClone && (sourceClone as any).lineItems?.length) {
+      return (sourceClone as any).lineItems.map((li: QuoteLineItem) => ({ ...li, id: nanoid() }));
     }
     return [EMPTY_LINE_ITEM()];
   });
@@ -202,28 +215,58 @@ export const QuoteBuilder: React.FC = () => {
   const handleSave = async (andConvert = false) => {
     setSaving(true);
     const number = quoteNumber;
-    const quote: Quote = {
-      id: nanoid(), number, status: form.status,
-      customerId: form.customerId || undefined, customerName: selectedCustomer?.name,
-      contactId: form.contactId || undefined,
-      title: form.title || `Quote ${number}`,
-      lineItems, subtotal, taxRate: form.taxRate, taxAmount, total,
-      validUntil: form.validUntil || undefined,
-      notes: form.notes || undefined, internalNotes: form.internalNotes || undefined,
-      csrId: form.csrId, salesId: form.salesId, source: 'scratch',
-      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-    };
-    addQuote(quote);
-    await new Promise(r => setTimeout(r, 300));
-    setSaving(false);
-    if (andConvert) navigate(`/orders/new?quoteId=${quote.id}`);
-    else navigate(`/quotes/${quote.id}`);
+
+    if (isEditMode && existingQuote) {
+      // Update existing quote
+      updateQuote(existingQuote.id, {
+        title: form.title || `Quote ${number}`,
+        status: form.status,
+        customerId: form.customerId || undefined,
+        customerName: selectedCustomer?.name,
+        contactId: form.contactId || undefined,
+        lineItems,
+        subtotal,
+        taxRate: form.taxRate,
+        taxAmount,
+        total,
+        validUntil: form.validUntil || undefined,
+        notes: form.notes || undefined,
+        internalNotes: form.internalNotes || undefined,
+        csrId: form.csrId,
+        salesId: form.salesId,
+      });
+      await new Promise(r => setTimeout(r, 150));
+      setSaving(false);
+      if (andConvert) navigate(`/orders/new?quoteId=${existingQuote.id}`);
+      else navigate(`/quotes/${existingQuote.id}`);
+    } else {
+      // Create new quote
+      const quote: Quote = {
+        id: nanoid(), number, status: form.status,
+        customerId: form.customerId || undefined, customerName: selectedCustomer?.name,
+        contactId: form.contactId || undefined,
+        title: form.title || `Quote ${number}`,
+        lineItems, subtotal, taxRate: form.taxRate, taxAmount, total,
+        validUntil: form.validUntil || undefined,
+        notes: form.notes || undefined, internalNotes: form.internalNotes || undefined,
+        csrId: form.csrId, salesId: form.salesId, source: 'scratch',
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      };
+      addQuote(quote);
+      await new Promise(r => setTimeout(r, 300));
+      setSaving(false);
+      if (andConvert) navigate(`/orders/new?quoteId=${quote.id}`);
+      else navigate(`/quotes/${quote.id}`);
+    }
   };
 
   // ── Cancel handler ────────────────────────────────────────────────────
   const handleCancel = () => {
-    if (hasContent) {
+    if (!isEditMode && hasContent) {
       setShowCancelConfirm(true);
+    } else if (isEditMode) {
+      // In edit mode, cancel goes back to quote detail without confirming
+      navigate(`/quotes/${editId}`);
     } else {
       navigate('/quotes');
     }
@@ -263,12 +306,12 @@ export const QuoteBuilder: React.FC = () => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-            <button onClick={() => navigate('/quotes')} className="hover:text-blue-600">Quotes</button>
+            <button onClick={() => navigate('/quotes')} className="hover:text-[#F890E7]">Quotes</button>
             <span>/</span>
-            <span className="text-gray-900 font-medium">{quoteNumber}</span>
+            <span className="text-gray-900 font-medium obj-num">{quoteNumber}</span>
             {sourceClone && <span className="text-gray-400 ml-1">— Clone of {(sourceClone as any).number}</span>}
           </div>
-          <h1 className="text-xl font-bold text-gray-900">Build Quote</h1>
+          <h1 className="text-xl font-bold text-gray-900">{isEditMode ? 'Edit Quote' : 'New Quote'}</h1>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={handleCancel}>Cancel</Button>
