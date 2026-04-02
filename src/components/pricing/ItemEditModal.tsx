@@ -202,10 +202,13 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     let desc = ps.productName || '';
     if (materialName) desc += ' - ' + materialName;
     if (ps.finalWidth && ps.finalHeight) desc += ', ' + ps.finalWidth + 'x' + ps.finalHeight;
-    if (ps.colorMode) desc += ', ' + ps.colorMode;
-    if (ps.sides) desc += ', ' + ps.sides + '-Sided';
+    // When multi-part, don't append color/sides — those are per-part attributes, not the global item
+    if (!isMultiPart) {
+      if (ps.colorMode) desc += ', ' + ps.colorMode;
+      if (ps.sides) desc += ', ' + ps.sides + '-Sided';
+    }
     return desc;
-  }, [ps.productName, ps.materialId, ps.finalWidth, ps.finalHeight, ps.colorMode, ps.sides, materials]);
+  }, [ps.productName, ps.materialId, ps.finalWidth, ps.finalHeight, ps.colorMode, ps.sides, materials, isMultiPart]);
 
   useEffect(() => {
     if (autoDescribe && ps.productName) {
@@ -765,7 +768,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   setGlobalDescription(item.description || '');
                   const firstPart: PartSnapshot = {
                     id: nanoid(),
-                    partName: 'Cover',
+                    partName: 'Part 1',
                     partDescription: item.description || '',
                     pricingState: { ...ps },
                     productQuery,
@@ -800,60 +803,67 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
               {/* ── Multi-Part Banner ─────────────────────────────────── */}
               {isMultiPart && (
-                <div className="mb-4 bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
-                  {/* Global item bar */}
-                  <div className="px-4 py-3 bg-white border-b border-gray-100">
+                <div className="mb-4 rounded-xl border border-[#F890E7]/25 overflow-hidden shadow-sm">
+
+                  {/* ── Row 1: Multi-Part Item name + description ─────── */}
+                  <div className="px-4 py-3 bg-gradient-to-r from-[#F890E7]/8 to-white border-b border-[#F890E7]/15">
                     <div className="flex items-center gap-3">
-                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest flex-shrink-0">Item</span>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <Layers className="w-3.5 h-3.5 text-[#F890E7]" />
+                        <span className="text-[10px] font-bold text-[#F890E7] uppercase tracking-widest">Multi-Part Item</span>
+                      </div>
+                      <div className="w-px h-4 bg-[#F890E7]/20 flex-shrink-0" />
                       <input
                         value={globalProduct}
                         onChange={e => setGlobalProduct(e.target.value)}
-                        placeholder="Item product (e.g. Booklet, Catalog...)"
+                        placeholder="Item name (e.g. Booklet, Catalog...)"
                         className="flex-1 text-sm font-semibold bg-transparent border-0 focus:outline-none text-gray-800 placeholder-gray-300 min-w-0"
                       />
-                      <span className="text-gray-200">|</span>
+                      <div className="w-px h-4 bg-gray-200 flex-shrink-0" />
                       <input
                         value={globalDescription}
                         onChange={e => setGlobalDescription(e.target.value)}
-                        placeholder="Global description..."
+                        placeholder="Overall description..."
                         className="flex-1 text-sm bg-transparent border-0 focus:outline-none text-gray-500 placeholder-gray-300 min-w-0"
                       />
                     </div>
                   </div>
 
-                  {/* Tab strip — Main + one per Part */}
-                  <div className="flex items-center gap-0 overflow-x-auto px-3 py-2 border-b border-gray-100 bg-white/60">
-                    {/* Main overview tab */}
+                  {/* ── Row 2: Tab strip — Overview | Part 1 | Part 2 … ── */}
+                  <div className="flex items-center overflow-x-auto bg-gray-50 border-b border-gray-100 px-3 py-0 gap-0">
+                    {/* Overview tab */}
                     <button
                       onClick={goToMainTab}
-                      className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all mr-2 ${
+                      className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium transition-all border-b-2 ${
                         showMainTab
-                          ? 'bg-gray-800 text-white shadow-sm'
-                          : 'text-gray-500 hover:bg-gray-100'
+                          ? 'border-gray-700 text-gray-800 bg-white'
+                          : 'border-transparent text-gray-400 hover:text-gray-600 hover:bg-white/60'
                       }`}
                     >
                       <Layers className="w-3 h-3" />
                       Overview
                     </button>
-                    <div className="w-px h-4 bg-gray-200 mr-2 flex-shrink-0" />
+                    <div className="w-px h-5 bg-gray-200 mx-1 flex-shrink-0" />
 
                     {/* Part tabs */}
                     {parts.map((part, idx) => (
-                      <div key={part.id} className="flex-shrink-0 flex items-center">
+                      <div key={part.id} className="flex-shrink-0 flex items-center group">
                         <button
                           onClick={() => switchToPart(idx)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all mr-1 ${
+                          className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium transition-all border-b-2 ${
                             !showMainTab && activePartIdx === idx
-                              ? 'bg-[#F890E7] text-white shadow-sm'
-                              : 'text-gray-500 hover:bg-gray-100'
+                              ? 'border-[#F890E7] text-[#F890E7] bg-white'
+                              : 'border-transparent text-gray-400 hover:text-gray-600 hover:bg-white/60'
                           }`}
                         >
                           <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${
-                            !showMainTab && activePartIdx === idx ? 'bg-white/20' : 'bg-gray-200 text-gray-600'
+                            !showMainTab && activePartIdx === idx
+                              ? 'bg-[#F890E7] text-white'
+                              : 'bg-gray-200 text-gray-500'
                           }`}>{idx + 1}</span>
                           {part.partName || `Part ${idx + 1}`}
                           {(idx === activePartIdx && !showMainTab ? item.sellPrice : part.totalSell) > 0 && (
-                            <span className={`text-[9px] ${!showMainTab && activePartIdx === idx ? 'text-white/70' : 'text-gray-400'}`}>
+                            <span className="text-[9px] text-gray-300 num">
                               {formatCurrency(idx === activePartIdx && !showMainTab ? item.sellPrice : part.totalSell)}
                             </span>
                           )}
@@ -861,16 +871,17 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         {parts.length > 1 && (
                           <button
                             onClick={e => { e.stopPropagation(); removePart(idx); }}
-                            className="p-0.5 hover:bg-red-50 rounded text-gray-300 hover:text-red-400 transition-colors mr-2"
+                            className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-50 rounded text-gray-300 hover:text-red-400 transition-all -ml-1 mr-1"
                           >
                             <X className="w-3 h-3" />
                           </button>
                         )}
                       </div>
                     ))}
+
                     <button
                       onClick={addNewPart}
-                      className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-[#F890E7] hover:bg-pink-50 transition-all"
+                      className="flex-shrink-0 flex items-center gap-1 px-3 py-2.5 text-xs font-medium text-gray-400 hover:text-[#F890E7] transition-colors ml-1"
                     >
                       <Plus className="w-3 h-3" /> Add Part
                     </button>
@@ -964,7 +975,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                   {/* Active part name/description (shown only when NOT on main tab) */}
                   {!showMainTab && parts[activePartIdx] && (
-                    <div className="px-4 py-2 flex items-center gap-3 bg-[#F890E7]/5">
+                    <div className="px-4 py-2.5 flex items-center gap-3 bg-white border-b border-gray-50">
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className="w-5 h-5 rounded-full bg-[#F890E7] text-white text-[9px] font-bold flex items-center justify-center">
+                          {activePartIdx + 1}
+                        </span>
+                      </div>
                       <input
                         value={parts[activePartIdx].partName}
                         onChange={e => {
@@ -972,10 +988,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           updated[activePartIdx] = { ...updated[activePartIdx], partName: e.target.value };
                           setParts(updated);
                         }}
-                        className="text-sm font-semibold bg-transparent border-0 focus:outline-none text-[#F890E7] placeholder-pink-300 w-32"
+                        className="text-sm font-semibold bg-transparent border-0 focus:outline-none text-gray-800 placeholder-gray-300 w-40 border-b border-dashed border-gray-200 focus:border-[#F890E7] pb-0.5 transition-colors"
                         placeholder="Part name..."
                       />
-                      <span className="text-gray-200 text-xs">|</span>
+                      <div className="w-px h-4 bg-gray-200 flex-shrink-0" />
                       <input
                         value={parts[activePartIdx].partDescription}
                         onChange={e => {
@@ -983,11 +999,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           updated[activePartIdx] = { ...updated[activePartIdx], partDescription: e.target.value };
                           setParts(updated);
                         }}
-                        placeholder="Part description..."
+                        placeholder="Part description (optional)..."
                         className="flex-1 text-xs bg-transparent border-0 focus:outline-none text-gray-500 placeholder-gray-300"
                       />
                       {(item.sellPrice > 0) && (
-                        <span className="text-xs num text-gray-500 flex-shrink-0">
+                        <span className="text-xs num font-semibold text-gray-600 flex-shrink-0">
                           {formatCurrency(item.sellPrice)}
                         </span>
                       )}
@@ -996,11 +1012,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                   {/* Grand total bar */}
                   {!showMainTab && parts.length > 1 && (
-                    <div className="px-4 py-1.5 flex items-center justify-between bg-gray-50 border-t border-gray-100 text-[10px] text-gray-400">
-                      <span>{parts.length} parts</span>
-                      <span className="num font-semibold text-gray-600">
-                        Total: {formatCurrency(parts.reduce((s, p, i) => s + (i === activePartIdx ? item.sellPrice : p.totalSell), 0))}
-                      </span>
+                    <div className="px-4 py-1.5 flex items-center justify-between bg-gray-50 text-[10px] text-gray-400">
+                      <span>{parts.length} parts total</span>
+                      <button onClick={goToMainTab} className="num font-semibold text-gray-600 hover:text-[#F890E7] transition-colors">
+                        All parts: {formatCurrency(parts.reduce((s, p, i) => s + (i === activePartIdx ? item.sellPrice : p.totalSell), 0))} →
+                      </button>
                     </div>
                   )}
                 </div>
