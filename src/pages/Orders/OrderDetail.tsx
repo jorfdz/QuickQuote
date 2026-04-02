@@ -26,10 +26,11 @@ export const OrderDetail: React.FC = () => {
   const { orders, invoices, updateOrder, deleteOrder, addInvoice, nextInvoiceNumber, invoiceCount, workflows, users, equipment, purchaseOrders, vendors, customers, contacts, companySettings, documentTemplates } = useStore();
   const [activeTab, setActiveTab] = useState('overview');
   const [showDelete, setShowDelete] = useState(false);
-  const [showStatusModal, setShowStatusModal] = useState(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
   const convertRef = useRef<HTMLDivElement>(null);
+  const statusRef = useRef<HTMLDivElement>(null);
 
   const order = orders.find(o => o.id === id);
 
@@ -46,10 +47,11 @@ export const OrderDetail: React.FC = () => {
     }
   }, [order?.lineItems, isDirty]);
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (convertRef.current && !convertRef.current.contains(e.target as Node)) setConvertOpen(false);
+      if (statusRef.current && !statusRef.current.contains(e.target as Node)) setStatusOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -162,10 +164,6 @@ export const OrderDetail: React.FC = () => {
     navigate('/invoices');
   };
 
-  const statuses: { value: OrderStatus; label: string }[] = [
-    { value: 'in_progress', label: 'In Progress' }, { value: 'on_hold', label: 'On Hold' },
-    { value: 'completed', label: 'Completed' }, { value: 'canceled', label: 'Canceled' },
-  ];
 
   // ── Line item editing helpers ─────────────────────────────────────────
   const addLineItem = () => {
@@ -195,6 +193,13 @@ export const OrderDetail: React.FC = () => {
   const editableTaxAmount = editableSubtotal * ((order.taxRate || 0) / 100);
   const editableTotal = editableSubtotal + editableTaxAmount;
 
+  const ORDER_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
+    { value: 'in_progress', label: 'In Progress' },
+    { value: 'on_hold', label: 'On Hold' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'canceled', label: 'Canceled' },
+  ];
+
   return (
     <div>
       <PageHeader
@@ -202,46 +207,69 @@ export const OrderDetail: React.FC = () => {
         subtitle={`${order.number} · ${order.customerName || 'No customer'}`}
         back={() => navigate('/orders')}
         actions={
-          <>
-            <Button variant="ghost" size="sm" onClick={() => setShowStatusModal(true)}>Status</Button>
+          <div className="flex items-center gap-2">
+            {/* Work Order print */}
             <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />} onClick={openWorkOrderPrintWindow}>Work Order</Button>
+            {/* Tracker */}
             <Button variant="secondary" size="sm" icon={<KanbanSquare className="w-4 h-4" />} onClick={() => navigate('/tracker')}>Tracker</Button>
+            {/* Create PO */}
             <Button variant="secondary" size="sm" icon={<ShoppingCart className="w-4 h-4" />} onClick={() => navigate(`/purchase-orders/new?orderId=${order.id}`)}>Create PO</Button>
-            {/* Convert to... dropdown */}
+
+            {/* Status pill — inline dropdown */}
+            <div className="relative" ref={statusRef}>
+              <button
+                onClick={() => setStatusOpen(!statusOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Badge label={order.status} />
+                <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-1" />
+              </button>
+              {statusOpen && (
+                <div className="absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50">
+                  {ORDER_STATUS_OPTIONS.map(s => (
+                    <button key={s.value}
+                      onClick={() => { updateOrder(id!, { status: s.value }); setStatusOpen(false); }}
+                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${order.status === s.value ? 'font-semibold bg-gray-50' : 'hover:bg-gray-50'}`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Convert dropdown */}
             <div className="relative" ref={convertRef}>
-              <Button variant="primary" icon={<ArrowRight className="w-4 h-4" />} onClick={() => setConvertOpen(!convertOpen)}>
-                Convert to...
-                <ChevronDown className="w-3.5 h-3.5 ml-1" />
-              </Button>
+              <button
+                onClick={() => setConvertOpen(!convertOpen)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-gray-200 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Convert
+                <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+              </button>
               {convertOpen && (
                 <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50">
-                  <button
-                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
-                    onClick={() => { setConvertOpen(false); navigate(`/quotes/new?cloneId=${order.id}&source=order`); }}
-                  >
-                    <Copy className="w-4 h-4 text-gray-400" />
-                    Clone as New Quote
+                  <button className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    onClick={() => { setConvertOpen(false); navigate(`/quotes/new?cloneId=${order.id}&source=order`); }}>
+                    <Copy className="w-4 h-4 text-gray-400" /> Clone as New Quote
                   </button>
-                  <button
-                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
-                    onClick={() => { setConvertOpen(false); navigate(`/orders/new?cloneOrderId=${order.id}`); }}
-                  >
-                    <Copy className="w-4 h-4 text-gray-400" />
-                    Clone as New Order
+                  <button className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
+                    onClick={() => { setConvertOpen(false); navigate(`/orders/new?cloneOrderId=${order.id}`); }}>
+                    <Copy className="w-4 h-4 text-gray-400" /> Clone as New Order
                   </button>
                   {!order.invoiceId && (
-                    <button
-                      className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
-                      onClick={() => { setConvertOpen(false); createInvoice(); }}
-                    >
-                      <Receipt className="w-4 h-4 text-gray-400" />
-                      Create Invoice
+                    <button className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
+                      onClick={() => { setConvertOpen(false); createInvoice(); }}>
+                      <Receipt className="w-4 h-4 text-gray-400" /> Create Invoice
                     </button>
                   )}
                 </div>
               )}
             </div>
-          </>
+
+            {/* Delete */}
+            <Button variant="danger" size="sm" icon={<Trash2 className="w-4 h-4" />} onClick={() => setShowDelete(true)}>Delete</Button>
+          </div>
         }
       />
 
@@ -647,17 +675,6 @@ export const OrderDetail: React.FC = () => {
           ))}
         </div>
       )}
-
-      <Modal isOpen={showStatusModal} onClose={() => setShowStatusModal(false)} title="Change Order Status" size="sm">
-        <div className="space-y-2">
-          {statuses.map(s => (
-            <button key={s.value} onClick={() => { updateOrder(id!, { status: s.value }); setShowStatusModal(false); }}
-              className={`w-full text-left px-4 py-3 rounded-lg border transition-all ${order.status === s.value ? 'border-blue-500 bg-blue-50' : 'border-gray-100 hover:border-gray-200'}`}>
-              {s.label}
-            </button>
-          ))}
-        </div>
-      </Modal>
 
       <ConfirmDialog isOpen={showDelete} onClose={() => setShowDelete(false)}
         onConfirm={() => { deleteOrder(id!); navigate('/orders'); }}

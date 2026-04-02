@@ -217,25 +217,33 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   }, [ps.finalWidth, ps.finalHeight]);
 
   // ── Auto-describe helper ──────────────────────────────────────────────
+  // Build a description string from current part/item specs
   const buildDescription = useCallback(() => {
     const materialName = materials.find(m => m.id === ps.materialId)?.name;
     let desc = ps.productName || '';
     if (materialName) desc += ' - ' + materialName;
     if (ps.finalWidth && ps.finalHeight) desc += ', ' + ps.finalWidth + 'x' + ps.finalHeight;
-    // When multi-part, don't append color/sides — those are per-part attributes, not the global item
-    if (!isMultiPart) {
-      if (ps.colorMode) desc += ', ' + ps.colorMode;
-      if (ps.sides) desc += ', ' + ps.sides + '-Sided';
-    }
+    if (ps.colorMode) desc += ', ' + ps.colorMode;
+    if (ps.sides) desc += ', ' + ps.sides + '-Sided';
     return desc;
-  }, [ps.productName, ps.materialId, ps.finalWidth, ps.finalHeight, ps.colorMode, ps.sides, materials, isMultiPart]);
+  }, [ps.productName, ps.materialId, ps.finalWidth, ps.finalHeight, ps.colorMode, ps.sides, materials]);
 
   useEffect(() => {
-    if (autoDescribe && ps.productName) {
-      onUpdateItem({ description: buildDescription() });
+    if (!autoDescribe || !ps.productName) return;
+    const desc = buildDescription();
+    if (isMultiPart) {
+      // For multi-part: auto-describe writes to the active PART's description, not the global item
+      if (parts.length > 0 && !showMainTab) {
+        setParts(prev => prev.map((p, i) =>
+          i === activePartIdx ? { ...p, partDescription: desc } : p
+        ));
+      }
+      // Leave the global item description (item.description) untouched
+    } else {
+      onUpdateItem({ description: desc });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoDescribe, buildDescription]);
+  }, [autoDescribe, buildDescription, isMultiPart]);
 
   // Auto-collapse template panel when user starts filling fields
   useEffect(() => {
@@ -785,7 +793,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 setIsMultiPart(checked);
                 if (checked && parts.length === 0) {
                   setGlobalProduct(ps.productName || '');
-                  setGlobalDescription(item.description || '');
+                  setGlobalDescription(''); // start blank — user enters a fresh multi-part description
+                  // Clear the line item description — it'll be set when "Save All Parts" is called
+                  onUpdateItem({ description: '' });
                   const firstPart: PartSnapshot = {
                     id: nanoid(),
                     partName: 'Part 1',
