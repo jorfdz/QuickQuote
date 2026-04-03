@@ -4,6 +4,9 @@ import { Plus, Pencil, Trash2, Layers, Package, Search, Copy, ChevronDown, FileT
 import { Card, PageHeader, Button, Input, Table, Modal, ConfirmDialog } from '../../components/ui';
 import { usePricingStore } from '../../store/pricingStore';
 import type { PricingCategory, PricingProduct, ProductPricingTemplate } from '../../types/pricing';
+import { ProductEditModal, LineItemPricingState, DEFAULT_PRICING_STATE } from '../../components/pricing/ItemEditModal';
+import type { QuoteLineItem } from '../../types';
+import { nanoid } from '../../utils/nanoid';
 
 // ─── Product Material Entry (multi-material support) ────────────────────────
 
@@ -70,6 +73,14 @@ export const Catalog: React.FC = () => {
   const [prodMaterials, setProdMaterials] = useState<ProductMaterialEntry[]>([blankMaterialEntry()]);
   const [prodFinishingIds, setProdFinishingIds] = useState<string[]>([]);
   const [expandedFinishingGroups, setExpandedFinishingGroups] = useState<Record<string, boolean>>({});
+
+  // ── Full ProductEditModal for products (same UI as quotes/orders) ───────
+  const [prodItemModalOpen, setProdItemModalOpen] = useState(false);
+  const [prodItem, setProdItem] = useState<QuoteLineItem | null>(null);
+  const [prodPricingState, setProdPricingState] = useState<LineItemPricingState>(DEFAULT_PRICING_STATE());
+  // Store the editing product id separately from the old modal
+  const [prodItemEditId, setProdItemEditId] = useState<string | null>(null);
+  const [prodItemAliasesStr, setProdItemAliasesStr] = useState('');
 
   // ── Template state ─────────────────────────────────────────────────────
   const [tplDeleteConfirm, setTplDeleteConfirm] = useState<string | null>(null);
@@ -187,41 +198,68 @@ export const Catalog: React.FC = () => {
 
   // ── Product handlers ───────────────────────────────────────────────────
   const openAddProduct = () => {
-    setProdForm(blankProduct());
-    setProdAliasesStr('');
-    setProdEditId(null);
-    setMaterialQueries({});
-    setProdMaterials([blankMaterialEntry()]);
-    setProdFinishingIds([]);
-    setExpandedFinishingGroups({});
-    setProdModalOpen(true);
-  };
-  const openEditProduct = (p: PricingProduct) => {
-    setProdEditId(p.id);
-    setProdForm({
-      categoryIds: p.categoryIds, name: p.name, aliases: p.aliases,
-      defaultQuantity: p.defaultQuantity, defaultMaterialId: p.defaultMaterialId,
-      defaultMaterialName: p.defaultMaterialName,
-      defaultFinalSize: p.defaultFinalSize, defaultFinalWidth: p.defaultFinalWidth,
-      defaultFinalHeight: p.defaultFinalHeight, defaultEquipmentId: p.defaultEquipmentId,
-      defaultEquipmentName: p.defaultEquipmentName, defaultColor: p.defaultColor,
-      defaultSides: p.defaultSides, defaultFolding: p.defaultFolding, isTemplate: p.isTemplate,
-      defaultFinishingIds: p.defaultFinishingIds || [],
-    });
-    setProdAliasesStr(p.aliases.join(', '));
-    // Load first material entry from product defaults
-    const firstMat: ProductMaterialEntry = {
-      materialId: p.defaultMaterialId || '',
-      materialName: p.defaultMaterialName || '',
-      sides: p.defaultSides,
-      color: p.defaultColor,
-      originals: 1,
+    // Use the full ProductEditModal (same as quotes/orders)
+    const newItem: QuoteLineItem = {
+      id: nanoid(), productFamily: 'digital_print', description: '', quantity: 1000, unit: 'each',
+      totalCost: 0, markup: 0, sellPrice: 0,
     };
-    setProdMaterials([firstMat]);
-    setMaterialQueries({ 0: p.defaultMaterialName || '' });
-    setProdFinishingIds(p.defaultFinishingIds || []);
-    setExpandedFinishingGroups({});
-    setProdModalOpen(true);
+    setProdItem(newItem);
+    setProdPricingState(DEFAULT_PRICING_STATE());
+    setProdItemEditId(null);
+    setProdItemAliasesStr('');
+    setProdItemModalOpen(true);
+  };
+
+  const openEditProduct = (p: PricingProduct) => {
+    // Build a synthetic QuoteLineItem from the product defaults
+    const item: QuoteLineItem = {
+      id: p.id,
+      productFamily: 'digital_print',
+      description: p.name,
+      quantity: p.defaultQuantity,
+      unit: 'each',
+      width: p.defaultFinalWidth || undefined,
+      height: p.defaultFinalHeight || undefined,
+      materialId: p.defaultMaterialId || undefined,
+      materialName: p.defaultMaterialName || undefined,
+      equipmentId: p.defaultEquipmentId || undefined,
+      equipmentName: p.defaultEquipmentName || undefined,
+      totalCost: 0, markup: 0, sellPrice: 0,
+      // Restore pricingContext so the modal loads material/equipment correctly
+      pricingContext: {
+        productName: p.name,
+        quantity: p.defaultQuantity,
+        finalWidth: p.defaultFinalWidth,
+        finalHeight: p.defaultFinalHeight,
+        materialId: p.defaultMaterialId || '',
+        equipmentId: p.defaultEquipmentId || '',
+        colorMode: p.defaultColor === 'Black' ? 'Black' : 'Color',
+        sides: p.defaultSides,
+        foldingType: p.defaultFolding || '',
+        drillingType: '',
+        cuttingEnabled: true,
+        sheetsPerStack: 500,
+        serviceLines: [],
+      } as Record<string, unknown>,
+    };
+    // Build the pricingState from the product's saved defaults
+    const ps: LineItemPricingState = {
+      ...DEFAULT_PRICING_STATE(),
+      productName: p.name,
+      quantity: p.defaultQuantity,
+      finalWidth: p.defaultFinalWidth,
+      finalHeight: p.defaultFinalHeight,
+      materialId: p.defaultMaterialId || '',
+      equipmentId: p.defaultEquipmentId || '',
+      colorMode: p.defaultColor === 'Black' ? 'Black' : 'Color',
+      sides: p.defaultSides,
+      foldingType: p.defaultFolding || '',
+    };
+    setProdItem(item);
+    setProdPricingState(ps);
+    setProdItemEditId(p.id);
+    setProdItemAliasesStr(p.aliases.join(', '));
+    setProdItemModalOpen(true);
   };
 
   const handleCloneProduct = (p: PricingProduct) => {
@@ -253,6 +291,40 @@ export const Catalog: React.FC = () => {
     if (prodEditId) updateProduct(prodEditId, data);
     else addProduct(data);
     setProdModalOpen(false);
+  };
+
+  // Save from the full ProductEditModal (new path)
+  const handleSaveProductFromModal = (finalItem: QuoteLineItem, finalPs: LineItemPricingState) => {
+    // Derive product defaults from the fully configured item
+    const w = finalPs.finalWidth || finalItem.width || 0;
+    const h = finalPs.finalHeight || finalItem.height || 0;
+    const productDefaults = {
+      categoryIds: prodItemEditId
+        ? (products.find(p => p.id === prodItemEditId)?.categoryIds || [])
+        : [],
+      name: finalItem.description || finalPs.productName || 'New Product',
+      aliases: prodItemAliasesStr.split(',').map(s => s.trim()).filter(Boolean),
+      defaultQuantity: finalPs.quantity || finalItem.quantity || 1000,
+      defaultFinalSize: w && h ? `${w}x${h}` : '',
+      defaultFinalWidth: w,
+      defaultFinalHeight: h,
+      defaultMaterialId: finalPs.materialId || finalItem.materialId || undefined,
+      defaultMaterialName: finalItem.materialName || undefined,
+      defaultEquipmentId: finalPs.equipmentId || finalItem.equipmentId || undefined,
+      defaultEquipmentName: finalItem.equipmentName || undefined,
+      defaultColor: (finalPs.colorMode === 'Black' ? 'Black' : 'Color') as 'Color' | 'Black' | 'Color & Black',
+      defaultSides: finalPs.sides,
+      defaultFolding: finalPs.foldingType || undefined,
+      isTemplate: false,
+      defaultFinishingIds: [],
+    };
+    if (prodItemEditId) {
+      updateProduct(prodItemEditId, productDefaults);
+    } else {
+      addProduct(productDefaults);
+    }
+    setProdItemModalOpen(false);
+    setProdItem(null);
   };
   const handleDeleteProduct = (id: string) => { deleteProduct(id); setProdDeleteConfirm(null); };
 
@@ -718,6 +790,35 @@ export const Catalog: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* ══ Full ProductEditModal (same as quotes/orders) for adding/editing products ══ */}
+      {prodItemModalOpen && prodItem && (
+        <ProductEditModal
+          item={prodItem}
+          pricingState={prodPricingState}
+          isNew={!prodItemEditId}
+          onUpdateItem={updates => {
+            setProdItem(prev => prev ? { ...prev, ...updates } : prev);
+          }}
+          onUpdatePricing={updates => {
+            setProdPricingState(prev => ({ ...prev, ...updates }));
+          }}
+          onClose={() => {
+            // Save current state to product
+            if (prodItem) {
+              handleSaveProductFromModal(prodItem, prodPricingState);
+            } else {
+              setProdItemModalOpen(false);
+            }
+          }}
+          onRemove={() => {
+            setProdItemModalOpen(false);
+            setProdItem(null);
+          }}
+          matchingTemplates={[]}
+          onApplyTemplate={() => {}}
+        />
+      )}
     </div>
   );
 };
