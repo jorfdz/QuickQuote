@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Printer, ArrowRight, Trash2, ChevronDown, ChevronUp, CheckCircle, Copy, Clock, Edit3, Plus, Search } from 'lucide-react';
+import { Printer, ArrowRight, Trash2, ChevronDown, ChevronUp, CheckCircle, Copy, Clock, Edit3, Plus, Search, AlertCircle, Building2, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Badge, Card, PageHeader, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
@@ -43,6 +43,71 @@ function formatShortDT(iso: string): string {
     + ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
+// ─── Helper: does an item have meaningful user content? ───────────────────────
+function itemHasContent(item: any): boolean {
+  return !!(
+    item.description ||
+    (item.sellPrice && item.sellPrice > 0) ||
+    (item.totalCost && item.totalCost > 0) ||
+    item.materialId ||
+    item.productId ||
+    item.pricingContext
+  );
+}
+
+// ─── No-Account Guard Modal ───────────────────────────────────────────────────
+const NoAccountGuard: React.FC<{
+  quoteNumber: string;
+  onAssignAccount: () => void;
+  onDeleteQuote: () => void;
+  onDismiss: () => void;
+}> = ({ quoteNumber, onAssignAccount, onDeleteQuote, onDismiss }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onDismiss} />
+    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 text-center">
+      <button onClick={onDismiss} className="absolute top-4 right-4 p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+        <X className="w-4 h-4 text-gray-400" />
+      </button>
+
+      {/* Icon */}
+      <div className="w-14 h-14 rounded-full bg-amber-50 border-2 border-amber-200 flex items-center justify-center mx-auto mb-4">
+        <Building2 className="w-7 h-7 text-amber-500" />
+      </div>
+
+      <h2 className="text-lg font-bold text-gray-900 mb-2">Account Required</h2>
+      <p className="text-sm text-gray-500 mb-1">
+        <span className="font-semibold text-gray-700">{quoteNumber}</span> doesn't have a client account assigned yet.
+      </p>
+      <p className="text-sm text-gray-500 mb-6">
+        Every quote must be linked to an account before it can be filed. Assign an account now, or remove this quote if it's no longer needed.
+      </p>
+
+      <div className="space-y-2">
+        <Button
+          variant="primary"
+          className="w-full justify-center"
+          icon={<Building2 className="w-4 h-4" />}
+          onClick={onAssignAccount}
+        >
+          Assign Account to This Quote
+        </Button>
+        <Button
+          variant="danger"
+          className="w-full justify-center"
+          icon={<Trash2 className="w-4 h-4" />}
+          onClick={onDeleteQuote}
+        >
+          Delete This Quote
+        </Button>
+      </div>
+
+      <button onClick={onDismiss} className="mt-3 text-xs text-gray-400 hover:text-gray-600 transition-colors underline-offset-2 hover:underline">
+        Stay on this quote
+      </button>
+    </div>
+  </div>
+);
+
 // ─── Inline editable field — auto-saves on blur (click outside) ─────────────
 const InlineField: React.FC<{
   label: string;
@@ -54,7 +119,9 @@ const InlineField: React.FC<{
   options?: { value: string; label: string }[];
   placeholder?: string;
   onAddNew?: () => void;
-}> = ({ label, value, onSave, type = 'text', searchable, options, placeholder, onAddNew }) => {
+  highlight?: boolean;
+  forwardRef?: React.RefObject<HTMLDivElement | null>;
+}> = ({ label, value, onSave, type = 'text', searchable, options, placeholder, onAddNew, highlight, forwardRef }) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const [search, setSearch] = useState('');
@@ -73,10 +140,24 @@ const InlineField: React.FC<{
 
   if (!editing) {
     return (
-      <div className="group cursor-pointer hover:bg-gray-50 rounded-md px-2 py-1.5 -mx-2 transition-colors" onClick={start}>
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
+      <div
+        ref={forwardRef}
+        className={`group cursor-pointer rounded-md px-2 py-1.5 -mx-2 transition-colors ${
+          highlight
+            ? 'bg-amber-50 border border-amber-200 hover:bg-amber-100'
+            : 'hover:bg-gray-50'
+        }`}
+        onClick={start}
+      >
+        <p className={`text-[10px] font-semibold uppercase tracking-wide ${highlight ? 'text-amber-600' : 'text-gray-400'}`}>{label}</p>
         <div className="flex items-center gap-1.5 mt-0.5">
-          <p className="text-sm font-medium text-gray-800">{value || <span className="text-gray-300 font-normal">—</span>}</p>
+          {highlight && !value ? (
+            <p className="text-sm font-medium text-amber-500 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" /> Required — click to assign
+            </p>
+          ) : (
+            <p className="text-sm font-medium text-gray-800">{value || <span className="text-gray-300 font-normal">—</span>}</p>
+          )}
           <Edit3 className="w-3 h-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
       </div>
@@ -152,28 +233,39 @@ export const QuoteDetail: React.FC = () => {
   const [convertOpen, setConvertOpen] = useState(false);
   const convertRef = useRef<HTMLDivElement>(null);
 
+  // ── No-account guard ──────────────────────────────────────────────────────
+  const [showNoAccountGuard, setShowNoAccountGuard] = useState(false);
+  // Where we were trying to navigate when the guard fired
+  const pendingNavRef = useRef<string | null>(null);
+  // Ref to the Account inline field container so we can scroll to it
+  const accountFieldRef = useRef<HTMLDivElement>(null);
+
   // ── Item editing state ────────────────────────────────────────────────────
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [pricingStates, setPricingStates] = useState<Record<string, LineItemPricingState>>({});
-  // Ref that always holds the LATEST pricingStates without closure-staleness.
-  // Used in onClose so we never read from a stale closure snapshot.
   const pricingStatesRef = useRef<Record<string, LineItemPricingState>>({});
-  // Keep ref in sync on every render so callbacks always see the latest state
   pricingStatesRef.current = pricingStates;
+
+  // ── Item delete confirm state ─────────────────────────────────────────────
+  const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
 
   const quote = quotes.find(q => q.id === id);
 
-  // ── currentItemsRef: always holds the latest lineItems without closure staleness ──
-  // Using a ref (not state) means reading it never triggers re-renders and never goes
-  // stale inside callbacks. This breaks the infinite loop where onUpdatePricing was
-  // calling updateQuote → re-render → new currentItems → callback fires again → loop.
   const currentItemsRef = useRef<any[]>([]);
   currentItemsRef.current = (quote?.lineItems as any[]) || [];
-
-  // For render purposes (JSX) we still read directly from the store
   const currentItems: any[] = currentItemsRef.current;
 
-  // Restore pricing state from pricingContext or explicit fields
+  // ── Navigation guard — intercept leaving without an account ───────────────
+  const guardedNavigate = useCallback((path: string) => {
+    if (!quote?.customerName) {
+      pendingNavRef.current = path;
+      setShowNoAccountGuard(true);
+    } else {
+      navigate(path);
+    }
+  }, [quote?.customerName, navigate]);
+
+  // ── Restore pricing state ─────────────────────────────────────────────────
   const getPricingState = (iid: string): LineItemPricingState => {
     if (pricingStates[iid]) return pricingStates[iid];
     const saved = currentItemsRef.current.find((i: any) => i.id === iid);
@@ -203,15 +295,10 @@ export const QuoteDetail: React.FC = () => {
     return DEFAULT_PRICING_STATE();
   };
 
-  // ── openItemForEdit: pre-populate pricingStates BEFORE the modal mounts ──────
-  // CRITICAL FIX: Without pre-population, the first onUpdatePricing call inside the
-  // modal merges with DEFAULT_PRICING_STATE() (because prev[itemId] is undefined),
-  // which wipes all restored values: productId, materialId, equipmentId, quantity, etc.
-  // Pre-populating ensures the merge always has a complete, valid base state.
+  // ── Pre-populate pricingStates BEFORE the modal mounts ───────────────────
   const openItemForEdit = useCallback((itemId: string) => {
     setPricingStates(prev => {
-      if (prev[itemId]) return prev; // Already loaded — don't overwrite live session state
-      // Restore fully from pricingContext (tier 2) or top-level fields (tier 3)
+      if (prev[itemId]) return prev;
       const saved = (currentItemsRef.current.find((i: any) => i.id === itemId) || null) as any;
       let restored: LineItemPricingState = DEFAULT_PRICING_STATE();
       if (saved?.pricingContext) {
@@ -242,7 +329,7 @@ export const QuoteDetail: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Helper: write items to store. Reads from ref (not state) to avoid stale closures.
+  // ── Write items to store ──────────────────────────────────────────────────
   const persistItems = useCallback((items: any[]) => {
     const q = quotes.find(qq => qq.id === id);
     const subtotal = items.reduce((s: number, i: any) => s + (i.sellPrice || 0), 0);
@@ -291,6 +378,27 @@ export const QuoteDetail: React.FC = () => {
     openItemForEdit(item.id);
   };
 
+  // ── Direct-delete from list ───────────────────────────────────────────────
+  const requestDeleteItem = (e: React.MouseEvent, itemId: string) => {
+    e.stopPropagation(); // don't open the edit modal
+    const item = currentItemsRef.current.find((i: any) => i.id === itemId);
+    if (!item) return;
+    if (itemHasContent(item)) {
+      setDeleteConfirmItemId(itemId);
+    } else {
+      // No content — delete immediately, no confirm needed
+      const newItems = currentItemsRef.current.filter((i: any) => i.id !== itemId);
+      persistItems(newItems);
+    }
+  };
+
+  const confirmDeleteItem = () => {
+    if (!deleteConfirmItemId) return;
+    const newItems = currentItemsRef.current.filter((i: any) => i.id !== deleteConfirmItemId);
+    persistItems(newItems);
+    setDeleteConfirmItemId(null);
+  };
+
   const removeItem = (iid: string) => {
     const newItems = currentItems.filter((i: any) => i.id !== iid);
     persistItems(newItems);
@@ -304,11 +412,37 @@ export const QuoteDetail: React.FC = () => {
   const contactOptions = contacts.filter(c => c.customerId === quote.customerId).map(c => ({ value: c.id, label: `${c.firstName} ${c.lastName}` }));
   const customerOptions = customers.map(c => ({ value: c.id, label: c.name }));
 
+  const missingAccount = !quote.customerName;
+
+  // Delete confirm item info
+  const deleteConfirmItem = deleteConfirmItemId
+    ? currentItems.find((i: any) => i.id === deleteConfirmItemId)
+    : null;
+
   return (
     <div>
+      {/* ── Missing account banner ── */}
+      {missingAccount && (
+        <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
+          <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+          <p className="text-sm text-amber-800 flex-1">
+            <span className="font-semibold">No account assigned.</span> This quote must be linked to a client account before it can be filed or sent.
+          </p>
+          <button
+            onClick={() => {
+              setHeaderCollapsed(false);
+              setTimeout(() => accountFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+            }}
+            className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+          >
+            Assign Account
+          </button>
+        </div>
+      )}
+
       <PageHeader
         title={quote.title}
-        back={() => navigate('/quotes')}
+        back={() => guardedNavigate('/quotes')}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />} onClick={openPrintWindow}>Print PDF</Button>
@@ -331,11 +465,10 @@ export const QuoteDetail: React.FC = () => {
           <div className="flex items-center gap-4 flex-1 min-w-0 flex-wrap">
             <span className="text-lg font-semibold text-gray-700 obj-num flex-shrink-0 tracking-wide">{quote.number}</span>
 
-            {/* Status pills — solid filled active, ghost inactive */}
+            {/* Status pills */}
             <div className="flex items-center gap-1">
               {STATUS_OPTIONS.map(s => {
                 const isActive = quote.status === s.value;
-                // Per-status solid colors for active state
                 const activeStyles: Record<string, string> = {
                   pending: 'bg-amber-500 text-white shadow-amber-200',
                   hot:     'bg-red-500 text-white shadow-red-200',
@@ -354,16 +487,14 @@ export const QuoteDetail: React.FC = () => {
                         : 'bg-gray-50 text-gray-400 border border-gray-200 hover:bg-gray-100 hover:text-gray-600'
                     }`}
                   >
-                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                      isActive ? 'bg-white' : dotColors[s.value]
-                    }`} />
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-white' : dotColors[s.value]}`} />
                     {s.label}
                   </button>
                 );
               })}
             </div>
 
-            {/* Account + contact — always visible (compact) */}
+            {/* Account + contact compact */}
             {(quote.customerName || quote.contactName) && (
               <div className="flex items-center gap-2 text-xs text-gray-500 flex-shrink-0">
                 {quote.customerName && <span className="font-medium text-gray-700">{quote.customerName}</span>}
@@ -395,20 +526,26 @@ export const QuoteDetail: React.FC = () => {
           </button>
         </div>
 
-        {/* Expandable header detail — inline editable fields */}
+        {/* Expandable header — inline editable fields */}
         {!headerCollapsed && (
           <div className="px-5 pb-5 pt-0 border-t border-gray-100">
             <div className="flex items-center justify-between mt-3 mb-3">
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Click any field to edit</p>
             </div>
             <div className="grid grid-cols-3 gap-x-6 gap-y-3 items-start">
-              <InlineField label="Account" value={quote.customerName || ''} placeholder="Search accounts..."
+              <InlineField
+                label="Account"
+                value={quote.customerName || ''}
+                placeholder="Search accounts..."
                 searchable options={customerOptions}
-                onAddNew={() => { /* navigate to add customer */ }}
-                onSave={v => { const c = customers.find(x => x.id === v); saveField({ customerId: v || undefined, customerName: c?.name }); }} />
+                highlight={missingAccount}
+                forwardRef={accountFieldRef}
+                onAddNew={() => {}}
+                onSave={v => { const c = customers.find(x => x.id === v); saveField({ customerId: v || undefined, customerName: c?.name }); }}
+              />
               <InlineField label="Contact" value={quote.contactName || ''} placeholder="Search contacts..."
                 searchable options={contactOptions}
-                onAddNew={() => { /* navigate to add contact */ }}
+                onAddNew={() => {}}
                 onSave={v => { const c = contacts.find(x => x.id === v); saveField({ contactId: v || undefined, contactName: c ? `${c.firstName} ${c.lastName}` : undefined }); }} />
               <InlineField label="Valid Until" value={quote.validUntil || ''} type="date"
                 onSave={v => saveField({ validUntil: v || undefined })} />
@@ -428,7 +565,7 @@ export const QuoteDetail: React.FC = () => {
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 space-y-4">
 
-          {/* ═══ Line Items — click item to edit ════════════════════════════ */}
+          {/* ═══ Line Items ════════════════════════════════════════════════════ */}
           <Card>
             <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
               <h2 className="font-semibold text-gray-900">Line Items
@@ -479,11 +616,22 @@ export const QuoteDetail: React.FC = () => {
                           </div>
                         )}
                       </div>
-                      <div className="text-right flex-shrink-0 ml-4">
-                        <p className="text-sm font-bold text-gray-900 num">{formatCurrency(item.sellPrice)}</p>
-                        {item.totalCost > 0 && (
-                          <p className="text-[10px] text-gray-400">Cost: {formatCurrency(item.totalCost)}</p>
-                        )}
+
+                      <div className="flex items-center gap-3 flex-shrink-0 ml-4">
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-gray-900 num">{formatCurrency(item.sellPrice)}</p>
+                          {item.totalCost > 0 && (
+                            <p className="text-[10px] text-gray-400">Cost: {formatCurrency(item.totalCost)}</p>
+                          )}
+                        </div>
+                        {/* Inline delete button — visible on hover */}
+                        <button
+                          onClick={e => requestDeleteItem(e, item.id)}
+                          className="p-1.5 rounded-lg text-gray-200 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
+                          title="Remove item"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -524,7 +672,12 @@ export const QuoteDetail: React.FC = () => {
           <Card className="p-5">
             <h3 className="font-semibold text-gray-900 mb-3 text-sm">Details</h3>
             <dl className="space-y-2 text-sm">
-              <div className="flex justify-between"><dt className="text-gray-500">Customer</dt><dd className="font-medium text-gray-900">{quote.customerName || '—'}</dd></div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Customer</dt>
+                <dd className={`font-medium ${missingAccount ? 'text-amber-500 italic' : 'text-gray-900'}`}>
+                  {quote.customerName || 'Not assigned'}
+                </dd>
+              </div>
               <div className="flex justify-between"><dt className="text-gray-500">Created</dt><dd className="text-gray-900">{formatDate(quote.createdAt)}</dd></div>
               <div className="flex justify-between"><dt className="text-gray-500">Valid Until</dt><dd className="text-gray-900">{quote.validUntil ? formatDate(quote.validUntil) : '—'}</dd></div>
             </dl>
@@ -532,7 +685,7 @@ export const QuoteDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* Item edit modal — triggered by clicking any item */}
+      {/* Item edit modal */}
       {editingItemId && (() => {
         const editingItem = currentItems.find((i: any) => i.id === editingItemId);
         const editingPs = getPricingState(editingItemId);
@@ -543,27 +696,18 @@ export const QuoteDetail: React.FC = () => {
             pricingState={editingPs}
             isNew={!editingItem.description}
             onUpdateItem={updates => {
-              // Always read from ref — never from the closure-captured currentItems
-              // This prevents stale values and infinite render loops
               const newItems = currentItemsRef.current.map((i: any) =>
                 i.id === editingItemId ? { ...i, ...updates } : i
               );
               persistItems(newItems);
             }}
             onUpdatePricing={updates => {
-              // Update in-memory pricingState only — do NOT call updateQuote here.
-              // Calling updateQuote inside setPricingStates caused an infinite loop.
-              // CRITICAL: Use prev[editingItemId] as the base if available (set by openItemForEdit).
-              // If somehow it's missing (race condition), fall back to the full restored state
-              // from pricingContext — NEVER from DEFAULT_PRICING_STATE() which would wipe all
-              // restored values (productId, materialId, quantity, etc.).
               setPricingStates(prev => {
                 const existing = prev[editingItemId];
                 let base: LineItemPricingState;
                 if (existing) {
                   base = existing;
                 } else {
-                  // Fallback: restore from pricingContext or top-level fields
                   const saved = currentItemsRef.current.find((i: any) => i.id === editingItemId) as any;
                   if (saved?.pricingContext) {
                     base = { ...DEFAULT_PRICING_STATE(), ...(saved.pricingContext as Partial<LineItemPricingState>) };
@@ -594,14 +738,9 @@ export const QuoteDetail: React.FC = () => {
               });
             }}
             onClose={() => {
-              // Use pricingStatesRef to always read the LATEST state without stale closures.
-              // Do NOT call persistItems inside setPricingStates updater (anti-pattern: side effects
-              // in state updaters can fire twice in React 18 StrictMode).
               const finalPs = pricingStatesRef.current[editingItemId] || getPricingState(editingItemId);
               const finalItems = currentItemsRef.current.map((i: any) =>
-                i.id === editingItemId
-                  ? { ...i, pricingContext: { ...finalPs } }
-                  : i
+                i.id === editingItemId ? { ...i, pricingContext: { ...finalPs } } : i
               );
               persistItems(finalItems);
               setEditingItemId(null);
@@ -613,9 +752,48 @@ export const QuoteDetail: React.FC = () => {
         );
       })()}
 
+      {/* Delete quote confirm */}
       <ConfirmDialog isOpen={showDelete} onClose={() => setShowDelete(false)}
         onConfirm={() => { deleteQuote(id!); navigate('/quotes'); }}
         title="Delete Quote" message={`Delete ${quote.number}? This cannot be undone.`} />
+
+      {/* Delete item confirm (only shown for items with content) */}
+      <ConfirmDialog
+        isOpen={!!deleteConfirmItemId}
+        onClose={() => setDeleteConfirmItemId(null)}
+        onConfirm={confirmDeleteItem}
+        title="Remove Line Item"
+        message={
+          deleteConfirmItem?.description
+            ? `Remove "${deleteConfirmItem.description}" from this quote? Any pricing data will be lost.`
+            : 'Remove this item from the quote? Any pricing data will be lost.'
+        }
+        confirmLabel="Remove Item"
+      />
+
+      {/* No-account guard modal */}
+      {showNoAccountGuard && (
+        <NoAccountGuard
+          quoteNumber={quote.number}
+          onAssignAccount={() => {
+            setShowNoAccountGuard(false);
+            pendingNavRef.current = null;
+            // Expand header and scroll to Account field
+            setHeaderCollapsed(false);
+            setTimeout(() => accountFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+          }}
+          onDeleteQuote={() => {
+            deleteQuote(id!);
+            setShowNoAccountGuard(false);
+            navigate(pendingNavRef.current || '/quotes');
+            pendingNavRef.current = null;
+          }}
+          onDismiss={() => {
+            setShowNoAccountGuard(false);
+            pendingNavRef.current = null;
+          }}
+        />
+      )}
     </div>
   );
 };

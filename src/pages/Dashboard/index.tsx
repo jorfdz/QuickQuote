@@ -246,8 +246,17 @@ export const Dashboard: React.FC = () => {
         )}
       </div>
 
-      {/* ═══ ROW 1 — Quote KPIs ══════════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* ═══ ROW 1 — KPIs (Orders WIP first, then Quote metrics) ═════════════ */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        {/* WIP / Open Orders — first column, slightly larger emphasis */}
+        <KPI
+          label="Work in Progress"
+          value={String(activeOrders.length)}
+          sub={`${formatCurrency(activeOrders.reduce((s, o) => s + o.total, 0))} in production`}
+          accent={activeOrders.length > 0 ? 'text-violet-700' : 'text-gray-400'}
+          icon={<ClipboardList className="w-4 h-4" />}
+          onClick={() => navigate('/orders')}
+        />
         <KPI
           label="Open Quotes"
           value={String(openQuotes.length)}
@@ -287,7 +296,7 @@ export const Dashboard: React.FC = () => {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">
             <Layers3 className="h-3.5 w-3.5" />
-            Active Boards
+            In Production
           </div>
           <button onClick={() => navigate('/tracker')}
             className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-gray-300 hover:text-gray-900 transition-colors">
@@ -307,54 +316,35 @@ export const Dashboard: React.FC = () => {
                 <button
                   key={board.id}
                   onClick={() => navigate(`/tracker?board=${board.id}`)}
-                  className={`rounded-xl border p-4 text-left transition-all ${
-                    board.isDefault
-                      ? 'text-white shadow-lg'
-                      : 'border-gray-200 bg-white hover:border-slate-300 hover:shadow-md'
-                  }`}
-                  style={board.isDefault ? {
-                    borderColor: withAlpha(brandColor, 0.8),
-                    backgroundImage: `linear-gradient(135deg, ${withAlpha(brandColor, 0.96)}, ${withAlpha(brandColor, 0.72)})`,
-                    boxShadow: `0 20px 35px ${withAlpha(brandColor, 0.18)}`,
-                  } : undefined}
+                  className="rounded-xl border border-gray-200 bg-white p-4 text-left transition-all hover:border-slate-300 hover:shadow-md"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className={`text-sm font-semibold truncate ${board.isDefault ? 'text-white' : 'text-gray-900'}`}>
-                        {board.name}
-                      </div>
-                      <p className={`mt-1 text-xs leading-5 line-clamp-2 ${board.isDefault ? 'text-white/80' : 'text-gray-500'}`}>
+                      <div className="text-sm font-semibold text-gray-900 truncate">{board.name}</div>
+                      <p className="mt-1 text-xs leading-5 text-gray-500 line-clamp-2">
                         {board.description || 'No description provided.'}
                       </p>
                     </div>
                     <span className={`flex-shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
-                      board.isDefault ? 'bg-white/20 text-white' : 'bg-emerald-50 text-emerald-700'
+                      board.isDefault ? 'bg-violet-50 text-violet-600' : 'bg-emerald-50 text-emerald-700'
                     }`}>
                       {board.isDefault ? 'Default' : 'Active'}
                     </span>
                   </div>
                   <div className="mt-4 flex items-center gap-5">
                     <div>
-                      <div className={`text-xl font-bold ${board.isDefault ? 'text-white' : 'text-gray-900'}`}>
-                        {stats?.orderCount ?? 0}
-                      </div>
-                      <div className={`text-[11px] ${board.isDefault ? 'text-white/70' : 'text-gray-500'}`}>orders</div>
+                      <div className="text-xl font-bold text-gray-900">{stats?.orderCount ?? 0}</div>
+                      <div className="text-[11px] text-gray-500">orders</div>
                     </div>
                     <div>
-                      <div className={`text-xl font-bold ${board.isDefault ? 'text-white' : 'text-gray-900'}`}>
-                        {stats?.itemCount ?? 0}
-                      </div>
-                      <div className={`text-[11px] ${board.isDefault ? 'text-white/70' : 'text-gray-500'}`}>items</div>
+                      <div className="text-xl font-bold text-gray-900">{stats?.itemCount ?? 0}</div>
+                      <div className="text-[11px] text-gray-500">items</div>
                     </div>
                     <div>
-                      <div className={`text-xl font-bold ${
-                        (stats?.dueSoonCount ?? 0) > 0
-                          ? (board.isDefault ? 'text-yellow-200' : 'text-amber-500')
-                          : (board.isDefault ? 'text-white' : 'text-gray-900')
-                      }`}>
+                      <div className={`text-xl font-bold ${(stats?.dueSoonCount ?? 0) > 0 ? 'text-amber-500' : 'text-gray-900'}`}>
                         {stats?.dueSoonCount ?? 0}
                       </div>
-                      <div className={`text-[11px] ${board.isDefault ? 'text-white/70' : 'text-gray-500'}`}>due soon</div>
+                      <div className="text-[11px] text-gray-500">due soon</div>
                     </div>
                   </div>
                 </button>
