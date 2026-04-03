@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { PRESET_SCHEMES, buildSchemeFromColor, applyColorScheme, saveScheme, loadSavedScheme, ColorScheme } from '../../store/colorScheme';
-import { Building, CreditCard, Globe, Bell, Palette, Plus, Pencil, Trash2, Package, Layers, FileText, RotateCcw, Eye, Ruler, Workflow as WorkflowIcon } from 'lucide-react';
+import { PRESET_SCHEMES, buildSchemeFromColor, applyColorScheme, saveScheme, loadSavedScheme, ColorScheme, applyDarkMode, isDarkModeEnabled } from '../../store/colorScheme';
+import { Building, CreditCard, Globe, Bell, Palette, Plus, Pencil, Trash2, Package, Layers, FileText, RotateCcw, Eye, Ruler, Workflow as WorkflowIcon, Moon, Sun } from 'lucide-react';
 import { Card, PageHeader, Button, Input, Textarea, Tabs, Select, Table, Modal, ConfirmDialog } from '../../components/ui';
 import { DEFAULT_COMPANY_SETTINGS, DEFAULT_INVOICE_TEMPLATE, DEFAULT_ORDER_TEMPLATE, DEFAULT_PURCHASE_ORDER_TEMPLATE, DEFAULT_QUOTE_TEMPLATE, DEFAULT_WORK_ORDER_TEMPLATE } from '../../data/documentSettings';
 import { useStore } from '../../store';
@@ -83,12 +83,18 @@ export const Settings: React.FC = () => {
   const [activeScheme, setActiveScheme] = useState<ColorScheme>(() => loadSavedScheme());
   const [customColor, setCustomColor] = useState('#F890E7');
   const [customSchemeActive, setCustomSchemeActive] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => isDarkModeEnabled());
 
   const applyAndSave = (scheme: ColorScheme) => {
     applyColorScheme(scheme);
     saveScheme(scheme);
     setActiveScheme(scheme);
     setCustomSchemeActive(scheme.id === 'custom');
+  };
+
+  const toggleDarkMode = (enabled: boolean) => {
+    applyDarkMode(enabled);
+    setDarkMode(enabled);
   };
 
   const {
@@ -729,6 +735,78 @@ export const Settings: React.FC = () => {
       {/* ── APPEARANCE TAB ───────────────────────────────────────────────── */}
       {activeTab === 'appearance' && (
         <div className="max-w-2xl space-y-6">
+
+          {/* Dark Mode toggle */}
+          <Card className="p-6">
+            <h2 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
+              {darkMode ? <Moon className="w-4 h-4 text-violet-400" /> : <Sun className="w-4 h-4 text-amber-400" />}
+              Dark Mode
+            </h2>
+            <p className="text-xs text-gray-500 mb-5">Switch the entire interface to a dark theme. Your color scheme and all functionality remain unchanged.</p>
+
+            <div className="flex items-center gap-4">
+              {/* Light option */}
+              <button
+                onClick={() => toggleDarkMode(false)}
+                className={`flex-1 flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-all ${
+                  !darkMode ? 'border-[var(--brand)] shadow-md' : 'border-gray-100 hover:border-gray-200'
+                }`}
+              >
+                {/* Light mode preview miniature */}
+                <div className="w-full rounded-lg overflow-hidden border border-gray-200 shadow-sm" style={{ aspectRatio: '16/9' }}>
+                  <div className="h-full bg-gray-50 p-1.5 flex gap-1">
+                    <div className="w-5 bg-gray-800 rounded flex-shrink-0" />
+                    <div className="flex-1 flex flex-col gap-1">
+                      <div className="h-2.5 bg-white rounded border border-gray-100" />
+                      <div className="flex gap-1 flex-1">
+                        <div className="flex-1 bg-white rounded border border-gray-100 p-1">
+                          <div className="h-1 w-3/4 bg-gray-200 rounded mb-0.5" />
+                          <div className="h-1 w-1/2 bg-gray-100 rounded" />
+                        </div>
+                        <div className="flex-1 bg-white rounded border border-gray-100" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-sm font-semibold text-gray-900">Light</span>
+                  {!darkMode && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--brand-light)] text-[var(--brand)]">Active</span>}
+                </div>
+              </button>
+
+              {/* Dark option */}
+              <button
+                onClick={() => toggleDarkMode(true)}
+                className={`flex-1 flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-all ${
+                  darkMode ? 'border-[var(--brand)] shadow-md' : 'border-gray-100 hover:border-gray-200'
+                }`}
+              >
+                {/* Dark mode preview miniature */}
+                <div className="w-full rounded-lg overflow-hidden border border-gray-700 shadow-sm" style={{ aspectRatio: '16/9', backgroundColor: '#0d0d18' }}>
+                  <div className="h-full p-1.5 flex gap-1">
+                    <div className="w-5 rounded flex-shrink-0" style={{ backgroundColor: '#030712' }} />
+                    <div className="flex-1 flex flex-col gap-1">
+                      <div className="h-2.5 rounded" style={{ backgroundColor: '#16162a', border: '1px solid #202038' }} />
+                      <div className="flex gap-1 flex-1">
+                        <div className="flex-1 rounded p-1" style={{ backgroundColor: '#16162a', border: '1px solid #202038' }}>
+                          <div className="h-1 w-3/4 rounded mb-0.5" style={{ backgroundColor: '#2a2a44' }} />
+                          <div className="h-1 w-1/2 rounded" style={{ backgroundColor: '#1c1c2e' }} />
+                        </div>
+                        <div className="flex-1 rounded" style={{ backgroundColor: '#16162a', border: '1px solid #202038' }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Moon className="w-3.5 h-3.5 text-violet-400" />
+                  <span className="text-sm font-semibold text-gray-900">Dark</span>
+                  {darkMode && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--brand-light)] text-[var(--brand)]">Active</span>}
+                </div>
+              </button>
+            </div>
+          </Card>
+
           <Card className="p-6">
             <h2 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
               <Palette className="w-4 h-4 text-[var(--brand)]" /> Color Scheme
