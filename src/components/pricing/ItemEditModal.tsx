@@ -98,7 +98,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [editValues, setEditValues] = useState<Partial<PricingServiceLine>>({});
   const [savedAsTemplate, setSavedAsTemplate] = useState(false);
   const [multiQtyInput, setMultiQtyInput] = useState(String(ps.quantity || 1000));
-  const [autoDescribe, setAutoDescribe] = useState(true);
+  // Auto-describe is ON only for brand-new items (no existing description).
+  // If the item already has a description written by the user, default to OFF
+  // so we never overwrite what they typed.
+  const [autoDescribe, setAutoDescribe] = useState(() => !item.description);
   const [sizeInput, setSizeInput] = useState(
     ps.finalWidth > 0 && ps.finalHeight > 0 ? `${ps.finalWidth}x${ps.finalHeight}` : ''
   );
@@ -224,10 +227,13 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     let desc = ps.productName || '';
     if (materialName) desc += ' - ' + materialName;
     if (ps.finalWidth && ps.finalHeight) desc += ', ' + ps.finalWidth + 'x' + ps.finalHeight;
-    if (ps.colorMode) desc += ', ' + ps.colorMode;
-    if (ps.sides) desc += ', ' + ps.sides + '-Sided';
+    // Only append color/sides after a material has been selected — not from bare defaults
+    if (materialName && !isMultiPart) {
+      if (ps.colorMode) desc += ', ' + ps.colorMode;
+      if (ps.sides) desc += ', ' + ps.sides + '-Sided';
+    }
     return desc;
-  }, [ps.productName, ps.materialId, ps.finalWidth, ps.finalHeight, ps.colorMode, ps.sides, materials]);
+  }, [ps.productName, ps.materialId, ps.finalWidth, ps.finalHeight, ps.colorMode, ps.sides, materials, isMultiPart]);
 
   useEffect(() => {
     if (!autoDescribe || !ps.productName) return;
@@ -483,7 +489,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     const finishingCost = lines.filter(l => ['Cutting', 'Folding', 'Drilling'].includes(l.service)).reduce((s, l) => s + l.totalCost, 0);
 
     onUpdateItem({
-      description: autoDescribe ? buildDescription() : (ps.productName || item.description),
+      description: autoDescribe ? buildDescription() : item.description,
       quantity: ps.quantity || item.quantity,
       width: ps.finalWidth || undefined,
       height: ps.finalHeight || undefined,
