@@ -152,68 +152,61 @@ export const QuoteDetail: React.FC = () => {
   const [convertOpen, setConvertOpen] = useState(false);
   const convertRef = useRef<HTMLDivElement>(null);
 
-  // ── Item editing (click item to open modal) ───────────────────────────
+  // ── Item editing — NO intermediate state, all mutations go directly to store ──
+  // This eliminates the sync/race-condition bugs that caused data loss on navigation.
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  // pricingStates is purely in-memory UI state for the open modal; it is NOT the source
+  // of truth. The store (quote.lineItems[].pricingContext) is always the source of truth.
   const [pricingStates, setPricingStates] = useState<Record<string, LineItemPricingState>>({});
-  const [editingItems, setEditingItems] = useState<any[]>([]);
-
-  // Restore the full pricing state for an item — first tries in-memory state,
-  // then falls back to the persisted pricingContext snapshot saved on the lineItem.
-  // This is the key fix: pricingContext is saved to the store on every close,
-  // so it survives navigation away and back.
-  const getPricingState = (iid: string): LineItemPricingState => {
-    // 1. In-memory state from this session (fastest, most up-to-date)
-    if (pricingStates[iid]) return pricingStates[iid];
-
-    // 2. Persisted snapshot from the saved lineItem (survives navigation)
-    const allItems: any[] = editingItems.length > 0
-      ? editingItems
-      : (quote?.lineItems as any[] || []);
-    const savedItem = allItems.find((i: any) => i.id === iid);
-
-    if (savedItem?.pricingContext) {
-      // Full snapshot was saved — restore it completely
-      return { ...DEFAULT_PRICING_STATE(), ...(savedItem.pricingContext as Partial<LineItemPricingState>) };
-    }
-
-    // 3. Reconstruction from all explicit lineItem fields (including new colorMode/sides/etc.)
-    // These are now written by the recompute effect on every change, so even without
-    // pricingContext we can restore the full state.
-    if (savedItem) {
-      return {
-        ...DEFAULT_PRICING_STATE(),
-        // Core specs
-        productId: savedItem.productId || '',
-        productName: savedItem.productName || savedItem.description || '',
-        categoryName: savedItem.categoryName || '',
-        quantity: savedItem.quantity || 1000,
-        finalWidth: savedItem.width || 0,
-        finalHeight: savedItem.height || 0,
-        // Material & equipment
-        materialId: savedItem.materialId || '',
-        equipmentId: savedItem.equipmentId || '',
-        // Print config — explicitly persisted fields (new)
-        colorMode: savedItem.colorMode || 'Color',
-        sides: savedItem.sides || 'Double',
-        foldingType: savedItem.foldingType || '',
-        drillingType: savedItem.drillingType || '',
-        cuttingEnabled: savedItem.cuttingEnabled ?? true,
-        sheetsPerStack: savedItem.sheetsPerStack || 500,
-        // Service lines for price display
-        serviceLines: savedItem.serviceLines || [],
-      };
-    }
-
-    return DEFAULT_PRICING_STATE();
-  };
-  const [itemsDirty, setItemsDirty] = useState(false);
 
   const quote = quotes.find(q => q.id === id);
 
-  // Sync editingItems from quote when not dirty
-  useEffect(() => {
-    if (!itemsDirty && quote) setEditingItems(quote.lineItems as any);
-  }, [quote?.lineItems, itemsDirty]);
+  // Derive current items always from the store — never from local state
+  const currentItems: any[] = (quote?.lineItems as any[]) || [];
+
+  // Restore pricing state: pricingContext is the canonical snapshot saved with the item
+  const getPricingState = (iid: string): LineItemPricingState => {
+    // 1. In-memory state for the currently-open modal session
+    if (pricingStates[iid]) return pricingStates[iid];
+    // 2. Persisted snapshot — always from the store, never from local state
+    const saved = currentItems.find((i: any) => i.id === iid);
+    if (saved?.pricingContext) {
+      return { ...DEFAULT_PRICING_STATE(), ...(saved.pricingContext as Partial<LineItemPricingState>) };
+    }
+    // 3. Fallback: reconstruct from explicit top-level item fields
+    if (saved) {
+      return {
+        ...DEFAULT_PRICING_STATE(),
+        productId: saved.productId || '',
+        productName: saved.productName || saved.description || '',
+        categoryName: saved.categoryName || '',
+        quantity: saved.quantity || 1000,
+        finalWidth: saved.width || 0,
+        finalHeight: saved.height || 0,
+        materialId: saved.materialId || '',
+        equipmentId: saved.equipmentId || '',
+        colorMode: saved.colorMode || 'Color',
+        sides: saved.sides || 'Double',
+        foldingType: saved.foldingType || '',
+        drillingType: saved.drillingType || '',
+        cuttingEnabled: saved.cuttingEnabled ?? true,
+        sheetsPerStack: saved.sheetsPerStack || 500,
+        serviceLines: saved.serviceLines || [],
+      };
+    }
+    return DEFAULT_PRICING_STATE();
+  };
+
+  // Helper: write a mutated items array directly to the store
+  const persistItems = (items: any[]) => {
+    const subtotal = items.reduce((s: number, i: any) => s + (i.sellPrice || 0), 0);
+    const taxAmount = subtotal * ((quote?.taxRate || 0) / 100);
+    // Also default title to first item description if title is blank
+    const titleUpdate = !quote?.title && items.find((i: any) => i.description)?.description
+      ? { title: items.find((i: any) => i.description).description }
+      : {};
+    updateQuote(id!, { lineItems: items, subtotal, taxAmount, total: subtotal + taxAmount, ...titleUpdate });
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -244,36 +237,17 @@ export const QuoteDetail: React.FC = () => {
     w.addEventListener('load', () => { w.focus(); setTimeout(() => w.print(), 150); setTimeout(() => URL.revokeObjectURL(url), 60000); }, { once: true });
   };
 
-  // Save items — uses functional form to guarantee latest state, not stale closure
-  const saveItems = (latestItems?: any[]) => {
-    // If latestItems provided (from onClose callback), use that; otherwise read current state
-    if (latestItems !== undefined) {
-      const subtotal = latestItems.reduce((s: number, i: any) => s + (i.sellPrice || 0), 0);
-      const taxAmount = subtotal * ((quote!.taxRate || 0) / 100);
-      updateQuote(id!, { lineItems: latestItems, subtotal, taxAmount, total: subtotal + taxAmount });
-      setItemsDirty(false);
-    } else {
-      setEditingItems(current => {
-        const subtotal = current.reduce((s: number, i: any) => s + (i.sellPrice || 0), 0);
-        const taxAmount = subtotal * ((quote!.taxRate || 0) / 100);
-        updateQuote(id!, { lineItems: current as any, subtotal, taxAmount, total: subtotal + taxAmount });
-        setItemsDirty(false);
-        return current; // don't change the items, just read them
-      });
-    }
-  };
-
   const addItem = () => {
     const item: any = { id: nanoid(), productFamily: 'digital_print', description: '', quantity: 1, unit: 'each', totalCost: 0, markup: 0, sellPrice: 0 };
-    setEditingItems((prev: any) => [...prev, item]);
+    const newItems = [...currentItems, item];
+    persistItems(newItems);
     setPricingStates(prev => ({ ...prev, [item.id]: DEFAULT_PRICING_STATE() }));
     setEditingItemId(item.id);
-    setItemsDirty(true);
   };
 
   const removeItem = (iid: string) => {
-    setEditingItems((prev: any) => prev.filter((i: any) => i.id !== iid));
-    setItemsDirty(true);
+    const newItems = currentItems.filter((i: any) => i.id !== iid);
+    persistItems(newItems);
   };
 
   // Header save helpers
@@ -421,7 +395,7 @@ export const QuoteDetail: React.FC = () => {
             </div>
 
             <div className="divide-y divide-gray-50">
-              {(editingItems as any[]).map((item: any, i: number) => {
+              {currentItems.map((item: any, i: number) => {
                 const mp = item as any;
                 const isMP = mp.isMultiPart && Array.isArray(mp.parts) && mp.parts.length > 0;
                 return (
@@ -470,7 +444,7 @@ export const QuoteDetail: React.FC = () => {
                 );
               })}
 
-              {(editingItems as any[]).length === 0 && (
+              {currentItems.length === 0 && (
                 <div className="px-5 py-8 text-center">
                   <p className="text-sm text-gray-400 mb-2">No items yet.</p>
                   <button onClick={addItem} className="text-sm text-[var(--brand)] hover:underline font-medium">+ Add first item</button>
@@ -514,7 +488,7 @@ export const QuoteDetail: React.FC = () => {
 
       {/* Item edit modal — triggered by clicking any item */}
       {editingItemId && (() => {
-        const editingItem = (editingItems as any[]).find((i: any) => i.id === editingItemId);
+        const editingItem = currentItems.find((i: any) => i.id === editingItemId);
         const editingPs = getPricingState(editingItemId);
         if (!editingItem) return null;
         return (
@@ -523,51 +497,38 @@ export const QuoteDetail: React.FC = () => {
             pricingState={editingPs}
             isNew={!editingItem.description}
             onUpdateItem={updates => {
-              setEditingItems((prev: any) => prev.map((i: any) => i.id === editingItemId ? { ...i, ...updates } : i));
-              setItemsDirty(true);
+              // Write item updates directly to the store — no intermediate state
+              const newItems = currentItems.map((i: any) =>
+                i.id === editingItemId ? { ...i, ...updates } : i
+              );
+              persistItems(newItems);
             }}
             onUpdatePricing={updates => {
+              // Merge into in-memory pricingState AND immediately snapshot to store
               setPricingStates(prev => {
                 const merged = { ...(prev[editingItemId] || DEFAULT_PRICING_STATE()), ...updates };
-                // Eagerly persist pricingContext to the item on EVERY pricing state change.
-                // This ensures the full state is saved even if the user navigates away
-                // before onClose fires (e.g. browser back, crash, accidental navigation).
-                setEditingItems((items: any) => {
-                  const updated = items.map((i: any) =>
-                    i.id === editingItemId
-                      ? { ...i, pricingContext: { ...merged } }
-                      : i
-                  );
-                  // Also persist to store immediately so it survives page navigation
-                  const subtotal = updated.reduce((s: number, i: any) => s + (i.sellPrice || 0), 0);
-                  const taxAmount = subtotal * ((quote?.taxRate || 0) / 100);
-                  updateQuote(id!, { lineItems: updated as any, subtotal, taxAmount, total: subtotal + taxAmount });
-                  return updated;
-                });
+                // Write pricingContext snapshot directly to store on every pricing change
+                // No intermediate setEditingItems — write straight to the source of truth
+                const newItems = currentItems.map((i: any) =>
+                  i.id === editingItemId
+                    ? { ...i, pricingContext: { ...merged } }
+                    : i
+                );
+                const subtotal = newItems.reduce((s: number, i: any) => s + (i.sellPrice || 0), 0);
+                const taxAmount = subtotal * ((quote?.taxRate || 0) / 100);
+                updateQuote(id!, { lineItems: newItems as any, subtotal, taxAmount, total: subtotal + taxAmount });
                 return { ...prev, [editingItemId]: merged };
               });
             }}
             onClose={() => {
-              // Capture the very latest pricingState for this item before closing
+              // Final snapshot: ensure the very latest pricingState is in the store
               const finalPs = pricingStates[editingItemId] || DEFAULT_PRICING_STATE();
-
-              // Snapshot the COMPLETE pricingState into the lineItem as pricingContext.
-              // This survives navigation away — when the user comes back, getPricingState
-              // can restore every field (materialId, equipmentId, colorMode, sides, etc.)
-              // from pricingContext instead of losing them.
-              setEditingItems(current => {
-                // Embed the pricingContext snapshot into the item being closed
-                const withContext = current.map((i: any) =>
-                  i.id === editingItemId
-                    ? { ...i, pricingContext: { ...finalPs } }
-                    : i
-                );
-                const subtotal = withContext.reduce((s: number, i: any) => s + (i.sellPrice || 0), 0);
-                const taxAmount = subtotal * ((quote!.taxRate || 0) / 100);
-                updateQuote(id!, { lineItems: withContext as any, subtotal, taxAmount, total: subtotal + taxAmount });
-                setItemsDirty(false);
-                return withContext;
-              });
+              const finalItems = currentItems.map((i: any) =>
+                i.id === editingItemId
+                  ? { ...i, pricingContext: { ...finalPs } }
+                  : i
+              );
+              persistItems(finalItems);
               setEditingItemId(null);
             }}
             onRemove={() => { removeItem(editingItemId); setEditingItemId(null); }}
