@@ -555,9 +555,10 @@ export const OrderDetail: React.FC = () => {
                   </span>
                 </div>
               )}
-              <div className="min-w-[220px]">
+              <div className="min-w-[420px]">
                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide block">Tracking Mode</span>
-                <div className="mt-1">
+                <div className="mt-1 flex items-center gap-4">
+                  <div className="min-w-[240px]">
                   <Select
                     value={trackingMode}
                     onChange={(event) => updateOrderTrackingMode(order.id, event.currentTarget.value as OrderTrackingMode)}
@@ -566,12 +567,13 @@ export const OrderDetail: React.FC = () => {
                       { value: 'item', label: 'Track items independently' },
                     ]}
                   />
+                  </div>
+                  <p className="max-w-[320px] text-xs leading-5 text-gray-500">
+                    {trackingMode === 'order'
+                      ? 'Best for straightforward jobs that move together through production.'
+                      : 'Each line item gets its own card in the tracker while the order still shows an overall stage summary.'}
+                  </p>
                 </div>
-                <p className="mt-2 text-xs text-gray-500">
-                  {trackingMode === 'order'
-                    ? 'Best for straightforward jobs that move together through production.'
-                    : 'Each line item gets its own card in the tracker while the order still shows an overall stage summary.'}
-                </p>
               </div>
               <div className="ml-auto">
                 <Badge label={order.status} />
