@@ -195,12 +195,23 @@ export const QuoteDetail: React.FC = () => {
     w.addEventListener('load', () => { w.focus(); setTimeout(() => w.print(), 150); setTimeout(() => URL.revokeObjectURL(url), 60000); }, { once: true });
   };
 
-  // Save items
-  const saveItems = () => {
-    const subtotal = (editingItems as any[]).reduce((s: number, i: any) => s + (i.sellPrice || 0), 0);
-    const taxAmount = subtotal * ((quote.taxRate || 0) / 100);
-    updateQuote(id!, { lineItems: editingItems as any, subtotal, taxAmount, total: subtotal + taxAmount });
-    setItemsDirty(false);
+  // Save items — uses functional form to guarantee latest state, not stale closure
+  const saveItems = (latestItems?: any[]) => {
+    // If latestItems provided (from onClose callback), use that; otherwise read current state
+    if (latestItems !== undefined) {
+      const subtotal = latestItems.reduce((s: number, i: any) => s + (i.sellPrice || 0), 0);
+      const taxAmount = subtotal * ((quote!.taxRate || 0) / 100);
+      updateQuote(id!, { lineItems: latestItems, subtotal, taxAmount, total: subtotal + taxAmount });
+      setItemsDirty(false);
+    } else {
+      setEditingItems(current => {
+        const subtotal = current.reduce((s: number, i: any) => s + (i.sellPrice || 0), 0);
+        const taxAmount = subtotal * ((quote!.taxRate || 0) / 100);
+        updateQuote(id!, { lineItems: current as any, subtotal, taxAmount, total: subtotal + taxAmount });
+        setItemsDirty(false);
+        return current; // don't change the items, just read them
+      });
+    }
   };
 
   const addItem = () => {
@@ -469,7 +480,18 @@ export const QuoteDetail: React.FC = () => {
             onUpdatePricing={updates => {
               setPricingStates(prev => ({ ...prev, [editingItemId]: { ...(prev[editingItemId] || DEFAULT_PRICING_STATE()), ...updates } }));
             }}
-            onClose={() => { saveItems(); setEditingItemId(null); }}
+            onClose={() => {
+              // Use functional state read to get the absolute latest editingItems
+              // (avoids stale closure where saveItems() would read old values)
+              setEditingItems(current => {
+                const subtotal = current.reduce((s: number, i: any) => s + (i.sellPrice || 0), 0);
+                const taxAmount = subtotal * ((quote!.taxRate || 0) / 100);
+                updateQuote(id!, { lineItems: current as any, subtotal, taxAmount, total: subtotal + taxAmount });
+                setItemsDirty(false);
+                return current;
+              });
+              setEditingItemId(null);
+            }}
             onRemove={() => { removeItem(editingItemId); setEditingItemId(null); }}
             matchingTemplates={[]}
             onApplyTemplate={() => {}}
