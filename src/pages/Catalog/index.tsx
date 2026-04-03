@@ -64,10 +64,7 @@ export const Catalog: React.FC = () => {
   const [catDeleteConfirm, setCatDeleteConfirm] = useState<string | null>(null);
 
   // ── Product state ──────────────────────────────────────────────────────
-  const [prodModalOpen, setProdModalOpen] = useState(false);
-  const [prodEditId, setProdEditId] = useState<string | null>(null);
   const [prodForm, setProdForm] = useState(blankProduct());
-  const [prodAliasesStr, setProdAliasesStr] = useState('');
   const [prodDeleteConfirm, setProdDeleteConfirm] = useState<string | null>(null);
   const [prodCategoryFilter, setProdCategoryFilter] = useState('all');
   const [prodMaterials, setProdMaterials] = useState<ProductMaterialEntry[]>([blankMaterialEntry()]);
@@ -275,33 +272,22 @@ export const Catalog: React.FC = () => {
     });
   };
 
-  const handleSaveProduct = () => {
-    // Save first material entry to product defaults
-    const firstMat = prodMaterials[0] || blankMaterialEntry();
-    const data = {
-      ...prodForm,
-      aliases: prodAliasesStr.split(',').map(s => s.trim()).filter(Boolean),
-      defaultFinalSize: `${prodForm.defaultFinalWidth}x${prodForm.defaultFinalHeight}`,
-      defaultMaterialId: firstMat.materialId || prodForm.defaultMaterialId,
-      defaultMaterialName: firstMat.materialName || prodForm.defaultMaterialName,
-      defaultColor: firstMat.color,
-      defaultSides: firstMat.sides,
-      defaultFinishingIds: prodFinishingIds,
-    };
-    if (prodEditId) updateProduct(prodEditId, data);
-    else addProduct(data);
-    setProdModalOpen(false);
-  };
-
   // Save from the full ProductEditModal (new path)
   const handleSaveProductFromModal = (finalItem: QuoteLineItem, finalPs: LineItemPricingState) => {
     // Derive product defaults from the fully configured item
     const w = finalPs.finalWidth || finalItem.width || 0;
     const h = finalPs.finalHeight || finalItem.height || 0;
+    // Determine category: for edits preserve existing, for adds use current filter or first available
+    let categoryIds: string[] = [];
+    if (prodItemEditId) {
+      categoryIds = products.find(p => p.id === prodItemEditId)?.categoryIds || [];
+    } else if (prodCategoryFilter !== 'all') {
+      categoryIds = [prodCategoryFilter];
+    } else if (categories.length > 0) {
+      categoryIds = [categories[0].id];
+    }
     const productDefaults = {
-      categoryIds: prodItemEditId
-        ? (products.find(p => p.id === prodItemEditId)?.categoryIds || [])
-        : [],
+      categoryIds,
       name: finalItem.description || finalPs.productName || 'New Product',
       aliases: prodItemAliasesStr.split(',').map(s => s.trim()).filter(Boolean),
       defaultQuantity: finalPs.quantity || finalItem.quantity || 1000,
