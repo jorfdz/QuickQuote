@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Printer, ArrowRight, Trash2, ChevronDown, ChevronUp, CheckCircle, Copy, Clock, Edit3, Plus } from 'lucide-react';
+import { Printer, ArrowRight, Trash2, ChevronDown, ChevronUp, CheckCircle, Copy, Clock, Edit3, Plus, Search } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Badge, Card, PageHeader, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
@@ -11,12 +11,20 @@ import { nanoid } from '../../utils/nanoid';
 
 // ─── Status options ──────────────────────────────────────────────────────────
 const STATUS_OPTIONS: { value: QuoteStatus; label: string }[] = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'hot',     label: 'Hot 🔥'  },
-  { value: 'cold',    label: 'Cold ❄️' },
-  { value: 'won',     label: 'Won ✅'  },
-  { value: 'lost',    label: 'Lost ❌' },
+  { value: 'pending', label: 'Pending'  },
+  { value: 'hot',     label: 'Hot'      },
+  { value: 'cold',    label: 'Cold'     },
+  { value: 'won',     label: 'Won'      },
+  { value: 'lost',    label: 'Lost'     },
 ];
+
+const dotColors: Record<string, string> = {
+  pending: 'bg-amber-400',
+  hot:     'bg-red-400',
+  cold:    'bg-sky-400',
+  won:     'bg-emerald-400',
+  lost:    'bg-gray-400',
+};
 
 // ─── Time helpers ────────────────────────────────────────────────────────────
 function formatElapsed(iso: string): string {
@@ -39,78 +47,95 @@ function formatShortDT(iso: string): string {
 const InlineField: React.FC<{
   label: string;
   value: string;
+  displayValue?: string;
   onSave: (v: string) => void;
-  type?: 'text' | 'date' | 'select';
+  type?: 'text' | 'date';
+  searchable?: boolean;
   options?: { value: string; label: string }[];
   placeholder?: string;
-}> = ({ label, value, onSave, type = 'text', options, placeholder }) => {
+  onAddNew?: () => void;
+}> = ({ label, value, onSave, type = 'text', searchable, options, placeholder, onAddNew }) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
-  const inputRef = useRef<HTMLInputElement & HTMLSelectElement>(null);
-  // Prevent blur-save when user clicks the cancel button itself
-  const cancelledRef = useRef(false);
+  const [search, setSearch] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const start = () => { setDraft(value); setEditing(true); setTimeout(() => inputRef.current?.focus(), 0); };
+  const start = () => { setDraft(value); setSearch(value); setEditing(true); setTimeout(() => inputRef.current?.focus(), 0); };
+  const commit = (val?: string) => { onSave(val ?? draft); setEditing(false); };
+  const cancel = () => { setEditing(false); };
 
-  // Commit on blur — this fires when user clicks anywhere outside the field
-  const commitOnBlur = () => {
-    if (cancelledRef.current) { cancelledRef.current = false; return; }
-    onSave(draft);
-    setEditing(false);
-  };
-
-  const cancel = () => {
-    cancelledRef.current = true;
-    setDraft(value);
-    setEditing(false);
-  };
+  const filteredOptions = useMemo(() => {
+    if (!options) return [];
+    if (!search.trim()) return options.slice(0, 8);
+    const q = search.toLowerCase();
+    return options.filter(o => o.label.toLowerCase().includes(q)).slice(0, 8);
+  }, [options, search]);
 
   if (!editing) {
     return (
-      <div
-        className="group cursor-pointer hover:bg-gray-50 rounded-lg px-2.5 py-2 -mx-2.5 -my-2 transition-colors"
-        onClick={start}
-        title="Click to edit"
-      >
+      <div className="group cursor-pointer hover:bg-gray-50 rounded-md px-2 py-1.5 -mx-2 transition-colors" onClick={start}>
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
         <div className="flex items-center gap-1.5 mt-0.5">
-          <p className="text-sm font-medium text-gray-900">{value || <span className="text-gray-400">—</span>}</p>
-          <Edit3 className="w-3 h-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+          <p className="text-sm font-medium text-gray-800">{value || <span className="text-gray-300 font-normal">—</span>}</p>
+          <Edit3 className="w-3 h-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
       </div>
     );
   }
 
+  if (searchable && options) {
+    return (
+      <div className="rounded-md px-2 py-1.5 -mx-2 bg-blue-50/40 border border-blue-100">
+        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">{label}</p>
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+          <input
+            ref={inputRef}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') cancel(); }}
+            onBlur={() => setTimeout(cancel, 200)}
+            placeholder={placeholder || `Search ${label.toLowerCase()}...`}
+            className="w-full pl-6 pr-2 py-1 text-sm bg-white border border-blue-200 rounded text-gray-800 focus:outline-none"
+            autoFocus
+          />
+        </div>
+        {filteredOptions.length > 0 && (
+          <div className="mt-1 max-h-36 overflow-y-auto bg-white border border-gray-200 rounded-md shadow-lg">
+            {filteredOptions.map(o => (
+              <button key={o.value} type="button"
+                onMouseDown={() => { commit(o.value); }}
+                className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-blue-50 transition-colors">
+                {o.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {onAddNew && (
+          <button type="button" onMouseDown={onAddNew}
+            className="mt-1 flex items-center gap-1 px-2 py-1 text-xs text-[var(--brand)] hover:bg-[var(--brand-light)] rounded w-full transition-colors">
+            <Plus className="w-3 h-3" /> Add new {label.toLowerCase()}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // Text / date input
   return (
-    <div className="bg-[var(--brand-light)] rounded-lg px-2.5 py-2 -mx-2.5 -my-2 border border-[var(--brand)]/25">
+    <div className="rounded-md px-2 py-1.5 -mx-2 bg-blue-50/40 border border-blue-100">
       <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">{label}</p>
-      {type === 'select' && options ? (
-        // Selects: auto-save immediately on change, blur also saves
-        <select
-          ref={inputRef as any}
-          value={draft}
-          onChange={e => { setDraft(e.target.value); onSave(e.target.value); setEditing(false); }}
-          onBlur={commitOnBlur}
-          className="w-full text-sm bg-white border border-[var(--brand)]/30 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[var(--brand)]/40"
-          autoFocus
-        >
-          <option value="">— select —</option>
-          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      ) : (
-        <input
-          ref={inputRef as any}
-          type={type}
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { onSave(draft); setEditing(false); } if (e.key === 'Escape') cancel(); }}
-          onBlur={commitOnBlur}
-          placeholder={placeholder}
-          className="w-full text-sm bg-white border border-[var(--brand)]/30 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[var(--brand)]/40 min-w-0"
-          autoFocus
-        />
-      )}
-      <p className="text-[9px] text-gray-400 mt-1">↵ save · Esc cancel · or click elsewhere to save</p>
+      <input
+        ref={inputRef}
+        type={type}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel(); }}
+        onBlur={() => commit()}
+        placeholder={placeholder}
+        className="w-full text-sm bg-white border border-blue-200 rounded px-2 py-1 text-gray-800 focus:outline-none"
+        autoFocus
+      />
     </div>
   );
 };
@@ -224,7 +249,7 @@ export const QuoteDetail: React.FC = () => {
         {/* Top row: number + status pills + time */}
         <div className="px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4 flex-1 min-w-0 flex-wrap">
-            <h1 className="text-3xl font-bold text-gray-900 obj-num flex-shrink-0">{quote.number}</h1>
+            <span className="text-lg font-semibold text-gray-700 obj-num flex-shrink-0 tracking-wide">{quote.number}</span>
 
             {/* Status pills — solid filled active, ghost inactive */}
             <div className="flex items-center gap-1">
@@ -243,17 +268,28 @@ export const QuoteDetail: React.FC = () => {
                     key={s.value}
                     onClick={() => updateQuote(id!, { status: s.value })}
                     title={`Set to ${s.label}`}
-                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-all duration-150 ${
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all duration-150 ${
                       isActive
-                        ? `${activeStyles[s.value]} shadow-md scale-105`
-                        : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600 hover:scale-105'
+                        ? `${activeStyles[s.value]} shadow-sm`
+                        : 'bg-gray-50 text-gray-400 border border-gray-200 hover:bg-gray-100 hover:text-gray-600'
                     }`}
                   >
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                      isActive ? 'bg-white' : dotColors[s.value]
+                    }`} />
                     {s.label}
                   </button>
                 );
               })}
             </div>
+
+            {/* Account + contact — always visible (compact) */}
+            {(quote.customerName || quote.contactName) && (
+              <div className="flex items-center gap-2 text-xs text-gray-500 flex-shrink-0">
+                {quote.customerName && <span className="font-medium text-gray-700">{quote.customerName}</span>}
+                {quote.contactName && <><span className="text-gray-300">·</span><span>{quote.contactName}</span></>}
+              </div>
+            )}
 
             {/* Time on stage */}
             {(quote.statusChangedAt || quote.createdAt) && (
@@ -285,20 +321,22 @@ export const QuoteDetail: React.FC = () => {
             <div className="flex items-center justify-between mt-3 mb-3">
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Click any field to edit</p>
             </div>
-            <div className="grid grid-cols-3 gap-x-6 gap-y-4">
-              <InlineField label="Account" value={quote.customerName || ''} placeholder="Select customer..."
-                type="select" options={customerOptions}
+            <div className="grid grid-cols-3 gap-x-6 gap-y-3 items-start">
+              <InlineField label="Account" value={quote.customerName || ''} placeholder="Search accounts..."
+                searchable options={customerOptions}
+                onAddNew={() => { /* navigate to add customer */ }}
                 onSave={v => { const c = customers.find(x => x.id === v); saveField({ customerId: v || undefined, customerName: c?.name }); }} />
-              <InlineField label="Contact" value={quote.contactName || ''} placeholder="Select contact..."
-                type="select" options={contactOptions}
+              <InlineField label="Contact" value={quote.contactName || ''} placeholder="Search contacts..."
+                searchable options={contactOptions}
+                onAddNew={() => { /* navigate to add contact */ }}
                 onSave={v => { const c = contacts.find(x => x.id === v); saveField({ contactId: v || undefined, contactName: c ? `${c.firstName} ${c.lastName}` : undefined }); }} />
               <InlineField label="Valid Until" value={quote.validUntil || ''} type="date"
                 onSave={v => saveField({ validUntil: v || undefined })} />
-              <InlineField label="CSR" value={csr?.name || ''} placeholder="Select CSR..."
-                type="select" options={csrOptions}
+              <InlineField label="CSR" value={csr?.name || ''} placeholder="Search CSR..."
+                searchable options={csrOptions}
                 onSave={v => saveField({ csrId: v || undefined })} />
-              <InlineField label="Sales Rep" value={salesRep?.name || ''} placeholder="Select Sales Rep..."
-                type="select" options={salesOptions}
+              <InlineField label="Sales Rep" value={salesRep?.name || ''} placeholder="Search Sales Rep..."
+                searchable options={salesOptions}
                 onSave={v => saveField({ salesId: v || undefined })} />
               <InlineField label="Title" value={quote.title} placeholder="Quote title..."
                 onSave={v => saveField({ title: v })} />

@@ -5,7 +5,7 @@ import {
   Percent, Hash, Info, RefreshCw, Eye, Layers, Wrench,
 } from 'lucide-react';
 import { usePricingStore } from '../../store/pricingStore';
-import { Button, Badge } from '../../components/ui';
+import { Button, Badge, ConfirmDialog } from '../../components/ui';
 import type { QuoteLineItem } from '../../types';
 import type { PricingProduct, PricingServiceLine, ProductPricingTemplate } from '../../types/pricing';
 import { formatCurrency } from '../../data/mockData';
@@ -125,6 +125,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [isMultiPart, setIsMultiPart] = useState(() => !!(item as any).isMultiPart);
   const [globalProduct, setGlobalProduct] = useState(() => (item as any).multiPartName || '');
   const [globalDescription, setGlobalDescription] = useState(() => (item as any).multiPartDescription || '');
+  const [showDeletePartConfirm, setShowDeletePartConfirm] = useState<number | null>(null);
   const [parts, setParts] = useState<PartSnapshot[]>(() => {
     const savedParts = (item as any).parts as Array<{ id: string; partName: string; partDescription: string; totalCost: number; totalSell: number }> | undefined;
     if (savedParts && savedParts.length > 0) {
@@ -759,17 +760,29 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // Remove a part
   const removePart = (idx: number) => {
     if (parts.length <= 1) return;
+    const part = parts[idx];
+    const hasWork = !!(part.productQuery || part.pricingState.materialId || part.pricingState.equipmentId || part.totalSell > 0);
+    if (hasWork) {
+      setShowDeletePartConfirm(idx);
+    } else {
+      doRemovePart(idx);
+    }
+  };
+
+  const doRemovePart = (idx: number) => {
+    if (parts.length <= 1) return;
     const newParts = parts.filter((_, i) => i !== idx);
     const newIdx = Math.min(idx, newParts.length - 1);
     setParts(newParts);
     setActivePartIdx(newIdx);
+    setShowDeletePartConfirm(null);
     loadPartIntoForm(newParts[newIdx]);
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col">
 
         {/* ═══ Modal Header ═══════════════════════════════════════════════ */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -854,7 +867,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           onFocus={() => globalProduct && setShowGlobalSuggestions(true)}
                           onBlur={() => setTimeout(() => setShowGlobalSuggestions(false), 150)}
                           placeholder="Item name (e.g. Booklet...)"
-                          className="w-full text-sm font-semibold bg-transparent border-0 focus:outline-none text-gray-800 placeholder-gray-300"
+                          className="w-full text-sm font-semibold bg-transparent border-0 focus:outline-none text-gray-800 placeholder-gray-400"
                         />
                         {/* Product suggestions dropdown */}
                         {showGlobalSuggestions && globalProduct.trim().length >= 1 && (() => {
@@ -886,7 +899,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         value={globalDescription}
                         onChange={e => setGlobalDescription(e.target.value)}
                         placeholder="Overall item description..."
-                        className="flex-1 text-sm bg-transparent border-0 focus:outline-none text-gray-500 placeholder-gray-300 min-w-0"
+                        className="flex-1 text-sm bg-transparent border-0 focus:outline-none text-gray-500 placeholder-gray-400 min-w-0"
                       />
                     </div>
                   </div>
@@ -899,7 +912,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium transition-all border-b-2 ${
                         showMainTab
                           ? 'border-gray-700 text-gray-800 bg-white'
-                          : 'border-transparent text-gray-400 hover:text-gray-600 hover:bg-white/60'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-white/60'
                       }`}
                     >
                       <Layers className="w-3 h-3" />
@@ -915,7 +928,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-medium transition-all border-b-2 ${
                             !showMainTab && activePartIdx === idx
                               ? 'border-[#F890E7] text-[#F890E7] bg-white'
-                              : 'border-transparent text-gray-400 hover:text-gray-600 hover:bg-white/60'
+                              : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-white/60'
                           }`}
                         >
                           <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${
@@ -1007,7 +1020,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         </tbody>
                         <tfoot>
                           <tr className="border-t-2 border-gray-200">
-                            <td colSpan={3} className="py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                            <td colSpan={3} className="py-2.5 text-[10px] font-semibold text-gray-600 uppercase tracking-wide">
                               Total · {parts.length} part{parts.length !== 1 ? 's' : ''}
                             </td>
                             <td className="py-2.5 text-right num font-semibold text-gray-700">
@@ -1050,7 +1063,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           updated[activePartIdx] = { ...updated[activePartIdx], partName: e.target.value };
                           setParts(updated);
                         }}
-                        className="text-sm font-semibold bg-transparent border-0 focus:outline-none text-gray-800 placeholder-gray-300 w-40 border-b border-dashed border-gray-200 focus:border-[#F890E7] pb-0.5 transition-colors"
+                        className="text-sm font-semibold bg-transparent border-0 focus:outline-none text-gray-800 placeholder-gray-400 w-40 border-b border-dashed border-gray-200 focus:border-[#F890E7] pb-0.5 transition-colors"
                         placeholder="Part name..."
                       />
                       <div className="w-px h-4 bg-gray-200 flex-shrink-0" />
@@ -1062,23 +1075,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           setParts(updated);
                         }}
                         placeholder="Part description (optional)..."
-                        className="flex-1 text-xs bg-transparent border-0 focus:outline-none text-gray-500 placeholder-gray-300"
+                        className="flex-1 text-xs bg-transparent border-0 focus:outline-none text-gray-500 placeholder-gray-400"
                       />
-                      {(item.sellPrice > 0) && (
-                        <span className="text-xs num font-semibold text-gray-600 flex-shrink-0">
-                          {formatCurrency(item.sellPrice)}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Grand total bar */}
-                  {!showMainTab && parts.length > 1 && (
-                    <div className="px-4 py-1.5 flex items-center justify-between bg-gray-50 text-[10px] text-gray-400">
-                      <span>{parts.length} parts total</span>
-                      <button onClick={goToMainTab} className="num font-semibold text-gray-600 hover:text-[#F890E7] transition-colors">
-                        All parts: {formatCurrency(parts.reduce((s, p, i) => s + (i === activePartIdx ? item.sellPrice : p.totalSell), 0))} →
-                      </button>
                     </div>
                   )}
                 </div>
@@ -1090,7 +1088,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
               {/* ── Product Search Row ────────────────────────────────── */}
               <div>
-                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Product</label>
+                <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Product</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
@@ -1128,7 +1126,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
               {/* ── Description + Auto-describe ──────────────────────── */}
               <div>
-                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</label>
+                <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Description</label>
                 <input
                   type="text"
                   value={item.description}
@@ -1146,7 +1144,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               {/* ── Quantity / Size / Sides / Color (4-col row) ────── */}
               <div className="grid grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Quantity</label>
+                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Quantity</label>
                   <input type="text" value={multiQtyInput}
                     onChange={e => {
                       trackInteraction();
@@ -1159,7 +1157,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   {isMultiQty && <p className="text-[10px] text-purple-500 mt-0.5">{parsedQuantities.length} quantities</p>}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Size (L x H, in)</label>
+                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Size (L x H, in)</label>
                   <input
                     type="text"
                     value={sizeInput}
@@ -1182,7 +1180,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   {sizeError && <p className="text-[9px] text-red-500 mt-0.5">{sizeError}</p>}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sides</label>
+                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Sides</label>
                   <select value={materialEntries[0]?.sides || ps.sides}
                     onChange={e => {
                       trackInteraction();
@@ -1196,7 +1194,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Color</label>
+                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Color</label>
                   <select value={materialEntries[0]?.colorMode || ps.colorMode}
                     onChange={e => {
                       trackInteraction();
@@ -1214,7 +1212,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               {/* ── Material / Equipment (2-col equal width) ──────── */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Material</label>
+                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Material</label>
                   <select value={materialEntries[0]?.materialId || ps.materialId}
                     onChange={e => {
                       trackInteraction();
@@ -1251,7 +1249,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   </button>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Equipment</label>
+                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Equipment</label>
                   <select value={ps.equipmentId}
                     onChange={e => { trackInteraction(); onUpdatePricing({ equipmentId: e.target.value }); }}
                     className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
@@ -1343,7 +1341,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                         {/* RIGHT: Orientation diagrams A & B */}
                         <div className="flex flex-col gap-2 w-[200px] flex-shrink-0">
-                          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Orientation</p>
+                          <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Orientation</p>
                           <div className="flex gap-3">
                             {/* Orientation A */}
                             <button
@@ -1705,7 +1703,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               {/* ── Notes ─────────────────────────────────────────────── */}
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Customer Notes</label>
+                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Customer Notes</label>
                   <textarea
                     value={item.notes || ''}
                     onChange={e => onUpdateItem({ notes: e.target.value })}
@@ -1715,7 +1713,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Internal Notes</label>
+                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Internal Notes</label>
                   <textarea
                     value={(item as any).internalNotes || ''}
                     onChange={e => onUpdateItem({ internalNotes: e.target.value } as any)}
@@ -1746,7 +1744,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 <div className="w-52 flex-shrink-0 transition-all duration-300">
                   <div className="sticky top-0">
                     <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Templates</h4>
+                      <h4 className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Templates</h4>
                       <button onClick={() => setTemplatePanelCollapsed(true)}
                         className="p-1 hover:bg-gray-100 rounded transition-colors" title="Collapse">
                         <ChevronRight className="w-3 h-3 text-gray-400" />
@@ -1822,6 +1820,15 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
             )}
           </div>
         </div>
+
+        <ConfirmDialog
+          isOpen={showDeletePartConfirm !== null}
+          onClose={() => setShowDeletePartConfirm(null)}
+          onConfirm={() => { if (showDeletePartConfirm !== null) doRemovePart(showDeletePartConfirm); }}
+          title="Delete Part?"
+          message="This part has content configured. Are you sure you want to delete it? This cannot be undone."
+          confirmLabel="Delete Part"
+        />
       </div>
     </div>
   );
