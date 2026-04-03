@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Printer, ArrowRight, Trash2, ChevronDown, ChevronUp, CheckCircle, Copy, Clock, Edit3, Plus, Search, AlertCircle, Building2, X } from 'lucide-react';
+import { Printer, ArrowRight, Trash2, ChevronDown, ChevronUp, CheckCircle, Copy, Clock, Edit3, Plus, Search, Building2, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Badge, Card, PageHeader, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
@@ -119,9 +119,8 @@ const InlineField: React.FC<{
   options?: { value: string; label: string }[];
   placeholder?: string;
   onAddNew?: () => void;
-  highlight?: boolean;
   forwardRef?: React.RefObject<HTMLDivElement | null>;
-}> = ({ label, value, onSave, type = 'text', searchable, options, placeholder, onAddNew, highlight, forwardRef }) => {
+}> = ({ label, value, onSave, type = 'text', searchable, options, placeholder, onAddNew, forwardRef }) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const [search, setSearch] = useState('');
@@ -142,22 +141,12 @@ const InlineField: React.FC<{
     return (
       <div
         ref={forwardRef}
-        className={`group cursor-pointer rounded-md px-2 py-1.5 -mx-2 transition-colors ${
-          highlight
-            ? 'bg-amber-50 border border-amber-200 hover:bg-amber-100'
-            : 'hover:bg-gray-50'
-        }`}
+        className="group cursor-pointer hover:bg-gray-50 rounded-md px-2 py-1.5 -mx-2 transition-colors"
         onClick={start}
       >
-        <p className={`text-[10px] font-semibold uppercase tracking-wide ${highlight ? 'text-amber-600' : 'text-gray-400'}`}>{label}</p>
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
         <div className="flex items-center gap-1.5 mt-0.5">
-          {highlight && !value ? (
-            <p className="text-sm font-medium text-amber-500 flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" /> Required — click to assign
-            </p>
-          ) : (
-            <p className="text-sm font-medium text-gray-800">{value || <span className="text-gray-300 font-normal">—</span>}</p>
-          )}
+          <p className="text-sm font-medium text-gray-800">{value || <span className="text-gray-300 font-normal">—</span>}</p>
           <Edit3 className="w-3 h-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
       </div>
@@ -412,8 +401,6 @@ export const QuoteDetail: React.FC = () => {
   const contactOptions = contacts.filter(c => c.customerId === quote.customerId).map(c => ({ value: c.id, label: `${c.firstName} ${c.lastName}` }));
   const customerOptions = customers.map(c => ({ value: c.id, label: c.name }));
 
-  const missingAccount = !quote.customerName;
-
   // Delete confirm item info
   const deleteConfirmItem = deleteConfirmItemId
     ? currentItems.find((i: any) => i.id === deleteConfirmItemId)
@@ -421,25 +408,6 @@ export const QuoteDetail: React.FC = () => {
 
   return (
     <div>
-      {/* ── Missing account banner ── */}
-      {missingAccount && (
-        <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
-          <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
-          <p className="text-sm text-amber-800 flex-1">
-            <span className="font-semibold">No account assigned.</span> This quote must be linked to a client account before it can be filed or sent.
-          </p>
-          <button
-            onClick={() => {
-              setHeaderCollapsed(false);
-              setTimeout(() => accountFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
-            }}
-            className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
-          >
-            Assign Account
-          </button>
-        </div>
-      )}
-
       <PageHeader
         title={quote.title}
         back={() => guardedNavigate('/quotes')}
@@ -538,7 +506,6 @@ export const QuoteDetail: React.FC = () => {
                 value={quote.customerName || ''}
                 placeholder="Search accounts..."
                 searchable options={customerOptions}
-                highlight={missingAccount}
                 forwardRef={accountFieldRef}
                 onAddNew={() => {}}
                 onSave={v => { const c = customers.find(x => x.id === v); saveField({ customerId: v || undefined, customerName: c?.name }); }}
@@ -672,12 +639,7 @@ export const QuoteDetail: React.FC = () => {
           <Card className="p-5">
             <h3 className="font-semibold text-gray-900 mb-3 text-sm">Details</h3>
             <dl className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-gray-500">Customer</dt>
-                <dd className={`font-medium ${missingAccount ? 'text-amber-500 italic' : 'text-gray-900'}`}>
-                  {quote.customerName || 'Not assigned'}
-                </dd>
-              </div>
+              <div className="flex justify-between"><dt className="text-gray-500">Customer</dt><dd className="font-medium text-gray-900">{quote.customerName || '—'}</dd></div>
               <div className="flex justify-between"><dt className="text-gray-500">Created</dt><dd className="text-gray-900">{formatDate(quote.createdAt)}</dd></div>
               <div className="flex justify-between"><dt className="text-gray-500">Valid Until</dt><dd className="text-gray-900">{quote.validUntil ? formatDate(quote.validUntil) : '—'}</dd></div>
             </dl>

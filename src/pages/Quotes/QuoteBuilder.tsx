@@ -92,7 +92,7 @@ export const QuoteBuilder: React.FC = () => {
     if (!isEditMode && sourceClone && (sourceClone as any).lineItems?.length) {
       return (sourceClone as any).lineItems.map((li: QuoteLineItem) => ({ ...li, id: nanoid() }));
     }
-    return [EMPTY_LINE_ITEM()];
+    return [];
   });
   const [pricingStates, setPricingStates] = useState<Record<string, LineItemPricingState>>(() => {
     // Return empty — each item will get a default state when accessed via getPricingState
@@ -109,7 +109,7 @@ export const QuoteBuilder: React.FC = () => {
       const seedSource = sourceClone as any;
       const initialLineItems = seedSource?.lineItems?.length
         ? seedSource.lineItems.map((li: QuoteLineItem) => ({ ...li, id: nanoid() }))
-        : [EMPTY_LINE_ITEM()];
+        : [];
       const draft: Quote = {
         id: newId,
         number: quoteNumber,
