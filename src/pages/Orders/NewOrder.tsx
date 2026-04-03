@@ -304,7 +304,7 @@ export const NewOrder: React.FC = () => {
       customerId: form.customerId || undefined,
       customerName: selectedCustomer?.name,
       contactId: form.contactId || undefined,
-      title: form.title || `Order ${number}`,
+      title: form.title || lineItems.find(i => i.description)?.description || `Order ${number}`,
       lineItems: nextLineItems,
       subtotal,
       taxRate: form.taxRate,

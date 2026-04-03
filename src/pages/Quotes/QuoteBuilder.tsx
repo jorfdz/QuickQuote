@@ -219,7 +219,7 @@ export const QuoteBuilder: React.FC = () => {
     if (isEditMode && existingQuote) {
       // Update existing quote
       updateQuote(existingQuote.id, {
-        title: form.title || `Quote ${number}`,
+        title: form.title || lineItems.find(i => i.description)?.description || `Quote ${number}`,
         status: form.status,
         customerId: form.customerId || undefined,
         customerName: selectedCustomer?.name,
@@ -245,7 +245,7 @@ export const QuoteBuilder: React.FC = () => {
         id: nanoid(), number, status: form.status,
         customerId: form.customerId || undefined, customerName: selectedCustomer?.name,
         contactId: form.contactId || undefined,
-        title: form.title || `Quote ${number}`,
+        title: form.title || lineItems.find(i => i.description)?.description || `Quote ${number}`,
         lineItems, subtotal, taxRate: form.taxRate, taxAmount, total,
         validUntil: form.validUntil || undefined,
         notes: form.notes || undefined, internalNotes: form.internalNotes || undefined,
@@ -321,9 +321,9 @@ export const QuoteBuilder: React.FC = () => {
             setSaving(true);
             const savedId = isEditMode ? existingQuote!.id : nanoid();
             if (isEditMode) {
-              updateQuote(savedId, { title: form.title || `Quote ${quoteNumber}`, status: form.status, customerId: form.customerId || undefined, customerName: selectedCustomer?.name, contactId: form.contactId || undefined, lineItems, subtotal, taxRate: form.taxRate, taxAmount, total, validUntil: form.validUntil || undefined, notes: form.notes || undefined, internalNotes: form.internalNotes || undefined, csrId: form.csrId, salesId: form.salesId });
+              updateQuote(savedId, { title: form.title || lineItems.find(i => i.description)?.description || `Quote ${quoteNumber}`, status: form.status, customerId: form.customerId || undefined, customerName: selectedCustomer?.name, contactId: form.contactId || undefined, lineItems, subtotal, taxRate: form.taxRate, taxAmount, total, validUntil: form.validUntil || undefined, notes: form.notes || undefined, internalNotes: form.internalNotes || undefined, csrId: form.csrId, salesId: form.salesId });
             } else {
-              addQuote({ id: savedId, number: quoteNumber, status: form.status, customerId: form.customerId || undefined, customerName: selectedCustomer?.name, contactId: form.contactId || undefined, title: form.title || `Quote ${quoteNumber}`, lineItems, subtotal, taxRate: form.taxRate, taxAmount, total, validUntil: form.validUntil || undefined, notes: form.notes || undefined, internalNotes: form.internalNotes || undefined, csrId: form.csrId, salesId: form.salesId, source: 'scratch', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+              addQuote({ id: savedId, number: quoteNumber, status: form.status, customerId: form.customerId || undefined, customerName: selectedCustomer?.name, contactId: form.contactId || undefined, title: form.title || lineItems.find(i => i.description)?.description || `Quote ${quoteNumber}`, lineItems, subtotal, taxRate: form.taxRate, taxAmount, total, validUntil: form.validUntil || undefined, notes: form.notes || undefined, internalNotes: form.internalNotes || undefined, csrId: form.csrId, salesId: form.salesId, source: 'scratch', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
             }
             await new Promise(r => setTimeout(r, 150));
             setSaving(false);
