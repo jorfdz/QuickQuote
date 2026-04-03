@@ -3,11 +3,27 @@ import { useNavigate } from 'react-router-dom';
 import {
   FileText, ClipboardList, AlertTriangle,
   Clock, Users, ChevronRight,
-  Flame, BarChart2, Package,
+  Flame, Package, Layers3,
 } from 'lucide-react';
 import { useStore } from '../../store';
 import { Card } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
+
+// ─── Color helper (same as OrderTracker) ─────────────────────────────────────
+const withAlpha = (hex: string, alpha: number): string => {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+};
+
+function endOfTomorrow() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -84,8 +100,9 @@ type ProductPeriod = typeof PRODUCT_PERIODS[number]['id'];
 // ═════════════════════════════════════════════════════════════════════════════
 
 export const Dashboard: React.FC = () => {
-  const { quotes, orders, customers, workflows, currentUser } = useStore();
+  const { quotes, orders, customers, workflows, currentUser, companySettings } = useStore();
   const navigate = useNavigate();
+  const brandColor = companySettings?.primaryBrandColor || '#2563eb';
   const [activityFilter, setActivityFilter] = useState<'all' | 'quotes' | 'customers' | 'orders'>('all');
   const [productPeriod, setProductPeriod] = useState<ProductPeriod>('last30');
 
@@ -131,50 +148,21 @@ export const Dashboard: React.FC = () => {
     return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 20);
   }, [orders, productPeriod]);
 
-  // ── Order tracker — all workflow boards ───────────────────────────────────
-  const trackerBoards = useMemo(() => {
-    // Return ALL workflows that have active orders (not just the default one)
-    const boards: Array<{
-      workflowId: string;
-      workflowName: string;
-      stages: Array<{
-        stage: { id: string; name: string; color: string; order: number };
-        orders: typeof activeOrders;
-        todoCount: number;
-      }>;
-      totalOrders: number;
-    }> = [];
-
-    workflows.forEach(workflow => {
-      if (!workflow.isActive) return;
-      const workflowOrders = activeOrders.filter(o => o.workflowId === workflow.id || !o.workflowId);
-      if (workflowOrders.length === 0 && !workflow.isDefault) return;
-
-      const stages = workflow.stages
-        .sort((a, b) => a.order - b.order)
-        .map(stage => {
-          const stageOrders = workflowOrders.filter(o => {
-            if (o.currentStageId === stage.id) return true;
-            return o.lineItems.some((li: any) => li.workflowStageId === stage.id);
-          });
-          // Count to-do items (items not yet completed in this stage)
-          const todoCount = stageOrders.reduce((s, o) =>
-            s + o.lineItems.filter((li: any) => li.workflowStageId === stage.id && !li.stageCompleted).length, 0
-          );
-          return { stage, orders: stageOrders, todoCount };
-        })
-        .filter(s => s.orders.length > 0);
-
-      boards.push({
-        workflowId: workflow.id,
-        workflowName: workflow.name,
-        stages,
-        totalOrders: workflowOrders.length,
-      });
+  // ── Board stats — same calculation as OrderTracker ────────────────────────
+  const activeBoards = useMemo(() => workflows.filter(w => w.isActive), [workflows]);
+  const boardStats = useMemo(() => {
+    return activeBoards.map(board => {
+      const boardOrders = orders.filter(o =>
+        o.workflowId === board.id && o.status !== 'canceled' && o.status !== 'completed'
+      );
+      return {
+        id: board.id,
+        orderCount: boardOrders.length,
+        itemCount: boardOrders.reduce((sum, o) => sum + (o.trackingMode === 'item' ? o.lineItems.length : 1), 0),
+        dueSoonCount: boardOrders.filter(o => o.dueDate && new Date(o.dueDate) <= endOfTomorrow()).length,
+      };
     });
-
-    return boards;
-  }, [workflows, activeOrders]);
+  }, [activeBoards, orders]);
 
   // ── Activity feed ─────────────────────────────────────────────────────────
   const activityFeed = useMemo(() => {
@@ -294,81 +282,87 @@ export const Dashboard: React.FC = () => {
         />
       </div>
 
-      {/* ═══ ROW 2 — Order Tracker ═══════════════════════════════════════════ */}
-      <Card>
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-50">
-          <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-            <ClipboardList className="w-3.5 h-3.5 text-violet-500" /> Order Tracker
-            <span className="text-[10px] font-normal text-gray-400 ml-1">{activeOrders.length} active orders</span>
-          </h2>
+      {/* ═══ ROW 2 — Order Tracker Boards ═══════════════════════════════════ */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">
+            <Layers3 className="h-3.5 w-3.5" />
+            Active Boards
+          </div>
           <button onClick={() => navigate('/tracker')}
-            className="text-[11px] text-[var(--brand)] hover:underline font-medium flex items-center gap-0.5">
-            Full Tracker <ChevronRight className="w-3 h-3" />
+            className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-gray-300 hover:text-gray-900 transition-colors">
+            Open Full Tracker <ChevronRight className="h-3 w-3" />
           </button>
         </div>
 
-        {trackerBoards.length === 0 ? (
-          <div className="px-5 py-6 text-center text-sm text-gray-400">No active orders in production</div>
+        {activeBoards.length === 0 ? (
+          <Card>
+            <div className="px-5 py-6 text-center text-sm text-gray-400">No active workflow boards configured</div>
+          </Card>
         ) : (
-          <div className="px-5 py-4 space-y-4">
-            {trackerBoards.map(board => (
-              <div key={board.workflowId}>
-                {/* Board header */}
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{board.workflowName}</span>
-                  <div className="flex-1 h-px bg-gray-100" />
-                  <span className="text-[10px] text-gray-400">{board.totalOrders} orders</span>
-                </div>
-                {/* Stage columns */}
-                <div className="flex gap-3 overflow-x-auto pb-1">
-                  {board.stages.map(({ stage, orders: stageOrders, todoCount }) => (
-                    <div key={stage.id}
-                      className="flex-shrink-0 min-w-[155px] max-w-[190px] bg-gray-50 rounded-xl p-3 border border-gray-100">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
-                        <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide truncate flex-1">{stage.name}</span>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <span className="text-[10px] font-bold text-gray-600">{stageOrders.length}</span>
-                          {todoCount > 0 && (
-                            <span className="text-[9px] bg-amber-100 text-amber-700 font-bold px-1 rounded">
-                              {todoCount} todo
-                            </span>
-                          )}
-                        </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {activeBoards.map(board => {
+              const stats = boardStats.find(s => s.id === board.id);
+              return (
+                <button
+                  key={board.id}
+                  onClick={() => navigate(`/tracker?board=${board.id}`)}
+                  className={`rounded-xl border p-4 text-left transition-all ${
+                    board.isDefault
+                      ? 'text-white shadow-lg'
+                      : 'border-gray-200 bg-white hover:border-slate-300 hover:shadow-md'
+                  }`}
+                  style={board.isDefault ? {
+                    borderColor: withAlpha(brandColor, 0.8),
+                    backgroundImage: `linear-gradient(135deg, ${withAlpha(brandColor, 0.96)}, ${withAlpha(brandColor, 0.72)})`,
+                    boxShadow: `0 20px 35px ${withAlpha(brandColor, 0.18)}`,
+                  } : undefined}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className={`text-sm font-semibold truncate ${board.isDefault ? 'text-white' : 'text-gray-900'}`}>
+                        {board.name}
                       </div>
-                      <div className="space-y-1.5">
-                        {stageOrders.slice(0, 3).map(o => (
-                          <button key={o.id} onClick={() => navigate(`/orders/${o.id}`)}
-                            className="w-full text-left bg-white rounded-lg px-2.5 py-2 border border-gray-100 hover:border-[var(--brand)]/30 hover:bg-[var(--brand-light)] transition-all">
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="text-[10px] obj-num text-gray-400 flex-shrink-0">{o.number}</span>
-                              {o.dueDate && new Date(o.dueDate) < now && (
-                                <span className="text-[9px] text-red-600 font-bold flex-shrink-0">OVERDUE</span>
-                              )}
-                            </div>
-                            <p className="text-[11px] font-medium text-gray-800 truncate mt-0.5">{o.title || o.customerName}</p>
-                            {o.dueDate && (
-                              <p className={`text-[10px] mt-0.5 ${new Date(o.dueDate) < now ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
-                                Due {formatDate(o.dueDate)}
-                              </p>
-                            )}
-                          </button>
-                        ))}
-                        {stageOrders.length > 3 && (
-                          <button onClick={() => navigate('/tracker')}
-                            className="w-full text-[10px] text-center text-gray-400 hover:text-[var(--brand)] py-1 transition-colors">
-                            +{stageOrders.length - 3} more
-                          </button>
-                        )}
-                      </div>
+                      <p className={`mt-1 text-xs leading-5 line-clamp-2 ${board.isDefault ? 'text-white/80' : 'text-gray-500'}`}>
+                        {board.description || 'No description provided.'}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+                    <span className={`flex-shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
+                      board.isDefault ? 'bg-white/20 text-white' : 'bg-emerald-50 text-emerald-700'
+                    }`}>
+                      {board.isDefault ? 'Default' : 'Active'}
+                    </span>
+                  </div>
+                  <div className="mt-4 flex items-center gap-5">
+                    <div>
+                      <div className={`text-xl font-bold ${board.isDefault ? 'text-white' : 'text-gray-900'}`}>
+                        {stats?.orderCount ?? 0}
+                      </div>
+                      <div className={`text-[11px] ${board.isDefault ? 'text-white/70' : 'text-gray-500'}`}>orders</div>
+                    </div>
+                    <div>
+                      <div className={`text-xl font-bold ${board.isDefault ? 'text-white' : 'text-gray-900'}`}>
+                        {stats?.itemCount ?? 0}
+                      </div>
+                      <div className={`text-[11px] ${board.isDefault ? 'text-white/70' : 'text-gray-500'}`}>items</div>
+                    </div>
+                    <div>
+                      <div className={`text-xl font-bold ${
+                        (stats?.dueSoonCount ?? 0) > 0
+                          ? (board.isDefault ? 'text-yellow-200' : 'text-amber-500')
+                          : (board.isDefault ? 'text-white' : 'text-gray-900')
+                      }`}>
+                        {stats?.dueSoonCount ?? 0}
+                      </div>
+                      <div className={`text-[11px] ${board.isDefault ? 'text-white/70' : 'text-gray-500'}`}>due soon</div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
-      </Card>
+      </div>
 
       {/* ═══ ROW 3 — Customers · Products · Activity ═════════════════════════ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
