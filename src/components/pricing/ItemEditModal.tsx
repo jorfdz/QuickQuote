@@ -1889,10 +1889,7 @@ const SERVICE_ACCENT: Record<string, { icon: React.ReactNode; dot: string }> = {
 };
 
 export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ lines, onSave, onRecalculate, onClose }) => {
-  const [localLines, setLocalLines] = useState<PricingServiceLine[]>(() =>
-    lines.map(l => ({ ...l }))
-  );
-  // Per-row time input buffer (what the user is typing before parse)
+  const [localLines, setLocalLines] = useState<PricingServiceLine[]>(() => lines.map(l => ({ ...l })));
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
     lines.forEach(l => { if (l.hoursCharge != null) init[l.id] = fmtHours(l.hoursCharge); });
@@ -1900,11 +1897,23 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
   });
   const [timeErrors, setTimeErrors] = useState<Record<string, boolean>>({});
 
-  const updateField = (id: string, field: 'totalCost' | 'markupPercent' | 'sellPrice', raw: string) => {
+  const updateField = (id: string, field: 'totalCost' | 'markupPercent' | 'sellPrice' | 'hourlyCost' | 'unitCost', raw: string) => {
     const val = parseFloat(raw);
     if (isNaN(val)) return;
     setLocalLines(prev => prev.map(l => {
       if (l.id !== id) return l;
+      if (field === 'hourlyCost') {
+        const h = l.hoursCharge ?? l.hoursActual ?? 0;
+        const newCost = h * val;
+        const sell = newCost * (1 + l.markupPercent / 100);
+        return { ...l, hourlyCost: val, totalCost: parseFloat(newCost.toFixed(4)), sellPrice: parseFloat(sell.toFixed(4)) };
+      }
+      if (field === 'unitCost') {
+        const qty = l.quantity ?? 1;
+        const newCost = qty * val;
+        const sell = newCost * (1 + l.markupPercent / 100);
+        return { ...l, unitCost: val, totalCost: parseFloat(newCost.toFixed(4)), sellPrice: parseFloat(sell.toFixed(4)) };
+      }
       if (field === 'totalCost') {
         const mk = val > 0 ? ((l.sellPrice - val) / val) * 100 : l.markupPercent;
         return { ...l, totalCost: val, markupPercent: parseFloat(mk.toFixed(2)) };
@@ -1921,279 +1930,248 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
   };
 
   const commitTimeInput = (id: string) => {
-    const raw = timeInputs[id] ?? '';
-    const h = parseHoursInput(raw);
+    const h = parseHoursInput(timeInputs[id] ?? '');
     if (h === null) { setTimeErrors(e => ({ ...e, [id]: true })); return; }
     setTimeErrors(e => ({ ...e, [id]: false }));
     setLocalLines(prev => prev.map(l => {
       if (l.id !== id || l.hourlyCost == null) return l;
       const newCost = h * l.hourlyCost;
-      const newSell = newCost * (1 + l.markupPercent / 100);
-      return { ...l, hoursCharge: h, totalCost: parseFloat(newCost.toFixed(4)), sellPrice: parseFloat(newSell.toFixed(4)) };
+      return { ...l, hoursCharge: h, totalCost: parseFloat(newCost.toFixed(4)), sellPrice: parseFloat((newCost * (1 + l.markupPercent / 100)).toFixed(4)) };
     }));
     setTimeInputs(t => ({ ...t, [id]: fmtHours(h) }));
   };
 
   const totalCost = localLines.reduce((s, l) => s + l.totalCost, 0);
   const totalSell = localLines.reduce((s, l) => s + l.sellPrice, 0);
-  const totalMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
-  const marginPct   = totalSell > 0 ? ((totalSell - totalCost) / totalSell) * 100 : 0;
+  const marginPct = totalSell > 0 ? ((totalSell - totalCost) / totalSell) * 100 : 0;
 
-  const inp = (extra = '') =>
-    `w-full px-2 py-1.5 text-xs text-right num bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] focus:border-transparent transition-colors ${extra}`;
+  // ── Editable number cell ──────────────────────────────────────────────
+  const EditCell: React.FC<{
+    value: number; step?: string; suffix?: string;
+    onChange: (v: string) => void; className?: string;
+  }> = ({ value, step = '0.01', suffix, onChange, className = '' }) => (
+    <div className="relative">
+      <input type="number" step={step} value={value}
+        onChange={e => onChange(e.target.value)}
+        className={`w-full px-2 py-1 text-xs text-right num bg-white border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[var(--brand)] ${className}`}
+      />
+      {suffix && <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-gray-400 pointer-events-none">{suffix}</span>}
+    </div>
+  );
 
-  const thCls = 'py-1.5 px-2 text-[9px] font-semibold text-gray-400 uppercase tracking-wide text-right';
-  const tdCls = 'py-2 px-2';
-  const dimCls = 'text-gray-300'; // read-only display cells
+  // Determine charge type label
+  const chargeType = (l: PricingServiceLine): string => {
+    if (isTimeBased(l)) return 'Time';
+    if (l.unit === 'sqft') return 'Sq Ft';
+    if (l.unit === 'clicks') return 'Clicks';
+    if (l.unit === 'sheets') return 'Material';
+    if (l.unit === 'flat') return 'Fixed';
+    return 'Quantity';
+  };
+
+  // Rate display
+  const rateDisplay = (l: PricingServiceLine): string => {
+    if (isTimeBased(l) && l.hourlyCost != null) return `${formatCurrency(l.hourlyCost)} / hr`;
+    if (l.unitCost > 0 && l.unit) return `${formatCurrency(l.unitCost)} / ${l.unit}`;
+    if (l.unit === 'flat') return `${formatCurrency(l.totalCost)} flat`;
+    return '—';
+  };
+
+  // Qty/time display
+  const qtyDisplay = (l: PricingServiceLine): string => {
+    if (isTimeBased(l)) return `${fmtHours(l.hoursCharge ?? l.hoursActual ?? 0)} hrs`;
+    if (l.quantity != null && l.unit) return `${l.quantity.toLocaleString()} ${l.unit}`;
+    if (l.unit === 'flat') return '1 charge';
+    return '—';
+  };
+
+  const th = 'px-3 py-2.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 text-right';
+  const td = 'px-3 py-2';
+
+  // Group lines for display — detect "parent" services that have both time and material sub-rows
+  // A Printing service with per_click has both material (sheets) and equipment (clicks) aspects
+  // For now we show flat rows; sub-tiers are shown for lines where the service description contains multiple factors
+  const hasSubTier = (l: PricingServiceLine) =>
+    l.service === 'Printing' && l.unit === 'clicks' && l.quantity != null && l.quantity > 0;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-3">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div
-        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col max-h-[92vh]"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* ── Header ── */}
-        <div className="flex items-center justify-between px-6 py-3.5 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-emerald-500" />
-            Edit Price Breakdown
-            <span className="text-[10px] font-normal text-gray-400 ml-1">— click any field to edit</span>
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+            <DollarSign className="w-4 h-4 text-emerald-500" /> Price Breakdown
+            <span className="text-[10px] font-normal text-gray-400">— all fields editable</span>
           </h2>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
-            <X className="w-4 h-4 text-gray-400" />
-          </button>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4 text-gray-400" /></button>
         </div>
 
-        {/* ── Table ── */}
-        <div className="overflow-x-auto overflow-y-auto flex-1">
-          <table className="w-full text-xs border-collapse min-w-[860px]">
-
-            {/* Column group headers */}
-            <colgroup>
-              <col style={{ width: '13%' }} /> {/* Service */}
-              <col style={{ width: '18%' }} /> {/* Description */}
-              {/* TIME group */}
-              <col style={{ width: '6%' }} />
-              <col style={{ width: '7%' }} />
-              <col style={{ width: '7%' }} />
-              <col style={{ width: '7%' }} />
-              {/* PRICING group */}
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '9%' }} />
-              <col style={{ width: '9%' }} />
-            </colgroup>
-
-            <thead>
-              {/* Group row */}
+        {/* Table */}
+        <div className="overflow-auto flex-1">
+          <table className="w-full text-xs border-collapse">
+            <thead className="sticky top-0 bg-white z-10">
               <tr>
-                <th className="px-3 pb-0 pt-3" colSpan={2} />
-                <th
-                  className="px-2 pb-0 pt-3 text-center text-[9px] font-bold uppercase tracking-widest bg-sky-50 text-sky-600 border-l border-sky-200"
-                  colSpan={4}
-                >
-                  Time
-                </th>
-                <th
-                  className="px-2 pb-0 pt-3 text-center text-[9px] font-bold uppercase tracking-widest bg-violet-50 text-violet-600 border-l border-violet-200"
-                  colSpan={5}
-                >
-                  Pricing
-                </th>
-              </tr>
-              {/* Sub-header row */}
-              <tr className="border-b border-gray-200">
-                <th className={`${thCls} text-left pl-4`}>Service</th>
-                <th className={`${thCls} text-left`}>Description</th>
-                {/* TIME cols */}
-                <th className={`${thCls} bg-sky-50 border-l border-sky-200`}>Rate/hr</th>
-                <th className={`${thCls} bg-sky-50`}>Calc. Time</th>
-                <th className={`${thCls} bg-sky-50`}>Charge Time</th>
-                <th className={`${thCls} bg-sky-50`}>Time Cost</th>
-                {/* PRICING cols */}
-                <th className={`${thCls} bg-violet-50 border-l border-violet-200`}>Qty</th>
-                <th className={`${thCls} bg-violet-50`}>Unit Cost</th>
-                <th className={`${thCls} bg-violet-50`}>Cost $</th>
-                <th className={`${thCls} bg-violet-50`}>Markup %</th>
-                <th className={`${thCls} bg-violet-50 pr-4`}>Sell Price</th>
+                <th className={`${th} text-left w-[22%]`}>Service</th>
+                <th className={`${th} text-left w-[12%]`}>Charge Type</th>
+                <th className={`${th} text-right w-[14%]`}>Qty / Time</th>
+                <th className={`${th} text-right w-[14%]`}>Rate</th>
+                <th className={`${th} text-right w-[12%]`}>Cost</th>
+                <th className={`${th} text-right w-[12%]`}>Markup</th>
+                <th className={`${th} text-right w-[14%] pr-4`}>Price</th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-gray-50">
-              {localLines.map(line => {
-                const accent = SERVICE_ACCENT[line.service] ?? { icon: <DollarSign className="w-3.5 h-3.5 text-gray-400" />, dot: 'bg-gray-300' };
+            <tbody>
+              {localLines.map((line, lineIdx) => {
+                const accent = SERVICE_ACCENT[line.service] ?? { dot: 'bg-gray-300' };
                 const timeBased = isTimeBased(line);
-                const qtyBased  = isQtyBased(line);
-                const timeErr   = timeErrors[line.id];
+                const isCostPlusTime = timeBased && line.unitCost > 0;
+                const timeErr = timeErrors[line.id];
+                const isLast = lineIdx === localLines.length - 1;
 
+                // Rows to render — if cost+time, render parent header + sub-rows
+                // Otherwise single row
+                if (isCostPlusTime) {
+                  // Parent row (group header)
+                  const timeCost = (line.hoursCharge ?? line.hoursActual ?? 0) * (line.hourlyCost ?? 0);
+                  const matCost = (line.quantity ?? 0) * (line.unitCost ?? 0);
+                  return (
+                    <React.Fragment key={line.id}>
+                      {/* Parent / group header */}
+                      <tr className="bg-gray-50 border-t border-gray-200">
+                        <td className={`${td} pl-3`} colSpan={4}>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-sm flex-shrink-0 ${accent.dot}`} />
+                            <span className="font-semibold text-gray-700">▸ {line.service}</span>
+                            <span className="text-[9px] text-gray-400 ml-1">(Time + Material)</span>
+                          </div>
+                        </td>
+                        <td className={`${td} text-right num font-semibold text-gray-700`}>{formatCurrency(line.totalCost)}</td>
+                        <td className={`${td} text-right num`}>
+                          <EditCell value={line.markupPercent} step="0.1" suffix="%" onChange={v => updateField(line.id, 'markupPercent', v)}
+                            className={line.markupPercent > 0 ? 'text-emerald-700 font-semibold' : 'text-gray-400'} />
+                        </td>
+                        <td className={`${td} text-right pr-4`}>
+                          <EditCell value={line.sellPrice} onChange={v => updateField(line.id, 'sellPrice', v)} className="font-bold text-gray-900" />
+                        </td>
+                      </tr>
+                      {/* Sub-row: Time */}
+                      <tr className="border-t border-gray-100 hover:bg-gray-50/60">
+                        <td className={`${td} pl-7 text-gray-500`}>└ Runtime</td>
+                        <td className={`${td} text-gray-400`}>Time</td>
+                        <td className={`${td} text-right`}>
+                          <input type="text"
+                            value={timeInputs[line.id] ?? fmtHours(line.hoursCharge ?? line.hoursActual ?? 0)}
+                            onChange={e => setTimeInputs(t => ({ ...t, [line.id]: e.target.value }))}
+                            onBlur={() => commitTimeInput(line.id)}
+                            onKeyDown={e => { if (e.key === 'Enter') commitTimeInput(line.id); }}
+                            className={`w-full px-2 py-1 text-right text-xs bg-white border rounded focus:outline-none focus:ring-1 focus:ring-[var(--brand)] ${timeErr ? 'border-red-400' : 'border-gray-200'}`}
+                          />
+                        </td>
+                        <td className={`${td} text-right`}>
+                          <EditCell value={line.hourlyCost ?? 0} suffix="/hr" onChange={v => updateField(line.id, 'hourlyCost', v)} />
+                        </td>
+                        <td className={`${td} text-right num text-gray-600`}>{formatCurrency(timeCost)}</td>
+                        <td className={`${td}`}></td>
+                        <td className={`${td} pr-4`}></td>
+                      </tr>
+                      {/* Sub-row: Material */}
+                      <tr className={`border-t border-gray-100 hover:bg-gray-50/60 ${isLast ? 'border-b border-gray-200' : ''}`}>
+                        <td className={`${td} pl-7 text-gray-500`}>└ Material</td>
+                        <td className={`${td} text-gray-400`}>Quantity</td>
+                        <td className={`${td} text-right num text-gray-600`}>
+                          {line.quantity != null ? `${line.quantity.toLocaleString()} ${line.unit}` : '—'}
+                        </td>
+                        <td className={`${td} text-right`}>
+                          <EditCell value={line.unitCost} suffix={`/${line.unit}`} onChange={v => updateField(line.id, 'unitCost', v)} />
+                        </td>
+                        <td className={`${td} text-right num text-gray-600`}>{formatCurrency(matCost)}</td>
+                        <td className={`${td}`}></td>
+                        <td className={`${td} pr-4`}></td>
+                      </tr>
+                    </React.Fragment>
+                  );
+                }
+
+                // Standard single row
                 return (
-                  <tr key={line.id} className="hover:bg-gray-50/60 transition-colors">
-
-                    {/* Service name */}
-                    <td className={`${tdCls} pl-4`}>
+                  <tr key={line.id} className={`border-t border-gray-100 hover:bg-gray-50/60 transition-colors ${isLast ? 'border-b border-gray-200' : ''}`}>
+                    <td className={`${td} pl-3`}>
                       <div className="flex items-center gap-1.5">
-                        <span className={`w-2.5 h-2.5 rounded-sm flex-shrink-0 ${accent.dot}`} />
+                        <span className={`w-2 h-2 rounded-sm flex-shrink-0 ${accent.dot}`} />
                         <span className="font-semibold text-gray-800">{line.service}</span>
                       </div>
+                      <p className="text-[10px] text-gray-400 ml-3.5 mt-0.5 truncate max-w-[180px]">{line.description}</p>
                     </td>
-
-                    {/* Description */}
-                    <td className={`${tdCls} max-w-0`}>
-                      <span className="text-gray-400 leading-snug block truncate pr-2">{line.description}</span>
-                    </td>
-
-                    {/* ── TIME group ── */}
-                    {/* Rate/hr */}
-                    <td className={`${tdCls} bg-sky-50/40 border-l border-sky-100 text-right num`}>
-                      {timeBased
-                        ? <span className="text-sky-700 font-medium">{formatCurrency(line.hourlyCost!)}/hr</span>
-                        : <span className={dimCls}>—</span>
-                      }
-                    </td>
-                    {/* Calc Time (read-only) */}
-                    <td className={`${tdCls} bg-sky-50/40 text-right num`}>
-                      {timeBased
-                        ? <span className="text-gray-500">{fmtHours(line.hoursActual!)}</span>
-                        : <span className={dimCls}>—</span>
-                      }
-                    </td>
-                    {/* Charge Time (editable) */}
-                    <td className={`${tdCls} bg-sky-50/40`}>
+                    <td className={`${td} text-gray-500`}>{chargeType(line)}</td>
+                    <td className={`${td} text-right`}>
                       {timeBased ? (
-                        <input
-                          type="text"
+                        <input type="text"
                           value={timeInputs[line.id] ?? fmtHours(line.hoursCharge ?? line.hoursActual ?? 0)}
                           onChange={e => setTimeInputs(t => ({ ...t, [line.id]: e.target.value }))}
                           onBlur={() => commitTimeInput(line.id)}
                           onKeyDown={e => { if (e.key === 'Enter') commitTimeInput(line.id); }}
-                          placeholder="e.g. 45m"
-                          className={`${inp(timeErr ? 'border-red-400 ring-red-300' : 'border-sky-300')} text-sky-800`}
-                          title="Enter time: 45m · 1h · 1h 30m"
+                          className={`w-full px-2 py-1 text-right text-xs bg-white border rounded focus:outline-none focus:ring-1 focus:ring-[var(--brand)] ${timeErr ? 'border-red-400' : 'border-gray-200'}`}
                         />
                       ) : (
-                        <span className={dimCls + ' block text-right pr-2'}>—</span>
+                        <span className="num text-gray-600">{qtyDisplay(line)}</span>
                       )}
                     </td>
-                    {/* Time Cost */}
-                    <td className={`${tdCls} bg-sky-50/40 text-right num`}>
-                      {timeBased
-                        ? <span className="text-sky-800 font-medium">{formatCurrency(line.totalCost)}</span>
-                        : <span className={dimCls}>—</span>
-                      }
+                    <td className={`${td} text-right`}>
+                      {timeBased ? (
+                        <EditCell value={line.hourlyCost ?? 0} suffix="/hr" onChange={v => updateField(line.id, 'hourlyCost', v)} />
+                      ) : line.unitCost > 0 ? (
+                        <EditCell value={line.unitCost} onChange={v => updateField(line.id, 'unitCost', v)} />
+                      ) : (
+                        <span className="num text-gray-400">{rateDisplay(line)}</span>
+                      )}
                     </td>
-
-                    {/* ── PRICING group ── */}
-                    {/* Qty */}
-                    <td className={`${tdCls} bg-violet-50/30 border-l border-violet-100 text-right num`}>
-                      {qtyBased && line.quantity != null
-                        ? <span className="text-gray-600">{line.quantity.toLocaleString()}<span className="text-[9px] text-gray-400 ml-0.5">{line.unit}</span></span>
-                        : <span className={dimCls}>—</span>
-                      }
+                    <td className={`${td} text-right`}>
+                      <EditCell value={line.totalCost} onChange={v => updateField(line.id, 'totalCost', v)} className="text-gray-700" />
                     </td>
-                    {/* Unit Cost */}
-                    <td className={`${tdCls} bg-violet-50/30 text-right num`}>
-                      {(qtyBased || line.service === 'Setup') && line.unitCost > 0
-                        ? <span className="text-gray-600">{formatCurrency(line.unitCost)}</span>
-                        : <span className={dimCls}>—</span>
-                      }
+                    <td className={`${td} text-right`}>
+                      <EditCell value={line.markupPercent} step="0.1" suffix="%" onChange={v => updateField(line.id, 'markupPercent', v)}
+                        className={line.markupPercent > 0 ? 'text-emerald-700 font-semibold' : 'text-gray-400'} />
                     </td>
-                    {/* Cost (editable) */}
-                    <td className={`${tdCls} bg-violet-50/30`}>
-                      <input
-                        type="number" step="0.01" min="0"
-                        value={line.totalCost}
-                        onChange={e => updateField(line.id, 'totalCost', e.target.value)}
-                        className={inp('text-gray-700')}
-                      />
-                    </td>
-                    {/* Markup % (editable) */}
-                    <td className={`${tdCls} bg-violet-50/30`}>
-                      <div className="relative">
-                        <input
-                          type="number" step="0.1"
-                          value={line.markupPercent}
-                          onChange={e => updateField(line.id, 'markupPercent', e.target.value)}
-                          className={`${inp()} pr-5 ${line.markupPercent > 0 ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-gray-400 pointer-events-none">%</span>
-                      </div>
-                    </td>
-                    {/* Sell Price (editable) */}
-                    <td className={`${tdCls} bg-violet-50/30 pr-4`}>
-                      <input
-                        type="number" step="0.01" min="0"
-                        value={line.sellPrice}
-                        onChange={e => updateField(line.id, 'sellPrice', e.target.value)}
-                        className={inp('font-bold text-gray-900')}
-                      />
+                    <td className={`${td} text-right pr-4`}>
+                      <EditCell value={line.sellPrice} onChange={v => updateField(line.id, 'sellPrice', v)} className="font-bold text-gray-900" />
                     </td>
                   </tr>
                 );
               })}
             </tbody>
 
-            {/* Totals row */}
+            {/* Totals */}
             <tfoot>
-              <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
-                <td className="py-2.5 pl-4 text-[10px] text-gray-600 uppercase tracking-wide" colSpan={2}>Total</td>
-                {/* TIME cols — sum of time costs */}
-                <td className="py-2.5 px-2 bg-sky-50/60 border-l border-sky-100" colSpan={2} />
-                <td className="py-2.5 px-2 bg-sky-50/60 text-right num text-[10px] text-sky-600">
-                  {fmtHours(localLines.reduce((s, l) => s + (l.hoursCharge ?? l.hoursActual ?? 0), 0))}
+              <tr className="border-t-2 border-gray-300 bg-gray-50">
+                <td className="px-3 py-2.5 text-xs font-bold text-gray-700 uppercase tracking-wide" colSpan={4}>TOTAL</td>
+                <td className="px-3 py-2.5 text-right num font-bold text-gray-800">{formatCurrency(totalCost)}</td>
+                <td className="px-3 py-2.5 text-right num text-gray-500 text-[10px]">
+                  {totalCost > 0 ? `${((totalSell - totalCost) / totalCost * 100).toFixed(1)}%` : '—'}
                 </td>
-                <td className="py-2.5 px-2 bg-sky-50/60 text-right num text-sky-800">
-                  {formatCurrency(localLines.filter(isTimeBased).reduce((s, l) => s + l.totalCost, 0))}
-                </td>
-                {/* PRICING cols */}
-                <td className="py-2.5 px-2 bg-violet-50/60 border-l border-violet-100" colSpan={2} />
-                <td className="py-2.5 px-2 bg-violet-50/60 text-right num text-gray-700">
-                  {formatCurrency(totalCost)}
-                </td>
-                <td className="py-2.5 px-2 bg-violet-50/60 text-right num">
-                  <span className={totalMarkup > 0 ? 'text-emerald-700 font-bold' : 'text-gray-400'}>
-                    {totalMarkup.toFixed(1)}%
-                  </span>
-                </td>
-                <td className="py-2.5 px-2 pr-4 bg-violet-50/60 text-right num font-bold text-gray-900 text-sm">
-                  {formatCurrency(totalSell)}
+                <td className="px-3 py-2.5 pr-4 text-right num font-bold text-emerald-700 text-sm">{formatCurrency(totalSell)}</td>
+              </tr>
+              <tr className="bg-gray-50 border-t border-gray-100">
+                <td colSpan={7} className="px-3 py-1.5 text-[10px] text-gray-500">
+                  Margin: <span className={`font-semibold ${marginPct >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{marginPct.toFixed(1)}%</span>
+                  &nbsp;·&nbsp; Profit: <span className="font-semibold text-gray-700">{formatCurrency(totalSell - totalCost)}</span>
                 </td>
               </tr>
             </tfoot>
           </table>
         </div>
 
-        {/* ── Summary bar ── */}
-        <div className="px-6 py-2.5 border-t border-gray-100 bg-gray-50/60 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-6 text-xs">
-            <span className="text-gray-500">
-              Cost: <span className="font-semibold text-gray-800">{formatCurrency(totalCost)}</span>
-            </span>
-            <span className="text-gray-500">
-              Profit: <span className="font-semibold text-emerald-700">{formatCurrency(totalSell - totalCost)}</span>
-            </span>
-            <span className="text-gray-500">
-              Margin: <span className={`font-bold ${marginPct >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{marginPct.toFixed(1)}%</span>
-            </span>
-          </div>
-          <span className="text-[10px] text-gray-400 hidden md:block">Charge Time column accepts: <code className="bg-gray-100 px-1 rounded">45m · 1h · 1h 30m</code></span>
-        </div>
-
-        {/* ── Footer ── */}
-        <div className="flex items-center justify-between px-6 py-3.5 border-t border-gray-100 bg-white rounded-b-2xl">
-          <button
-            type="button"
-            onClick={onRecalculate}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-[#F890E7] hover:bg-pink-50 rounded-lg transition-colors"
-          >
-            <RefreshCw className="w-3.5 h-3.5" /> Reset to calculated values
+        {/* Footer */}
+        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-white rounded-b-xl">
+          <button type="button" onClick={onRecalculate}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-[var(--brand)] hover:bg-pink-50 rounded-lg transition-colors">
+            <RefreshCw className="w-3.5 h-3.5" /> Reset to calculated
           </button>
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={onClose}>Cancel</Button>
-            <Button variant="success" onClick={() => onSave(localLines)}>
-              Apply Changes
-            </Button>
+            <Button variant="success" onClick={() => onSave(localLines)}>Apply Changes</Button>
           </div>
         </div>
       </div>

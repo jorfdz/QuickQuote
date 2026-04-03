@@ -155,7 +155,28 @@ export const QuoteDetail: React.FC = () => {
   // ── Item editing (click item to open modal) ───────────────────────────
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [pricingStates, setPricingStates] = useState<Record<string, LineItemPricingState>>({});
-  const getPricingState = (iid: string) => pricingStates[iid] || DEFAULT_PRICING_STATE();
+  // When pricingState is missing for an item (e.g. after navigating away and back),
+  // reconstruct it from the saved line item fields so material/equipment/etc. are restored
+  const getPricingState = (iid: string): LineItemPricingState => {
+    if (pricingStates[iid]) return pricingStates[iid];
+    // Try to rebuild from the saved line item data
+    const savedItem = (editingItems as any[]).find((i: any) => i.id === iid)
+      || (quote?.lineItems as any[])?.find((i: any) => i.id === iid);
+    if (savedItem) {
+      return {
+        ...DEFAULT_PRICING_STATE(),
+        productName: savedItem.description || '',
+        quantity: savedItem.quantity || 1000,
+        finalWidth: savedItem.width || 0,
+        finalHeight: savedItem.height || 0,
+        materialId: savedItem.materialId || '',
+        equipmentId: savedItem.equipmentId || '',
+        // Restore serviceLines so pricing is shown correctly when modal opens
+        serviceLines: savedItem.serviceLines || [],
+      };
+    }
+    return DEFAULT_PRICING_STATE();
+  };
   const [editingItems, setEditingItems] = useState<any[]>([]);
   const [itemsDirty, setItemsDirty] = useState(false);
 
