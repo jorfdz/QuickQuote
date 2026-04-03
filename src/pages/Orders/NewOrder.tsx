@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus, Trash2, ChevronDown, ChevronRight, ChevronUp, Calculator, Copy,
   Search, X, Edit3, Package,
-  FileText, Calendar,
+  Calendar,
 } from 'lucide-react';
 import { useStore } from '../../store';
 import { usePricingStore } from '../../store/pricingStore';
@@ -37,7 +37,7 @@ export const NewOrder: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const {
-    customers, contacts, quotes, orders, addOrder, nextOrderNumber, addInvoice, nextInvoiceNumber,
+    customers, contacts, quotes, orders, addOrder, nextOrderNumber,
     currentUser, users, workflows, addCustomer, addContact,
   } = useStore();
   const pricing = usePricingStore();
@@ -114,14 +114,61 @@ export const NewOrder: React.FC = () => {
     return states;
   });
 
+  // ── Draft initialization ref (prevents double-fire in StrictMode) ────
+  const draftInitialized = useRef(false);
+
+  // ── Auto-create draft order on mount and redirect to order detail ────
+  useEffect(() => {
+    if (!draftInitialized.current) {
+      draftInitialized.current = true;
+      const selectedWorkflow = workflows.find(w => w.id === form.workflowId);
+      const stageId = selectedWorkflow?.stages[0]?.id;
+      const newId = nanoid();
+      const trackingMode = form.trackingMode || 'order';
+      const nextLineItems = lineItems.map((lineItem) => ({
+        ...lineItem,
+        workflowStageId: trackingMode === 'order' ? stageId : (lineItem.workflowStageId || stageId),
+      }));
+      const sub = nextLineItems.reduce((s, i) => s + (i.sellPrice || 0), 0);
+      const ta = sub * (form.taxRate / 100);
+      const draft: Order = {
+        id: newId,
+        number: orderNumber,
+        status: form.status,
+        quoteId: sourceQuote?.id,
+        quoteNumber: sourceQuote?.number,
+        customerId: form.customerId || undefined,
+        customerName: customers.find(c => c.id === form.customerId)?.name,
+        contactId: form.contactId || undefined,
+        title: form.title || nextLineItems.find(i => i.description)?.description || `Order ${orderNumber}`,
+        lineItems: nextLineItems,
+        subtotal: sub,
+        taxRate: form.taxRate,
+        taxAmount: ta,
+        total: sub + ta,
+        dueDate: form.dueDate || undefined,
+        workflowId: form.workflowId || undefined,
+        currentStageId: stageId,
+        trackingMode,
+        csrId: form.csrId || undefined,
+        salesId: form.salesId || undefined,
+        notes: form.notes || undefined,
+        internalNotes: form.internalNotes || undefined,
+        poNumber: form.poNumber || undefined,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      addOrder(draft);
+      navigate(`/orders/${newId}`, { replace: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [editingItemModal, setEditingItemModal] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const [showConvertDropdown, setShowConvertDropdown] = useState(false);
   const [showTemplates, setShowTemplates] = useState(!effectiveBase);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showNeedsCustomerWarning, setShowNeedsCustomerWarning] = useState(false);
   const [showShipToModal, setShowShipToModal] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
   const [showNewContactModal, setShowNewContactModal] = useState(false);
   const [newCustomerForm, setNewCustomerForm] = useState({ name: '', email: '', phone: '', address: '' });
@@ -156,8 +203,6 @@ export const NewOrder: React.FC = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Mark dirty on any change
-  useEffect(() => { setIsDirty(true); }, [form, lineItems]);
 
   const subtotal = lineItems.reduce((s, i) => s + (i.sellPrice || 0), 0);
   const taxAmount = subtotal * (form.taxRate / 100);
@@ -235,93 +280,13 @@ export const NewOrder: React.FC = () => {
     setShowTemplates(false);
   };
 
-  // ── Cancel with confirmation ──────────────────────────────────────────
+  // ── Cancel handler ────────────────────────────────────────────────────
   const handleCancel = () => {
-    if (isDirty) {
-      setShowCancelConfirm(true);
+    if (!form.customerId) {
+      setShowNeedsCustomerWarning(true);
     } else {
       navigate('/orders');
     }
-  };
-
-  // ── Save ──────────────────────────────────────────────────────────────
-  const handleSave = async (andCreateInvoice = false) => {
-    setSaving(true);
-    const order = buildOrderPayload();
-    addOrder(order);
-
-    // If converting to invoice as well
-    if (andCreateInvoice && form.customerId) {
-      const invNumber = nextInvoiceNumber();
-      addInvoice({
-        id: nanoid(),
-        number: invNumber,
-        status: 'draft',
-        customerId: form.customerId,
-        customerName: selectedCustomer?.name || '',
-        orderIds: [order.id],
-        lineItems: lineItems.filter(li => li.description).map(li => ({
-          id: nanoid(),
-          description: li.description,
-          quantity: li.quantity,
-          unit: li.unit,
-          unitPrice: li.sellPrice / (li.quantity || 1),
-          total: li.sellPrice,
-          orderItemId: li.id,
-          orderId: order.id,
-        })),
-        subtotal,
-        taxRate: form.taxRate,
-        taxAmount,
-        total,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-    }
-
-    await new Promise(r => setTimeout(r, 300));
-    setSaving(false);
-    navigate(`/orders/${order.id}`);
-  };
-
-  const buildOrderPayload = (customId?: string, customNumber?: string): Order => {
-    const selectedWorkflow = workflows.find(w => w.id === form.workflowId);
-    const stageId = selectedWorkflow?.stages[0]?.id;
-    const id = customId || nanoid();
-    const number = customNumber || orderNumber;
-    const trackingMode = form.trackingMode || 'order';
-    const nextLineItems = lineItems.map((lineItem) => ({
-      ...lineItem,
-      workflowStageId: trackingMode === 'order' ? stageId : (lineItem.workflowStageId || stageId),
-    }));
-
-    return {
-      id,
-      number,
-      status: form.status,
-      quoteId: sourceQuote?.id,
-      quoteNumber: sourceQuote?.number,
-      customerId: form.customerId || undefined,
-      customerName: selectedCustomer?.name,
-      contactId: form.contactId || undefined,
-      title: form.title || lineItems.find(i => i.description)?.description || `Order ${number}`,
-      lineItems: nextLineItems,
-      subtotal,
-      taxRate: form.taxRate,
-      taxAmount,
-      total,
-      dueDate: form.dueDate || undefined,
-      workflowId: form.workflowId || undefined,
-      currentStageId: stageId,
-      trackingMode,
-      csrId: form.csrId || undefined,
-      salesId: form.salesId || undefined,
-      notes: form.notes || undefined,
-      internalNotes: form.internalNotes || undefined,
-      poNumber: form.poNumber || undefined,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
   };
 
   // ── Filtered templates for sidebar ────────────────────────────────────
@@ -401,36 +366,6 @@ export const NewOrder: React.FC = () => {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={handleCancel}>Cancel</Button>
-          <Button variant="success" onClick={() => handleSave(false)} loading={saving}>Save Order</Button>
-          {/* Convert dropdown — auto-saves first then converts */}
-          <div className="relative">
-            <button
-              onClick={() => setShowConvertDropdown(!showConvertDropdown)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-gray-200 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors focus:outline-none focus:ring-1 focus:ring-gray-300"
-            >
-              Convert
-              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-            </button>
-            {showConvertDropdown && (
-              <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-gray-200 rounded-xl shadow-xl z-30 overflow-hidden">
-                <button onClick={() => { setShowConvertDropdown(false); handleSave(true); }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2">
-                  <FileText className="w-3.5 h-3.5 text-gray-400" />
-                  Create Invoice
-                </button>
-                <button onClick={async () => { setShowConvertDropdown(false); setSaving(true); const savedId = nanoid(); addOrder(buildOrderPayload(savedId, orderNumber)); await new Promise(r => setTimeout(r, 150)); navigate(`/quotes/new?cloneId=${savedId}&source=order`); }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 border-t border-gray-100">
-                  <Copy className="w-3.5 h-3.5 text-gray-400" />
-                  Clone as New Quote
-                </button>
-                <button onClick={async () => { setShowConvertDropdown(false); setSaving(true); const savedId = nanoid(); addOrder(buildOrderPayload(savedId, orderNumber)); await new Promise(r => setTimeout(r, 150)); navigate(`/orders/new?cloneOrderId=${savedId}`); }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 border-t border-gray-100">
-                  <Copy className="w-3.5 h-3.5 text-gray-400" />
-                  Clone as New Order
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
@@ -933,14 +868,12 @@ export const NewOrder: React.FC = () => {
         />
       )}
 
-      {/* ─── Cancel Confirmation Modal ───────────────────────────────── */}
-      <Modal isOpen={showCancelConfirm} onClose={() => setShowCancelConfirm(false)} title="Discard Changes?" size="sm">
-        <p className="text-sm text-gray-600 mb-6">
-          You have unsaved changes. Are you sure you want to leave? All progress will be lost.
-        </p>
-        <div className="flex gap-3 justify-end">
-          <Button variant="secondary" onClick={() => setShowCancelConfirm(false)}>Keep Editing</Button>
-          <Button variant="danger" onClick={() => navigate('/orders')}>Discard & Leave</Button>
+      {/* ─── Needs Customer Warning Modal ────────────────────────────── */}
+      <Modal isOpen={showNeedsCustomerWarning} onClose={() => setShowNeedsCustomerWarning(false)} title="Customer Required" size="sm">
+        <p className="text-sm text-gray-600 mb-4">Please assign a customer to this order before leaving. An order must have at least one customer assigned.</p>
+        <div className="flex gap-2 justify-end">
+          <Button variant="secondary" onClick={() => setShowNeedsCustomerWarning(false)}>Add Customer</Button>
+          <Button variant="danger" onClick={() => navigate('/orders')}>Leave Without Customer</Button>
         </div>
       </Modal>
     </div>
