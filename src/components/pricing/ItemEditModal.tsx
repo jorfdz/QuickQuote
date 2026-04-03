@@ -204,8 +204,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [materialEntries]);
 
-  // Sync material entries from pricing state when externally changed (template load)
+  // Sync material entries from pricing state when externally changed (template load, product select).
+  // Skip the FIRST render — materialEntries is already initialized from ps, so there's nothing to sync.
+  // Firing on mount creates a new array reference which triggers Effect 1 unnecessarily.
+  const materialSyncMounted = React.useRef(false);
   useEffect(() => {
+    if (!materialSyncMounted.current) { materialSyncMounted.current = true; return; }
     setMaterialEntries(prev => {
       const updated = [...prev];
       if (updated.length > 0) {

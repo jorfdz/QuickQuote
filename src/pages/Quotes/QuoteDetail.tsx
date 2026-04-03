@@ -155,6 +155,11 @@ export const QuoteDetail: React.FC = () => {
   // ── Item editing state ────────────────────────────────────────────────────
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [pricingStates, setPricingStates] = useState<Record<string, LineItemPricingState>>({});
+  // Ref that always holds the LATEST pricingStates without closure-staleness.
+  // Used in onClose so we never read from a stale closure snapshot.
+  const pricingStatesRef = useRef<Record<string, LineItemPricingState>>({});
+  // Keep ref in sync on every render so callbacks always see the latest state
+  pricingStatesRef.current = pricingStates;
 
   const quote = quotes.find(q => q.id === id);
 
@@ -197,6 +202,45 @@ export const QuoteDetail: React.FC = () => {
     }
     return DEFAULT_PRICING_STATE();
   };
+
+  // ── openItemForEdit: pre-populate pricingStates BEFORE the modal mounts ──────
+  // CRITICAL FIX: Without pre-population, the first onUpdatePricing call inside the
+  // modal merges with DEFAULT_PRICING_STATE() (because prev[itemId] is undefined),
+  // which wipes all restored values: productId, materialId, equipmentId, quantity, etc.
+  // Pre-populating ensures the merge always has a complete, valid base state.
+  const openItemForEdit = useCallback((itemId: string) => {
+    setPricingStates(prev => {
+      if (prev[itemId]) return prev; // Already loaded — don't overwrite live session state
+      // Restore fully from pricingContext (tier 2) or top-level fields (tier 3)
+      const saved = (currentItemsRef.current.find((i: any) => i.id === itemId) || null) as any;
+      let restored: LineItemPricingState = DEFAULT_PRICING_STATE();
+      if (saved?.pricingContext) {
+        restored = { ...DEFAULT_PRICING_STATE(), ...(saved.pricingContext as Partial<LineItemPricingState>) };
+      } else if (saved) {
+        restored = {
+          ...DEFAULT_PRICING_STATE(),
+          productId: saved.productId || '',
+          productName: saved.productName || saved.description || '',
+          categoryName: saved.categoryName || '',
+          quantity: saved.quantity || 1000,
+          finalWidth: saved.width || 0,
+          finalHeight: saved.height || 0,
+          materialId: saved.materialId || '',
+          equipmentId: saved.equipmentId || '',
+          colorMode: saved.colorMode || 'Color',
+          sides: saved.sides || 'Double',
+          foldingType: saved.foldingType || '',
+          drillingType: saved.drillingType || '',
+          cuttingEnabled: saved.cuttingEnabled ?? true,
+          sheetsPerStack: saved.sheetsPerStack || 500,
+          serviceLines: saved.serviceLines || [],
+        };
+      }
+      return { ...prev, [itemId]: restored };
+    });
+    setEditingItemId(itemId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Helper: write items to store. Reads from ref (not state) to avoid stale closures.
   const persistItems = useCallback((items: any[]) => {
@@ -244,7 +288,7 @@ export const QuoteDetail: React.FC = () => {
     const newItems = [...currentItems, item];
     persistItems(newItems);
     setPricingStates(prev => ({ ...prev, [item.id]: DEFAULT_PRICING_STATE() }));
-    setEditingItemId(item.id);
+    openItemForEdit(item.id);
   };
 
   const removeItem = (iid: string) => {
@@ -403,7 +447,7 @@ export const QuoteDetail: React.FC = () => {
                 return (
                   <div key={item.id}
                     className="px-5 py-3.5 hover:bg-gray-50 cursor-pointer transition-colors group"
-                    onClick={() => setEditingItemId(item.id)}
+                    onClick={() => openItemForEdit(item.id)}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
@@ -508,29 +552,58 @@ export const QuoteDetail: React.FC = () => {
             }}
             onUpdatePricing={updates => {
               // Update in-memory pricingState only — do NOT call updateQuote here.
-              // Calling updateQuote inside setPricingStates caused an infinite loop:
-              // updateQuote → re-render → currentItems recomputes → callback fires again.
-              // The pricingContext is written to the store only on onClose (once per session).
+              // Calling updateQuote inside setPricingStates caused an infinite loop.
+              // CRITICAL: Use prev[editingItemId] as the base if available (set by openItemForEdit).
+              // If somehow it's missing (race condition), fall back to the full restored state
+              // from pricingContext — NEVER from DEFAULT_PRICING_STATE() which would wipe all
+              // restored values (productId, materialId, quantity, etc.).
               setPricingStates(prev => {
-                const merged = { ...(prev[editingItemId] || DEFAULT_PRICING_STATE()), ...updates };
-                return { ...prev, [editingItemId]: merged };
+                const existing = prev[editingItemId];
+                let base: LineItemPricingState;
+                if (existing) {
+                  base = existing;
+                } else {
+                  // Fallback: restore from pricingContext or top-level fields
+                  const saved = currentItemsRef.current.find((i: any) => i.id === editingItemId) as any;
+                  if (saved?.pricingContext) {
+                    base = { ...DEFAULT_PRICING_STATE(), ...(saved.pricingContext as Partial<LineItemPricingState>) };
+                  } else if (saved) {
+                    base = {
+                      ...DEFAULT_PRICING_STATE(),
+                      productId: saved.productId || '',
+                      productName: saved.productName || saved.description || '',
+                      categoryName: saved.categoryName || '',
+                      quantity: saved.quantity || 1000,
+                      finalWidth: saved.width || 0,
+                      finalHeight: saved.height || 0,
+                      materialId: saved.materialId || '',
+                      equipmentId: saved.equipmentId || '',
+                      colorMode: saved.colorMode || 'Color',
+                      sides: saved.sides || 'Double',
+                      foldingType: saved.foldingType || '',
+                      drillingType: saved.drillingType || '',
+                      cuttingEnabled: saved.cuttingEnabled ?? true,
+                      sheetsPerStack: saved.sheetsPerStack || 500,
+                      serviceLines: saved.serviceLines || [],
+                    };
+                  } else {
+                    base = DEFAULT_PRICING_STATE();
+                  }
+                }
+                return { ...prev, [editingItemId]: { ...base, ...updates } };
               });
             }}
             onClose={() => {
-              // Write the complete final pricingState to the store ONCE on close.
-              // Reading from pricingStates here (not a closure over currentItems)
-              // avoids the stale-closure issue entirely.
-              setPricingStates(prev => {
-                const finalPs = prev[editingItemId] || DEFAULT_PRICING_STATE();
-                // Use the ref for the latest items — never the stale closure
-                const finalItems = currentItemsRef.current.map((i: any) =>
-                  i.id === editingItemId
-                    ? { ...i, pricingContext: { ...finalPs } }
-                    : i
-                );
-                persistItems(finalItems);
-                return prev; // pricingStates unchanged
-              });
+              // Use pricingStatesRef to always read the LATEST state without stale closures.
+              // Do NOT call persistItems inside setPricingStates updater (anti-pattern: side effects
+              // in state updaters can fire twice in React 18 StrictMode).
+              const finalPs = pricingStatesRef.current[editingItemId] || getPricingState(editingItemId);
+              const finalItems = currentItemsRef.current.map((i: any) =>
+                i.id === editingItemId
+                  ? { ...i, pricingContext: { ...finalPs } }
+                  : i
+              );
+              persistItems(finalItems);
               setEditingItemId(null);
             }}
             onRemove={() => { removeItem(editingItemId); setEditingItemId(null); }}

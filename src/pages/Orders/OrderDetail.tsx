@@ -115,18 +115,12 @@ export const OrderDetail: React.FC = () => {
 
   const order = orders.find(o => o.id === id);
 
-  // ── Editable line items state ─────────────────────────────────────────
-  const [editableLineItems, setEditableLineItems] = useState<OrderItem[]>(() => order?.lineItems || []);
-  const [editablePricingStates, setEditablePricingStates] = useState<Record<string, LineItemPricingState>>({});
+  // ── Item editing state — same auto-save pattern as QuoteDetail ──────────────
   const [editingItemModal, setEditingItemModal] = useState<string | null>(null);
-  const [isDirty, setIsDirty] = useState(false);
-
-  // Sync editableLineItems if the order changes externally (e.g. after save) and we're not dirty
-  useEffect(() => {
-    if (!isDirty && order) {
-      setEditableLineItems(order.lineItems || []);
-    }
-  }, [order?.lineItems, isDirty]);
+  const [pricingStates, setPricingStates] = useState<Record<string, LineItemPricingState>>({});
+  // Refs that always hold the latest values without closure staleness
+  const pricingStatesRef = useRef<Record<string, LineItemPricingState>>({});
+  const currentItemsRef = useRef<any[]>([]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -139,6 +133,83 @@ export const OrderDetail: React.FC = () => {
   }, []);
 
   if (!order) return <div className="text-center py-16 text-gray-400">Order not found</div>;
+
+  // Keep refs in sync on every render
+  pricingStatesRef.current = pricingStates;
+  currentItemsRef.current = (order.lineItems as any[]) || [];
+
+  // ── Restore pricing state from pricingContext or top-level fields ─────────
+  const getPricingState = (iid: string): LineItemPricingState => {
+    if (pricingStates[iid]) return pricingStates[iid];
+    const saved = currentItemsRef.current.find((i: any) => i.id === iid) as any;
+    if (saved?.pricingContext) {
+      return { ...DEFAULT_PRICING_STATE(), ...(saved.pricingContext as Partial<LineItemPricingState>) };
+    }
+    if (saved) {
+      return {
+        ...DEFAULT_PRICING_STATE(),
+        productId: saved.productId || '',
+        productName: saved.productName || saved.description || '',
+        categoryName: saved.categoryName || '',
+        quantity: saved.quantity || 1000,
+        finalWidth: saved.width || 0,
+        finalHeight: saved.height || 0,
+        materialId: saved.materialId || '',
+        equipmentId: saved.equipmentId || '',
+        colorMode: saved.colorMode || 'Color',
+        sides: saved.sides || 'Double',
+        foldingType: saved.foldingType || '',
+        drillingType: saved.drillingType || '',
+        cuttingEnabled: saved.cuttingEnabled ?? true,
+        sheetsPerStack: saved.sheetsPerStack || 500,
+        serviceLines: saved.serviceLines || [],
+      };
+    }
+    return DEFAULT_PRICING_STATE();
+  };
+
+  // ── Persist items directly to the store ──────────────────────────────────
+  const persistOrderItems = (items: any[]) => {
+    const subtotal = items.reduce((s: number, i: any) => s + (i.sellPrice || 0), 0);
+    const taxAmount = subtotal * ((order.taxRate || 0) / 100);
+    const titleUpdate = !order.title && items.find((i: any) => i.description)?.description
+      ? { title: items.find((i: any) => i.description).description }
+      : {};
+    updateOrder(id!, { lineItems: items, subtotal, taxAmount, total: subtotal + taxAmount, ...titleUpdate });
+  };
+
+  // ── Pre-populate pricingStates before modal mounts (same fix as QuoteDetail) ──
+  const openItemForEdit = (itemId: string) => {
+    setPricingStates(prev => {
+      if (prev[itemId]) return prev; // Already loaded
+      const saved = currentItemsRef.current.find((i: any) => i.id === itemId) as any;
+      let restored: LineItemPricingState = DEFAULT_PRICING_STATE();
+      if (saved?.pricingContext) {
+        restored = { ...DEFAULT_PRICING_STATE(), ...(saved.pricingContext as Partial<LineItemPricingState>) };
+      } else if (saved) {
+        restored = {
+          ...DEFAULT_PRICING_STATE(),
+          productId: saved.productId || '',
+          productName: saved.productName || saved.description || '',
+          categoryName: saved.categoryName || '',
+          quantity: saved.quantity || 1000,
+          finalWidth: saved.width || 0,
+          finalHeight: saved.height || 0,
+          materialId: saved.materialId || '',
+          equipmentId: saved.equipmentId || '',
+          colorMode: saved.colorMode || 'Color',
+          sides: saved.sides || 'Double',
+          foldingType: saved.foldingType || '',
+          drillingType: saved.drillingType || '',
+          cuttingEnabled: saved.cuttingEnabled ?? true,
+          sheetsPerStack: saved.sheetsPerStack || 500,
+          serviceLines: saved.serviceLines || [],
+        };
+      }
+      return { ...prev, [itemId]: restored };
+    });
+    setEditingItemModal(itemId);
+  };
 
   const workflow = workflows.find(w => w.id === order.workflowId) || workflows[0];
   const trackingMode = order.trackingMode || 'order';
@@ -262,30 +333,17 @@ export const OrderDetail: React.FC = () => {
   // ── Line item editing helpers ─────────────────────────────────────────
   const addLineItem = () => {
     const item = EMPTY_LINE_ITEM();
-    setEditableLineItems(prev => [...prev, item]);
-    setEditablePricingStates(prev => ({ ...prev, [item.id]: DEFAULT_PRICING_STATE() }));
-    setEditingItemModal(item.id);
-    setIsDirty(true);
+    const newItems = [...currentItemsRef.current, item];
+    persistOrderItems(newItems);
+    setPricingStates(prev => ({ ...prev, [item.id]: DEFAULT_PRICING_STATE() }));
+    openItemForEdit(item.id);
   };
 
   const removeLineItem = (itemId: string) => {
-    setEditableLineItems(prev => prev.filter(i => i.id !== itemId));
-    setEditablePricingStates(prev => { const n = { ...prev }; delete n[itemId]; return n; });
-    setIsDirty(true);
+    const newItems = currentItemsRef.current.filter((i: any) => i.id !== itemId);
+    persistOrderItems(newItems);
+    setPricingStates(prev => { const n = { ...prev }; delete n[itemId]; return n; });
   };
-
-  const saveChanges = () => {
-    const subtotal = editableLineItems.reduce((s, i) => s + (i.sellPrice || 0), 0);
-    const taxAmount = subtotal * ((order.taxRate || 0) / 100);
-    const total = subtotal + taxAmount;
-    updateOrder(id!, { lineItems: editableLineItems, subtotal, taxAmount, total, updatedAt: new Date().toISOString() });
-    setIsDirty(false);
-  };
-
-  // Derived summary from editable items
-  const editableSubtotal = editableLineItems.reduce((s, i) => s + (i.sellPrice || 0), 0);
-  const editableTaxAmount = editableSubtotal * ((order.taxRate || 0) / 100);
-  const editableTotal = editableSubtotal + editableTaxAmount;
   const stageSummary = useMemo(() => buildStageSummary(order, workflow), [order, workflow]);
   const progressStageId = stageSummary.currentStageId || order.currentStageId;
 
@@ -503,51 +561,42 @@ export const OrderDetail: React.FC = () => {
         <div className="grid grid-cols-3 gap-6">
           <div className="col-span-2 space-y-4">
 
-            {/* Unsaved changes banner */}
-            {isDirty && (
-              <div className="sticky top-20 z-10 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center justify-between">
-                <span className="text-sm text-amber-800 font-medium">You have unsaved changes to this order.</span>
-                <div className="flex gap-2">
-                  <Button variant="secondary" size="sm" onClick={() => { setEditableLineItems(order.lineItems || []); setIsDirty(false); }}>Discard</Button>
-                  <Button variant="primary" size="sm" onClick={saveChanges}>Save Changes</Button>
-                </div>
-              </div>
-            )}
-
-            {/* Line items */}
+            {/* Line items — auto-saved directly to store on every change */}
             <Card>
               <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900">Line Items</h2>
+                <h2 className="font-semibold text-gray-900">Line Items
+                  <span className="text-[10px] font-normal text-gray-400 ml-2">Click any item to edit</span>
+                </h2>
                 <Button variant="secondary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={addLineItem}>
                   Add Item
                 </Button>
               </div>
               <div className="divide-y divide-gray-50 p-2 space-y-1">
-                {editableLineItems.length === 0 && (
+                {currentItemsRef.current.length === 0 && (
                   <div className="px-4 py-8 text-center text-gray-400 text-sm">
                     No line items yet. Click "Add Item" to get started.
                   </div>
                 )}
-                {editableLineItems.map((item, idx) => {
-                  const ps = editablePricingStates[item.id] || DEFAULT_PRICING_STATE();
+                {currentItemsRef.current.map((item: any, idx: number) => {
+                  const itemPs = getPricingState(item.id);
                   return (
                     <Card key={item.id} className="overflow-hidden hover:border-gray-200 transition-all">
                       <div className="flex items-center gap-3 px-4 py-3">
                         <span className="w-5 h-5 bg-gray-100 rounded text-xs font-bold text-gray-500 flex items-center justify-center flex-shrink-0">{idx + 1}</span>
-                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setEditingItemModal(item.id)}>
+                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openItemForEdit(item.id)}>
                           <p className="text-sm font-medium text-gray-900 truncate">
                             {item.description || <span className="text-gray-400 italic">New line item — click to configure</span>}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
-                            {ps.categoryName && <Badge color="blue" className="text-[10px]">{ps.categoryName}</Badge>}
-                            {ps.quantity > 0 && <span className="text-xs text-gray-400">{ps.quantity.toLocaleString()} pcs</span>}
+                            {itemPs.categoryName && <Badge color="blue" className="text-[10px]">{itemPs.categoryName}</Badge>}
+                            {itemPs.quantity > 0 && <span className="text-xs text-gray-400">{itemPs.quantity.toLocaleString()} pcs</span>}
                           </div>
                         </div>
                         <div className="flex items-center gap-3 flex-shrink-0">
                           <p className="text-sm font-bold text-gray-900">{formatCurrency(item.sellPrice || 0)}</p>
                           <div className="flex items-center gap-1">
                             <button
-                              onClick={() => setEditingItemModal(item.id)}
+                              onClick={() => openItemForEdit(item.id)}
                               className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                               title="Edit item"
                             >
@@ -584,21 +633,18 @@ export const OrderDetail: React.FC = () => {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Subtotal</span>
-                  <span>{formatCurrency(isDirty ? editableSubtotal : order.subtotal)}</span>
+                  <span>{formatCurrency(order.subtotal)}</span>
                 </div>
                 {order.taxRate && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Tax ({order.taxRate}%)</span>
-                    <span>{formatCurrency(isDirty ? editableTaxAmount : (order.taxAmount || 0))}</span>
+                    <span>{formatCurrency(order.taxAmount || 0)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-lg font-bold border-t border-gray-100 pt-2">
                   <span>Total</span>
-                  <span className="text-blue-600">{formatCurrency(isDirty ? editableTotal : order.total)}</span>
+                  <span className="text-blue-600">{formatCurrency(order.total)}</span>
                 </div>
-                {isDirty && (
-                  <p className="text-[10px] text-amber-600 text-right">* Unsaved changes</p>
-                )}
               </div>
             </Card>
             <Card className="p-5">
@@ -865,10 +911,10 @@ export const OrderDetail: React.FC = () => {
         onConfirm={() => { deleteOrder(id!); navigate('/orders'); }}
         title="Delete Order" message={`Delete ${order.number}? This cannot be undone.`} />
 
-      {/* ProductEditModal */}
+      {/* ProductEditModal — same auto-save pattern as QuoteDetail */}
       {editingItemModal && (() => {
-        const editingItem = editableLineItems.find(i => i.id === editingItemModal);
-        const editingPs = editablePricingStates[editingItemModal] || DEFAULT_PRICING_STATE();
+        const editingItem = currentItemsRef.current.find((i: any) => i.id === editingItemModal);
+        const editingPs = getPricingState(editingItemModal);
         if (!editingItem) return null;
         return (
           <ProductEditModal
@@ -876,14 +922,51 @@ export const OrderDetail: React.FC = () => {
             pricingState={editingPs}
             isNew={!editingItem.description}
             onUpdateItem={updates => {
-              setEditableLineItems(prev => prev.map(i => i.id === editingItemModal ? { ...i, ...updates } : i));
-              setIsDirty(true);
+              // Auto-save directly to the store — no local state buffer
+              const newItems = currentItemsRef.current.map((i: any) =>
+                i.id === editingItemModal ? { ...i, ...updates } : i
+              );
+              persistOrderItems(newItems);
             }}
             onUpdatePricing={updates => {
-              setEditablePricingStates(prev => ({ ...prev, [editingItemModal]: { ...(prev[editingItemModal] || DEFAULT_PRICING_STATE()), ...updates } }));
-              setIsDirty(true);
+              // CRITICAL FIX: use pre-populated base state, never DEFAULT_PRICING_STATE
+              setPricingStates(prev => {
+                const existing = prev[editingItemModal];
+                let base: LineItemPricingState;
+                if (existing) {
+                  base = existing;
+                } else {
+                  const saved = currentItemsRef.current.find((i: any) => i.id === editingItemModal) as any;
+                  if (saved?.pricingContext) {
+                    base = { ...DEFAULT_PRICING_STATE(), ...(saved.pricingContext as Partial<LineItemPricingState>) };
+                  } else if (saved) {
+                    base = {
+                      ...DEFAULT_PRICING_STATE(),
+                      productId: saved.productId || '', productName: saved.productName || saved.description || '',
+                      categoryName: saved.categoryName || '', quantity: saved.quantity || 1000,
+                      finalWidth: saved.width || 0, finalHeight: saved.height || 0,
+                      materialId: saved.materialId || '', equipmentId: saved.equipmentId || '',
+                      colorMode: saved.colorMode || 'Color', sides: saved.sides || 'Double',
+                      foldingType: saved.foldingType || '', drillingType: saved.drillingType || '',
+                      cuttingEnabled: saved.cuttingEnabled ?? true, sheetsPerStack: saved.sheetsPerStack || 500,
+                      serviceLines: saved.serviceLines || [],
+                    };
+                  } else {
+                    base = DEFAULT_PRICING_STATE();
+                  }
+                }
+                return { ...prev, [editingItemModal]: { ...base, ...updates } };
+              });
             }}
-            onClose={() => setEditingItemModal(null)}
+            onClose={() => {
+              // Write final pricingContext to the item and persist to store
+              const finalPs = pricingStatesRef.current[editingItemModal] || getPricingState(editingItemModal);
+              const finalItems = currentItemsRef.current.map((i: any) =>
+                i.id === editingItemModal ? { ...i, pricingContext: { ...finalPs } } : i
+              );
+              persistOrderItems(finalItems);
+              setEditingItemModal(null);
+            }}
             onRemove={() => { removeLineItem(editingItemModal); setEditingItemModal(null); }}
             matchingTemplates={[]}
             onApplyTemplate={() => {}}
