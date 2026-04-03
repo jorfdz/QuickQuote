@@ -110,12 +110,12 @@ export const Dashboard: React.FC = () => {
 
   // ── Activity feed (derived from real data) ────────────────────────────────
   const activityFeed = useMemo(() => {
-    const items: { type: 'quote' | 'customer'; icon: React.ReactNode; text: string; sub: string; date: string; path: string }[] = [];
+    const items: { type: 'quotes' | 'customers'; icon: React.ReactNode; text: string; sub: string; date: string; path: string }[] = [];
 
     // Recent quotes
     quotes.slice(0, 20).forEach(q => {
       items.push({
-        type: 'quote',
+        type: 'quotes',
         icon: <FileText className="w-3.5 h-3.5 text-blue-500" />,
         text: `${q.number} — ${q.title || q.customerName || 'Quote'}`,
         sub: q.status === 'won' ? 'Converted to order' : q.status === 'hot' ? 'Hot quote' : `${q.status} · ${formatCurrency(q.total)}`,
@@ -127,7 +127,7 @@ export const Dashboard: React.FC = () => {
     // Recent customers
     customers.slice(0, 10).forEach(c => {
       items.push({
-        type: 'customer',
+        type: 'customers',
         icon: <Users className="w-3.5 h-3.5 text-emerald-500" />,
         text: c.name,
         sub: 'Customer account',
@@ -139,7 +139,7 @@ export const Dashboard: React.FC = () => {
     // Recent orders
     orders.slice(0, 10).forEach(o => {
       items.push({
-        type: 'customer',
+        type: 'quotes',
         icon: <ClipboardList className="w-3.5 h-3.5 text-violet-500" />,
         text: `${o.number} — ${o.title || o.customerName}`,
         sub: o.status === 'in_progress' ? `In production · ${formatCurrency(o.total)}` : o.status,
@@ -149,7 +149,7 @@ export const Dashboard: React.FC = () => {
     });
 
     return items
-      .filter(i => activityFilter === 'all' || i.type === activityFilter || (activityFilter === 'customers' && i.type === 'customer'))
+      .filter(i => activityFilter === 'all' || i.type === activityFilter)
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 12);
   }, [quotes, orders, customers, activityFilter]);
