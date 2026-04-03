@@ -500,7 +500,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       .reduce((s, l) => s + l.totalCost, 0);
 
     if (userChangedPricing.current) {
-      // User has interacted — safe to write all fields including identifiers
+      // User has interacted — write ALL fields including identifiers AND pricing config
+      // Writing colorMode, sides, foldingType etc. as top-level item fields ensures they
+      // survive even if pricingContext fails to load (belt-and-suspenders persistence)
       onUpdateItem({
         description: autoDescribe ? buildDescription() : item.description,
         quantity: ps.quantity || item.quantity,
@@ -519,7 +521,21 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         sellPrice: totalSell,
         upsPerSheet: imposition.totalUps || undefined,
         sheetSize: selectedMaterial?.size,
-      });
+        // Explicitly persist all pricing config fields so they survive navigation
+        // even if pricingContext snapshot is not yet available
+        colorMode: ps.colorMode,
+        sides: ps.sides,
+        foldingType: ps.foldingType || undefined,
+        drillingType: ps.drillingType || undefined,
+        cuttingEnabled: ps.cuttingEnabled,
+        sheetsPerStack: ps.sheetsPerStack,
+        productId: ps.productId || undefined,
+        productName: ps.productName || undefined,
+        categoryName: ps.categoryName || undefined,
+        // Also write an inline pricingContext snapshot on every recompute so that
+        // even if the user navigates away before onClose fires, the full state is saved
+        pricingContext: { ...ps },
+      } as any);
     } else if (totalCost > 0 || totalSell > 0) {
       // Only update costs/prices, NOT identifiers (materialId, equipmentId, etc.)
       // This keeps the display accurate without wiping saved references

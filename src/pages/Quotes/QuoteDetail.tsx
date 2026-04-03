@@ -176,16 +176,30 @@ export const QuoteDetail: React.FC = () => {
       return { ...DEFAULT_PRICING_STATE(), ...(savedItem.pricingContext as Partial<LineItemPricingState>) };
     }
 
-    // 3. Partial reconstruction from lineItem fields (legacy items without pricingContext)
+    // 3. Reconstruction from all explicit lineItem fields (including new colorMode/sides/etc.)
+    // These are now written by the recompute effect on every change, so even without
+    // pricingContext we can restore the full state.
     if (savedItem) {
       return {
         ...DEFAULT_PRICING_STATE(),
-        productName: savedItem.description || '',
+        // Core specs
+        productId: savedItem.productId || '',
+        productName: savedItem.productName || savedItem.description || '',
+        categoryName: savedItem.categoryName || '',
         quantity: savedItem.quantity || 1000,
         finalWidth: savedItem.width || 0,
         finalHeight: savedItem.height || 0,
+        // Material & equipment
         materialId: savedItem.materialId || '',
         equipmentId: savedItem.equipmentId || '',
+        // Print config — explicitly persisted fields (new)
+        colorMode: savedItem.colorMode || 'Color',
+        sides: savedItem.sides || 'Double',
+        foldingType: savedItem.foldingType || '',
+        drillingType: savedItem.drillingType || '',
+        cuttingEnabled: savedItem.cuttingEnabled ?? true,
+        sheetsPerStack: savedItem.sheetsPerStack || 500,
+        // Service lines for price display
         serviceLines: savedItem.serviceLines || [],
       };
     }
@@ -515,6 +529,21 @@ export const QuoteDetail: React.FC = () => {
             onUpdatePricing={updates => {
               setPricingStates(prev => {
                 const merged = { ...(prev[editingItemId] || DEFAULT_PRICING_STATE()), ...updates };
+                // Eagerly persist pricingContext to the item on EVERY pricing state change.
+                // This ensures the full state is saved even if the user navigates away
+                // before onClose fires (e.g. browser back, crash, accidental navigation).
+                setEditingItems((items: any) => {
+                  const updated = items.map((i: any) =>
+                    i.id === editingItemId
+                      ? { ...i, pricingContext: { ...merged } }
+                      : i
+                  );
+                  // Also persist to store immediately so it survives page navigation
+                  const subtotal = updated.reduce((s: number, i: any) => s + (i.sellPrice || 0), 0);
+                  const taxAmount = subtotal * ((quote?.taxRate || 0) / 100);
+                  updateQuote(id!, { lineItems: updated as any, subtotal, taxAmount, total: subtotal + taxAmount });
+                  return updated;
+                });
                 return { ...prev, [editingItemId]: merged };
               });
             }}
