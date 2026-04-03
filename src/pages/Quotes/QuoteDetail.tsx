@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Printer, ArrowRight, Trash2, ChevronDown, ChevronUp, CheckCircle, Copy, Clock, Edit3, Plus, Search } from 'lucide-react';
 import { useStore } from '../../store';
@@ -152,28 +152,29 @@ export const QuoteDetail: React.FC = () => {
   const [convertOpen, setConvertOpen] = useState(false);
   const convertRef = useRef<HTMLDivElement>(null);
 
-  // ── Item editing — NO intermediate state, all mutations go directly to store ──
-  // This eliminates the sync/race-condition bugs that caused data loss on navigation.
+  // ── Item editing state ────────────────────────────────────────────────────
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  // pricingStates is purely in-memory UI state for the open modal; it is NOT the source
-  // of truth. The store (quote.lineItems[].pricingContext) is always the source of truth.
   const [pricingStates, setPricingStates] = useState<Record<string, LineItemPricingState>>({});
 
   const quote = quotes.find(q => q.id === id);
 
-  // Derive current items always from the store — never from local state
-  const currentItems: any[] = (quote?.lineItems as any[]) || [];
+  // ── currentItemsRef: always holds the latest lineItems without closure staleness ──
+  // Using a ref (not state) means reading it never triggers re-renders and never goes
+  // stale inside callbacks. This breaks the infinite loop where onUpdatePricing was
+  // calling updateQuote → re-render → new currentItems → callback fires again → loop.
+  const currentItemsRef = useRef<any[]>([]);
+  currentItemsRef.current = (quote?.lineItems as any[]) || [];
 
-  // Restore pricing state: pricingContext is the canonical snapshot saved with the item
+  // For render purposes (JSX) we still read directly from the store
+  const currentItems: any[] = currentItemsRef.current;
+
+  // Restore pricing state from pricingContext or explicit fields
   const getPricingState = (iid: string): LineItemPricingState => {
-    // 1. In-memory state for the currently-open modal session
     if (pricingStates[iid]) return pricingStates[iid];
-    // 2. Persisted snapshot — always from the store, never from local state
-    const saved = currentItems.find((i: any) => i.id === iid);
+    const saved = currentItemsRef.current.find((i: any) => i.id === iid);
     if (saved?.pricingContext) {
       return { ...DEFAULT_PRICING_STATE(), ...(saved.pricingContext as Partial<LineItemPricingState>) };
     }
-    // 3. Fallback: reconstruct from explicit top-level item fields
     if (saved) {
       return {
         ...DEFAULT_PRICING_STATE(),
@@ -197,16 +198,17 @@ export const QuoteDetail: React.FC = () => {
     return DEFAULT_PRICING_STATE();
   };
 
-  // Helper: write a mutated items array directly to the store
-  const persistItems = (items: any[]) => {
+  // Helper: write items to store. Reads from ref (not state) to avoid stale closures.
+  const persistItems = useCallback((items: any[]) => {
+    const q = quotes.find(qq => qq.id === id);
     const subtotal = items.reduce((s: number, i: any) => s + (i.sellPrice || 0), 0);
-    const taxAmount = subtotal * ((quote?.taxRate || 0) / 100);
-    // Also default title to first item description if title is blank
-    const titleUpdate = !quote?.title && items.find((i: any) => i.description)?.description
+    const taxAmount = subtotal * ((q?.taxRate || 0) / 100);
+    const titleUpdate = !q?.title && items.find((i: any) => i.description)?.description
       ? { title: items.find((i: any) => i.description).description }
       : {};
     updateQuote(id!, { lineItems: items, subtotal, taxAmount, total: subtotal + taxAmount, ...titleUpdate });
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, updateQuote, quotes]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -497,38 +499,38 @@ export const QuoteDetail: React.FC = () => {
             pricingState={editingPs}
             isNew={!editingItem.description}
             onUpdateItem={updates => {
-              // Write item updates directly to the store — no intermediate state
-              const newItems = currentItems.map((i: any) =>
+              // Always read from ref — never from the closure-captured currentItems
+              // This prevents stale values and infinite render loops
+              const newItems = currentItemsRef.current.map((i: any) =>
                 i.id === editingItemId ? { ...i, ...updates } : i
               );
               persistItems(newItems);
             }}
             onUpdatePricing={updates => {
-              // Merge into in-memory pricingState AND immediately snapshot to store
+              // Update in-memory pricingState only — do NOT call updateQuote here.
+              // Calling updateQuote inside setPricingStates caused an infinite loop:
+              // updateQuote → re-render → currentItems recomputes → callback fires again.
+              // The pricingContext is written to the store only on onClose (once per session).
               setPricingStates(prev => {
                 const merged = { ...(prev[editingItemId] || DEFAULT_PRICING_STATE()), ...updates };
-                // Write pricingContext snapshot directly to store on every pricing change
-                // No intermediate setEditingItems — write straight to the source of truth
-                const newItems = currentItems.map((i: any) =>
-                  i.id === editingItemId
-                    ? { ...i, pricingContext: { ...merged } }
-                    : i
-                );
-                const subtotal = newItems.reduce((s: number, i: any) => s + (i.sellPrice || 0), 0);
-                const taxAmount = subtotal * ((quote?.taxRate || 0) / 100);
-                updateQuote(id!, { lineItems: newItems as any, subtotal, taxAmount, total: subtotal + taxAmount });
                 return { ...prev, [editingItemId]: merged };
               });
             }}
             onClose={() => {
-              // Final snapshot: ensure the very latest pricingState is in the store
-              const finalPs = pricingStates[editingItemId] || DEFAULT_PRICING_STATE();
-              const finalItems = currentItems.map((i: any) =>
-                i.id === editingItemId
-                  ? { ...i, pricingContext: { ...finalPs } }
-                  : i
-              );
-              persistItems(finalItems);
+              // Write the complete final pricingState to the store ONCE on close.
+              // Reading from pricingStates here (not a closure over currentItems)
+              // avoids the stale-closure issue entirely.
+              setPricingStates(prev => {
+                const finalPs = prev[editingItemId] || DEFAULT_PRICING_STATE();
+                // Use the ref for the latest items — never the stale closure
+                const finalItems = currentItemsRef.current.map((i: any) =>
+                  i.id === editingItemId
+                    ? { ...i, pricingContext: { ...finalPs } }
+                    : i
+                );
+                persistItems(finalItems);
+                return prev; // pricingStates unchanged
+              });
               setEditingItemId(null);
             }}
             onRemove={() => { removeItem(editingItemId); setEditingItemId(null); }}
