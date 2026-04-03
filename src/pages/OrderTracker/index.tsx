@@ -22,7 +22,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useStore } from '../../store';
 import { Card, PageHeader } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
-import type { OrderItem } from '../../types';
+import type { Order, OrderItem, Workflow } from '../../types';
 
 type StageColumn = {
   id: string;
@@ -31,16 +31,22 @@ type StageColumn = {
   isQueue?: boolean;
 };
 
-type TrackerItemCard = {
+type TrackerCardData = {
   id: string;
+  kind: 'order' | 'item';
   orderId: string;
   orderNumber: string;
   orderTitle: string;
   customerName?: string;
   dueDate?: string;
   total: number;
-  lineItem: OrderItem;
   stageId: string;
+  workflowId?: string;
+  trackingMode: 'order' | 'item';
+  lineItem?: OrderItem;
+  itemCount: number;
+  completedCount: number;
+  countsByStage: Array<{ stageId: string; label: string; count: number; color: string }>;
 };
 
 const QUEUE_STAGE_ID = '__queue__';
@@ -86,29 +92,62 @@ export const OrderTracker: React.FC = () => {
     ];
   }, [workflow]);
 
-  const trackerItems = useMemo<TrackerItemCard[]>(() => {
+  const trackerItems = useMemo<TrackerCardData[]>(() => {
     if (!workflow) return [];
 
     return orders
       .filter((order) => order.workflowId === workflow.id && order.status !== 'canceled' && order.status !== 'completed')
-      .flatMap((order) => order.lineItems.map((lineItem) => {
-        const stageId = lineItem.workflowStageId || order.currentStageId || QUEUE_STAGE_ID;
-        return {
-          id: lineItem.id,
-          orderId: order.id,
-          orderNumber: order.number,
-          orderTitle: order.title,
-          customerName: order.customerName,
-          dueDate: order.dueDate,
-          total: lineItem.sellPrice || order.total,
-          lineItem,
-          stageId,
-        };
-      }));
+      .reduce<TrackerCardData[]>((cards, order) => {
+        const trackingMode = order.trackingMode || 'order';
+        const countsByStage = buildStageCounts(order, workflow);
+
+        if (trackingMode === 'order') {
+          const stageId = order.currentStageId || deriveOrderStage(order, workflow) || QUEUE_STAGE_ID;
+          cards.push({
+            id: order.id,
+            kind: 'order' as const,
+            orderId: order.id,
+            orderNumber: order.number,
+            orderTitle: order.title,
+            customerName: order.customerName,
+            dueDate: order.dueDate,
+            total: order.total,
+            stageId,
+            workflowId: order.workflowId,
+            trackingMode,
+            itemCount: order.lineItems.length,
+            completedCount: countsByStage.find((entry) => entry.stageId === workflow.stages[workflow.stages.length - 1]?.id)?.count || 0,
+            countsByStage,
+          });
+          return cards;
+        }
+
+        order.lineItems.forEach((lineItem) => {
+          const stageId = lineItem.workflowStageId || order.currentStageId || QUEUE_STAGE_ID;
+          cards.push({
+            id: lineItem.id,
+            kind: 'item' as const,
+            orderId: order.id,
+            orderNumber: order.number,
+            orderTitle: order.title,
+            customerName: order.customerName,
+            dueDate: order.dueDate,
+            total: lineItem.sellPrice || order.total,
+            lineItem,
+            stageId,
+            workflowId: order.workflowId,
+            trackingMode,
+            itemCount: order.lineItems.length,
+            completedCount: countsByStage.find((entry) => entry.stageId === workflow.stages[workflow.stages.length - 1]?.id)?.count || 0,
+            countsByStage,
+          });
+        });
+        return cards;
+      }, []);
   }, [orders, workflow]);
 
   const itemsByStage = useMemo(() => {
-    const next = new Map<string, TrackerItemCard[]>();
+    const next = new Map<string, TrackerCardData[]>();
     columns.forEach((column) => next.set(column.id, []));
     trackerItems.forEach((item) => {
       const targetStageId = next.has(item.stageId) ? item.stageId : QUEUE_STAGE_ID;
@@ -131,11 +170,11 @@ export const OrderTracker: React.FC = () => {
 
   const boardStats = useMemo(() => {
     return activeBoards.map((board) => {
-      const boardOrders = orders.filter((order) => order.workflowId === board.id && order.status !== 'canceled' && order.status !== 'completed');
+    const boardOrders = orders.filter((order) => order.workflowId === board.id && order.status !== 'canceled' && order.status !== 'completed');
       return {
         id: board.id,
         orderCount: boardOrders.length,
-        itemCount: boardOrders.reduce((sum, order) => sum + order.lineItems.length, 0),
+        itemCount: boardOrders.reduce((sum, order) => sum + (order.trackingMode === 'item' ? order.lineItems.length : 1), 0),
         dueSoonCount: boardOrders.filter((order) => order.dueDate && new Date(order.dueDate) <= endOfTomorrow()).length,
       };
     });
@@ -161,14 +200,28 @@ export const OrderTracker: React.FC = () => {
     const order = orders.find((entry) => entry.id === item.orderId);
     if (!order) return;
 
+    if (item.kind === 'order') {
+      updateOrder(order.id, {
+        workflowId: workflow.id,
+        currentStageId: nextStageId,
+        lineItems: order.lineItems.map((lineItem) => ({
+          ...lineItem,
+          workflowStageId: nextStageId,
+        })),
+      });
+      return;
+    }
+
+    const nextLineItems = order.lineItems.map((lineItem) => (
+      lineItem.id === item.id
+        ? { ...lineItem, workflowStageId: nextStageId }
+        : lineItem
+    ));
+
     updateOrder(order.id, {
       workflowId: workflow.id,
-      currentStageId: nextStageId,
-      lineItems: order.lineItems.map((lineItem) => (
-        lineItem.id === item.id
-          ? { ...lineItem, workflowStageId: nextStageId }
-          : lineItem
-      )),
+      currentStageId: deriveCurrentStageFromItems({ ...order, lineItems: nextLineItems }, workflow),
+      lineItems: nextLineItems,
     });
   };
 
@@ -316,7 +369,7 @@ export const OrderTracker: React.FC = () => {
 
 const StageLane: React.FC<{
   column: StageColumn;
-  items: TrackerItemCard[];
+  items: TrackerCardData[];
   onNavigate: (orderId: string) => void;
   brandColor: string;
   highlightedOrderNumber?: string;
@@ -358,7 +411,7 @@ const StageLane: React.FC<{
 };
 
 const SortableTrackerCard: React.FC<{
-  item: TrackerItemCard;
+  item: TrackerCardData;
   onNavigate: () => void;
   highlighted?: boolean;
 }> = ({ item, onNavigate, highlighted = false }) => {
@@ -383,7 +436,7 @@ const SortableTrackerCard: React.FC<{
 };
 
 const TrackerCard: React.FC<{
-  item: TrackerItemCard;
+  item: TrackerCardData;
   onNavigate: () => void;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
   isDragging?: boolean;
@@ -398,7 +451,9 @@ const TrackerCard: React.FC<{
       <div className="mb-2 flex items-start justify-between gap-2">
         <div>
           <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">{item.orderNumber}</div>
-          <div className="mt-1 text-sm font-semibold leading-5 text-gray-900">{item.lineItem.description || item.orderTitle}</div>
+          <div className="mt-1 text-sm font-semibold leading-5 text-gray-900">
+            {item.kind === 'item' ? item.lineItem?.description || item.orderTitle : item.orderTitle}
+          </div>
         </div>
         <button
           {...dragHandleProps}
@@ -412,14 +467,46 @@ const TrackerCard: React.FC<{
 
       <button type="button" onClick={onNavigate} className="w-full text-left">
         <p className="text-xs text-gray-500">{item.customerName || 'No customer assigned'}</p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${item.kind === 'order' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>
+            {item.kind === 'order' ? 'Order card' : 'Item card'}
+          </span>
+          {item.kind === 'item' && item.itemCount > 1 && (
+            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-700">
+              {item.completedCount}/{item.itemCount} items complete
+            </span>
+          )}
+          {item.kind === 'order' && item.itemCount > 0 && (
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-700">
+              {item.itemCount} items
+            </span>
+          )}
+        </div>
         <div className="mt-3 flex items-center justify-between">
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
-            Qty {item.lineItem.quantity}
+            {item.kind === 'item' ? `Qty ${item.lineItem?.quantity || 0}` : `${item.itemCount} production items`}
           </span>
           <span className="text-sm font-semibold text-gray-800">{formatCurrency(item.total)}</span>
         </div>
+        {item.kind === 'item' && item.countsByStage.length > 1 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {item.countsByStage.slice(0, 3).map((stage) => (
+              <span
+                key={stage.stageId}
+                className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                style={{ backgroundColor: `${stage.color}18`, color: stage.color }}
+              >
+                {stage.label}: {stage.count}
+              </span>
+            ))}
+          </div>
+        )}
         <div className="mt-3 flex items-center justify-between text-[11px]">
-          <span className="text-gray-400">{item.lineItem.productFamily.replace(/_/g, ' ')}</span>
+          <span className="text-gray-400">
+            {item.kind === 'item'
+              ? item.lineItem?.productFamily.replace(/_/g, ' ')
+              : 'Order-level tracking'}
+          </span>
           <span className={isOverdue ? 'font-semibold text-red-500' : 'text-gray-400'}>
             {item.dueDate ? formatDate(item.dueDate) : 'No due date'}
           </span>
@@ -446,4 +533,47 @@ const withAlpha = (hex: string, alpha: number) => {
   const g = (value >> 8) & 255;
   const b = value & 255;
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const deriveCurrentStageFromItems = (order: Order, workflow: Workflow) => {
+  const rankedStages = workflow.stages.slice().sort((a, b) => a.order - b.order);
+  const rankedIds = rankedStages.map((stage) => stage.id);
+  const itemStages = order.lineItems
+    .map((item) => item.workflowStageId)
+    .filter((stageId): stageId is string => Boolean(stageId));
+
+  if (itemStages.length === 0) {
+    return order.currentStageId;
+  }
+
+  return itemStages.reduce((selected, stageId) => {
+    if (!selected) return stageId;
+    return rankedIds.indexOf(stageId) < rankedIds.indexOf(selected) ? stageId : selected;
+  }, order.currentStageId);
+};
+
+const deriveOrderStage = (order: Order, workflow: Workflow) => {
+  if ((order.trackingMode || 'order') === 'order') {
+    return order.currentStageId;
+  }
+
+  return deriveCurrentStageFromItems(order, workflow);
+};
+
+const buildStageCounts = (order: Order, workflow: Workflow) => {
+  const counter = new Map<string, number>();
+  order.lineItems.forEach((item) => {
+    const stageId = item.workflowStageId || order.currentStageId;
+    if (!stageId) return;
+    counter.set(stageId, (counter.get(stageId) || 0) + 1);
+  });
+
+  return workflow.stages
+    .filter((stage) => counter.has(stage.id))
+    .map((stage) => ({
+      stageId: stage.id,
+      label: stage.name,
+      count: counter.get(stage.id) || 0,
+      color: stage.color,
+    }));
 };

@@ -298,6 +298,7 @@ export interface DocumentTemplates {
 // ─── ORDERS ─────────────────────────────────────────────────────────────────
 
 export type OrderStatus = 'in_progress' | 'on_hold' | 'completed' | 'canceled';
+export type OrderTrackingMode = 'order' | 'item';
 
 export interface OrderItem extends QuoteLineItem {
   // production tracking
@@ -331,6 +332,7 @@ export interface Order {
   salesId?: string;
   workflowId?: string;
   currentStageId?: string;
+  trackingMode?: OrderTrackingMode;
   notes?: string;
   internalNotes?: string;
   poNumber?: string; // customer's PO#

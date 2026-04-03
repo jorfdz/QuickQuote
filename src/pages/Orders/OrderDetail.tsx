@@ -4,7 +4,7 @@ import { Printer, Receipt, KanbanSquare, Edit3, Trash2, CheckCircle, ChevronDown
 import { useStore } from '../../store';
 import { Button, Badge, Card, PageHeader, Select, Tabs, Modal, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
-import type { OrderStatus, OrderItem } from '../../types';
+import type { OrderStatus, OrderItem, OrderTrackingMode } from '../../types';
 import { nanoid } from '../../utils/nanoid';
 import { buildWorkOrderTemplateHtml } from '../../utils/documentTemplates';
 import {
@@ -23,7 +23,7 @@ const EMPTY_LINE_ITEM = (): OrderItem => ({
 export const OrderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { orders, invoices, updateOrder, deleteOrder, addInvoice, nextInvoiceNumber, invoiceCount, workflows, users, equipment, purchaseOrders, vendors, customers, contacts, companySettings, documentTemplates } = useStore();
+  const { orders, invoices, updateOrder, updateOrderTrackingMode, deleteOrder, addInvoice, nextInvoiceNumber, invoiceCount, workflows, users, equipment, purchaseOrders, vendors, customers, contacts, companySettings, documentTemplates } = useStore();
   const [activeTab, setActiveTab] = useState('overview');
   const [showDelete, setShowDelete] = useState(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
@@ -60,7 +60,8 @@ export const OrderDetail: React.FC = () => {
   if (!order) return <div className="text-center py-16 text-gray-400">Order not found</div>;
 
   const workflow = workflows.find(w => w.id === order.workflowId) || workflows[0];
-  const currentStage = workflow?.stages.find(s => s.id === order.currentStageId);
+  const trackingMode = order.trackingMode || 'order';
+  const currentStage = workflow?.stages.find(s => s.id === deriveOrderDisplayStage(order, workflow));
   const csr = users.find(u => u.id === order.csrId);
   const salesRep = users.find(u => u.id === order.salesId);
   const customer = customers.find(c => c.id === order.customerId) || null;
@@ -192,6 +193,8 @@ export const OrderDetail: React.FC = () => {
   const editableSubtotal = editableLineItems.reduce((s, i) => s + (i.sellPrice || 0), 0);
   const editableTaxAmount = editableSubtotal * ((order.taxRate || 0) / 100);
   const editableTotal = editableSubtotal + editableTaxAmount;
+  const stageSummary = useMemo(() => buildStageSummary(order, workflow), [order, workflow]);
+  const progressStageId = stageSummary.currentStageId || order.currentStageId;
 
   const ORDER_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
     { value: 'in_progress', label: 'In Progress' },
@@ -325,19 +328,39 @@ export const OrderDetail: React.FC = () => {
       {/* Progress bar */}
       {workflow && (
         <Card className="mb-4 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Production Progress</span>
-            <Badge label={order.status} />
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Production Progress</span>
+              <div className="mt-2 flex items-center gap-2">
+                <Badge label={trackingMode === 'order' ? 'Order tracking' : 'Item tracking'} />
+                {currentStage && <Badge label={currentStage.name} />}
+              </div>
+            </div>
+            <div className="text-right">
+              <Badge label={order.status} />
+              {trackingMode === 'item' && (
+                <p className="mt-2 text-xs text-gray-500">
+                  {stageSummary.completedItems}/{stageSummary.totalItems} items at final stage
+                </p>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-1">
             {workflow.stages.map((stage, i) => {
-              const isCurrent = stage.id === order.currentStageId;
-              const isPast = workflow.stages.findIndex(s => s.id === order.currentStageId) > i;
+              const activeIndex = workflow.stages.findIndex(s => s.id === progressStageId);
+              const isCurrent = stage.id === progressStageId;
+              const isPast = activeIndex > i;
               return (
                 <React.Fragment key={stage.id}>
                   <div
-                    className="flex flex-col items-center cursor-pointer group"
-                    onClick={() => updateOrder(id!, { currentStageId: stage.id })}
+                    className={`flex flex-col items-center group ${trackingMode === 'order' ? 'cursor-pointer' : 'cursor-default'}`}
+                    onClick={() => {
+                      if (trackingMode !== 'order') return;
+                      updateOrder(id!, {
+                        currentStageId: stage.id,
+                        lineItems: order.lineItems.map((item) => ({ ...item, workflowStageId: stage.id })),
+                      });
+                    }}
                   >
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${isCurrent ? 'ring-2 ring-offset-2' : ''} ${isPast || isCurrent ? 'text-white' : 'bg-gray-100 text-gray-400'}`}
                       style={{ backgroundColor: isPast || isCurrent ? stage.color : undefined }}>
@@ -350,6 +373,19 @@ export const OrderDetail: React.FC = () => {
               );
             })}
           </div>
+          {trackingMode === 'item' && stageSummary.countsByStage.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {stageSummary.countsByStage.map((entry) => (
+                <span
+                  key={entry.stageId}
+                  className="rounded-full px-2.5 py-1 text-[11px] font-medium"
+                  style={{ backgroundColor: `${entry.color}18`, color: entry.color }}
+                >
+                  {entry.label}: {entry.count}
+                </span>
+              ))}
+            </div>
+          )}
         </Card>
       )}
 
@@ -502,28 +538,63 @@ export const OrderDetail: React.FC = () => {
         <div className="space-y-4">
           {/* Compact order info header */}
           <Card className="p-4">
-            <div className="flex items-center gap-6 text-sm">
-              <div>
+            <div className="flex flex-wrap items-end gap-6 text-sm">
+              <div className="min-w-[110px]">
                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide block">Order</span>
                 <span className="obj-num text-gray-900">{order.number}</span>
               </div>
-              <div>
+              <div className="min-w-[180px]">
                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide block">Customer</span>
                 <span className="font-medium text-gray-900">{order.customerName || '—'}</span>
               </div>
               {order.dueDate && (
-                <div>
+                <div className="min-w-[120px]">
                   <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide block">Due Date</span>
                   <span className={`font-medium ${new Date(order.dueDate) < new Date() && order.status === 'in_progress' ? 'text-red-500' : 'text-gray-900'}`}>
                     {formatDate(order.dueDate)}
                   </span>
                 </div>
               )}
+              <div className="min-w-[220px]">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide block">Tracking Mode</span>
+                <div className="mt-1">
+                  <Select
+                    value={trackingMode}
+                    onChange={(event) => updateOrderTrackingMode(order.id, event.currentTarget.value as OrderTrackingMode)}
+                    options={[
+                      { value: 'order', label: 'Single order card' },
+                      { value: 'item', label: 'Track items independently' },
+                    ]}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  {trackingMode === 'order'
+                    ? 'Best for straightforward jobs that move together through production.'
+                    : 'Each line item gets its own card in the tracker while the order still shows an overall stage summary.'}
+                </p>
+              </div>
               <div className="ml-auto">
                 <Badge label={order.status} />
               </div>
             </div>
           </Card>
+
+          {trackingMode === 'item' && (
+            <Card className="p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">Order-Level Visibility</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    The board will show one card per item. This order summary stays in sync so the team can still tell where the full job stands.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-right">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Current overall stage</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">{currentStage?.name || 'Not started'}</div>
+                </div>
+              </div>
+            </Card>
+          )}
 
           {/* Per-item production cards */}
           {order.lineItems.map((item, idx) => (
@@ -539,8 +610,8 @@ export const OrderDetail: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-bold text-gray-900">{formatCurrency(item.sellPrice)}</span>
-                  {item.workflowStageId && (
-                    <Badge label={workflow?.stages.find(s => s.id === item.workflowStageId)?.name || 'In Progress'} />
+                  {(item.workflowStageId || progressStageId) && (
+                    <Badge label={workflow?.stages.find(s => s.id === (item.workflowStageId || progressStageId))?.name || 'In Progress'} />
                   )}
                 </div>
               </div>
@@ -581,23 +652,30 @@ export const OrderDetail: React.FC = () => {
                   {/* Stage assignment */}
                   <div>
                     <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Tracker Board Stage</label>
-                    <select
-                      value={item.workflowStageId || ''}
-                      onChange={e => {
-                        const items = order.lineItems.map(li => li.id === item.id ? { ...li, workflowStageId: e.target.value } : li);
-                        updateOrder(id!, { lineItems: items });
-                      }}
-                      className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Not assigned</option>
-                      {workflows.map(wf => (
-                        <optgroup key={wf.id} label={wf.name}>
-                          {wf.stages.map(stage => (
-                            <option key={stage.id} value={stage.id}>{stage.name}</option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
+                    {trackingMode === 'order' ? (
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                        Follows the order card stage: <span className="font-medium text-gray-900">{currentStage?.name || 'Not assigned'}</span>
+                      </div>
+                    ) : (
+                      <select
+                        value={item.workflowStageId || ''}
+                        onChange={e => {
+                          const items = order.lineItems.map(li => li.id === item.id ? { ...li, workflowStageId: e.target.value } : li);
+                          const nextStageId = deriveOrderDisplayStage({ ...order, lineItems: items }, workflow);
+                          updateOrder(id!, { lineItems: items, currentStageId: nextStageId });
+                        }}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Not assigned</option>
+                        {workflows.map(wf => (
+                          <optgroup key={wf.id} label={wf.name}>
+                            {wf.stages.map(stage => (
+                              <option key={stage.id} value={stage.id}>{stage.name}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    )}
                   </div>
 
                   {/* Assignee */}
@@ -635,7 +713,7 @@ export const OrderDetail: React.FC = () => {
                 </div>
 
                 {/* Track Order button */}
-                {item.workflowStageId && (
+                {(item.workflowStageId || progressStageId) && (
                   <div className="mt-3 flex justify-end">
                     <Button
                       variant="ghost"
@@ -707,4 +785,57 @@ export const OrderDetail: React.FC = () => {
       })()}
     </div>
   );
+};
+
+const buildStageSummary = (order: { lineItems: OrderItem[]; currentStageId?: string; trackingMode?: OrderTrackingMode }, workflow?: { stages: Array<{ id: string; name: string; color: string; order: number }> }) => {
+  if (!workflow) {
+    return { currentStageId: order.currentStageId, totalItems: order.lineItems.length, completedItems: 0, countsByStage: [] as Array<{ stageId: string; label: string; count: number; color: string }> };
+  }
+
+  const counts = new Map<string, number>();
+  order.lineItems.forEach((item) => {
+    const stageId = item.workflowStageId || order.currentStageId;
+    if (!stageId) return;
+    counts.set(stageId, (counts.get(stageId) || 0) + 1);
+  });
+
+  const rankedStages = workflow.stages.slice().sort((a, b) => a.order - b.order);
+  const currentStageId = deriveOrderDisplayStage(order, workflow);
+  const finalStageId = rankedStages[rankedStages.length - 1]?.id;
+
+  return {
+    currentStageId,
+    totalItems: order.lineItems.length,
+    completedItems: finalStageId ? order.lineItems.filter((item) => (item.workflowStageId || order.currentStageId) === finalStageId).length : 0,
+    countsByStage: rankedStages
+      .filter((stage) => counts.has(stage.id))
+      .map((stage) => ({
+        stageId: stage.id,
+        label: stage.name,
+        count: counts.get(stage.id) || 0,
+        color: stage.color,
+      })),
+  };
+};
+
+const deriveOrderDisplayStage = (order: { lineItems: OrderItem[]; currentStageId?: string; trackingMode?: OrderTrackingMode }, workflow?: { stages: Array<{ id: string; order: number }> }) => {
+  if (!workflow) {
+    return order.currentStageId;
+  }
+
+  if ((order.trackingMode || 'order') === 'order') {
+    return order.currentStageId;
+  }
+
+  const rankedIds = workflow.stages.slice().sort((a, b) => a.order - b.order).map((stage) => stage.id);
+  const itemStages = order.lineItems.map((item) => item.workflowStageId).filter((stageId): stageId is string => Boolean(stageId));
+
+  if (itemStages.length === 0) {
+    return order.currentStageId;
+  }
+
+  return itemStages.reduce((selected, stageId) => {
+    if (!selected) return stageId;
+    return rankedIds.indexOf(stageId) < rankedIds.indexOf(selected) ? stageId : selected;
+  }, order.currentStageId);
 };

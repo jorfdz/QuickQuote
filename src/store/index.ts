@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import type {
   Customer, Contact, Quote, Order, Invoice,
   Material, Equipment, Vendor, PurchaseOrder, User, Workflow, ProductTemplate,
-  CompanySettings, DocumentTemplates, TrackingDevice,
+  CompanySettings, DocumentTemplates, TrackingDevice, OrderTrackingMode,
 } from '../types';
 import {
   mockQuotes, mockOrders, mockInvoices,
@@ -75,6 +75,7 @@ interface AppStore {
   updateOrder: (id: string, o: Partial<Order>) => void;
   deleteOrder: (id: string) => void;
   nextOrderNumber: () => string;
+  updateOrderTrackingMode: (id: string, trackingMode: OrderTrackingMode) => void;
 
   // Invoices
   addInvoice: (i: Invoice) => void;
@@ -168,10 +169,42 @@ export const useStore = create<AppStore>()(
       nextQuoteNumber: () => { const c = get().quoteCount + 1; return `Q${String(c).padStart(6, '0')}`; },
 
       // Orders
-      addOrder: (o) => set((s) => ({ orders: [o, ...s.orders], orderCount: s.orderCount + 1 })),
+      addOrder: (o) => set((s) => ({ orders: [{ ...o, trackingMode: o.trackingMode || 'order' }, ...s.orders], orderCount: s.orderCount + 1 })),
       updateOrder: (id, o) => set((s) => ({ orders: s.orders.map(x => x.id === id ? { ...x, ...o, updatedAt: new Date().toISOString() } : x) })),
       deleteOrder: (id) => set((s) => ({ orders: s.orders.filter(x => x.id !== id) })),
       nextOrderNumber: () => { const c = get().orderCount + 1; return `O${String(c).padStart(6, '0')}`; },
+      updateOrderTrackingMode: (id, trackingMode) => set((s) => ({
+        orders: s.orders.map((order) => {
+          if (order.id !== id) return order;
+
+          const now = new Date().toISOString();
+          const fallbackStageId = deriveOrderStage(order) || order.currentStageId;
+
+          if (trackingMode === 'order') {
+            return {
+              ...order,
+              trackingMode,
+              currentStageId: fallbackStageId,
+              updatedAt: now,
+              lineItems: order.lineItems.map((item) => ({
+                ...item,
+                workflowStageId: fallbackStageId,
+              })),
+            };
+          }
+
+          return {
+            ...order,
+            trackingMode,
+            currentStageId: fallbackStageId,
+            updatedAt: now,
+            lineItems: order.lineItems.map((item) => ({
+              ...item,
+              workflowStageId: item.workflowStageId || fallbackStageId,
+            })),
+          };
+        }),
+      })),
 
       // Invoices
       addInvoice: (i) => set((s) => ({ invoices: [i, ...s.invoices], invoiceCount: s.invoiceCount + 1 })),
@@ -240,6 +273,7 @@ export const useStore = create<AppStore>()(
               ...order,
               workflowId: device.workflowId,
               currentStageId: device.stageId,
+              trackingMode: order.trackingMode || 'item',
               updatedAt: now,
               lineItems: order.lineItems.map((item) => (
                 item.id === orderItemId
@@ -278,28 +312,23 @@ export const useStore = create<AppStore>()(
         set((s) => ({
           orders: s.orders.map((item) => (
             item.id === order.id
-              ? {
-                  ...item,
-                  workflowId,
-                  currentStageId: stageId,
-                  updatedAt: now,
-                  lineItems: item.lineItems.map((lineItem) => ({
-                    ...lineItem,
-                    workflowStageId: stageId,
-                  })),
-                }
+              ? applyOrderScanDestination(item, workflowId, stageId, now)
               : item
           )),
         }));
 
-        return { success: true, message: `Moved ${normalizedOrderNumber} to ${workflow.name} / ${stage.name}.` };
+        const trackingMode = order.trackingMode || 'order';
+        const suffix = trackingMode === 'item'
+          ? 'All items in the order were moved together because this job is item-tracked.'
+          : 'The order card was updated.';
+        return { success: true, message: `Moved ${normalizedOrderNumber} to ${workflow.name} / ${stage.name}. ${suffix}` };
       },
       updateCompanySettings: (settings) => set((s) => ({ companySettings: { ...s.companySettings, ...settings } })),
       updateDocumentTemplates: (templates) => set((s) => ({ documentTemplates: { ...s.documentTemplates, ...templates } })),
     }),
     {
       name: 'quikquote-storage',
-      version: 8,
+      version: 9,
       migrate: (persistedState) => {
         const state = persistedState as Partial<AppStore> | undefined;
 
@@ -320,6 +349,10 @@ export const useStore = create<AppStore>()(
           trackingDevices: mergeTrackingDevices(defaultTrackingDevices, state.trackingDevices || []),
           companySettings: { ...DEFAULT_COMPANY_SETTINGS, ...state.companySettings },
           documentTemplates: { ...DEFAULT_DOCUMENT_TEMPLATES, ...state.documentTemplates },
+          orders: (state.orders || allOrders).map((order) => ({
+            ...order,
+            trackingMode: order.trackingMode || 'order',
+          })),
         };
       },
     }
@@ -331,4 +364,26 @@ const mergeTrackingDevices = (defaults: TrackingDevice[], stored: TrackingDevice
   defaults.forEach((device) => merged.set(device.code.toUpperCase(), device));
   stored.forEach((device) => merged.set(device.code.toUpperCase(), device));
   return Array.from(merged.values());
+};
+
+const deriveOrderStage = (order: Order) => {
+  const stageIds = order.lineItems.map((item) => item.workflowStageId).filter(Boolean) as string[];
+  return stageIds[0];
+};
+
+const applyOrderScanDestination = (order: Order, workflowId: string, stageId: string, updatedAt: string): Order => {
+  const trackingMode = order.trackingMode || 'order';
+  const nextLineItems = order.lineItems.map((lineItem) => ({
+    ...lineItem,
+    workflowStageId: trackingMode === 'item' ? stageId : stageId,
+  }));
+
+  return {
+    ...order,
+    workflowId,
+    currentStageId: stageId,
+    trackingMode,
+    updatedAt,
+    lineItems: nextLineItems,
+  };
 };
