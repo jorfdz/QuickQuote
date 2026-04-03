@@ -219,6 +219,9 @@ export interface QuoteLineItem {
   sheetSize?: string;
   // template
   templateId?: string;
+  // full pricing context snapshot — saved so it can be fully restored when re-opening the item
+  // (avoids losing material/equipment/color/sides/finishing settings on navigation)
+  pricingContext?: Record<string, unknown>;
   // multi-part item
   isMultiPart?: boolean;
   multiPartName?: string;        // global item/product name (e.g. "Booklet")

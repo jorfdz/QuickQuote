@@ -96,6 +96,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [showGlobalSuggestions, setShowGlobalSuggestions] = useState(false);
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<PricingServiceLine>>({});
+  // Track whether any pricing change has been made since the modal opened.
+  // On first render, the recompute effect must NOT overwrite existing item fields
+  // (e.g. materialName from savedItem) with stale computed values.
+  const userChangedPricing = React.useRef(false);
   const [savedAsTemplate, setSavedAsTemplate] = useState(false);
   const [multiQtyInput, setMultiQtyInput] = useState(String(ps.quantity || 1000));
   // Auto-describe is ON only for brand-new items (no existing description).
@@ -468,7 +472,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       ps.finalWidth, ps.finalHeight,
       finishing, lookupClickPrice]);
 
-  // Recompute and sync to parent — but SKIP if user is currently editing or has saved overrides
+  // Recompute and sync to parent
   useEffect(() => {
     // Never recompute while a row is being edited (would wipe the edit inputs)
     if (editingLineId !== null) return;
@@ -482,31 +486,53 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     const totalSell = lines.reduce((s, l) => s + l.sellPrice, 0);
     const overallMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
 
-    // Map to QuoteLineItem fields
+    // Map to QuoteLineItem fields.
+    // CRITICAL: Only overwrite materialId/equipmentId/etc. when the user has actually
+    // made a pricing change in this session. On first open of an existing item,
+    // userChangedPricing.current is false, so we preserve the saved values from the
+    // item (which were correctly stored when the user last saved) rather than
+    // overwriting them with potentially incomplete computed values.
     const matLine = lines.find(l => l.service === 'Material');
     const printLine = lines.find(l => l.service === 'Printing');
     const setupLine = lines.find(l => l.service === 'Setup');
-    const finishingCost = lines.filter(l => ['Cutting', 'Folding', 'Drilling'].includes(l.service)).reduce((s, l) => s + l.totalCost, 0);
+    const finishingCost = lines
+      .filter(l => ['Cutting', 'Folding', 'Drilling'].includes(l.service))
+      .reduce((s, l) => s + l.totalCost, 0);
 
-    onUpdateItem({
-      description: autoDescribe ? buildDescription() : item.description,
-      quantity: ps.quantity || item.quantity,
-      width: ps.finalWidth || undefined,
-      height: ps.finalHeight || undefined,
-      materialId: ps.materialId || undefined,
-      materialName: selectedMaterial?.name,
-      materialCost: matLine?.totalCost || 0,
-      equipmentId: ps.equipmentId || undefined,
-      equipmentName: selectedEquipment?.name,
-      equipmentCost: printLine?.totalCost || 0,
-      laborCost: finishingCost,
-      setupCost: setupLine?.totalCost || 0,
-      totalCost,
-      markup: Math.round(overallMarkup),
-      sellPrice: totalSell,
-      upsPerSheet: imposition.totalUps || undefined,
-      sheetSize: selectedMaterial?.size,
-    });
+    if (userChangedPricing.current) {
+      // User has interacted — safe to write all fields including identifiers
+      onUpdateItem({
+        description: autoDescribe ? buildDescription() : item.description,
+        quantity: ps.quantity || item.quantity,
+        width: ps.finalWidth || undefined,
+        height: ps.finalHeight || undefined,
+        materialId: ps.materialId || undefined,
+        materialName: selectedMaterial?.name,
+        materialCost: matLine?.totalCost || 0,
+        equipmentId: ps.equipmentId || undefined,
+        equipmentName: selectedEquipment?.name,
+        equipmentCost: printLine?.totalCost || 0,
+        laborCost: finishingCost,
+        setupCost: setupLine?.totalCost || 0,
+        totalCost,
+        markup: Math.round(overallMarkup),
+        sellPrice: totalSell,
+        upsPerSheet: imposition.totalUps || undefined,
+        sheetSize: selectedMaterial?.size,
+      });
+    } else if (totalCost > 0 || totalSell > 0) {
+      // Only update costs/prices, NOT identifiers (materialId, equipmentId, etc.)
+      // This keeps the display accurate without wiping saved references
+      onUpdateItem({
+        totalCost,
+        markup: Math.round(overallMarkup),
+        sellPrice: totalSell,
+        laborCost: finishingCost,
+        setupCost: setupLine?.totalCost || 0,
+        materialCost: matLine?.totalCost || 0,
+        equipmentCost: printLine?.totalCost || 0,
+      });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [computeServiceLines]);
 
@@ -553,6 +579,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   // ── Select product from search ────────────────────────────────────────
   const selectProduct = (product: PricingProduct) => {
+    userChangedPricing.current = true;
     setProductQuery(product.name);
     setShowSuggestions(false);
     const cat = categories.find(c => product.categoryIds.includes(c.id));
@@ -694,8 +721,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const diagWidth = sheetRatio >= 1 ? maxDiagramSize : Math.round(maxDiagramSize * sheetRatio);
   const diagHeight = sheetRatio >= 1 ? Math.round(maxDiagramSize / sheetRatio) : maxDiagramSize;
 
-  // Helper: mark userInteracted on any pricing field change
-  const trackInteraction = () => { if (!userInteracted) setUserInteracted(true); };
+  // Helper: mark userInteracted (template panel collapse) AND userChangedPricing (recompute guard)
+  const trackInteraction = () => {
+    if (!userInteracted) setUserInteracted(true);
+    userChangedPricing.current = true;
+  };
 
   // ── Multi-part helpers ────────────────────────────────────────────────
 
