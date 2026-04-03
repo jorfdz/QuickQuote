@@ -538,7 +538,7 @@ export const OrderDetail: React.FC = () => {
         <div className="space-y-4">
           {/* Compact order info header */}
           <Card className="p-4">
-            <div className="flex flex-wrap items-end gap-6 text-sm">
+            <div className="flex flex-wrap items-start gap-6 text-sm">
               <div className="min-w-[110px]">
                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide block">Order</span>
                 <span className="obj-num text-gray-900">{order.number}</span>
@@ -575,7 +575,7 @@ export const OrderDetail: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <div className="ml-auto">
+              <div className="ml-auto self-center">
                 <Badge label={order.status} />
               </div>
             </div>
