@@ -354,18 +354,10 @@ export const QuoteDetail: React.FC = () => {
               <h2 className="font-semibold text-gray-900">Line Items
                 <span className="text-[10px] font-normal text-gray-400 ml-2">Click any item to edit</span>
               </h2>
-              <div className="flex items-center gap-2">
-                {itemsDirty && (
-                  <>
-                    <Button variant="success" size="sm" onClick={saveItems}>Save Items</Button>
-                    <Button variant="secondary" size="sm" onClick={() => { setEditingItems(quote.lineItems as any); setItemsDirty(false); }}>Discard</Button>
-                  </>
-                )}
-                <button onClick={addItem}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-[var(--brand)] hover:bg-gray-50 rounded-md transition-colors border border-gray-200">
-                  <Plus className="w-3 h-3" /> Add Item
-                </button>
-              </div>
+              <button onClick={addItem}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-[var(--brand)] hover:bg-gray-50 rounded-md transition-colors border border-gray-200">
+                <Plus className="w-3 h-3" /> Add Item
+              </button>
             </div>
 
             <div className="divide-y divide-gray-50">
@@ -477,7 +469,7 @@ export const QuoteDetail: React.FC = () => {
             onUpdatePricing={updates => {
               setPricingStates(prev => ({ ...prev, [editingItemId]: { ...(prev[editingItemId] || DEFAULT_PRICING_STATE()), ...updates } }));
             }}
-            onClose={() => setEditingItemId(null)}
+            onClose={() => { saveItems(); setEditingItemId(null); }}
             onRemove={() => { removeItem(editingItemId); setEditingItemId(null); }}
             matchingTemplates={[]}
             onApplyTemplate={() => {}}
