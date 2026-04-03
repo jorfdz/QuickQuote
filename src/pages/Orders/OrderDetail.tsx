@@ -81,7 +81,7 @@ export const OrderDetail: React.FC = () => {
     [trackerUrl],
   );
 
-  const buildWorkOrderHtml = (qrCodeUrl: string) => buildWorkOrderTemplateHtml({
+  const buildWorkOrderHtml = (qrCodeUrl: string, itemQrCodeUrls: Record<string, string> = {}) => buildWorkOrderTemplateHtml({
     template: documentTemplates.workOrder,
     company: companySettings,
     order,
@@ -90,10 +90,11 @@ export const OrderDetail: React.FC = () => {
     csr: csr || null,
     salesRep: salesRep || null,
     qrCodeUrl,
+    itemQrCodeUrls,
   });
 
-  const fetchQrCodeDataUrl = async () => {
-    const response = await fetch(qrCodeApiUrl);
+  const fetchQrCodeDataUrl = async (sourceUrl: string) => {
+    const response = await fetch(sourceUrl);
     if (!response.ok) {
       throw new Error(`QR fetch failed with status ${response.status}`);
     }
@@ -108,13 +109,24 @@ export const OrderDetail: React.FC = () => {
 
   const openWorkOrderPrintWindow = async () => {
     let qrCodeSrc = qrCodeApiUrl;
+    let itemQrCodeUrls: Record<string, string> = {};
     try {
-      qrCodeSrc = await fetchQrCodeDataUrl();
+      qrCodeSrc = await fetchQrCodeDataUrl(qrCodeApiUrl);
+
+      if (trackingMode === 'item') {
+        const itemQrEntries = await Promise.all(order.lineItems.map(async (lineItem) => {
+          const itemTrackerUrl = `${window.location.origin}/OrderTracker/${order.number}?itemId=${encodeURIComponent(lineItem.id)}`;
+          const itemQrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=72x72&data=${encodeURIComponent(itemTrackerUrl)}`;
+          const dataUrl = await fetchQrCodeDataUrl(itemQrApiUrl);
+          return [lineItem.id, dataUrl] as const;
+        }));
+        itemQrCodeUrls = Object.fromEntries(itemQrEntries);
+      }
     } catch (error) {
       console.error('Unable to inline QR code for work order print', error);
     }
 
-    const workOrderHtml = buildWorkOrderHtml(qrCodeSrc);
+    const workOrderHtml = buildWorkOrderHtml(qrCodeSrc, itemQrCodeUrls);
     const printWindow = window.open('', '_blank');
 
     if (!printWindow) {

@@ -138,7 +138,7 @@ const buildPurchaseOrderLineItemsHtml = (purchaseOrder: PurchaseOrder): string =
   </tr>`
 )).join('');
 
-const buildWorkOrderItemsHtml = (order: Order): string => order.lineItems.map((item, index) => {
+const buildWorkOrderItemsHtml = (order: Order, itemQrCodeUrls: Record<string, string> = {}): string => order.lineItems.map((item, index) => {
   const productionDetails = [
     item.width && item.height ? `Final size: ${item.width}" x ${item.height}"` : '',
     item.productFamily ? `Family: ${item.productFamily.replace(/_/g, ' ')}` : '',
@@ -154,10 +154,23 @@ const buildWorkOrderItemsHtml = (order: Order): string => order.lineItems.map((i
     item.notes ? `Notes: ${escapeHtml(item.notes)}` : '',
   ].filter(Boolean).join('<br>');
 
+  const itemQrMarkup = (order.trackingMode || 'order') === 'item' && itemQrCodeUrls[item.id]
+    ? `
+      <div style="margin-top:12px; display:flex; align-items:flex-start; gap:12px; padding:10px; border:1px solid #dbeafe; background:#eff6ff; border-radius:10px;">
+        <img src="${escapeHtml(itemQrCodeUrls[item.id])}" alt="Item tracker QR code" style="width:68px; height:68px; border-radius:8px; border:1px solid #bfdbfe; background:#ffffff;" />
+        <div>
+          <div style="font-size:10px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#64748b;">Item Tracker QR</div>
+          <div style="margin-top:4px; font-size:11px; color:#1e3a8a;">Scan to move only this item through the board.</div>
+        </div>
+      </div>
+    `
+    : '';
+
   return `<tr${index % 2 === 1 ? ' style="background:#f9fafb"' : ''}>
     <td>
       <div class="item-title">${escapeHtml(item.description)}</div>
       <span class="item-meta">Qty ${escapeHtml(String(item.quantity))} ${escapeHtml(item.unit)}</span>
+      ${itemQrMarkup}
     </td>
     <td>${productionDetails || '&mdash;'}</td>
     <td>${materialsAndServices || '&mdash;'}</td>
@@ -309,6 +322,7 @@ export const buildWorkOrderTemplateHtml = ({
   csr,
   salesRep,
   qrCodeUrl,
+  itemQrCodeUrls = {},
 }: {
   template: DocumentTemplates['workOrder'];
   company: CompanySettings;
@@ -318,6 +332,7 @@ export const buildWorkOrderTemplateHtml = ({
   csr: User | null;
   salesRep: User | null;
   qrCodeUrl: string;
+  itemQrCodeUrls?: Record<string, string>;
 }): string => {
   const effectiveTemplate = ensureWorkOrderQrMarkup(template || DEFAULT_DOCUMENT_TEMPLATES.workOrder);
   const companyAddress = buildCompanyAddress(company);
@@ -338,7 +353,7 @@ export const buildWorkOrderTemplateHtml = ({
     '{{orderTitle}}': escapeHtml(order.title || ''),
     '{{orderDescription}}': escapeHtml(order.description || ''),
     '{{internalNotes}}': escapeHtml(order.internalNotes || order.notes || ''),
-    '{{workOrderItems}}': buildWorkOrderItemsHtml(order),
+    '{{workOrderItems}}': buildWorkOrderItemsHtml(order, itemQrCodeUrls),
     '{{qrCodeUrl}}': escapeHtml(qrCodeUrl),
   }));
 };

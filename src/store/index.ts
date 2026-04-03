@@ -114,6 +114,7 @@ interface AppStore {
   processTrackingDeviceScan: (deviceId: string, orderItemId: string) => void;
   processTrackingDeviceOrderScan: (deviceId: string, orderNumber: string) => { success: boolean; message: string };
   processOrderScanToDestination: (workflowId: string, stageId: string, orderNumber: string) => { success: boolean; message: string };
+  processOrderItemScanToDestination: (workflowId: string, stageId: string, orderItemId: string) => { success: boolean; message: string };
   updateCompanySettings: (settings: Partial<CompanySettings>) => void;
   updateDocumentTemplates: (templates: Partial<DocumentTemplates>) => void;
 }
@@ -323,6 +324,55 @@ export const useStore = create<AppStore>()(
           : 'The order card was updated.';
         return { success: true, message: `Moved ${normalizedOrderNumber} to ${workflow.name} / ${stage.name}. ${suffix}` };
       },
+      processOrderItemScanToDestination: (workflowId, stageId, orderItemId) => {
+        const workflow = get().workflows.find((item) => item.id === workflowId);
+        if (!workflow) {
+          return { success: false, message: 'Selected board was not found.' };
+        }
+
+        const stage = workflow.stages.find((item) => item.id === stageId);
+        if (!stage) {
+          return { success: false, message: 'Selected stage was not found.' };
+        }
+
+        const normalizedOrderItemId = orderItemId.trim();
+        const order = get().orders.find((entry) => entry.lineItems.some((lineItem) => lineItem.id === normalizedOrderItemId));
+        if (!order) {
+          return { success: false, message: 'Scanned item was not found.' };
+        }
+
+        const scannedItem = order.lineItems.find((lineItem) => lineItem.id === normalizedOrderItemId);
+        if (!scannedItem) {
+          return { success: false, message: 'Scanned item was not found.' };
+        }
+
+        const now = new Date().toISOString();
+        const nextLineItems = order.lineItems.map((lineItem) => (
+          lineItem.id === normalizedOrderItemId
+            ? { ...lineItem, workflowStageId: stageId }
+            : lineItem
+        ));
+
+        set((s) => ({
+          orders: s.orders.map((entry) => (
+            entry.id === order.id
+              ? {
+                  ...entry,
+                  workflowId,
+                  trackingMode: entry.trackingMode || 'item',
+                  currentStageId: deriveCurrentStageFromItems({ ...entry, lineItems: nextLineItems }, workflow),
+                  updatedAt: now,
+                  lineItems: nextLineItems,
+                }
+              : entry
+          )),
+        }));
+
+        return {
+          success: true,
+          message: `Moved ${order.number} / ${scannedItem.description || 'item'} to ${workflow.name} / ${stage.name}.`,
+        };
+      },
       updateCompanySettings: (settings) => set((s) => ({ companySettings: { ...s.companySettings, ...settings } })),
       updateDocumentTemplates: (templates) => set((s) => ({ documentTemplates: { ...s.documentTemplates, ...templates } })),
     }),
@@ -386,4 +436,20 @@ const applyOrderScanDestination = (order: Order, workflowId: string, stageId: st
     updatedAt,
     lineItems: nextLineItems,
   };
+};
+
+const deriveCurrentStageFromItems = (order: Order, workflow: Workflow) => {
+  const stageIds = order.lineItems
+    .map((item) => item.workflowStageId)
+    .filter((stageId): stageId is string => Boolean(stageId));
+
+  if (stageIds.length === 0) {
+    return order.currentStageId;
+  }
+
+  const rankedIds = workflow.stages.slice().sort((a, b) => a.order - b.order).map((stage) => stage.id);
+  return stageIds.reduce((selected, stageId) => {
+    if (!selected) return stageId;
+    return rankedIds.indexOf(stageId) < rankedIds.indexOf(selected) ? stageId : selected;
+  }, order.currentStageId);
 };

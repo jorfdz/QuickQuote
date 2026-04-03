@@ -27,7 +27,7 @@ declare global {
 export const ScannerPage: React.FC = () => {
   const { deviceCode = '' } = useParams<{ deviceCode: string }>();
   const navigate = useNavigate();
-  const { trackingDevices, workflows, orders, processOrderScanToDestination } = useStore();
+  const { trackingDevices, workflows, orders, processOrderScanToDestination, processOrderItemScanToDestination } = useStore();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -39,6 +39,7 @@ export const ScannerPage: React.FC = () => {
   const [message, setMessage] = useState('Point the camera at a Work Order QR code.');
   const [manualValue, setManualValue] = useState('');
   const [lastOrderNumber, setLastOrderNumber] = useState('');
+  const [lastItemDescription, setLastItemDescription] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
   const [jsQrReady, setJsQrReady] = useState(false);
   const [flashActive, setFlashActive] = useState(false);
@@ -204,22 +205,27 @@ export const ScannerPage: React.FC = () => {
     };
   }, [canUseBarcodeDetector, device, jsQrReady]);
 
-  const extractOrderNumber = (value: string) => {
+  const parseScanPayload = (value: string) => {
     const trimmed = value.trim();
-    if (!trimmed) return '';
+    if (!trimmed) return { orderNumber: '', orderItemId: '' };
 
     const directMatch = trimmed.match(/\bO\d{6}\b/i);
-    if (directMatch) return directMatch[0].toUpperCase();
+    if (directMatch) return { orderNumber: directMatch[0].toUpperCase(), orderItemId: '' };
 
     try {
       const url = new URL(trimmed, window.location.origin);
       const pathMatch = url.pathname.match(/\/OrderTracker\/([^/?#]+)/i);
-      if (pathMatch?.[1]) return decodeURIComponent(pathMatch[1]).toUpperCase();
+      if (pathMatch?.[1]) {
+        return {
+          orderNumber: decodeURIComponent(pathMatch[1]).toUpperCase(),
+          orderItemId: url.searchParams.get('itemId') || url.searchParams.get('orderItemId') || '',
+        };
+      }
     } catch {
       // Non-URL raw values are handled by direct match above.
     }
 
-    return '';
+    return { orderNumber: '', orderItemId: '' };
   };
 
   const playSuccessFeedback = async () => {
@@ -256,21 +262,29 @@ export const ScannerPage: React.FC = () => {
   const handleScannedValue = async (rawValue: string) => {
     if (!device || !workflow || !stage) return;
 
-    const orderNumber = extractOrderNumber(rawValue);
+    const { orderNumber, orderItemId } = parseScanPayload(rawValue);
     if (!orderNumber) {
       setStatus('error');
       setMessage('Scanned QR code did not contain a valid Work Order number.');
       return;
     }
 
-    const result = processOrderScanToDestination(workflow.id, stage.id, orderNumber);
+    const result = orderItemId
+      ? processOrderItemScanToDestination(workflow.id, stage.id, orderItemId)
+      : processOrderScanToDestination(workflow.id, stage.id, orderNumber);
     if (!result.success) {
       setStatus('error');
       setMessage(result.message);
       return;
     }
 
+    const scannedOrder = orders.find((item) => item.number.toUpperCase() === orderNumber.toUpperCase()) || null;
+    const scannedItem = orderItemId && scannedOrder
+      ? scannedOrder.lineItems.find((item) => item.id === orderItemId) || null
+      : null;
+
     setLastOrderNumber(orderNumber);
+    setLastItemDescription(scannedItem?.description || '');
     setStatus('success');
     setMessage(`${result.message} Destination: ${workflow.name} / ${stage.name}.`);
     setManualValue('');
@@ -373,7 +387,7 @@ export const ScannerPage: React.FC = () => {
               )}
               <div className="pointer-events-none absolute inset-x-8 top-12 bottom-12 rounded-[28px] border-2 border-white/70 shadow-[0_0_0_999px_rgba(15,23,42,0.18)]" />
               <div className="absolute bottom-4 left-4 right-4 rounded-xl bg-black/45 px-4 py-3 text-xs text-white backdrop-blur">
-                Scan mode moves the entire work order to the selected board and stage.
+                Item QR codes move individual items. Order QR codes move the full work order.
               </div>
             </div>
 
@@ -395,7 +409,7 @@ export const ScannerPage: React.FC = () => {
                 label="Manual QR Value / Order Number"
                 value={manualValue}
                 onChange={e => setManualValue(e.target.value)}
-                placeholder="Paste QR URL or enter order number, e.g. O000123"
+                placeholder="Paste an order QR, item QR, or enter order number"
                 prefix={<Keyboard className="h-3.5 w-3.5" />}
               />
               <Button variant="secondary" className="w-full justify-center" type="submit">
@@ -408,6 +422,7 @@ export const ScannerPage: React.FC = () => {
                 <div className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-500">Last scanned</div>
                 <div className="mt-1 text-sm font-semibold text-blue-900">{scannedOrder.number}</div>
                 <div className="text-sm text-blue-700">{scannedOrder.title}</div>
+                {lastItemDescription && <div className="mt-1 text-xs text-blue-600">Item: {lastItemDescription}</div>}
               </div>
             )}
           </div>
