@@ -294,6 +294,7 @@ export interface CompanySettings {
   defaultBleed: number;
   defaultGutter: number;
   defaultBleedWide: number;
+  openLinksInNewTab: boolean;  // true = open new quotes/orders in new tab (default)
   defaultGutterWide: number;
 }
 

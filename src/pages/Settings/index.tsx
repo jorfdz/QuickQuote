@@ -831,6 +831,38 @@ export const Settings: React.FC = () => {
               </div>
             </div>
           </Card>
+
+          {/* ── Navigation Modality ── */}
+          <Card className="p-6">
+            <h2 className="font-semibold text-gray-900 mb-1">Navigation Behavior</h2>
+            <p className="text-xs text-gray-500 mb-5">Choose how new documents (quotes, orders, etc.) are opened when you click "New Quote", "New Order", or similar actions.</p>
+            <div className="space-y-3">
+              {[
+                { value: true,  label: 'Open in New Tab', desc: 'New quotes and orders open in a separate browser tab. Recommended for multi-tasking.' },
+                { value: false, label: 'Open in Same Tab', desc: 'New quotes and orders replace the current view. Use the back button to return.' },
+              ].map(opt => {
+                const isSelected = (companySettings.openLinksInNewTab ?? true) === opt.value;
+                return (
+                  <button key={String(opt.value)}
+                    onClick={() => updateCompanySettings({ openLinksInNewTab: opt.value })}
+                    className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all ${
+                      isSelected ? 'border-[var(--brand)] bg-[var(--brand-light)]' : 'border-gray-100 hover:border-gray-200 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${isSelected ? 'border-[var(--brand)]' : 'border-gray-300'}`}>
+                        {isSelected && <div className="w-2 h-2 rounded-full bg-[var(--brand)]" />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{opt.label}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{opt.desc}</p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </Card>
         </div>
       )}
 

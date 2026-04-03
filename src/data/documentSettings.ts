@@ -450,6 +450,7 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
   defaultGutter: 0,
   defaultBleedWide: 0.25,
   defaultGutterWide: 0,
+  openLinksInNewTab: true,  // default: open new quotes/orders in new tab
 };
 
 export const DEFAULT_DOCUMENT_TEMPLATES: DocumentTemplates = {
