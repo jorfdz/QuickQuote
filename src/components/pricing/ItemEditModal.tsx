@@ -1123,64 +1123,67 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               {(!isMultiPart || !showMainTab) && (<>
 
               {/* ── Product Search Row ────────────────────────────────── */}
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <label className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Product</label>
-                  {!ps.productId && !ps.productName && (
-                    <span className="text-[9px] font-bold text-[var(--brand)] bg-[var(--brand-light)] px-2 py-0.5 rounded-full uppercase tracking-wide animate-pulse">
-                      Select first ↓
-                    </span>
-                  )}
-                  {(ps.productId || ps.productName) && (
-                    <span className="text-[9px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                      ✓ Selected
-                    </span>
-                  )}
-                </div>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text" value={productQuery}
-                    onChange={e => { setProductQuery(e.target.value); setShowSuggestions(true); if (!e.target.value.trim()) onUpdatePricing({ productId: '', productName: '' }); }}
-                    onFocus={() => productQuery && setShowSuggestions(true)}
-                    placeholder="Type product name (Business Cards, Postcards, Trifold, Brochures...)"
-                    className={`w-full pl-9 pr-8 py-2.5 text-sm rounded-lg focus:outline-none placeholder-gray-400 transition-all ${
-                      !ps.productId && !ps.productName
-                        ? 'bg-[var(--brand-light)] border-2 border-[var(--brand)]/40 focus:ring-2 focus:ring-[var(--brand)] focus:border-[var(--brand)] shadow-sm'
-                        : 'bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-[#F890E7]'
-                    }`}
-                  />
-                  {productQuery && (
-                    <button onClick={() => { setProductQuery(''); onUpdatePricing({ productId: '', productName: '', categoryName: '' }); }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 rounded-full">
-                      <X className="w-3.5 h-3.5 text-gray-400" />
-                    </button>
-                  )}
-                  {showSuggestions && suggestions.length > 0 && !ps.productId && (
-                    <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
-                      {suggestions.map(p => {
-                        const cat = categories.find(c => p.categoryIds.includes(c.id));
-                        return (
-                          <button key={p.id} onClick={() => selectProduct(p)}
-                            className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0">
-                            <div>
-                              <span className="text-sm font-medium text-gray-900">{p.name}</span>
-                              {p.aliases.length > 0 && <span className="text-xs text-gray-400 ml-2">aka {p.aliases.slice(0, 3).join(', ')}</span>}
-                            </div>
-                            <Badge color="gray">{cat?.name}</Badge>
-                          </button>
-                        );
-                      })}
+              {/* Lock-and-prompt logic: only for brand-new items that haven't had a product chosen yet.
+                  Existing items being re-edited are NEVER locked — isNew=false means skip all gating. */}
+              {(() => {
+                const needsProduct = isNew && !ps.productId && !ps.productName;
+                return (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <label className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Product</label>
+                      {/* Only show the prompt badge on brand-new items with no product yet */}
+                      {needsProduct && (
+                        <span className="text-[9px] font-semibold text-[var(--brand)] bg-[var(--brand-light)] px-2 py-0.5 rounded-full uppercase tracking-wide">
+                          Select a product to begin
+                        </span>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text" value={productQuery}
+                        onChange={e => { setProductQuery(e.target.value); setShowSuggestions(true); if (!e.target.value.trim()) onUpdatePricing({ productId: '', productName: '' }); }}
+                        onFocus={() => { setShowSuggestions(true); }}
+                        placeholder="Type product name (Business Cards, Postcards, Trifold, Brochures...)"
+                        className={`w-full pl-9 pr-8 py-2.5 text-sm rounded-lg focus:outline-none placeholder-gray-400 transition-all ${
+                          needsProduct
+                            ? 'bg-[var(--brand-light)] border-2 border-[var(--brand)]/40 focus:ring-2 focus:ring-[var(--brand)] focus:border-[var(--brand)]'
+                            : 'bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-[#F890E7]'
+                        }`}
+                      />
+                      {productQuery && (
+                        <button onClick={() => { setProductQuery(''); onUpdatePricing({ productId: '', productName: '', categoryName: '' }); }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 rounded-full">
+                          <X className="w-3.5 h-3.5 text-gray-400" />
+                        </button>
+                      )}
+                      {showSuggestions && suggestions.length > 0 && (
+                        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+                          {suggestions.map(p => {
+                            const cat = categories.find(c => p.categoryIds.includes(c.id));
+                            return (
+                              <button key={p.id} onClick={() => selectProduct(p)}
+                                className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0">
+                                <div>
+                                  <span className="text-sm font-medium text-gray-900">{p.name}</span>
+                                  {p.aliases.length > 0 && <span className="text-xs text-gray-400 ml-2">aka {p.aliases.slice(0, 3).join(', ')}</span>}
+                                </div>
+                                <Badge color="gray">{cat?.name}</Badge>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
-              {/* Everything below is locked until product is selected */}
-              <div className={!(ps.productId || ps.productName) ? 'opacity-40 pointer-events-none select-none' : ''}>
-              {!(ps.productId || ps.productName) && (
+              {/* Lock the form only for brand-new items before a product is chosen */}
+              <div className={(isNew && !ps.productId && !ps.productName) ? 'opacity-40 pointer-events-none select-none' : ''}>
+              {(isNew && !ps.productId && !ps.productName) && (
                 <div className="text-center py-4 text-sm text-gray-400">
-                  ← Search and select a product above to configure specs and pricing
+                  Search and select a product above to configure specs and pricing
                 </div>
               )}
 
