@@ -8,7 +8,7 @@ import {
 import { useStore } from '../../store';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Textarea, Card, Badge, Modal } from '../../components/ui';
-import type { Order, OrderItem } from '../../types';
+import type { Order, OrderItem, OrderTrackingMode } from '../../types';
 import { formatCurrency } from '../../data/mockData';
 import { nanoid } from '../../utils/nanoid';
 import {
@@ -71,6 +71,7 @@ export const NewOrder: React.FC = () => {
     taxRate: (effectiveBase as any)?.taxRate ?? 7,
     dueDate: '',
     workflowId: workflows[0]?.id || '',
+    trackingMode: ((cloneBase as Order | null)?.trackingMode || 'order') as OrderTrackingMode,
     poNumber: '',
     csrId: (effectiveBase as any)?.csrId || currentUser.id,
     salesId: (effectiveBase as any)?.salesId || '',
@@ -246,35 +247,7 @@ export const NewOrder: React.FC = () => {
   // ── Save ──────────────────────────────────────────────────────────────
   const handleSave = async (andCreateInvoice = false) => {
     setSaving(true);
-    const number = orderNumber;
-    const selectedWorkflow = workflows.find(w => w.id === form.workflowId);
-
-    const order: Order = {
-      id: nanoid(),
-      number,
-      status: form.status,
-      quoteId: sourceQuote?.id,
-      quoteNumber: sourceQuote?.number,
-      customerId: form.customerId || undefined,
-      customerName: selectedCustomer?.name,
-      contactId: form.contactId || undefined,
-      title: form.title || `Order ${number}`,
-      lineItems,
-      subtotal,
-      taxRate: form.taxRate,
-      taxAmount,
-      total,
-      dueDate: form.dueDate || undefined,
-      workflowId: form.workflowId || undefined,
-      currentStageId: selectedWorkflow?.stages[0]?.id,
-      csrId: form.csrId || undefined,
-      salesId: form.salesId || undefined,
-      notes: form.notes || undefined,
-      internalNotes: form.internalNotes || undefined,
-      poNumber: form.poNumber || undefined,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    const order = buildOrderPayload();
     addOrder(order);
 
     // If converting to invoice as well
@@ -309,6 +282,46 @@ export const NewOrder: React.FC = () => {
     await new Promise(r => setTimeout(r, 300));
     setSaving(false);
     navigate(`/orders/${order.id}`);
+  };
+
+  const buildOrderPayload = (customId?: string, customNumber?: string): Order => {
+    const selectedWorkflow = workflows.find(w => w.id === form.workflowId);
+    const stageId = selectedWorkflow?.stages[0]?.id;
+    const id = customId || nanoid();
+    const number = customNumber || orderNumber;
+    const trackingMode = form.trackingMode || 'order';
+    const nextLineItems = lineItems.map((lineItem) => ({
+      ...lineItem,
+      workflowStageId: trackingMode === 'order' ? stageId : (lineItem.workflowStageId || stageId),
+    }));
+
+    return {
+      id,
+      number,
+      status: form.status,
+      quoteId: sourceQuote?.id,
+      quoteNumber: sourceQuote?.number,
+      customerId: form.customerId || undefined,
+      customerName: selectedCustomer?.name,
+      contactId: form.contactId || undefined,
+      title: form.title || `Order ${number}`,
+      lineItems: nextLineItems,
+      subtotal,
+      taxRate: form.taxRate,
+      taxAmount,
+      total,
+      dueDate: form.dueDate || undefined,
+      workflowId: form.workflowId || undefined,
+      currentStageId: stageId,
+      trackingMode,
+      csrId: form.csrId || undefined,
+      salesId: form.salesId || undefined,
+      notes: form.notes || undefined,
+      internalNotes: form.internalNotes || undefined,
+      poNumber: form.poNumber || undefined,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
   };
 
   // ── Filtered templates for sidebar ────────────────────────────────────
@@ -405,12 +418,12 @@ export const NewOrder: React.FC = () => {
                   <FileText className="w-3.5 h-3.5 text-gray-400" />
                   Create Invoice
                 </button>
-                <button onClick={async () => { setShowConvertDropdown(false); setSaving(true); const savedId = nanoid(); addOrder({ id: savedId, number: orderNumber, status: form.status, quoteId: sourceQuote?.id, quoteNumber: sourceQuote?.number, customerId: form.customerId || undefined, customerName: selectedCustomer?.name, contactId: form.contactId || undefined, title: form.title || `Order ${orderNumber}`, lineItems, subtotal, taxRate: form.taxRate, taxAmount, total, dueDate: form.dueDate || undefined, workflowId: form.workflowId || undefined, csrId: form.csrId || undefined, salesId: form.salesId || undefined, notes: form.notes || undefined, internalNotes: form.internalNotes || undefined, poNumber: form.poNumber || undefined, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); await new Promise(r => setTimeout(r, 150)); navigate(`/quotes/new?cloneId=${savedId}&source=order`); }}
+                <button onClick={async () => { setShowConvertDropdown(false); setSaving(true); const savedId = nanoid(); addOrder(buildOrderPayload(savedId, orderNumber)); await new Promise(r => setTimeout(r, 150)); navigate(`/quotes/new?cloneId=${savedId}&source=order`); }}
                   className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 border-t border-gray-100">
                   <Copy className="w-3.5 h-3.5 text-gray-400" />
                   Clone as New Quote
                 </button>
-                <button onClick={async () => { setShowConvertDropdown(false); setSaving(true); const savedId = nanoid(); addOrder({ id: savedId, number: orderNumber, status: form.status, quoteId: sourceQuote?.id, quoteNumber: sourceQuote?.number, customerId: form.customerId || undefined, customerName: selectedCustomer?.name, contactId: form.contactId || undefined, title: form.title || `Order ${orderNumber}`, lineItems, subtotal, taxRate: form.taxRate, taxAmount, total, dueDate: form.dueDate || undefined, workflowId: form.workflowId || undefined, csrId: form.csrId || undefined, salesId: form.salesId || undefined, notes: form.notes || undefined, internalNotes: form.internalNotes || undefined, poNumber: form.poNumber || undefined, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); await new Promise(r => setTimeout(r, 150)); navigate(`/orders/new?cloneOrderId=${savedId}`); }}
+                <button onClick={async () => { setShowConvertDropdown(false); setSaving(true); const savedId = nanoid(); addOrder(buildOrderPayload(savedId, orderNumber)); await new Promise(r => setTimeout(r, 150)); navigate(`/orders/new?cloneOrderId=${savedId}`); }}
                   className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 border-t border-gray-100">
                   <Copy className="w-3.5 h-3.5 text-gray-400" />
                   Clone as New Order
@@ -580,13 +593,63 @@ export const NewOrder: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Line 4: Workflow, CSR, Sales Rep */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-xl border border-gray-200 bg-slate-50/70 p-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Order Tracker Mode</label>
+                      <p className="text-xs text-gray-500">
+                        Decide whether production should move as one order card or as independent item cards before the order is created.
+                      </p>
+                    </div>
+                    <Badge color="blue">{form.trackingMode === 'order' ? 'Single card' : 'Per item'}</Badge>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    {[
+                      {
+                        value: 'order' as const,
+                        title: 'Single Order Card',
+                        description: 'Use one card on the tracker for the whole job. Best when all items move together.',
+                      },
+                      {
+                        value: 'item' as const,
+                        title: 'Track Items Independently',
+                        description: 'Each item gets its own tracker card while the order still keeps an overall production summary.',
+                      },
+                    ].map((option) => {
+                      const selected = form.trackingMode === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setForm((current) => ({ ...current, trackingMode: option.value }))}
+                          className={`rounded-xl border p-3 text-left transition-all ${selected ? 'border-blue-300 bg-white shadow-sm ring-2 ring-blue-100' : 'border-gray-200 bg-white/70 hover:border-gray-300'}`}
+                        >
+                          <div className="text-sm font-semibold text-gray-900">{option.title}</div>
+                          <p className="mt-1 text-xs leading-5 text-gray-500">{option.description}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Line 4: Workflow, Tracking Mode, CSR, Sales Rep */}
+                <div className="grid grid-cols-4 gap-3">
                   <div>
                     <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Production Workflow</label>
                     <select value={form.workflowId} onChange={e => setForm(f => ({ ...f, workflowId: e.target.value }))}
                       className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                       {workflows.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Tracking Mode</label>
+                    <select
+                      value={form.trackingMode}
+                      onChange={e => setForm(f => ({ ...f, trackingMode: e.target.value as OrderTrackingMode }))}
+                      className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="order">Single order card</option>
+                      <option value="item">Track items independently</option>
                     </select>
                   </div>
                   <div>
