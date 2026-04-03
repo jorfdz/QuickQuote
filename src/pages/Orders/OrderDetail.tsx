@@ -1,10 +1,91 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Printer, Receipt, KanbanSquare, Edit3, Trash2, CheckCircle, ChevronDown, ChevronUp, Copy, ArrowRight, ShoppingCart, Plus } from 'lucide-react';
+import { Printer, Receipt, KanbanSquare, Edit3, Trash2, CheckCircle, ChevronDown, ChevronUp, Copy, ArrowRight, ShoppingCart, Plus, Search } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Badge, Card, PageHeader, Select, Tabs, Modal, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
 import type { OrderStatus, OrderItem, OrderTrackingMode } from '../../types';
+
+// ─── Inline editable field (same pattern as QuoteDetail) ─────────────────────
+const OrderInlineField: React.FC<{
+  label: string;
+  value: string;
+  onSave: (v: string) => void;
+  type?: 'text' | 'date';
+  searchable?: boolean;
+  options?: { value: string; label: string }[];
+  placeholder?: string;
+  onAddNew?: () => void;
+}> = ({ label, value, onSave, type = 'text', searchable, options, placeholder, onAddNew }) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [search, setSearch] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const start = () => { setDraft(value); setSearch(value); setEditing(true); setTimeout(() => inputRef.current?.focus(), 0); };
+  const commit = (val?: string) => { onSave(val ?? draft); setEditing(false); };
+
+  const filteredOptions = useMemo(() => {
+    if (!options) return [];
+    if (!search.trim()) return options.slice(0, 8);
+    const q = search.toLowerCase();
+    return options.filter(o => o.label.toLowerCase().includes(q)).slice(0, 8);
+  }, [options, search]);
+
+  if (!editing) {
+    return (
+      <div className="group cursor-pointer hover:bg-gray-50 rounded-md px-2 py-1.5 -mx-2 transition-colors" onClick={start}>
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <p className="text-sm font-medium text-gray-800">{value || <span className="text-gray-300 font-normal italic">Click to set</span>}</p>
+          <Edit3 className="w-3 h-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+      </div>
+    );
+  }
+
+  if (searchable && options) {
+    return (
+      <div className="rounded-md px-2 py-1.5 -mx-2 bg-blue-50/40 border border-blue-100">
+        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">{label}</p>
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+          <input ref={inputRef} value={search} onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') setEditing(false); }}
+            onBlur={() => setTimeout(() => setEditing(false), 200)}
+            placeholder={placeholder || `Search ${label.toLowerCase()}...`}
+            className="w-full pl-6 pr-2 py-1 text-sm bg-white border border-blue-200 rounded text-gray-800 focus:outline-none" autoFocus />
+        </div>
+        {filteredOptions.length > 0 && (
+          <div className="mt-1 max-h-36 overflow-y-auto bg-white border border-gray-200 rounded-md shadow-lg">
+            {filteredOptions.map(o => (
+              <button key={o.value} type="button" onMouseDown={() => commit(o.value)}
+                className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-blue-50 transition-colors">
+                {o.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {onAddNew && (
+          <button type="button" onMouseDown={onAddNew}
+            className="mt-1 flex items-center gap-1 px-2 py-1 text-xs text-[var(--brand)] hover:bg-[var(--brand-light)] rounded w-full transition-colors">
+            <Plus className="w-3 h-3" /> Add new {label.toLowerCase()}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md px-2 py-1.5 -mx-2 bg-blue-50/40 border border-blue-100">
+      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">{label}</p>
+      <input ref={inputRef} type={type} value={draft} onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
+        onBlur={() => commit()} placeholder={placeholder}
+        className="w-full text-sm bg-white border border-blue-200 rounded px-2 py-1 text-gray-800 focus:outline-none" autoFocus />
+    </div>
+  );
+};
 import { nanoid } from '../../utils/nanoid';
 import { buildWorkOrderTemplateHtml } from '../../utils/documentTemplates';
 import {
@@ -305,33 +386,45 @@ export const OrderDetail: React.FC = () => {
         </div>
         {!headerCollapsed && (
           <div className="px-5 pb-4 pt-0 border-t border-gray-100">
-            <div className="grid grid-cols-3 gap-4 mt-4">
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Account Name</p>
-                <p className="text-sm font-medium text-gray-900 mt-1">{order.customerName || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Contact</p>
-                <p className="text-sm font-medium text-gray-900 mt-1">{order.contactName || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</p>
-                <div className="mt-1"><Badge label={order.status} /></div>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Due Date</p>
-                <p className={`text-sm font-medium mt-1 ${order.dueDate && new Date(order.dueDate) < new Date() && order.status === 'in_progress' ? 'text-red-500' : 'text-gray-900'}`}>
-                  {order.dueDate ? formatDate(order.dueDate) : '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">CSR</p>
-                <p className="text-sm font-medium text-gray-900 mt-1">{csr?.name || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Sales Rep</p>
-                <p className="text-sm font-medium text-gray-900 mt-1">{salesRep?.name || '—'}</p>
-              </div>
+            <p className="text-[9px] text-gray-400 mt-3 mb-3 uppercase tracking-widest font-semibold">Click any field to edit · saves automatically</p>
+            <div className="grid grid-cols-3 gap-x-6 gap-y-3 items-start">
+              <OrderInlineField label="Account"
+                value={order.customerName || ''}
+                searchable
+                options={customers.map(c => ({ value: c.id, label: c.name }))}
+                placeholder="Search customers..."
+                onSave={v => { const c = customers.find(x => x.id === v); updateOrder(id!, { customerId: v || undefined, customerName: c?.name, contactId: undefined, contactName: undefined }); }}
+              />
+              <OrderInlineField label="Contact"
+                value={order.contactName || ''}
+                searchable
+                options={contacts.filter(c => c.customerId === order.customerId).map(c => ({ value: c.id, label: `${c.firstName} ${c.lastName}` }))}
+                placeholder="Search contacts..."
+                onSave={v => { const c = contacts.find(x => x.id === v); updateOrder(id!, { contactId: v || undefined, contactName: c ? `${c.firstName} ${c.lastName}` : undefined }); }}
+              />
+              <OrderInlineField label="Due Date" type="date"
+                value={order.dueDate || ''}
+                onSave={v => updateOrder(id!, { dueDate: v || undefined })}
+              />
+              <OrderInlineField label="Title"
+                value={order.title || ''}
+                placeholder="Order title..."
+                onSave={v => updateOrder(id!, { title: v })}
+              />
+              <OrderInlineField label="CSR"
+                value={csr?.name || ''}
+                searchable
+                options={users.filter(u => u.active && ['csr','admin','manager'].includes(u.role)).map(u => ({ value: u.id, label: u.name }))}
+                placeholder="Search CSR..."
+                onSave={v => updateOrder(id!, { csrId: v || undefined })}
+              />
+              <OrderInlineField label="Sales Rep"
+                value={salesRep?.name || ''}
+                searchable
+                options={users.filter(u => u.active && ['sales','admin','manager'].includes(u.role)).map(u => ({ value: u.id, label: u.name }))}
+                placeholder="Search Sales Rep..."
+                onSave={v => updateOrder(id!, { salesId: v || undefined })}
+              />
             </div>
           </div>
         )}

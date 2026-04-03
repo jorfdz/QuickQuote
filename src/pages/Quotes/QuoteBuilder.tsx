@@ -128,7 +128,7 @@ export const QuoteBuilder: React.FC = () => {
         updatedAt: new Date().toISOString(),
       };
       addQuote(draft);
-      navigate(`/quotes/${newId}/edit`, { replace: true });
+      navigate(`/quotes/${newId}`, { replace: true });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -321,6 +321,9 @@ export const QuoteBuilder: React.FC = () => {
   // ═══════════════════════════════════════════════════════════════════════
   // RENDER
   // ═══════════════════════════════════════════════════════════════════════
+  // If not in edit mode, we're in the process of creating the draft and
+  // redirecting to the detail view — render nothing to avoid a flash of the old form
+  if (!isEditMode) return null;
 
   return (
     <div>
