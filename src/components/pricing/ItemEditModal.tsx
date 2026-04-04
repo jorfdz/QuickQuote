@@ -105,6 +105,13 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // On first render, the recompute effect must NOT overwrite existing item fields
   // (e.g. materialName from savedItem) with stale computed values.
   const userChangedPricing = React.useRef(false);
+
+  // Guard: if the item already has computed service lines stored in pricingContext,
+  // skip the initial recompute that fires on mount — it would overwrite manual edits
+  // that were previously made in the breakdown dialog. This ref resets to false the
+  // first time the user changes a fundamental field (material, equipment, quantity, etc.),
+  // at which point a fresh recompute is appropriate.
+  const skipInitialRecompute = React.useRef(ps.serviceLines != null && ps.serviceLines.length > 0);
   const [savedAsTemplate, setSavedAsTemplate] = useState(false);
   const [multiQtyInput, setMultiQtyInput] = useState(String(ps.quantity || 1000));
   // Auto-describe is ON only for brand-new items (no existing description).
@@ -625,8 +632,15 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   useEffect(() => {
     // Never recompute while a row is being edited (would wipe the edit inputs)
     if (editingLineId !== null) return;
-    // Never recompute if there are saved manual overrides
+    // Never recompute if there are saved manual overrides (user manually edited lines in this session)
     if (Object.keys(manualOverrides).length > 0) return;
+    // Never recompute on first mount when service lines were already loaded from pricingContext
+    // (that would wipe manual edits saved in a previous session).
+    // Once the user changes a fundamental (material, equipment, quantity etc.) this guard drops.
+    if (skipInitialRecompute.current) {
+      if (!userChangedPricing.current) return;  // still on initial open — preserve saved lines
+      skipInitialRecompute.current = false;       // user changed something — allow recompute from now on
+    }
 
     const lines = computeServiceLines();
     onUpdatePricing({ serviceLines: lines });
