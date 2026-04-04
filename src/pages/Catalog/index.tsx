@@ -29,7 +29,7 @@ export const Catalog: React.FC = () => {
     categories, products, templates,
     addCategory, updateCategory, deleteCategory,
     addProduct, updateProduct, deleteProduct,
-    deleteTemplate,
+    deleteTemplate, updateTemplate,
   } = usePricingStore();
 
   const [subTab, setSubTab] = useState('categories');
@@ -57,6 +57,12 @@ export const Catalog: React.FC = () => {
   const [tplDeleteConfirm, setTplDeleteConfirm] = useState<string | null>(null);
   const [tplRemoveAllConfirm, setTplRemoveAllConfirm] = useState(false);
   const [tplSearch, setTplSearch] = useState('');
+
+  // ── Template edit modal (ProductEditModal, same as products) ───────────
+  const [tplItemModalOpen, setTplItemModalOpen] = useState(false);
+  const [tplItem, setTplItem] = useState<QuoteLineItem | null>(null);
+  const [tplPricingState, setTplPricingState] = useState<LineItemPricingState>(DEFAULT_PRICING_STATE());
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 
   // ── Derived ────────────────────────────────────────────────────────────
   const productCountByCategory = useMemo(() => {
@@ -89,6 +95,84 @@ export const Catalog: React.FC = () => {
 
   const handleDeleteTemplate = (id: string) => { deleteTemplate(id); setTplDeleteConfirm(null); };
   const handleRemoveAllTemplates = () => { templates.forEach(t => deleteTemplate(t.id)); setTplRemoveAllConfirm(false); };
+
+  const openEditTemplate = (t: typeof templates[number]) => {
+    const item: QuoteLineItem = {
+      id: t.id,
+      productFamily: 'digital_print',
+      description: t.name,
+      quantity: t.quantity,
+      unit: 'each',
+      width: t.finalWidth || undefined,
+      height: t.finalHeight || undefined,
+      materialId: t.materialId,
+      materialName: t.materialName,
+      equipmentId: t.equipmentId,
+      equipmentName: t.equipmentName,
+      totalCost: 0, markup: 0, sellPrice: 0,
+      pricingContext: {
+        productId: t.productId || '',
+        productName: t.productName,
+        categoryName: t.categoryName,
+        quantity: t.quantity,
+        finalWidth: t.finalWidth,
+        finalHeight: t.finalHeight,
+        materialId: t.materialId || '',
+        equipmentId: t.equipmentId || '',
+        colorMode: t.color === 'Black' ? 'Black' : 'Color',
+        sides: t.sides,
+        foldingType: t.folding || '',
+        drillingType: '',
+        cuttingEnabled: true,
+        sheetsPerStack: 500,
+        serviceLines: [],
+      } as Record<string, unknown>,
+    };
+    const ps: LineItemPricingState = {
+      ...DEFAULT_PRICING_STATE(),
+      productId: t.productId || '',
+      productName: t.productName,
+      categoryName: t.categoryName,
+      quantity: t.quantity,
+      finalWidth: t.finalWidth,
+      finalHeight: t.finalHeight,
+      materialId: t.materialId || '',
+      equipmentId: t.equipmentId || '',
+      colorMode: (t.color === 'Black' ? 'Black' : 'Color') as 'Color' | 'Black',
+      sides: t.sides,
+      foldingType: t.folding || '',
+    };
+    setTplItem(item);
+    setTplPricingState(ps);
+    setEditingTemplateId(t.id);
+    setTplItemModalOpen(true);
+  };
+
+  const handleSaveTemplateFromModal = (finalItem: QuoteLineItem, finalPs: LineItemPricingState) => {
+    if (!editingTemplateId) return;
+    const w = finalPs.finalWidth || finalItem.width || 0;
+    const h = finalPs.finalHeight || finalItem.height || 0;
+    updateTemplate(editingTemplateId, {
+      name: finalItem.description || finalPs.productName || 'Template',
+      categoryId: categories.find(c => c.name === finalPs.categoryName)?.id || '',
+      categoryName: finalPs.categoryName,
+      productId: finalPs.productId || undefined,
+      productName: finalPs.productName,
+      quantity: finalPs.quantity || finalItem.quantity,
+      finalWidth: w,
+      finalHeight: h,
+      materialId: finalPs.materialId || finalItem.materialId || undefined,
+      materialName: finalItem.materialName || undefined,
+      equipmentId: finalPs.equipmentId || finalItem.equipmentId || undefined,
+      equipmentName: finalItem.equipmentName || undefined,
+      color: finalPs.colorMode,
+      sides: finalPs.sides,
+      folding: finalPs.foldingType || undefined,
+    });
+    setTplItemModalOpen(false);
+    setTplItem(null);
+    setEditingTemplateId(null);
+  };
 
 
   // ── Category handlers ──────────────────────────────────────────────────
@@ -370,34 +454,39 @@ export const Catalog: React.FC = () => {
         <Card>
           <Table headers={['Name', 'Product', 'Category', 'Qty', 'Size', 'Material', 'Color', 'Sides', 'Used', 'Actions']}>
             {filteredTemplates.map(t => (
-              <tr key={t.id} className="hover:bg-gray-50">
+              <tr key={t.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => openEditTemplate(t)}>
                 <td className="py-2.5 px-4 font-medium text-sm text-gray-900">{t.name}</td>
                 <td className="py-2.5 px-4 text-sm text-gray-600">{t.productName}</td>
                 <td className="py-2.5 px-4">
                   <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{t.categoryName || '--'}</span>
                 </td>
                 <td className="py-2.5 px-4 text-sm text-gray-600">{t.quantity.toLocaleString()}</td>
-                <td className="py-2.5 px-4 text-xs text-gray-600">{t.finalWidth}x{t.finalHeight}</td>
+                <td className="py-2.5 px-4 text-xs text-gray-600">{t.finalWidth && t.finalHeight ? `${t.finalWidth}x${t.finalHeight}` : '--'}</td>
                 <td className="py-2.5 px-4 text-xs text-gray-500 max-w-[120px] truncate">{t.materialName || '--'}</td>
                 <td className="py-2.5 px-4 text-xs text-gray-600">{t.color}</td>
                 <td className="py-2.5 px-4 text-xs text-gray-600">{t.sides}</td>
                 <td className="py-2.5 px-4 text-xs text-gray-400">{t.usageCount}x</td>
-                <td className="py-2.5 px-4">
-                  {tplDeleteConfirm === t.id ? (
-                    <div className="flex gap-1 items-center">
-                      <button onClick={() => handleDeleteTemplate(t.id)} className="px-2 py-0.5 text-xs bg-red-600 text-white rounded">Delete</button>
-                      <button onClick={() => setTplDeleteConfirm(null)} className="px-2 py-0.5 text-xs text-gray-500">Cancel</button>
-                    </div>
-                  ) : (
-                    <button onClick={() => setTplDeleteConfirm(t.id)} className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-600">
-                      <Trash2 className="w-3.5 h-3.5" />
+                <td className="py-2.5 px-4" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => openEditTemplate(t)} className="p-1.5 hover:bg-blue-50 rounded text-gray-400 hover:text-blue-600" title="Edit template">
+                      <Pencil className="w-3.5 h-3.5" />
                     </button>
-                  )}
+                    {tplDeleteConfirm === t.id ? (
+                      <div className="flex gap-1 items-center">
+                        <button onClick={() => handleDeleteTemplate(t.id)} className="px-2 py-0.5 text-xs bg-red-600 text-white rounded">Delete</button>
+                        <button onClick={() => setTplDeleteConfirm(null)} className="px-2 py-0.5 text-xs text-gray-500">Cancel</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setTplDeleteConfirm(t.id)} className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-600">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
             {filteredTemplates.length === 0 && (
-              <tr><td colSpan={10} className="py-12 text-center text-sm text-gray-400">No templates found. Create one to get started.</td></tr>
+              <tr><td colSpan={10} className="py-12 text-center text-sm text-gray-400">No templates found. Star an item inside a quote to create one.</td></tr>
             )}
           </Table>
         </Card>
@@ -426,7 +515,7 @@ export const Catalog: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ══ Full ProductEditModal (same as quotes/orders) for adding/editing products ══ */}
+      {/* ══ Full ProductEditModal for adding/editing products ══ */}
       {prodItemModalOpen && prodItem && (
         <ProductEditModal
           item={prodItem}
@@ -439,7 +528,6 @@ export const Catalog: React.FC = () => {
             setProdPricingState(prev => ({ ...prev, ...updates }));
           }}
           onClose={() => {
-            // Save current state to product
             if (prodItem) {
               handleSaveProductFromModal(prodItem, prodPricingState);
             } else {
@@ -449,6 +537,37 @@ export const Catalog: React.FC = () => {
           onRemove={() => {
             setProdItemModalOpen(false);
             setProdItem(null);
+          }}
+          matchingTemplates={[]}
+          onApplyTemplate={() => {}}
+        />
+      )}
+
+      {/* ══ Full ProductEditModal for editing item templates ══ */}
+      {tplItemModalOpen && tplItem && (
+        <ProductEditModal
+          item={tplItem}
+          pricingState={tplPricingState}
+          isNew={false}
+          onUpdateItem={updates => {
+            setTplItem(prev => prev ? { ...prev, ...updates } : prev);
+          }}
+          onUpdatePricing={updates => {
+            setTplPricingState(prev => ({ ...prev, ...updates }));
+          }}
+          onClose={() => {
+            if (tplItem) {
+              handleSaveTemplateFromModal(tplItem, tplPricingState);
+            } else {
+              setTplItemModalOpen(false);
+            }
+          }}
+          onRemove={() => {
+            // Remove template on trash button inside modal
+            if (editingTemplateId) deleteTemplate(editingTemplateId);
+            setTplItemModalOpen(false);
+            setTplItem(null);
+            setEditingTemplateId(null);
           }}
           matchingTemplates={[]}
           onApplyTemplate={() => {}}
