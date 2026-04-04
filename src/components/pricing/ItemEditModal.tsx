@@ -2155,6 +2155,19 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
   });
   const [timeErrors, setTimeErrors] = useState<Record<string, boolean>>({});
 
+  // ── Totals row editing state ──────────────────────────────────────────
+  const [totalMarkupInput, setTotalMarkupInput] = useState<string | null>(null);
+  const [totalSellInput, setTotalSellInput]     = useState<string | null>(null);
+  const [totalMarkupError, setTotalMarkupError] = useState(false);
+  const [totalSellError, setTotalSellError]     = useState(false);
+
+  // Derived totals — always computed from live localLines
+  const totalCost   = localLines.reduce((s, l) => s + l.totalCost, 0);
+  const totalSell   = localLines.reduce((s, l) => s + l.sellPrice, 0);
+  const totalMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
+  const marginPct   = totalSell > 0 ? ((totalSell - totalCost) / totalSell) * 100 : 0;
+
+  // ── Per-line field update ─────────────────────────────────────────────
   const updateField = (id: string, field: 'totalCost' | 'markupPercent' | 'sellPrice', raw: string) => {
     const val = parseFloat(raw);
     if (isNaN(val)) return;
@@ -2162,17 +2175,45 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
       if (l.id !== id) return l;
       if (field === 'totalCost') {
         const mk = val > 0 ? ((l.sellPrice - val) / val) * 100 : l.markupPercent;
-        return { ...l, totalCost: val, markupPercent: parseFloat(mk.toFixed(2)) };
+        return { ...l, totalCost: val, markupPercent: parseFloat(mk.toFixed(3)) };
       }
       if (field === 'markupPercent') {
         return { ...l, markupPercent: val, sellPrice: parseFloat((l.totalCost * (1 + val / 100)).toFixed(4)) };
       }
       if (field === 'sellPrice') {
         const mk = l.totalCost > 0 ? ((val - l.totalCost) / l.totalCost) * 100 : 0;
-        return { ...l, sellPrice: val, markupPercent: parseFloat(mk.toFixed(2)) };
+        return { ...l, sellPrice: val, markupPercent: parseFloat(mk.toFixed(3)) };
       }
       return l;
     }));
+  };
+
+  // ── Totals-row: scale all lines proportionally by markup ──────────────
+  const applyTotalMarkup = (raw: string) => {
+    const newMarkup = parseFloat(raw);
+    if (isNaN(newMarkup)) { setTotalMarkupError(true); return; }
+    setTotalMarkupError(false);
+    setLocalLines(prev => prev.map(l => {
+      const newSell = parseFloat((l.totalCost * (1 + newMarkup / 100)).toFixed(4));
+      return { ...l, markupPercent: parseFloat(newMarkup.toFixed(3)), sellPrice: newSell };
+    }));
+    setTotalMarkupInput(null);
+  };
+
+  // ── Totals-row: scale all sell prices proportionally to reach new total ─
+  const applyTotalSell = (raw: string) => {
+    const newTotal = parseFloat(raw);
+    if (isNaN(newTotal) || newTotal < 0) { setTotalSellError(true); return; }
+    setTotalSellError(false);
+    const currentTotal = localLines.reduce((s, l) => s + l.sellPrice, 0);
+    if (currentTotal === 0) return;
+    const ratio = newTotal / currentTotal;
+    setLocalLines(prev => prev.map(l => {
+      const newSell = parseFloat((l.sellPrice * ratio).toFixed(4));
+      const mk = l.totalCost > 0 ? ((newSell - l.totalCost) / l.totalCost) * 100 : 0;
+      return { ...l, sellPrice: newSell, markupPercent: parseFloat(mk.toFixed(3)) };
+    }));
+    setTotalSellInput(null);
   };
 
   const commitTimeInput = (id: string) => {
@@ -2189,13 +2230,22 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
     setTimeInputs(t => ({ ...t, [id]: fmtHours(h) }));
   };
 
-  const totalCost = localLines.reduce((s, l) => s + l.totalCost, 0);
-  const totalSell = localLines.reduce((s, l) => s + l.sellPrice, 0);
-  const totalMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
-  const marginPct   = totalSell > 0 ? ((totalSell - totalCost) / totalSell) * 100 : 0;
+  // Helper: format a number for display in an input (no trailing zeros beyond 4 dp)
+  const fmtNum = (n: number, dp = 4) => {
+    if (n === 0) return '0';
+    // Trim trailing zeros after decimal
+    return parseFloat(n.toFixed(dp)).toString();
+  };
 
   const inp = (extra = '') =>
     `w-full px-2 py-1.5 text-xs text-right num bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] focus:border-transparent transition-colors ${extra}`;
+
+  const totInp = (hasError: boolean, extra = '') =>
+    `w-full px-2 py-1.5 text-xs text-right num border rounded-lg focus:outline-none focus:ring-2 transition-colors font-bold ${
+      hasError
+        ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300'
+        : 'border-emerald-300 bg-emerald-50 text-emerald-800 focus:ring-emerald-300'
+    } ${extra}`;
 
   const thCls = 'py-1.5 px-2 text-[9px] font-semibold text-gray-400 uppercase tracking-wide text-right';
   const tdCls = 'py-2 px-2';
@@ -2213,7 +2263,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
           <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
             <DollarSign className="w-4 h-4 text-emerald-500" />
             Edit Price Breakdown
-            <span className="text-[10px] font-normal text-gray-400 ml-1">— click any field to edit</span>
+            <span className="text-[10px] font-normal text-gray-400 ml-1">— click any field to edit · edit totals row to scale all lines proportionally</span>
           </h2>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
             <X className="w-4 h-4 text-gray-400" />
@@ -2222,21 +2272,21 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
 
         {/* ── Table ── */}
         <div className="overflow-x-auto overflow-y-auto flex-1">
-          <table className="w-full text-xs border-collapse min-w-[860px]">
+          <table className="w-full text-xs border-collapse min-w-[900px]">
 
             {/* Column group headers */}
             <colgroup>
-              <col style={{ width: '13%' }} /> {/* Service */}
-              <col style={{ width: '18%' }} /> {/* Description */}
+              <col style={{ width: '11%' }} /> {/* Service */}
+              <col style={{ width: '16%' }} /> {/* Description */}
               {/* TIME group */}
+              <col style={{ width: '6%' }} />
               <col style={{ width: '6%' }} />
               <col style={{ width: '7%' }} />
               <col style={{ width: '7%' }} />
-              <col style={{ width: '7%' }} />
               {/* PRICING group */}
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '8%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '9%' }} />
               <col style={{ width: '9%' }} />
               <col style={{ width: '9%' }} />
             </colgroup>
@@ -2264,12 +2314,12 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                 <th className={`${thCls} text-left`}>Description</th>
                 {/* TIME cols */}
                 <th className={`${thCls} bg-sky-50 border-l border-sky-200`}>Rate/hr</th>
-                <th className={`${thCls} bg-sky-50`}>Calc. Time</th>
-                <th className={`${thCls} bg-sky-50`}>Charge Time</th>
-                <th className={`${thCls} bg-sky-50`}>Time Cost</th>
+                <th className={`${thCls} bg-sky-50`}>Calc.</th>
+                <th className={`${thCls} bg-sky-50`}>Charge</th>
+                <th className={`${thCls} bg-sky-50`}>Time $</th>
                 {/* PRICING cols */}
                 <th className={`${thCls} bg-violet-50 border-l border-violet-200`}>Qty</th>
-                <th className={`${thCls} bg-violet-50`}>Unit Cost</th>
+                <th className={`${thCls} bg-violet-50`}>Unit $</th>
                 <th className={`${thCls} bg-violet-50`}>Cost $</th>
                 <th className={`${thCls} bg-violet-50`}>Markup %</th>
                 <th className={`${thCls} bg-violet-50 pr-4`}>Sell Price</th>
@@ -2290,7 +2340,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                     <td className={`${tdCls} pl-4`}>
                       <div className="flex items-center gap-1.5">
                         <span className={`w-2.5 h-2.5 rounded-sm flex-shrink-0 ${accent.dot}`} />
-                        <span className="font-semibold text-gray-800">{line.service}</span>
+                        <span className="font-semibold text-gray-800 whitespace-nowrap">{line.service}</span>
                       </div>
                     </td>
 
@@ -2303,14 +2353,14 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                     {/* Rate/hr */}
                     <td className={`${tdCls} bg-sky-50/40 border-l border-sky-100 text-right num`}>
                       {timeBased
-                        ? <span className="text-sky-700 font-medium">{formatCurrency(line.hourlyCost!)}/hr</span>
+                        ? <span className="text-sky-700 font-medium whitespace-nowrap">{formatCurrency(line.hourlyCost!)}/hr</span>
                         : <span className={dimCls}>—</span>
                       }
                     </td>
                     {/* Calc Time (read-only) */}
                     <td className={`${tdCls} bg-sky-50/40 text-right num`}>
                       {timeBased
-                        ? <span className="text-gray-500">{fmtHours(line.hoursActual!)}</span>
+                        ? <span className="text-gray-500 whitespace-nowrap">{fmtHours(line.hoursActual!)}</span>
                         : <span className={dimCls}>—</span>
                       }
                     </td>
@@ -2334,7 +2384,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                     {/* Time Cost */}
                     <td className={`${tdCls} bg-sky-50/40 text-right num`}>
                       {timeBased
-                        ? <span className="text-sky-800 font-medium">{formatCurrency(line.totalCost)}</span>
+                        ? <span className="text-sky-800 font-medium whitespace-nowrap">{formatCurrency(line.totalCost)}</span>
                         : <span className={dimCls}>—</span>
                       }
                     </td>
@@ -2343,22 +2393,22 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                     {/* Qty */}
                     <td className={`${tdCls} bg-violet-50/30 border-l border-violet-100 text-right num`}>
                       {qtyBased && line.quantity != null
-                        ? <span className="text-gray-600">{line.quantity.toLocaleString()}<span className="text-[9px] text-gray-400 ml-0.5">{line.unit}</span></span>
+                        ? <span className="text-gray-600 whitespace-nowrap">{line.quantity.toLocaleString()}<span className="text-[9px] text-gray-400 ml-0.5">{line.unit}</span></span>
                         : <span className={dimCls}>—</span>
                       }
                     </td>
                     {/* Unit Cost */}
                     <td className={`${tdCls} bg-violet-50/30 text-right num`}>
                       {(qtyBased || line.service === 'Setup') && line.unitCost > 0
-                        ? <span className="text-gray-600">{formatCurrency(line.unitCost)}</span>
+                        ? <span className="text-gray-600 whitespace-nowrap">{formatCurrency(line.unitCost)}</span>
                         : <span className={dimCls}>—</span>
                       }
                     </td>
                     {/* Cost (editable) */}
                     <td className={`${tdCls} bg-violet-50/30`}>
                       <input
-                        type="number" step="0.01" min="0"
-                        value={line.totalCost}
+                        type="number" step="any" min="0"
+                        value={fmtNum(line.totalCost)}
                         onChange={e => updateField(line.id, 'totalCost', e.target.value)}
                         className={inp('text-gray-700')}
                       />
@@ -2367,8 +2417,8 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                     <td className={`${tdCls} bg-violet-50/30`}>
                       <div className="relative">
                         <input
-                          type="number" step="0.1"
-                          value={line.markupPercent}
+                          type="number" step="any"
+                          value={fmtNum(line.markupPercent, 3)}
                           onChange={e => updateField(line.id, 'markupPercent', e.target.value)}
                           className={`${inp()} pr-5 ${line.markupPercent > 0 ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}
                         />
@@ -2378,8 +2428,8 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                     {/* Sell Price (editable) */}
                     <td className={`${tdCls} bg-violet-50/30 pr-4`}>
                       <input
-                        type="number" step="0.01" min="0"
-                        value={line.sellPrice}
+                        type="number" step="any" min="0"
+                        value={fmtNum(line.sellPrice)}
                         onChange={e => updateField(line.id, 'sellPrice', e.target.value)}
                         className={inp('font-bold text-gray-900')}
                       />
@@ -2389,10 +2439,15 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
               })}
             </tbody>
 
-            {/* Totals row */}
+            {/* Totals row — editable markup % and sell price */}
             <tfoot>
-              <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
-                <td className="py-2.5 pl-4 text-[10px] text-gray-600 uppercase tracking-wide" colSpan={2}>Total</td>
+              <tr className="border-t-2 border-gray-200 bg-emerald-50/40 font-semibold">
+                <td className="py-2.5 pl-4 text-[10px] text-gray-600 uppercase tracking-wide" colSpan={2}>
+                  <div className="flex items-center gap-1.5">
+                    <span>Total</span>
+                    <span className="text-[9px] font-normal text-gray-400 normal-case">— edit markup % or price to scale all lines</span>
+                  </div>
+                </td>
                 {/* TIME cols — sum of time costs */}
                 <td className="py-2.5 px-2 bg-sky-50/60 border-l border-sky-100" colSpan={2} />
                 <td className="py-2.5 px-2 bg-sky-50/60 text-right num text-[10px] text-sky-600">
@@ -2403,16 +2458,66 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                 </td>
                 {/* PRICING cols */}
                 <td className="py-2.5 px-2 bg-violet-50/60 border-l border-violet-100" colSpan={2} />
-                <td className="py-2.5 px-2 bg-violet-50/60 text-right num text-gray-700">
+                {/* Total Cost — read-only */}
+                <td className="py-2.5 px-2 bg-violet-50/60 text-right num text-gray-800 font-bold">
                   {formatCurrency(totalCost)}
                 </td>
-                <td className="py-2.5 px-2 bg-violet-50/60 text-right num">
-                  <span className={totalMarkup > 0 ? 'text-emerald-700 font-bold' : 'text-gray-400'}>
-                    {totalMarkup.toFixed(1)}%
-                  </span>
+                {/* Total Markup % — editable, scales all lines */}
+                <td className="py-1.5 px-2 bg-violet-50/60">
+                  <div className="relative">
+                    {totalMarkupInput !== null ? (
+                      <input
+                        type="number" step="any" autoFocus
+                        value={totalMarkupInput}
+                        onChange={e => { setTotalMarkupInput(e.target.value); setTotalMarkupError(false); }}
+                        onBlur={e => applyTotalMarkup(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') applyTotalMarkup((e.target as HTMLInputElement).value);
+                          if (e.key === 'Escape') { setTotalMarkupInput(null); setTotalMarkupError(false); }
+                        }}
+                        className={`${totInp(totalMarkupError)} pr-5`}
+                        placeholder="e.g. 80"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setTotalMarkupInput(fmtNum(totalMarkup, 3))}
+                        title="Click to scale all line markups proportionally"
+                        className="w-full px-2 py-1.5 text-xs text-right num font-bold rounded-lg border border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50 transition-colors text-emerald-700"
+                      >
+                        {totalMarkup.toFixed(3)}%
+                      </button>
+                    )}
+                    {totalMarkupInput !== null && (
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-emerald-500 pointer-events-none">%</span>
+                    )}
+                  </div>
                 </td>
-                <td className="py-2.5 px-2 pr-4 bg-violet-50/60 text-right num font-bold text-gray-900 text-sm">
-                  {formatCurrency(totalSell)}
+                {/* Total Sell Price — editable, scales all lines */}
+                <td className="py-1.5 px-2 pr-4 bg-violet-50/60">
+                  {totalSellInput !== null ? (
+                    <input
+                      type="number" step="any" min="0" autoFocus
+                      value={totalSellInput}
+                      onChange={e => { setTotalSellInput(e.target.value); setTotalSellError(false); }}
+                      onBlur={e => applyTotalSell(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') applyTotalSell((e.target as HTMLInputElement).value);
+                        if (e.key === 'Escape') { setTotalSellInput(null); setTotalSellError(false); }
+                      }}
+                      className={totInp(totalSellError, 'text-base')}
+                      placeholder="e.g. 40.00"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setTotalSellInput(fmtNum(totalSell))}
+                      title="Click to scale all line sell prices proportionally"
+                      className="w-full px-2 py-1.5 text-sm text-right num font-bold rounded-lg border border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50 transition-colors text-gray-900"
+                    >
+                      {formatCurrency(totalSell)}
+                    </button>
+                  )}
                 </td>
               </tr>
             </tfoot>
@@ -2432,7 +2537,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
               Margin: <span className={`font-bold ${marginPct >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{marginPct.toFixed(1)}%</span>
             </span>
           </div>
-          <span className="text-[10px] text-gray-400 hidden md:block">Charge Time column accepts: <code className="bg-gray-100 px-1 rounded">45m · 1h · 1h 30m</code></span>
+          <span className="text-[10px] text-gray-400 hidden md:block">Charge Time: <code className="bg-gray-100 px-1 rounded">45m · 1h · 1h 30m</code> · Totals row: click to scale all lines</span>
         </div>
 
         {/* ── Footer ── */}

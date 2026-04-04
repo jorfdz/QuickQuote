@@ -65,6 +65,9 @@ export interface PricingProduct {
   defaultFolding?: string;         // e.g. "Tri-Fold", "Bi-Fold"
   isTemplate: boolean;             // whether this product is starred as a template
   defaultFinishingIds?: string[];   // default finishing services for this product
+  // Full pricing state snapshot — persists ALL modal state including labor, brokered,
+  // service lines, markups, overrides. Used to restore the modal exactly on re-open.
+  defaultPricingContext?: Record<string, unknown>;
   createdAt: string;
 }
 

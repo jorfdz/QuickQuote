@@ -174,6 +174,12 @@ export const Catalog: React.FC = () => {
     setEditingTemplateId(null);
   };
 
+  // Also sync prodPricingState on every onUpdatePricing so the latest state is always
+  // available to handleSaveProductFromModal when Done is clicked
+  const handleProdUpdatePricing = (updates: Partial<LineItemPricingState>) => {
+    setProdPricingState(prev => ({ ...prev, ...updates }));
+  };
+
 
   // ── Category handlers ──────────────────────────────────────────────────
   const openAddCategory = () => { setCatForm(blankCategory()); setCatEditId(null); setCatModalOpen(true); };
@@ -204,22 +210,25 @@ export const Catalog: React.FC = () => {
   };
 
   const openEditProduct = (p: PricingProduct) => {
-    // Build a synthetic QuoteLineItem from the product defaults
+    // If a full pricing context was previously saved, restore it directly — this preserves
+    // ALL modal state: labor, brokered, service lines, markup overrides, etc.
+    const savedCtx = p.defaultPricingContext as Partial<LineItemPricingState> | undefined;
+
     const item: QuoteLineItem = {
       id: p.id,
       productFamily: 'digital_print',
       description: p.name,
-      quantity: p.defaultQuantity,
+      quantity: savedCtx?.quantity ?? p.defaultQuantity,
       unit: 'each',
-      width: p.defaultFinalWidth || undefined,
-      height: p.defaultFinalHeight || undefined,
-      materialId: p.defaultMaterialId || undefined,
+      width: (savedCtx?.finalWidth || p.defaultFinalWidth) || undefined,
+      height: (savedCtx?.finalHeight || p.defaultFinalHeight) || undefined,
+      materialId: (savedCtx?.materialId || p.defaultMaterialId) || undefined,
       materialName: p.defaultMaterialName || undefined,
-      equipmentId: p.defaultEquipmentId || undefined,
+      equipmentId: (savedCtx?.equipmentId || p.defaultEquipmentId) || undefined,
       equipmentName: p.defaultEquipmentName || undefined,
       totalCost: 0, markup: 0, sellPrice: 0,
-      // Restore pricingContext so the modal loads material/equipment correctly
-      pricingContext: {
+      // Use saved context as pricingContext so the modal's 3-tier restore picks it up
+      pricingContext: savedCtx ? { ...savedCtx } : {
         productName: p.name,
         quantity: p.defaultQuantity,
         finalWidth: p.defaultFinalWidth,
@@ -233,21 +242,27 @@ export const Catalog: React.FC = () => {
         cuttingEnabled: true,
         sheetsPerStack: 500,
         serviceLines: [],
+        selectedLaborIds: [],
+        selectedBrokeredIds: [],
       } as Record<string, unknown>,
     };
-    // Build the pricingState from the product's saved defaults
-    const ps: LineItemPricingState = {
-      ...DEFAULT_PRICING_STATE(),
-      productName: p.name,
-      quantity: p.defaultQuantity,
-      finalWidth: p.defaultFinalWidth,
-      finalHeight: p.defaultFinalHeight,
-      materialId: p.defaultMaterialId || '',
-      equipmentId: p.defaultEquipmentId || '',
-      colorMode: p.defaultColor === 'Black' ? 'Black' : 'Color',
-      sides: p.defaultSides,
-      foldingType: p.defaultFolding || '',
-    };
+
+    // Build the pricing state — prefer saved context so all fields including labor/brokered are restored
+    const ps: LineItemPricingState = savedCtx
+      ? { ...DEFAULT_PRICING_STATE(), ...savedCtx }
+      : {
+          ...DEFAULT_PRICING_STATE(),
+          productName: p.name,
+          quantity: p.defaultQuantity,
+          finalWidth: p.defaultFinalWidth,
+          finalHeight: p.defaultFinalHeight,
+          materialId: p.defaultMaterialId || '',
+          equipmentId: p.defaultEquipmentId || '',
+          colorMode: p.defaultColor === 'Black' ? 'Black' : 'Color',
+          sides: p.defaultSides,
+          foldingType: p.defaultFolding || '',
+        };
+
     setProdItem(item);
     setProdPricingState(ps);
     setProdItemEditId(p.id);
@@ -268,12 +283,10 @@ export const Catalog: React.FC = () => {
     });
   };
 
-  // Save from the full ProductEditModal (new path)
+  // Save from the full ProductEditModal
   const handleSaveProductFromModal = (finalItem: QuoteLineItem, finalPs: LineItemPricingState) => {
-    // Derive product defaults from the fully configured item
     const w = finalPs.finalWidth || finalItem.width || 0;
     const h = finalPs.finalHeight || finalItem.height || 0;
-    // Determine category: for edits preserve existing, for adds use current filter or first available
     let categoryIds: string[] = [];
     if (prodItemEditId) {
       categoryIds = products.find(p => p.id === prodItemEditId)?.categoryIds || [];
@@ -299,6 +312,10 @@ export const Catalog: React.FC = () => {
       defaultFolding: finalPs.foldingType || undefined,
       isTemplate: false,
       defaultFinishingIds: [],
+      // ── Full pricing context — persists ALL modal state so it's restored exactly on re-open ──
+      // This is the critical fix: without this, labor/brokered services, service line overrides,
+      // markup edits, and all other modal state are lost when the user navigates away.
+      defaultPricingContext: { ...finalPs } as Record<string, unknown>,
     };
     if (prodItemEditId) {
       updateProduct(prodItemEditId, productDefaults);
