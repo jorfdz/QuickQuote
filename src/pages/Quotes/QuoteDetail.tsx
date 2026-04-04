@@ -707,9 +707,20 @@ export const QuoteDetail: React.FC = () => {
             }}
             onClose={() => {
               const finalPs = pricingStatesRef.current[editingItemId] || getPricingState(editingItemId);
-              const finalItems = currentItemsRef.current.map((i: any) =>
-                i.id === editingItemId ? { ...i, pricingContext: { ...finalPs } } : i
-              );
+              // Always derive totalCost / sellPrice from the live service lines so the quote
+              // list shows the correct total even when the recompute effect never called onUpdateItem
+              // (e.g. when a product was loaded from catalog defaultPricingContext).
+              const slTotalCost = finalPs.serviceLines?.reduce((s: number, l: any) => s + (l.totalCost || 0), 0) ?? 0;
+              const slTotalSell = finalPs.serviceLines?.reduce((s: number, l: any) => s + (l.sellPrice || 0), 0) ?? 0;
+              const slMarkup = slTotalCost > 0 ? Math.round(((slTotalSell - slTotalCost) / slTotalCost) * 100) : 0;
+              const finalItems = currentItemsRef.current.map((i: any) => {
+                if (i.id !== editingItemId) return i;
+                const base = { ...i, pricingContext: { ...finalPs } };
+                if (slTotalSell > 0) {
+                  return { ...base, totalCost: slTotalCost, sellPrice: slTotalSell, markup: slMarkup };
+                }
+                return base;
+              });
               persistItems(finalItems);
               setEditingItemId(null);
             }}

@@ -965,11 +965,21 @@ export const OrderDetail: React.FC = () => {
               });
             }}
             onClose={() => {
-              // Write final pricingContext to the item and persist to store
+              // Write final pricingContext to the item and persist to store.
+              // Always derive totalCost/sellPrice from live service lines so the order
+              // list shows the correct total even when the recompute effect never called onUpdateItem.
               const finalPs = pricingStatesRef.current[editingItemModal] || getPricingState(editingItemModal);
-              const finalItems = currentItemsRef.current.map((i: any) =>
-                i.id === editingItemModal ? { ...i, pricingContext: { ...finalPs } } : i
-              );
+              const slTotalCost = finalPs.serviceLines?.reduce((s: number, l: any) => s + (l.totalCost || 0), 0) ?? 0;
+              const slTotalSell = finalPs.serviceLines?.reduce((s: number, l: any) => s + (l.sellPrice || 0), 0) ?? 0;
+              const slMarkup = slTotalCost > 0 ? Math.round(((slTotalSell - slTotalCost) / slTotalCost) * 100) : 0;
+              const finalItems = currentItemsRef.current.map((i: any) => {
+                if (i.id !== editingItemModal) return i;
+                const base = { ...i, pricingContext: { ...finalPs } };
+                if (slTotalSell > 0) {
+                  return { ...base, totalCost: slTotalCost, sellPrice: slTotalSell, markup: slMarkup };
+                }
+                return base;
+              });
               persistOrderItems(finalItems);
               setEditingItemModal(null);
             }}
