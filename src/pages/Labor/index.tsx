@@ -522,14 +522,33 @@ export const Labor: React.FC = () => {
           {/* ── RATE CARD ── */}
           {form.pricingMode === 'rate_card' && (() => {
             const basisOpt = LABOR_BASIS_OPTIONS.find(b => b.value === form.chargeBasis) ?? LABOR_BASIS_OPTIONS[0];
+            const isHourly = form.chargeBasis === 'per_hour';
             return (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-4">
                   <Input label={basisOpt.costLabel} type="number" value={form.hourlyCost || ''}
                     onChange={e => setForm(f => ({ ...f, hourlyCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
-                  {form.chargeBasis === 'per_hour' && (
-                    <Input label="Units Per Hour" type="number" value={form.outputPerHour || ''}
-                      onChange={e => setForm(f => ({ ...f, outputPerHour: parseFloat(e.target.value) || 0 }))} />
+                  {isHourly && (
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                        <Tooltip
+                          label="Production Rate (units/hr)"
+                          tip="How many units this service can handle per hour. Converts job quantity into billable hours."
+                        />
+                      </label>
+                      <input
+                        type="number"
+                        value={form.outputPerHour || ''}
+                        onChange={e => setForm(f => ({ ...f, outputPerHour: parseFloat(e.target.value) || 0 }))}
+                        placeholder="e.g. 500"
+                        className={`w-full px-3 py-1.5 text-sm bg-white border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                          !form.outputPerHour ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'
+                        }`}
+                      />
+                      {!form.outputPerHour && (
+                        <p className="text-[10px] text-amber-600 mt-0.5">Required to calculate job hours</p>
+                      )}
+                    </div>
                   )}
                 </div>
                 {/* Sell Rate section */}
@@ -606,54 +625,95 @@ export const Labor: React.FC = () => {
           {/* ── COST + MARKUP ── */}
           {form.pricingMode === 'cost_markup' && (() => {
             const basisOpt = LABOR_BASIS_OPTIONS.find(b => b.value === form.chargeBasis) ?? LABOR_BASIS_OPTIONS[0];
+            const isHourly = form.chargeBasis === 'per_hour';
             const computedSell = form.hourlyCost * (1 + form.markupPercent / 100);
             const effectiveSell = form.minimumCharge > 0 && computedSell < form.minimumCharge
-              ? form.minimumCharge
-              : computedSell;
+              ? form.minimumCharge : computedSell;
             const minApplied = form.minimumCharge > 0 && computedSell < form.minimumCharge;
+            // Example job calc: sample qty of 1000 to show a realistic hour estimate
+            const sampleQty = 1000;
+            const sampleHours = isHourly && form.outputPerHour > 0 ? sampleQty / form.outputPerHour : null;
             return (
               <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-4">
-                  <Input label={basisOpt.costLabel} type="number" value={form.hourlyCost || ''}
-                    onChange={e => setForm(f => ({ ...f, hourlyCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
-                  <Input label="Initial Setup Fee ($)" type="number" value={form.initialSetupFee || ''}
-                    onChange={e => setForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
-                  <Input label="Markup %" type="number" value={form.markupPercent || ''}
-                    onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))} suffix="%" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  {form.chargeBasis === 'per_hour' && (
+
+                {/* Row 1: for per_hour show Cost + Units/Hr side by side — they are directly related */}
+                {isHourly ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input label="Cost Rate ($/hr)" type="number" value={form.hourlyCost || ''}
+                        onChange={e => setForm(f => ({ ...f, hourlyCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                      {/* Units Per Hour — required for per_hour to convert quantity → hours */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                          <Tooltip
+                            label="Production Rate (units/hr)"
+                            tip="How many units this service can handle per hour. Used to convert job quantity into billable hours. Example: 500 pcs/hr means 2,000 pcs = 4 hours."
+                          />
+                        </label>
+                        <input
+                          type="number"
+                          value={form.outputPerHour || ''}
+                          onChange={e => setForm(f => ({ ...f, outputPerHour: parseFloat(e.target.value) || 0 }))}
+                          placeholder="e.g. 500"
+                          className={`w-full px-3 py-1.5 text-sm bg-white border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                            !form.outputPerHour ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'
+                          }`}
+                        />
+                        {!form.outputPerHour && (
+                          <p className="text-[10px] text-amber-600 mt-0.5">Required to calculate job hours</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <Input label="Markup %" type="number" value={form.markupPercent || ''}
+                        onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))} suffix="%" />
+                      <Input label="Setup Fee ($)" type="number" value={form.initialSetupFee || ''}
+                        onChange={e => setForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                          <Tooltip label="Minimum Charge ($)" tip="Minimum amount to charge regardless of calculated hours" />
+                        </label>
+                        <input type="number" value={form.minimumCharge || ''}
+                          onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))}
+                          placeholder="0 = no minimum"
+                          className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Non-hourly: flat 3-col + minimum */
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-4">
+                      <Input label={basisOpt.costLabel} type="number" value={form.hourlyCost || ''}
+                        onChange={e => setForm(f => ({ ...f, hourlyCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                      <Input label="Initial Setup Fee ($)" type="number" value={form.initialSetupFee || ''}
+                        onChange={e => setForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                      <Input label="Markup %" type="number" value={form.markupPercent || ''}
+                        onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))} suffix="%" />
+                    </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                        <Tooltip label="Units Per Hour" tip="How many units can be processed per hour." />
+                        <Tooltip label="Minimum Charge ($)" tip="Minimum amount to charge regardless of calculated price" />
                       </label>
-                      <input type="number" value={form.outputPerHour || ''}
-                        onChange={e => setForm(f => ({ ...f, outputPerHour: parseFloat(e.target.value) || 0 }))}
-                        placeholder="e.g. 1"
+                      <input type="number" value={form.minimumCharge || ''}
+                        onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))}
+                        placeholder="0 = no minimum"
                         className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     </div>
-                  )}
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                      <Tooltip label="Minimum Charge ($)" tip="Minimum amount to charge regardless of calculated price" />
-                    </label>
-                    <input type="number" value={form.minimumCharge || ''}
-                      onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))}
-                      placeholder="0 = no minimum"
-                      className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500" />
                   </div>
-                </div>
+                )}
+
                 {/* ── Computed sell rate guide ── */}
                 {form.hourlyCost > 0 && (
-                  <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3">
+                  <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3 space-y-1.5">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-500 flex items-center gap-1.5">
                         <Info className="w-3.5 h-3.5" />
-                        Client charge ({basisOpt.unitLabel}):
+                        {isHourly ? 'Client rate per hour:' : `Client charge (${basisOpt.unitLabel}):`}
                       </span>
                       <span className="font-bold text-blue-700 text-base">{fmt(effectiveSell)}{basisOpt.unitLabel}</span>
                     </div>
-                    <div className="flex items-center justify-between text-xs text-gray-400 mt-1.5">
+                    <div className="flex items-center justify-between text-xs text-gray-400">
                       <span>
                         {fmt(form.hourlyCost)} cost × {form.markupPercent}% markup = {fmt(computedSell)}{basisOpt.unitLabel}
                         {form.initialSetupFee > 0 && <span> + {fmt(form.initialSetupFee)} setup</span>}
@@ -662,9 +722,24 @@ export const Labor: React.FC = () => {
                         {pct(((effectiveSell - form.hourlyCost) / effectiveSell) * 100)} margin
                       </span>
                     </div>
+                    {/* Hours example — only shown for per_hour with a valid production rate */}
+                    {isHourly && form.outputPerHour > 0 && (
+                      <div className="border-t border-gray-200 pt-1.5 text-xs text-gray-500">
+                        <span className="font-medium text-gray-600">Example:</span>
+                        {' '}{sampleQty.toLocaleString()} pcs ÷ {form.outputPerHour.toLocaleString()} pcs/hr
+                        {' = '}<span className="font-semibold text-gray-700">{sampleHours!.toFixed(2)} hrs</span>
+                        {' → '}cost {fmt(sampleHours! * form.hourlyCost)}
+                        {' → '}client pays <span className="font-semibold text-blue-600">{fmt(Math.max(sampleHours! * effectiveSell + form.initialSetupFee, form.minimumCharge || 0))}</span>
+                      </div>
+                    )}
+                    {isHourly && !form.outputPerHour && (
+                      <p className="text-[10px] text-amber-600 border-t border-gray-200 pt-1.5">
+                        Set a production rate above to see a job hour estimate
+                      </p>
+                    )}
                     {minApplied && (
-                      <p className="text-[10px] text-amber-600 mt-1">
-                        Minimum charge of {fmt(form.minimumCharge)} applied (computed was {fmt(computedSell)})
+                      <p className="text-[10px] text-amber-600">
+                        Minimum charge of {fmt(form.minimumCharge)} applied (computed was {fmt(computedSell)}/hr)
                       </p>
                     )}
                   </div>
