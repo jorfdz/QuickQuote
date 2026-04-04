@@ -279,6 +279,8 @@ export const QuoteDetail: React.FC = () => {
         cuttingEnabled: saved.cuttingEnabled ?? true,
         sheetsPerStack: saved.sheetsPerStack || 500,
         serviceLines: saved.serviceLines || [],
+        selectedLaborIds: saved.selectedLaborIds || [],
+        selectedBrokeredIds: saved.selectedBrokeredIds || [],
       };
     }
     return DEFAULT_PRICING_STATE();
@@ -310,6 +312,8 @@ export const QuoteDetail: React.FC = () => {
           cuttingEnabled: saved.cuttingEnabled ?? true,
           sheetsPerStack: saved.sheetsPerStack || 500,
           serviceLines: saved.serviceLines || [],
+          selectedLaborIds: saved.selectedLaborIds || [],
+          selectedBrokeredIds: saved.selectedBrokeredIds || [],
         };
       }
       return { ...prev, [itemId]: restored };
@@ -691,6 +695,8 @@ export const QuoteDetail: React.FC = () => {
                       cuttingEnabled: saved.cuttingEnabled ?? true,
                       sheetsPerStack: saved.sheetsPerStack || 500,
                       serviceLines: saved.serviceLines || [],
+                      selectedLaborIds: saved.selectedLaborIds || [],
+                      selectedBrokeredIds: saved.selectedBrokeredIds || [],
                     };
                   } else {
                     base = DEFAULT_PRICING_STATE();

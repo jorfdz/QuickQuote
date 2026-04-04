@@ -176,11 +176,14 @@ export interface PricingFinishing {
 
 // ─── LABOR SERVICES ────────────────────────────────────────────────────────
 
+export type LaborChargeBasis = 'per_hour' | 'per_sqft' | 'per_unit' | 'per_1000' | 'flat';
+
 export interface PricingLabor {
   id: string;
   name: string;                    // e.g. "Graphic Design", "Installation", "Manual Assembly"
   description?: string;
-  hourlyCost: number;              // $ per hour
+  chargeBasis?: LaborChargeBasis;  // how cost & sell are measured (default: per_hour)
+  hourlyCost: number;              // $ per hour (or per-unit cost when basis ≠ per_hour)
   initialSetupFee: number;         // one-time setup fee
   markupPercent: number;           // markup as percentage
   categoryIds: string[];           // which categories this labor applies to

@@ -36,6 +36,9 @@ export interface LineItemPricingState {
   cuttingEnabled: boolean;
   sheetsPerStack: number;
   serviceLines: PricingServiceLine[];
+  // Persisted service selections — so Labor and Brokered survive navigation
+  selectedLaborIds: string[];
+  selectedBrokeredIds: string[];
 }
 
 export const DEFAULT_PRICING_STATE = (): LineItemPricingState => ({
@@ -46,6 +49,8 @@ export const DEFAULT_PRICING_STATE = (): LineItemPricingState => ({
   foldingType: '', drillingType: '',
   cuttingEnabled: true, sheetsPerStack: 500,
   serviceLines: [],
+  selectedLaborIds: [],
+  selectedBrokeredIds: [],
 });
 
 // ─── PART SNAPSHOT ──────────────────────────────────────────────────────────
@@ -186,8 +191,24 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     }
     return ids;
   });
-  const [selectedLaborIds, setSelectedLaborIds] = useState<string[]>([]);
-  const [selectedBrokeredIds, setSelectedBrokeredIds] = useState<string[]>([]);
+  // Restore from pricingContext (ps) if available — this is what survives navigation
+  const [selectedLaborIds, setSelectedLaborIds] = useState<string[]>(() => ps.selectedLaborIds ?? []);
+  const [selectedBrokeredIds, setSelectedBrokeredIds] = useState<string[]>(() => ps.selectedBrokeredIds ?? []);
+
+  // Sync labor/brokered selections into pricing state so they persist in pricingContext
+  useEffect(() => {
+    if (JSON.stringify(selectedLaborIds) !== JSON.stringify(ps.selectedLaborIds ?? [])) {
+      onUpdatePricing({ selectedLaborIds });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLaborIds]);
+
+  useEffect(() => {
+    if (JSON.stringify(selectedBrokeredIds) !== JSON.stringify(ps.selectedBrokeredIds ?? [])) {
+      onUpdatePricing({ selectedBrokeredIds });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBrokeredIds]);
 
   // Sync first material entry to pricing state
   useEffect(() => {
@@ -507,6 +528,89 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       }
     }
 
+    // LABOR — one line per selected labor service
+    selectedLaborIds.forEach((lid, idx) => {
+      const svc = pricing.labor.find(l => l.id === lid);
+      if (!svc) return;
+      const basis = svc.chargeBasis ?? 'per_hour';
+
+      if (svc.pricingMode === 'fixed') {
+        const totalCost = svc.fixedChargeCost ?? 0;
+        const sellPrice = svc.fixedChargeAmount ?? 0;
+        const markupPct = totalCost > 0 ? ((sellPrice - totalCost) / totalCost) * 100 : 0;
+        lines.push({
+          id: slId(`labor_${lid}`, idx), service: 'Labor',
+          description: `${svc.name}${svc.description ? ' — ' + svc.description : ''} (fixed)`,
+          quantity: 1, unit: 'flat', unitCost: totalCost,
+          totalCost, markupPercent: markupPct, sellPrice, editable: true,
+        });
+      } else {
+        // Determine quantity & unit label based on chargeBasis
+        let qty = 1;
+        let unit = 'hr';
+        if (basis === 'per_hour') { qty = ps.quantity > 0 && svc.outputPerHour > 0 ? ps.quantity / svc.outputPerHour : 1; unit = 'hr'; }
+        else if (basis === 'per_sqft') { qty = ps.finalWidth > 0 && ps.finalHeight > 0 ? (ps.finalWidth * ps.finalHeight * ps.quantity) / 144 : ps.quantity; unit = 'sqft'; }
+        else if (basis === 'per_unit') { qty = ps.quantity; unit = 'ea'; }
+        else if (basis === 'per_1000') { qty = ps.quantity / 1000; unit = 'M'; }
+        else if (basis === 'flat') { qty = 1; unit = 'flat'; }
+
+        const costPer = svc.hourlyCost;
+        const totalCost = costPer * qty;
+        const rcRate = lookupServiceSellRate(svc, qty);
+        const sellPrice = rcRate !== null
+          ? qty * rcRate
+          : Math.max(totalCost * (1 + svc.markupPercent / 100), svc.minimumCharge ?? 0);
+        const markupPct = totalCost > 0 ? ((sellPrice - totalCost) / totalCost) * 100 : 0;
+        lines.push({
+          id: slId(`labor_${lid}`, idx), service: 'Labor',
+          description: `${svc.name} — ${qty.toFixed(basis === 'per_hour' ? 2 : 0)} ${unit}`,
+          quantity: qty, unit, unitCost: costPer,
+          totalCost, markupPercent: markupPct, sellPrice, editable: true,
+          ...(basis === 'per_hour' ? { hourlyCost: svc.hourlyCost, hoursActual: qty, hoursCharge: qty } : {}),
+        });
+      }
+    });
+
+    // BROKERED — one line per selected brokered service
+    selectedBrokeredIds.forEach((bid, idx) => {
+      const svc = pricing.brokered.find(b => b.id === bid);
+      if (!svc) return;
+
+      if (svc.pricingMode === 'fixed') {
+        // Fixed: unitCost = cost, initialSetupFee = sell (reusing the field from the fixed modal)
+        const totalCost = svc.unitCost;
+        const sellPrice = svc.initialSetupFee;
+        const markupPct = totalCost > 0 ? ((sellPrice - totalCost) / totalCost) * 100 : 0;
+        lines.push({
+          id: slId(`brokered_${bid}`, idx), service: 'Brokered',
+          description: `${svc.name} (fixed charge)`,
+          quantity: 1, unit: 'flat', unitCost: totalCost,
+          totalCost, markupPercent: markupPct, sellPrice, editable: true,
+        });
+      } else {
+        let qty = 1;
+        let unit = 'ea';
+        if (svc.costBasis === 'per_unit') { qty = ps.quantity; unit = 'ea'; }
+        else if (svc.costBasis === 'per_sqft') { qty = ps.finalWidth > 0 && ps.finalHeight > 0 ? (ps.finalWidth * ps.finalHeight * ps.quantity) / 144 : ps.quantity; unit = 'sqft'; }
+        else if (svc.costBasis === 'per_linear_ft') { qty = ps.finalWidth > 0 ? ps.finalWidth * ps.quantity : ps.quantity; unit = 'lin ft'; }
+        else if (svc.costBasis === 'flat') { qty = 1; unit = 'flat'; }
+
+        const costPer = svc.unitCost;
+        const totalCost = costPer * qty + svc.initialSetupFee;
+        const rcRate = lookupServiceSellRate(svc, qty);
+        const sellPrice = rcRate !== null
+          ? qty * rcRate + svc.initialSetupFee
+          : totalCost * (1 + svc.markupPercent / 100);
+        const markupPct = totalCost > 0 ? ((sellPrice - totalCost) / totalCost) * 100 : 0;
+        lines.push({
+          id: slId(`brokered_${bid}`, idx), service: 'Brokered',
+          description: `${svc.name} — ${qty.toFixed(svc.costBasis === 'flat' ? 0 : 1)} ${unit}`,
+          quantity: qty, unit, unitCost: costPer,
+          totalCost, markupPercent: markupPct, sellPrice, editable: true,
+        });
+      }
+    });
+
     return lines;
   // Depend only on the specific ps fields that actually affect calculations — NOT ps.serviceLines
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -514,7 +618,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       ps.quantity, ps.sides, ps.colorMode, ps.materialId, ps.equipmentId,
       ps.cuttingEnabled, ps.sheetsPerStack, ps.foldingType, ps.drillingType,
       ps.finalWidth, ps.finalHeight,
-      finishing, lookupClickPrice]);
+      selectedLaborIds, selectedBrokeredIds,
+      finishing, lookupClickPrice, pricing.labor, pricing.brokered]);
 
   // Recompute and sync to parent
   useEffect(() => {
