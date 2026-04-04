@@ -800,8 +800,13 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       // Restore local selection state from context
       if (savedCtx.selectedLaborIds)    setSelectedLaborIds(savedCtx.selectedLaborIds);
       if (savedCtx.selectedBrokeredIds) setSelectedBrokeredIds(savedCtx.selectedBrokeredIds);
-      // Reset the initial-recompute guard so saved service lines are NOT overwritten
+      // Guard: prevent the recompute effect from overwriting the restored service lines.
+      // skipInitialRecompute blocks recompute until the user changes a fundamental field.
+      // CRITICAL: also reset userChangedPricing to false here — selectProduct set it true
+      // at the top of this function, but that would immediately drop the guard on the next
+      // render cycle. By resetting it, the guard holds until the user actually edits something.
       skipInitialRecompute.current = !!(savedCtx.serviceLines && savedCtx.serviceLines.length > 0);
+      userChangedPricing.current = false;
       onUpdateItem({ description: product.name, quantity: savedCtx.quantity || product.defaultQuantity });
       setMultiQtyInput(String(savedCtx.quantity || product.defaultQuantity));
       if (savedCtx.finalWidth && savedCtx.finalHeight) {
