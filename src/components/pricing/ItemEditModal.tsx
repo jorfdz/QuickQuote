@@ -2288,35 +2288,38 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
     return parseFloat(n.toFixed(dp)).toString();
   };
 
+  // All inputs and text in the breakdown table use [11px] — slightly smaller than xs (12px)
+  // to pack more content without crowding.
   const inp = (extra = '') =>
-    `w-full px-1.5 py-1.5 text-xs text-right num bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] focus:border-transparent transition-colors ${extra}`;
+    `w-full px-1 py-1 text-[11px] text-right num bg-white border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent transition-colors ${extra}`;
 
   const totInp = (hasError: boolean, extra = '') =>
-    `w-full px-1.5 py-1.5 text-xs text-right num border rounded-lg focus:outline-none focus:ring-2 transition-colors font-bold ${
+    `w-full px-1 py-1 text-[11px] text-right num border rounded focus:outline-none focus:ring-1 transition-colors font-bold ${
       hasError
         ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300'
         : 'border-emerald-300 bg-emerald-50 text-emerald-800 focus:ring-emerald-300'
     } ${extra}`;
 
-  const thCls = 'py-1.5 px-1.5 text-[9px] font-semibold text-gray-400 uppercase tracking-wide text-right';
-  const tdCls = 'py-2 px-1.5';
-  const dimCls = 'text-gray-300 text-right block'; // read-only display cells
+  const thCls = 'py-1 px-1.5 text-[8px] font-bold text-gray-400 uppercase tracking-wider text-right whitespace-nowrap';
+  const tdCls = 'py-1.5 px-1.5';
+  const numCls = 'text-[11px] num';        // body number cells
+  const dimCls = 'text-gray-300 text-right block text-[11px]'; // read-only dash cells
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div
-        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[1100px] flex flex-col max-h-[90vh]"
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[1080px] flex flex-col max-h-[92vh]"
         onClick={e => e.stopPropagation()}
       >
         {/* ── Header ── */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
           <div>
-            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-emerald-500" />
+            <h2 className="text-[13px] font-semibold text-gray-900 flex items-center gap-2">
+              <DollarSign className="w-3.5 h-3.5 text-emerald-500" />
               Edit Price Breakdown
             </h2>
-            <p className="text-[10px] text-gray-400 mt-0.5">Click any cell to edit · Click the totals row to scale all lines proportionally</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">Click any cell to edit · Click totals row markup % or sell $ to scale all lines</p>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
             <X className="w-4 h-4 text-gray-400" />
@@ -2325,38 +2328,39 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
 
         {/* ── Table ── */}
         <div className="overflow-x-auto overflow-y-auto flex-1">
-          <table className="w-full text-xs border-collapse" style={{ minWidth: '860px' }}>
+          <table className="w-full border-collapse" style={{ minWidth: '820px', fontSize: '11px' }}>
 
-            {/* Fixed column widths — px-based so content doesn't squish */}
+            {/* Column widths: service fixed, description flexible, rest fixed narrow */}
             <colgroup>
-              <col style={{ width: '100px' }} /> {/* Service */}
-              <col />                             {/* Description — flexible */}
-              {/* TIME group */}
-              <col style={{ width: '72px'  }} />
-              <col style={{ width: '60px'  }} />
-              <col style={{ width: '80px'  }} />
-              <col style={{ width: '72px'  }} />
-              {/* PRICING group */}
+              <col style={{ width: '88px'  }} /> {/* Service */}
+              <col />                             {/* Description — takes remaining space */}
+              {/* TIME */}
+              <col style={{ width: '62px'  }} />
+              <col style={{ width: '52px'  }} />
+              <col style={{ width: '70px'  }} />
+              <col style={{ width: '62px'  }} />
+              {/* PRICING */}
+              <col style={{ width: '78px'  }} />
+              <col style={{ width: '62px'  }} />
+              <col style={{ width: '82px'  }} />
+              <col style={{ width: '82px'  }} />
               <col style={{ width: '90px'  }} />
-              <col style={{ width: '72px'  }} />
-              <col style={{ width: '90px'  }} />
-              <col style={{ width: '90px'  }} />
-              <col style={{ width: '100px' }} />
             </colgroup>
 
-            <thead className="sticky top-0 z-10">
-              {/* Group labels */}
-              <tr className="bg-white border-b border-gray-100">
-                <th className="px-4 pt-3 pb-0" colSpan={2} />
-                <th className="px-2 pt-3 pb-0 text-center text-[9px] font-bold uppercase tracking-widest bg-sky-50 text-sky-500 border-l border-sky-200" colSpan={4}>
+            <thead className="sticky top-0 z-10 bg-white">
+              {/* Group band */}
+              <tr className="border-b border-gray-100">
+                <th className="px-3 pt-2 pb-0" colSpan={2} />
+                <th className="px-1 pt-2 pb-0 text-center text-[8px] font-bold uppercase tracking-widest text-sky-500 bg-sky-50 border-l border-sky-200" colSpan={4}>
                   Time
                 </th>
-                <th className="px-2 pt-3 pb-0 text-center text-[9px] font-bold uppercase tracking-widest bg-violet-50 text-violet-500 border-l border-violet-200" colSpan={5}>
+                <th className="px-1 pt-2 pb-0 text-center text-[8px] font-bold uppercase tracking-widest text-violet-500 bg-violet-50 border-l border-violet-200" colSpan={5}>
                   Pricing
                 </th>
               </tr>
-              <tr className="bg-white border-b-2 border-gray-200">
-                <th className={`${thCls} text-left pl-4`}>Service</th>
+              {/* Column labels */}
+              <tr className="border-b-2 border-gray-200">
+                <th className={`${thCls} text-left pl-3`}>Service</th>
                 <th className={`${thCls} text-left pl-2`}>Description</th>
                 <th className={`${thCls} bg-sky-50 border-l border-sky-200`}>$/hr</th>
                 <th className={`${thCls} bg-sky-50`}>Calc</th>
@@ -2366,7 +2370,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                 <th className={`${thCls} bg-violet-50`}>Unit $</th>
                 <th className={`${thCls} bg-violet-50`}>Cost $</th>
                 <th className={`${thCls} bg-violet-50`}>Markup %</th>
-                <th className={`${thCls} bg-violet-50 pr-4`}>Sell $</th>
+                <th className={`${thCls} bg-violet-50 pr-3`}>Sell $</th>
               </tr>
             </thead>
 
@@ -2381,24 +2385,24 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                   <tr key={line.id} className="hover:bg-gray-50/70 transition-colors">
 
                     {/* Service */}
-                    <td className={`${tdCls} pl-4`}>
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className={`w-2 h-2 rounded-sm flex-shrink-0 ${accent.dot}`} />
-                        <span className="font-semibold text-gray-800 truncate">{line.service}</span>
+                    <td className={`${tdCls} pl-3`}>
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span className={`w-1.5 h-1.5 rounded-sm flex-shrink-0 ${accent.dot}`} />
+                        <span className={`font-semibold text-gray-800 truncate ${numCls}`}>{line.service}</span>
                       </div>
                     </td>
 
-                    {/* Description */}
-                    <td className={`${tdCls} pl-2 max-w-0`}>
-                      <span className="text-gray-400 block truncate" title={line.description}>{line.description}</span>
+                    {/* Description — full width, tooltip on hover for clipped text */}
+                    <td className={`${tdCls} pl-2`} style={{ maxWidth: 0 }}>
+                      <span className="text-gray-500 block truncate" title={line.description}>{line.description}</span>
                     </td>
 
                     {/* ── TIME ── */}
-                    <td className={`${tdCls} bg-sky-50/40 border-l border-sky-100 text-right num`}>
-                      {timeBased ? <span className="text-sky-700 font-medium">{formatCurrency(line.hourlyCost!)}</span> : <span className={dimCls}>—</span>}
+                    <td className={`${tdCls} bg-sky-50/40 border-l border-sky-100 text-right`}>
+                      {timeBased ? <span className={`text-sky-700 font-medium ${numCls}`}>{formatCurrency(line.hourlyCost!)}</span> : <span className={dimCls}>—</span>}
                     </td>
-                    <td className={`${tdCls} bg-sky-50/40 text-right num`}>
-                      {timeBased ? <span className="text-gray-500">{fmtHours(line.hoursActual!)}</span> : <span className={dimCls}>—</span>}
+                    <td className={`${tdCls} bg-sky-50/40 text-right`}>
+                      {timeBased ? <span className={`text-gray-500 ${numCls}`}>{fmtHours(line.hoursActual!)}</span> : <span className={dimCls}>—</span>}
                     </td>
                     <td className={`${tdCls} bg-sky-50/40`}>
                       {timeBased ? (
@@ -2414,14 +2418,14 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                         />
                       ) : <span className={dimCls}>—</span>}
                     </td>
-                    <td className={`${tdCls} bg-sky-50/40 text-right num`}>
-                      {timeBased ? <span className="text-sky-800 font-medium">{formatCurrency(line.totalCost)}</span> : <span className={dimCls}>—</span>}
+                    <td className={`${tdCls} bg-sky-50/40 text-right`}>
+                      {timeBased ? <span className={`text-sky-800 font-medium ${numCls}`}>{formatCurrency(line.totalCost)}</span> : <span className={dimCls}>—</span>}
                     </td>
 
                     {/* ── PRICING ── */}
-                    <td className={`${tdCls} bg-violet-50/30 border-l border-violet-100 text-right num`}>
+                    <td className={`${tdCls} bg-violet-50/30 border-l border-violet-100 text-right`}>
                       {qtyBased && line.quantity != null ? (
-                        <span className="text-gray-600">{line.quantity.toLocaleString()} <span className="text-[9px] text-gray-400">{line.unit}</span></span>
+                        <span className={`text-gray-600 ${numCls}`}>{line.quantity.toLocaleString()} <span className="text-[9px] text-gray-400">{line.unit}</span></span>
                       ) : <span className={dimCls}>—</span>}
                     </td>
                     <td className={`${tdCls} bg-violet-50/30 text-right num`}>
