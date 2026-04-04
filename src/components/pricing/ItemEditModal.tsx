@@ -525,8 +525,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         sellPrice: totalSell,
         upsPerSheet: imposition.totalUps || undefined,
         sheetSize: selectedMaterial?.size,
-        // Explicitly persist all pricing config fields so they survive navigation
-        // even if pricingContext snapshot is not yet available
         colorMode: ps.colorMode,
         sides: ps.sides,
         foldingType: ps.foldingType || undefined,
@@ -536,10 +534,32 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         productId: ps.productId || undefined,
         productName: ps.productName || undefined,
         categoryName: ps.categoryName || undefined,
-        // Also write an inline pricingContext snapshot on every recompute so that
-        // even if the user navigates away before onClose fires, the full state is saved
         pricingContext: { ...ps },
       } as any);
+
+      // ── Auto-sync to template ──────────────────────────────────────────
+      // If this item is linked to a template (starred), keep the template
+      // up to date automatically whenever the user changes anything.
+      const linkedTemplateId = (item as any).templateId as string | undefined;
+      if (linkedTemplateId && ps.productName) {
+        pricing.updateTemplate(linkedTemplateId, {
+          name: item.description || ps.productName,
+          categoryId: categories.find(c => c.name === ps.categoryName)?.id || '',
+          categoryName: ps.categoryName,
+          productId: ps.productId,
+          productName: ps.productName,
+          quantity: ps.quantity,
+          finalWidth: ps.finalWidth,
+          finalHeight: ps.finalHeight,
+          materialId: ps.materialId || undefined,
+          materialName: selectedMaterial?.name,
+          equipmentId: ps.equipmentId || undefined,
+          equipmentName: selectedEquipment?.name,
+          color: ps.colorMode,
+          sides: ps.sides,
+          folding: ps.foldingType || undefined,
+        });
+      }
     } else if (totalCost > 0 || totalSell > 0) {
       // Only update costs/prices, NOT identifiers (materialId, equipmentId, etc.)
       // This keeps the display accurate without wiping saved references
@@ -666,27 +686,41 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     onUpdateItem({ totalCost, sellPrice: totalSell, markup: Math.round(overallMarkup) });
   };
 
-  // ── Save as template ──────────────────────────────────────────────────
+  // ── Save / update as template ─────────────────────────────────────────
+  // Helper that builds the template fields snapshot from current pricing state
+  const buildTemplateFields = () => ({
+    name: item.description || ps.productName,
+    categoryId: categories.find(c => c.name === ps.categoryName)?.id || '',
+    categoryName: ps.categoryName,
+    productId: ps.productId,
+    productName: ps.productName,
+    quantity: ps.quantity,
+    finalWidth: ps.finalWidth,
+    finalHeight: ps.finalHeight,
+    materialId: ps.materialId || undefined,
+    materialName: selectedMaterial?.name,
+    equipmentId: ps.equipmentId || undefined,
+    equipmentName: selectedEquipment?.name,
+    color: ps.colorMode,
+    sides: ps.sides,
+    folding: ps.foldingType || undefined,
+    isFavorite: false,
+  });
+
   const handleSaveAsTemplate = () => {
     if (!ps.productName) return;
-    pricing.addTemplate({
-      name: ps.productName,
-      categoryId: categories.find(c => c.name === ps.categoryName)?.id || '',  // template still uses single categoryId
-      categoryName: ps.categoryName,
-      productId: ps.productId,
-      productName: ps.productName,
-      quantity: ps.quantity,
-      finalWidth: ps.finalWidth,
-      finalHeight: ps.finalHeight,
-      materialId: ps.materialId || undefined,
-      materialName: selectedMaterial?.name,
-      equipmentId: ps.equipmentId || undefined,
-      equipmentName: selectedEquipment?.name,
-      color: ps.colorMode,
-      sides: ps.sides,
-      folding: ps.foldingType || undefined,
-      isFavorite: false,
-    });
+
+    const existingTemplateId = (item as any).templateId as string | undefined;
+
+    if (existingTemplateId) {
+      // Already linked → just update the existing template with latest values
+      pricing.updateTemplate(existingTemplateId, buildTemplateFields());
+    } else {
+      // No link yet → create a new template and link it back to the item
+      const created = pricing.addTemplate(buildTemplateFields());
+      onUpdateItem({ templateId: created.id } as any);
+    }
+
     setSavedAsTemplate(true);
     setTimeout(() => setSavedAsTemplate(false), 2000);
   };
@@ -844,16 +878,33 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold text-gray-900">{isNew ? 'Add Item' : 'Edit Item'}</h2>
-            {ps.productName && (
-              <button
-                onClick={handleSaveAsTemplate}
-                className={`p-1.5 rounded-lg transition-colors ${savedAsTemplate ? 'bg-amber-50 text-amber-500' : 'hover:bg-gray-100 text-gray-400 hover:text-amber-500'}`}
-                title={savedAsTemplate ? 'Saved as Template!' : 'Save as Template'}
-              >
-                <Star className={`w-4 h-4 ${savedAsTemplate ? 'fill-amber-400 text-amber-400' : ''}`} />
-              </button>
-            )}
-            {savedAsTemplate && <span className="text-xs text-amber-600 font-medium">Item saved as Template</span>}
+            {ps.productName && (() => {
+              const isLinked = !!(item as any).templateId;
+              const isActive = isLinked || savedAsTemplate;
+              return (
+                <>
+                  <button
+                    onClick={handleSaveAsTemplate}
+                    className={`p-1.5 rounded-lg transition-colors ${
+                      isActive
+                        ? 'bg-amber-50 text-amber-500'
+                        : 'hover:bg-gray-100 text-gray-400 hover:text-amber-500'
+                    }`}
+                    title={isLinked ? 'Saved as Template — click to update' : 'Save as Item Template'}
+                  >
+                    <Star className={`w-4 h-4 ${isActive ? 'fill-amber-400 text-amber-400' : ''}`} />
+                  </button>
+                  {isLinked && !savedAsTemplate && (
+                    <span className="text-[10px] text-amber-500 font-medium">Template</span>
+                  )}
+                  {savedAsTemplate && (
+                    <span className="text-xs text-amber-600 font-semibold animate-pulse">
+                      {(item as any).templateId ? 'Template updated ✓' : 'Added as Template ✓'}
+                    </span>
+                  )}
+                </>
+              );
+            })()}
             {/* Multi-Part Toggle */}
             <button
               type="button"
