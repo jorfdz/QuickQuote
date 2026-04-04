@@ -359,6 +359,20 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     };
   }, [selectedMaterial, ps.finalWidth, ps.finalHeight, ps.quantity, impositionBleed, impositionGutter, impositionOrientation, customRunWidth, customRunHeight]);
 
+  // ── Sell-rate helpers ─────────────────────────────────────────────────
+  // Look up the effective sell price per unit for a service with Rate Card pricing.
+  // If tiers are defined, use the matching tier; otherwise fall back to the flat sellRate.
+  // Returns null if no rate_card data is configured (caller falls back to cost+markup).
+  const lookupServiceSellRate = (svc: { pricingMode?: string; sellRate?: number; sellRateTiers?: Array<{ fromQty: number; toQty: number | null; sellRate: number }> }, qty: number): number | null => {
+    if (svc.pricingMode !== 'rate_card') return null;
+    if (svc.sellRateTiers && svc.sellRateTiers.length > 0) {
+      const tier = svc.sellRateTiers.find(t => t.fromQty <= qty && (t.toQty === null || qty <= t.toQty));
+      if (tier) return tier.sellRate;
+    }
+    if (svc.sellRate && svc.sellRate > 0) return svc.sellRate;
+    return null;
+  };
+
   // ── Price Calculation ─────────────────────────────────────────────────
   const computeServiceLines = useCallback((): PricingServiceLine[] => {
     const lines: PricingServiceLine[] = [];
@@ -423,13 +437,21 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         const totalStacks = Math.ceil(imposition.sheetsNeeded / ps.sheetsPerStack);
         const totalCuts = imposition.cutsPerSheet * totalStacks;
         const hours = totalCuts / cutSvc.outputPerHour;
-        const totalCost = hours * cutSvc.hourlyCost;
-        const markup = cutSvc.markupPercent;
+        const totalCost = cutSvc.pricingMode === 'fixed'
+          ? (cutSvc.fixedChargeCost ?? 0)
+          : hours * cutSvc.hourlyCost;
+        const rcRate = lookupServiceSellRate(cutSvc, totalCuts);
+        const sellPrice = cutSvc.pricingMode === 'fixed'
+          ? (cutSvc.fixedChargeAmount ?? 0)
+          : rcRate !== null
+            ? totalCuts * rcRate
+            : totalCost * (1 + cutSvc.markupPercent / 100);
+        const markupPct = totalCost > 0 ? ((sellPrice - totalCost) / totalCost) * 100 : 0;
         lines.push({
           id: slId('cutting'), service: 'Cutting',
           description: `${totalCuts} cuts (${imposition.cutsPerSheet}/sheet × ${totalStacks} stacks)`,
           quantity: totalCuts, unit: 'cuts', unitCost: cutSvc.hourlyCost / cutSvc.outputPerHour,
-          totalCost, markupPercent: markup, sellPrice: totalCost * (1 + markup / 100), editable: true,
+          totalCost, markupPercent: markupPct, sellPrice, editable: true,
           hourlyCost: cutSvc.hourlyCost, hoursActual: hours, hoursCharge: hours,
         });
       }
@@ -440,12 +462,21 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       const fSvc = finishing.find(f => f.name.toLowerCase().replace('-', '') === ps.foldingType.toLowerCase().replace('-', ''));
       if (fSvc) {
         const hours = ps.quantity / fSvc.outputPerHour;
-        const totalCost = hours * fSvc.hourlyCost;
+        const totalCost = fSvc.pricingMode === 'fixed'
+          ? (fSvc.fixedChargeCost ?? 0)
+          : hours * fSvc.hourlyCost;
+        const rcRate = lookupServiceSellRate(fSvc, ps.quantity);
+        const sellPrice = fSvc.pricingMode === 'fixed'
+          ? (fSvc.fixedChargeAmount ?? 0)
+          : rcRate !== null
+            ? ps.quantity * rcRate
+            : totalCost * (1 + fSvc.markupPercent / 100);
+        const markupPct = totalCost > 0 ? ((sellPrice - totalCost) / totalCost) * 100 : 0;
         lines.push({
           id: slId('folding'), service: 'Folding',
           description: `${ps.foldingType} — ${ps.quantity.toLocaleString()} pcs @ ${fSvc.outputPerHour.toLocaleString()}/hr`,
           quantity: ps.quantity, unit: 'pcs', unitCost: fSvc.hourlyCost / fSvc.outputPerHour,
-          totalCost, markupPercent: fSvc.markupPercent, sellPrice: totalCost * (1 + fSvc.markupPercent / 100), editable: true,
+          totalCost, markupPercent: markupPct, sellPrice, editable: true,
           hourlyCost: fSvc.hourlyCost, hoursActual: hours, hoursCharge: hours,
         });
       }
@@ -456,12 +487,21 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       const dSvc = finishing.find(f => f.name === ps.drillingType);
       if (dSvc) {
         const hours = ps.quantity / dSvc.outputPerHour;
-        const totalCost = hours * dSvc.hourlyCost;
+        const totalCost = dSvc.pricingMode === 'fixed'
+          ? (dSvc.fixedChargeCost ?? 0)
+          : hours * dSvc.hourlyCost;
+        const rcRate = lookupServiceSellRate(dSvc, ps.quantity);
+        const sellPrice = dSvc.pricingMode === 'fixed'
+          ? (dSvc.fixedChargeAmount ?? 0)
+          : rcRate !== null
+            ? ps.quantity * rcRate
+            : totalCost * (1 + dSvc.markupPercent / 100);
+        const markupPct = totalCost > 0 ? ((sellPrice - totalCost) / totalCost) * 100 : 0;
         lines.push({
           id: slId('drilling'), service: 'Drilling',
           description: `${ps.drillingType} — ${ps.quantity.toLocaleString()} pcs @ ${dSvc.outputPerHour.toLocaleString()}/hr`,
           quantity: ps.quantity, unit: 'pcs', unitCost: dSvc.hourlyCost / dSvc.outputPerHour,
-          totalCost, markupPercent: dSvc.markupPercent, sellPrice: totalCost * (1 + dSvc.markupPercent / 100), editable: true,
+          totalCost, markupPercent: markupPct, sellPrice, editable: true,
           hourlyCost: dSvc.hourlyCost, hoursActual: hours, hoursCharge: hours,
         });
       }
