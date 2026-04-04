@@ -1918,6 +1918,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                 {line.service === 'Cutting' && <Scissors className="w-3 h-3 text-purple-400" />}
                                 {line.service === 'Folding' && <FoldVertical className="w-3 h-3 text-emerald-400" />}
                                 {line.service === 'Drilling' && <CircleDot className="w-3 h-3 text-orange-400" />}
+                                {line.service === 'Labor' && <Wrench className="w-3 h-3 text-blue-500" />}
+                                {line.service === 'Brokered' && <Package className="w-3 h-3 text-violet-400" />}
                                 <span className="text-gray-700 font-medium">{line.service}</span>
                                 {manualOverrides[line.id] && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Manually overridden" />}
                               </div>
@@ -2160,6 +2162,8 @@ const SERVICE_ACCENT: Record<string, { icon: React.ReactNode; dot: string }> = {
   Cutting:  { icon: <Scissors  className="w-3.5 h-3.5 text-purple-500"/>, dot: 'bg-purple-400' },
   Folding:  { icon: <FoldVertical className="w-3.5 h-3.5 text-emerald-500" />, dot: 'bg-emerald-400' },
   Drilling: { icon: <CircleDot className="w-3.5 h-3.5 text-orange-500"/>, dot: 'bg-orange-400' },
+  Labor:    { icon: <Wrench    className="w-3.5 h-3.5 text-blue-500"  />, dot: 'bg-blue-400'   },
+  Brokered: { icon: <Package  className="w-3.5 h-3.5 text-violet-500" />, dot: 'bg-violet-400' },
 };
 
 export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ lines, onSave, onRecalculate, onClose }) => {
