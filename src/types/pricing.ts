@@ -65,6 +65,9 @@ export interface PricingProduct {
   defaultFolding?: string;         // e.g. "Tri-Fold", "Bi-Fold"
   isTemplate: boolean;             // whether this product is starred as a template
   defaultFinishingIds?: string[];   // default finishing services for this product
+  // Full pricing state snapshot — persists ALL modal state including labor, brokered,
+  // service lines, markups, overrides. Used to restore the modal exactly on re-open.
+  defaultPricingContext?: Record<string, unknown>;
   createdAt: string;
 }
 
@@ -120,6 +123,20 @@ export interface MaintenanceRecord {
   createdAt: string;
 }
 
+// ─── SERVICE PRICING MODE ───────────────────────────────────────────────────
+// cost_markup : existing behaviour — cost computed from rates, sell = cost × (1 + markup%)
+// rate_card   : cost and sell entered independently; optionally tiered by quantity
+// fixed       : flat fixed cost + flat fixed sell price regardless of quantity
+
+export type ServicePricingMode = 'cost_markup' | 'rate_card' | 'fixed';
+
+export interface SellRateTier {
+  id: string;
+  fromQty: number;
+  toQty: number | null;   // null = unlimited (∞)
+  sellRate: number;       // sell price per unit at this tier
+}
+
 // ─── FINISHING ──────────────────────────────────────────────────────────────
 
 export interface PricingFinishing {
@@ -151,17 +168,25 @@ export interface PricingFinishing {
   sheetsPerStack?: number;         // how many sheets can be processed at once (default 500)
   stacksPerHour?: number;          // how many stacks can be processed per hour (default 150)
 
+  // ── Sell-side pricing (Options A + B) ──
+  pricingMode?: ServicePricingMode;   // defaults to 'cost_markup' when absent
+  sellRate?: number;                  // direct sell rate per unit (rate_card mode)
+  sellRateTiers?: SellRateTier[];     // volume-tiered sell rates (rate_card mode, optional)
+
   notes?: string;
   createdAt: string;
 }
 
 // ─── LABOR SERVICES ────────────────────────────────────────────────────────
 
+export type LaborChargeBasis = 'per_hour' | 'per_sqft' | 'per_unit' | 'per_1000' | 'flat';
+
 export interface PricingLabor {
   id: string;
   name: string;                    // e.g. "Graphic Design", "Installation", "Manual Assembly"
   description?: string;
-  hourlyCost: number;              // $ per hour
+  chargeBasis?: LaborChargeBasis;  // how cost & sell are measured (default: per_hour)
+  hourlyCost: number;              // $ per hour (or per-unit cost when basis ≠ per_hour)
   initialSetupFee: number;         // one-time setup fee
   markupPercent: number;           // markup as percentage
   categoryIds: string[];           // which categories this labor applies to
@@ -171,6 +196,12 @@ export interface PricingLabor {
   fixedChargeCost: number;          // cost basis for fixed charge
   minimumCharge: number;            // minimum charge amount
   outputPerHour: number;            // units per hour for time calculation
+
+  // ── Sell-side pricing (Options A + B) ──
+  pricingMode?: ServicePricingMode;
+  sellRate?: number;                // direct sell rate per hour (rate_card mode)
+  sellRateTiers?: SellRateTier[];   // volume tiers (rate_card mode, optional)
+
   notes?: string;
   createdAt: string;
 }
@@ -191,6 +222,12 @@ export interface PricingBrokered {
   vendorName?: string;             // cached vendor name
   categoryIds: string[];           // which categories this applies to
   brokeredGroupIds: string[];       // which brokered groups this belongs to
+
+  // ── Sell-side pricing (Options A + B) ──
+  pricingMode?: ServicePricingMode;
+  sellRate?: number;                // direct sell rate per unit (rate_card mode)
+  sellRateTiers?: SellRateTier[];   // volume tiers (rate_card mode, optional)
+
   notes?: string;
   createdAt: string;
 }

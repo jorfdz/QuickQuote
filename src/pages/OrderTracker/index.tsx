@@ -57,7 +57,12 @@ export const OrderTracker: React.FC = () => {
   const { orderNumber } = useParams<{ orderNumber?: string }>();
   const [searchParams] = useSearchParams();
   const activeBoards = workflows.filter((workflow) => workflow.isActive);
-  const [activeWorkflowId, setActiveWorkflowId] = useState(activeBoards[0]?.id || workflows[0]?.id || '');
+  // Allow ?board=<workflowId> from dashboard links to pre-select a specific board
+  const boardParam = searchParams.get('board') || '';
+  const [activeWorkflowId, setActiveWorkflowId] = useState(() => {
+    if (boardParam && activeBoards.find(b => b.id === boardParam)) return boardParam;
+    return activeBoards[0]?.id || workflows[0]?.id || '';
+  });
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [boardsCollapsed, setBoardsCollapsed] = useState(false);
 

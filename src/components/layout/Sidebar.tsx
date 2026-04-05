@@ -37,7 +37,7 @@ export const Sidebar: React.FC = () => {
   const { sidebarCollapsed, setSidebarCollapsed, currentUser } = useStore();
 
   return (
-    <aside className={`fixed left-0 top-0 h-screen bg-gray-950 text-white flex flex-col transition-all duration-300 z-30 ${sidebarCollapsed ? 'w-16' : 'w-56'}`}>
+    <aside data-sidebar className={`fixed left-0 top-0 h-screen bg-gray-950 text-white flex flex-col transition-all duration-300 z-30 ${sidebarCollapsed ? 'w-16' : 'w-56'}`}>
       {/* Logo */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
         {!sidebarCollapsed && (

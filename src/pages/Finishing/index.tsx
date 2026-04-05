@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import {
   Plus, Trash2, Edit3, Search, Scissors, Copy, Settings, X, Info,
-  FlaskConical,
+  FlaskConical, TrendingUp, Tag, Lock,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Card, PageHeader, Table, Modal, Input } from '../../components/ui';
-import type { PricingFinishing, FinishingGroup } from '../../types/pricing';
+import type { PricingFinishing, FinishingGroup, ServicePricingMode, SellRateTier } from '../../types/pricing';
+import { nanoid } from '../../utils/nanoid';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const fmt = (n: number) => `$${n.toFixed(n < 1 && n > 0 ? 3 : 2)}`;
@@ -61,7 +62,18 @@ const emptyForm = {
   sheetsPerStack: 500,
   stacksPerHour: 150,
   notes: '',
+  // ── Sell-side pricing ──
+  pricingMode: 'cost_markup' as ServicePricingMode,
+  sellRate: 0,
+  sellRateTiers: [] as SellRateTier[],
 };
+
+// Pricing mode options
+const PRICING_MODES = [
+  { id: 'cost_markup' as ServicePricingMode, label: 'Cost + Markup', icon: TrendingUp, tip: 'Compute cost from rates, apply markup % to get sell price' },
+  { id: 'rate_card'  as ServicePricingMode, label: 'Rate Card',     icon: Tag,         tip: 'Set cost and sell rates independently. Optionally add volume tiers.' },
+  { id: 'fixed'      as ServicePricingMode, label: 'Fixed Charge',  icon: Lock,        tip: 'Charge a flat fixed amount regardless of quantity' },
+];
 
 const emptyGroupForm = { name: '', description: '' };
 
@@ -219,6 +231,8 @@ export const Finishing: React.FC = () => {
 
   const openEditModal = (f: PricingFinishing) => {
     setEditingId(f.id);
+    // Derive pricingMode from legacy isFixedCharge if pricingMode not stored yet
+    const mode: ServicePricingMode = f.pricingMode ?? (f.isFixedCharge ? 'fixed' : 'cost_markup');
     setForm({
       name: f.name,
       description: f.description || '',
@@ -233,12 +247,15 @@ export const Finishing: React.FC = () => {
       initialSetupFee: f.initialSetupFee,
       markupPercent: f.markupPercent,
       minimumCharge: f.minimumCharge ?? 0,
-      isFixedCharge: f.isFixedCharge ?? false,
+      isFixedCharge: mode === 'fixed',
       fixedChargeAmount: f.fixedChargeAmount ?? 0,
       fixedChargeCost: f.fixedChargeCost ?? 0,
       sheetsPerStack: f.sheetsPerStack ?? 500,
       stacksPerHour: f.stacksPerHour ?? 150,
       notes: f.notes || '',
+      pricingMode: mode,
+      sellRate: f.sellRate ?? 0,
+      sellRateTiers: f.sellRateTiers ? [...f.sellRateTiers] : [],
     });
     setShowTestPanel(false);
     setShowModal(true);
@@ -252,6 +269,7 @@ export const Finishing: React.FC = () => {
 
   const handleSave = () => {
     if (!form.name || form.categoryIds.length === 0) return;
+    const isFixed = form.pricingMode === 'fixed';
     const payload: Omit<PricingFinishing, 'id' | 'createdAt'> = {
       name: form.name,
       description: form.description || undefined,
@@ -266,12 +284,16 @@ export const Finishing: React.FC = () => {
       initialSetupFee: form.initialSetupFee,
       markupPercent: form.markupPercent,
       minimumCharge: form.minimumCharge,
-      isFixedCharge: form.isFixedCharge,
-      fixedChargeAmount: form.isFixedCharge ? form.fixedChargeAmount : 0,
-      fixedChargeCost: form.isFixedCharge ? form.fixedChargeCost : 0,
+      isFixedCharge: isFixed,
+      fixedChargeAmount: isFixed ? form.fixedChargeAmount : 0,
+      fixedChargeCost: isFixed ? form.fixedChargeCost : 0,
       sheetsPerStack: form.chargeBasis === 'per_stack' ? form.sheetsPerStack : undefined,
       stacksPerHour: form.chargeBasis === 'per_stack' ? form.stacksPerHour : undefined,
       notes: form.notes || undefined,
+      // Sell-side pricing
+      pricingMode: form.pricingMode,
+      sellRate: form.pricingMode === 'rate_card' ? form.sellRate : undefined,
+      sellRateTiers: form.pricingMode === 'rate_card' && form.sellRateTiers.length > 0 ? form.sellRateTiers : undefined,
     };
     if (editingId) {
       updateFinishing(editingId, payload);
@@ -289,6 +311,7 @@ export const Finishing: React.FC = () => {
 
   const handleCloneFromTable = (f: PricingFinishing) => {
     setEditingId(null);
+    const mode: ServicePricingMode = f.pricingMode ?? (f.isFixedCharge ? 'fixed' : 'cost_markup');
     setForm({
       name: `Clone of ${f.name}`,
       description: f.description || '',
@@ -303,12 +326,15 @@ export const Finishing: React.FC = () => {
       initialSetupFee: f.initialSetupFee,
       markupPercent: f.markupPercent,
       minimumCharge: f.minimumCharge ?? 0,
-      isFixedCharge: f.isFixedCharge ?? false,
+      isFixedCharge: mode === 'fixed',
       fixedChargeAmount: f.fixedChargeAmount ?? 0,
       fixedChargeCost: f.fixedChargeCost ?? 0,
       sheetsPerStack: f.sheetsPerStack ?? 500,
       stacksPerHour: f.stacksPerHour ?? 150,
       notes: f.notes || '',
+      pricingMode: mode,
+      sellRate: f.sellRate ?? 0,
+      sellRateTiers: f.sellRateTiers ? [...f.sellRateTiers] : [],
     });
     setShowTestPanel(false);
     setShowModal(true);
@@ -638,45 +664,177 @@ export const Finishing: React.FC = () => {
             </div>
           </div>
 
-          {/* ── Bottom Section: Pricing + Notes ── */}
+          {/* ── Bottom Section: Pricing Mode + Fields + Notes ── */}
           <div className="space-y-4 pt-2">
-            {/* Fixed Charge Toggle */}
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={form.isFixedCharge}
-                onChange={e => setForm(f => ({ ...f, isFixedCharge: e.target.checked }))}
-                className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-[11px] font-semibold text-gray-600">Fixed Charge</span>
-              <span className="text-[10px] text-gray-400">- charge a flat fixed amount regardless of quantity</span>
-            </label>
+
+            {/* ── Pricing Mode selector ── */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Pricing Mode</label>
+              <div className="flex gap-1.5 p-1 bg-gray-100 rounded-xl">
+                {PRICING_MODES.map(m => {
+                  const Icon = m.icon;
+                  const active = form.pricingMode === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      title={m.tip}
+                      onClick={() => setForm(f => ({
+                        ...f,
+                        pricingMode: m.id,
+                        isFixedCharge: m.id === 'fixed',
+                      }))}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                        active ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${active ? 'text-blue-600' : ''}`} />
+                      {m.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* ── FIXED CHARGE FIELDS ── */}
-            {form.isFixedCharge ? (
+            {form.pricingMode === 'fixed' && (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost ($)</label>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Your Cost ($)</label>
                     <input type="number" value={form.fixedChargeCost || ''} onChange={e => setForm(f => ({ ...f, fixedChargeCost: parseFloat(e.target.value) || 0 }))} placeholder="Your cost" className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400" />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Fixed Price ($)</label>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Client Charge ($)</label>
                     <input type="number" value={form.fixedChargeAmount || ''} onChange={e => setForm(f => ({ ...f, fixedChargeAmount: parseFloat(e.target.value) || 0 }))} placeholder="Client charge" className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400" />
                   </div>
                 </div>
-
-                {/* Markup display */}
                 {form.fixedChargeCost > 0 && form.fixedChargeAmount > 0 && (
                   <div className="text-[11px] text-gray-500 bg-gray-50 rounded-md px-3 py-2">
                     Markup: <span className="font-semibold text-gray-900">{pct(fixedMarkupPct)}</span>
-                    <span className="text-gray-400 ml-1">
-                      ({fmt(form.fixedChargeCost)} cost {'\u2192'} {fmt(form.fixedChargeAmount)} charge)
-                    </span>
+                    <span className="text-gray-400 ml-1">({fmt(form.fixedChargeCost)} cost → {fmt(form.fixedChargeAmount)} charge)</span>
                   </div>
                 )}
               </div>
-            ) : (
+            )}
+
+            {/* ── RATE CARD FIELDS ── */}
+            {form.pricingMode === 'rate_card' && (
+              <div className="space-y-3">
+                {/* Cost fields (same as cost_markup) */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Charge Basis</label>
+                    <select value={form.chargeBasis} onChange={e => setForm(f => ({ ...f, chargeBasis: e.target.value as PricingFinishing['chargeBasis'] }))}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none">
+                      {CHARGE_BASIS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost Type</label>
+                    <select value={form.costType} onChange={e => setForm(f => ({ ...f, costType: e.target.value as PricingFinishing['costType'] }))}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none">
+                      {COST_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+                {/* Cost rate fields (simplified — same as cost_markup but without markup%) */}
+                <div className="grid grid-cols-3 gap-4">
+                  {(form.costType === 'time_only' || form.costType === 'cost_plus_time') && (
+                    <>
+                      <Input label="Units Per Hour" type="number" value={form.outputPerHour || ''}
+                        onChange={e => setForm(f => ({ ...f, outputPerHour: parseInt(e.target.value) || 0 }))} />
+                      <Input label="Hourly Cost ($)" type="number" value={form.hourlyCost || ''}
+                        onChange={e => setForm(f => ({ ...f, hourlyCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                    </>
+                  )}
+                  {(form.costType === 'cost_only' || form.costType === 'cost_plus_time') && (
+                    <Input label="Unit Cost ($)" type="number" value={form.unitCost || ''}
+                      onChange={e => setForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                  )}
+                </div>
+
+                {/* ── Sell Rate — the key new field ── */}
+                <div className="rounded-xl border-2 border-blue-100 bg-blue-50/40 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Tag className="w-3.5 h-3.5 text-blue-500" />
+                    <span className="text-xs font-semibold text-blue-800 uppercase tracking-wide">Client Sell Rate</span>
+                    <span className="text-[10px] text-blue-500 ml-1">— what you charge the client, independent of your cost</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                        Sell Rate ({form.chargeBasis === 'per_unit' ? '$/unit' : form.chargeBasis === 'per_sqft' ? '$/sqft' : form.chargeBasis === 'per_hour' ? '$/hr' : form.chargeBasis === 'per_stack' ? '$/stack' : '$ flat'})
+                      </label>
+                      <input type="number" value={form.sellRate || ''} onChange={e => setForm(f => ({ ...f, sellRate: parseFloat(e.target.value) || 0 }))}
+                        placeholder="e.g. 5.00" className="w-full px-3 py-1.5 text-sm bg-white border border-blue-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    {form.sellRate > 0 && (computeCostPerUnit(form) > 0) && (
+                      <div className="col-span-2 flex items-end pb-1.5">
+                        <div className="text-[11px] text-gray-600 bg-white rounded-md px-3 py-2 border border-blue-100">
+                          Cost: <span className="font-semibold">{fmt(computeCostPerUnit(form))}</span>
+                          {' · '}Sell: <span className="font-semibold text-blue-700">{fmt(form.sellRate)}</span>
+                          {' · '}Margin: <span className={`font-semibold ${form.sellRate > computeCostPerUnit(form) ? 'text-emerald-600' : 'text-red-500'}`}>
+                            {form.sellRate > 0 ? pct(((form.sellRate - computeCostPerUnit(form)) / form.sellRate) * 100) : '—'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Volume Tiers (optional) ── */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide">Volume Tiers <span className="font-normal text-blue-400 normal-case">(optional — override sell rate by quantity range)</span></span>
+                      <button type="button"
+                        onClick={() => setForm(f => ({ ...f, sellRateTiers: [...f.sellRateTiers, { id: nanoid(), fromQty: 0, toQty: null, sellRate: 0 }] }))}
+                        className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 px-2 py-0.5 rounded hover:bg-blue-100 transition-colors">
+                        <Plus className="w-3 h-3" /> Add Tier
+                      </button>
+                    </div>
+                    {form.sellRateTiers.length > 0 && (
+                      <div className="space-y-1.5">
+                        <div className="grid grid-cols-[1fr_1fr_1fr_28px] gap-2 px-1">
+                          <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide">From Qty</span>
+                          <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide">To Qty (∞ = leave blank)</span>
+                          <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide">Sell Rate</span>
+                          <span />
+                        </div>
+                        {form.sellRateTiers.map((tier, idx) => (
+                          <div key={tier.id} className="grid grid-cols-[1fr_1fr_1fr_28px] gap-2 items-center">
+                            <input type="number" value={tier.fromQty || ''} placeholder="0"
+                              onChange={e => setForm(f => { const t = [...f.sellRateTiers]; t[idx] = { ...t[idx], fromQty: parseFloat(e.target.value) || 0 }; return { ...f, sellRateTiers: t }; })}
+                              className="px-2 py-1 text-xs bg-white border border-blue-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                            <input type="number" value={tier.toQty ?? ''} placeholder="∞"
+                              onChange={e => setForm(f => { const t = [...f.sellRateTiers]; t[idx] = { ...t[idx], toQty: e.target.value ? parseFloat(e.target.value) : null }; return { ...f, sellRateTiers: t }; })}
+                              className="px-2 py-1 text-xs bg-white border border-blue-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                            <input type="number" value={tier.sellRate || ''} placeholder="0.00"
+                              onChange={e => setForm(f => { const t = [...f.sellRateTiers]; t[idx] = { ...t[idx], sellRate: parseFloat(e.target.value) || 0 }; return { ...f, sellRateTiers: t }; })}
+                              className="px-2 py-1 text-xs bg-white border border-blue-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                            <button type="button"
+                              onClick={() => setForm(f => ({ ...f, sellRateTiers: f.sellRateTiers.filter((_, i) => i !== idx) }))}
+                              className="p-1 hover:bg-red-50 rounded text-gray-300 hover:text-red-500 transition-colors">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Setup + Minimum */}
+                <div className="grid grid-cols-2 gap-4">
+                  <Input label="Setup Fee ($)" type="number" value={form.initialSetupFee || ''}
+                    onChange={e => setForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                  <Input label="Minimum Charge ($)" type="number" value={form.minimumCharge || ''}
+                    onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                </div>
+              </div>
+            )}
+
+            {/* ── COST + MARKUP FIELDS (unchanged) ── */}
+            {form.pricingMode === 'cost_markup' && (
               /* ── NORMAL PRICING FIELDS ── */
               <div className="space-y-3">
                 {/* Row 1: Charge Basis + Cost Type */}

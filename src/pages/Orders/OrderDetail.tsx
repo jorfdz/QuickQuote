@@ -1,10 +1,91 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Printer, Receipt, KanbanSquare, Edit3, Trash2, CheckCircle, ChevronDown, ChevronUp, Copy, ArrowRight, ShoppingCart, Plus } from 'lucide-react';
+import { Printer, Receipt, KanbanSquare, Edit3, Trash2, CheckCircle, ChevronDown, ChevronUp, Copy, ArrowRight, ShoppingCart, Plus, Search } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Badge, Card, PageHeader, Select, Tabs, Modal, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
 import type { OrderStatus, OrderItem, OrderTrackingMode } from '../../types';
+
+// ─── Inline editable field (same pattern as QuoteDetail) ─────────────────────
+const OrderInlineField: React.FC<{
+  label: string;
+  value: string;
+  onSave: (v: string) => void;
+  type?: 'text' | 'date';
+  searchable?: boolean;
+  options?: { value: string; label: string }[];
+  placeholder?: string;
+  onAddNew?: () => void;
+}> = ({ label, value, onSave, type = 'text', searchable, options, placeholder, onAddNew }) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [search, setSearch] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const start = () => { setDraft(value); setSearch(value); setEditing(true); setTimeout(() => inputRef.current?.focus(), 0); };
+  const commit = (val?: string) => { onSave(val ?? draft); setEditing(false); };
+
+  const filteredOptions = useMemo(() => {
+    if (!options) return [];
+    if (!search.trim()) return options.slice(0, 8);
+    const q = search.toLowerCase();
+    return options.filter(o => o.label.toLowerCase().includes(q)).slice(0, 8);
+  }, [options, search]);
+
+  if (!editing) {
+    return (
+      <div className="group cursor-pointer hover:bg-gray-50 rounded-md px-2 py-1.5 -mx-2 transition-colors" onClick={start}>
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <p className="text-sm font-medium text-gray-800">{value || <span className="text-gray-300 font-normal italic">Click to set</span>}</p>
+          <Edit3 className="w-3 h-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+      </div>
+    );
+  }
+
+  if (searchable && options) {
+    return (
+      <div className="rounded-md px-2 py-1.5 -mx-2 bg-blue-50/40 border border-blue-100">
+        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">{label}</p>
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+          <input ref={inputRef} value={search} onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') setEditing(false); }}
+            onBlur={() => setTimeout(() => setEditing(false), 200)}
+            placeholder={placeholder || `Search ${label.toLowerCase()}...`}
+            className="w-full pl-6 pr-2 py-1 text-sm bg-white border border-blue-200 rounded text-gray-800 focus:outline-none" autoFocus />
+        </div>
+        {filteredOptions.length > 0 && (
+          <div className="mt-1 max-h-36 overflow-y-auto bg-white border border-gray-200 rounded-md shadow-lg">
+            {filteredOptions.map(o => (
+              <button key={o.value} type="button" onMouseDown={() => commit(o.value)}
+                className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-blue-50 transition-colors">
+                {o.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {onAddNew && (
+          <button type="button" onMouseDown={onAddNew}
+            className="mt-1 flex items-center gap-1 px-2 py-1 text-xs text-[var(--brand)] hover:bg-[var(--brand-light)] rounded w-full transition-colors">
+            <Plus className="w-3 h-3" /> Add new {label.toLowerCase()}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md px-2 py-1.5 -mx-2 bg-blue-50/40 border border-blue-100">
+      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">{label}</p>
+      <input ref={inputRef} type={type} value={draft} onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
+        onBlur={() => commit()} placeholder={placeholder}
+        className="w-full text-sm bg-white border border-blue-200 rounded px-2 py-1 text-gray-800 focus:outline-none" autoFocus />
+    </div>
+  );
+};
 import { nanoid } from '../../utils/nanoid';
 import { buildWorkOrderTemplateHtml } from '../../utils/documentTemplates';
 import {
@@ -34,18 +115,12 @@ export const OrderDetail: React.FC = () => {
 
   const order = orders.find(o => o.id === id);
 
-  // ── Editable line items state ─────────────────────────────────────────
-  const [editableLineItems, setEditableLineItems] = useState<OrderItem[]>(() => order?.lineItems || []);
-  const [editablePricingStates, setEditablePricingStates] = useState<Record<string, LineItemPricingState>>({});
+  // ── Item editing state — same auto-save pattern as QuoteDetail ──────────────
   const [editingItemModal, setEditingItemModal] = useState<string | null>(null);
-  const [isDirty, setIsDirty] = useState(false);
-
-  // Sync editableLineItems if the order changes externally (e.g. after save) and we're not dirty
-  useEffect(() => {
-    if (!isDirty && order) {
-      setEditableLineItems(order.lineItems || []);
-    }
-  }, [order?.lineItems, isDirty]);
+  const [pricingStates, setPricingStates] = useState<Record<string, LineItemPricingState>>({});
+  // Refs that always hold the latest values without closure staleness
+  const pricingStatesRef = useRef<Record<string, LineItemPricingState>>({});
+  const currentItemsRef = useRef<any[]>([]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -58,6 +133,87 @@ export const OrderDetail: React.FC = () => {
   }, []);
 
   if (!order) return <div className="text-center py-16 text-gray-400">Order not found</div>;
+
+  // Keep refs in sync on every render
+  pricingStatesRef.current = pricingStates;
+  currentItemsRef.current = (order.lineItems as any[]) || [];
+
+  // ── Restore pricing state from pricingContext or top-level fields ─────────
+  const getPricingState = (iid: string): LineItemPricingState => {
+    if (pricingStates[iid]) return pricingStates[iid];
+    const saved = currentItemsRef.current.find((i: any) => i.id === iid) as any;
+    if (saved?.pricingContext) {
+      return { ...DEFAULT_PRICING_STATE(), ...(saved.pricingContext as Partial<LineItemPricingState>) };
+    }
+    if (saved) {
+      return {
+        ...DEFAULT_PRICING_STATE(),
+        productId: saved.productId || '',
+        productName: saved.productName || saved.description || '',
+        categoryName: saved.categoryName || '',
+        quantity: saved.quantity || 1000,
+        finalWidth: saved.width || 0,
+        finalHeight: saved.height || 0,
+        materialId: saved.materialId || '',
+        equipmentId: saved.equipmentId || '',
+        colorMode: saved.colorMode || 'Color',
+        sides: saved.sides || 'Double',
+        foldingType: saved.foldingType || '',
+        drillingType: saved.drillingType || '',
+        cuttingEnabled: saved.cuttingEnabled ?? true,
+        sheetsPerStack: saved.sheetsPerStack || 500,
+        serviceLines: saved.serviceLines || [],
+        selectedLaborIds: saved.selectedLaborIds || [],
+        selectedBrokeredIds: saved.selectedBrokeredIds || [],
+      };
+    }
+    return DEFAULT_PRICING_STATE();
+  };
+
+  // ── Persist items directly to the store ──────────────────────────────────
+  const persistOrderItems = (items: any[]) => {
+    const subtotal = items.reduce((s: number, i: any) => s + (i.sellPrice || 0), 0);
+    const taxAmount = subtotal * ((order.taxRate || 0) / 100);
+    const titleUpdate = !order.title && items.find((i: any) => i.description)?.description
+      ? { title: items.find((i: any) => i.description).description }
+      : {};
+    updateOrder(id!, { lineItems: items, subtotal, taxAmount, total: subtotal + taxAmount, ...titleUpdate });
+  };
+
+  // ── Pre-populate pricingStates before modal mounts (same fix as QuoteDetail) ──
+  const openItemForEdit = (itemId: string) => {
+    setPricingStates(prev => {
+      if (prev[itemId]) return prev; // Already loaded
+      const saved = currentItemsRef.current.find((i: any) => i.id === itemId) as any;
+      let restored: LineItemPricingState = DEFAULT_PRICING_STATE();
+      if (saved?.pricingContext) {
+        restored = { ...DEFAULT_PRICING_STATE(), ...(saved.pricingContext as Partial<LineItemPricingState>) };
+      } else if (saved) {
+        restored = {
+          ...DEFAULT_PRICING_STATE(),
+          productId: saved.productId || '',
+          productName: saved.productName || saved.description || '',
+          categoryName: saved.categoryName || '',
+          quantity: saved.quantity || 1000,
+          finalWidth: saved.width || 0,
+          finalHeight: saved.height || 0,
+          materialId: saved.materialId || '',
+          equipmentId: saved.equipmentId || '',
+          colorMode: saved.colorMode || 'Color',
+          sides: saved.sides || 'Double',
+          foldingType: saved.foldingType || '',
+          drillingType: saved.drillingType || '',
+          cuttingEnabled: saved.cuttingEnabled ?? true,
+          sheetsPerStack: saved.sheetsPerStack || 500,
+          serviceLines: saved.serviceLines || [],
+          selectedLaborIds: saved.selectedLaborIds || [],
+          selectedBrokeredIds: saved.selectedBrokeredIds || [],
+        };
+      }
+      return { ...prev, [itemId]: restored };
+    });
+    setEditingItemModal(itemId);
+  };
 
   const workflow = workflows.find(w => w.id === order.workflowId) || workflows[0];
   const trackingMode = order.trackingMode || 'order';
@@ -181,30 +337,17 @@ export const OrderDetail: React.FC = () => {
   // ── Line item editing helpers ─────────────────────────────────────────
   const addLineItem = () => {
     const item = EMPTY_LINE_ITEM();
-    setEditableLineItems(prev => [...prev, item]);
-    setEditablePricingStates(prev => ({ ...prev, [item.id]: DEFAULT_PRICING_STATE() }));
-    setEditingItemModal(item.id);
-    setIsDirty(true);
+    const newItems = [...currentItemsRef.current, item];
+    persistOrderItems(newItems);
+    setPricingStates(prev => ({ ...prev, [item.id]: DEFAULT_PRICING_STATE() }));
+    openItemForEdit(item.id);
   };
 
   const removeLineItem = (itemId: string) => {
-    setEditableLineItems(prev => prev.filter(i => i.id !== itemId));
-    setEditablePricingStates(prev => { const n = { ...prev }; delete n[itemId]; return n; });
-    setIsDirty(true);
+    const newItems = currentItemsRef.current.filter((i: any) => i.id !== itemId);
+    persistOrderItems(newItems);
+    setPricingStates(prev => { const n = { ...prev }; delete n[itemId]; return n; });
   };
-
-  const saveChanges = () => {
-    const subtotal = editableLineItems.reduce((s, i) => s + (i.sellPrice || 0), 0);
-    const taxAmount = subtotal * ((order.taxRate || 0) / 100);
-    const total = subtotal + taxAmount;
-    updateOrder(id!, { lineItems: editableLineItems, subtotal, taxAmount, total, updatedAt: new Date().toISOString() });
-    setIsDirty(false);
-  };
-
-  // Derived summary from editable items
-  const editableSubtotal = editableLineItems.reduce((s, i) => s + (i.sellPrice || 0), 0);
-  const editableTaxAmount = editableSubtotal * ((order.taxRate || 0) / 100);
-  const editableTotal = editableSubtotal + editableTaxAmount;
   const stageSummary = useMemo(() => buildStageSummary(order, workflow), [order, workflow]);
   const progressStageId = stageSummary.currentStageId || order.currentStageId;
 
@@ -305,33 +448,45 @@ export const OrderDetail: React.FC = () => {
         </div>
         {!headerCollapsed && (
           <div className="px-5 pb-4 pt-0 border-t border-gray-100">
-            <div className="grid grid-cols-3 gap-4 mt-4">
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Account Name</p>
-                <p className="text-sm font-medium text-gray-900 mt-1">{order.customerName || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Contact</p>
-                <p className="text-sm font-medium text-gray-900 mt-1">{order.contactName || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</p>
-                <div className="mt-1"><Badge label={order.status} /></div>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Due Date</p>
-                <p className={`text-sm font-medium mt-1 ${order.dueDate && new Date(order.dueDate) < new Date() && order.status === 'in_progress' ? 'text-red-500' : 'text-gray-900'}`}>
-                  {order.dueDate ? formatDate(order.dueDate) : '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">CSR</p>
-                <p className="text-sm font-medium text-gray-900 mt-1">{csr?.name || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Sales Rep</p>
-                <p className="text-sm font-medium text-gray-900 mt-1">{salesRep?.name || '—'}</p>
-              </div>
+            <p className="text-[9px] text-gray-400 mt-3 mb-3 uppercase tracking-widest font-semibold">Click any field to edit · saves automatically</p>
+            <div className="grid grid-cols-3 gap-x-6 gap-y-3 items-start">
+              <OrderInlineField label="Account"
+                value={order.customerName || ''}
+                searchable
+                options={customers.map(c => ({ value: c.id, label: c.name }))}
+                placeholder="Search customers..."
+                onSave={v => { const c = customers.find(x => x.id === v); updateOrder(id!, { customerId: v || undefined, customerName: c?.name, contactId: undefined, contactName: undefined }); }}
+              />
+              <OrderInlineField label="Contact"
+                value={order.contactName || ''}
+                searchable
+                options={contacts.filter(c => c.customerId === order.customerId).map(c => ({ value: c.id, label: `${c.firstName} ${c.lastName}` }))}
+                placeholder="Search contacts..."
+                onSave={v => { const c = contacts.find(x => x.id === v); updateOrder(id!, { contactId: v || undefined, contactName: c ? `${c.firstName} ${c.lastName}` : undefined }); }}
+              />
+              <OrderInlineField label="Due Date" type="date"
+                value={order.dueDate || ''}
+                onSave={v => updateOrder(id!, { dueDate: v || undefined })}
+              />
+              <OrderInlineField label="Title"
+                value={order.title || ''}
+                placeholder="Order title..."
+                onSave={v => updateOrder(id!, { title: v })}
+              />
+              <OrderInlineField label="CSR"
+                value={csr?.name || ''}
+                searchable
+                options={users.filter(u => u.active && ['csr','admin','manager'].includes(u.role)).map(u => ({ value: u.id, label: u.name }))}
+                placeholder="Search CSR..."
+                onSave={v => updateOrder(id!, { csrId: v || undefined })}
+              />
+              <OrderInlineField label="Sales Rep"
+                value={salesRep?.name || ''}
+                searchable
+                options={users.filter(u => u.active && ['sales','admin','manager'].includes(u.role)).map(u => ({ value: u.id, label: u.name }))}
+                placeholder="Search Sales Rep..."
+                onSave={v => updateOrder(id!, { salesId: v || undefined })}
+              />
             </div>
           </div>
         )}
@@ -410,51 +565,42 @@ export const OrderDetail: React.FC = () => {
         <div className="grid grid-cols-3 gap-6">
           <div className="col-span-2 space-y-4">
 
-            {/* Unsaved changes banner */}
-            {isDirty && (
-              <div className="sticky top-20 z-10 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center justify-between">
-                <span className="text-sm text-amber-800 font-medium">You have unsaved changes to this order.</span>
-                <div className="flex gap-2">
-                  <Button variant="secondary" size="sm" onClick={() => { setEditableLineItems(order.lineItems || []); setIsDirty(false); }}>Discard</Button>
-                  <Button variant="primary" size="sm" onClick={saveChanges}>Save Changes</Button>
-                </div>
-              </div>
-            )}
-
-            {/* Line items */}
+            {/* Line items — auto-saved directly to store on every change */}
             <Card>
               <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900">Line Items</h2>
+                <h2 className="font-semibold text-gray-900">Line Items
+                  <span className="text-[10px] font-normal text-gray-400 ml-2">Click any item to edit</span>
+                </h2>
                 <Button variant="secondary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={addLineItem}>
                   Add Item
                 </Button>
               </div>
               <div className="divide-y divide-gray-50 p-2 space-y-1">
-                {editableLineItems.length === 0 && (
+                {currentItemsRef.current.length === 0 && (
                   <div className="px-4 py-8 text-center text-gray-400 text-sm">
                     No line items yet. Click "Add Item" to get started.
                   </div>
                 )}
-                {editableLineItems.map((item, idx) => {
-                  const ps = editablePricingStates[item.id] || DEFAULT_PRICING_STATE();
+                {currentItemsRef.current.map((item: any, idx: number) => {
+                  const itemPs = getPricingState(item.id);
                   return (
                     <Card key={item.id} className="overflow-hidden hover:border-gray-200 transition-all">
                       <div className="flex items-center gap-3 px-4 py-3">
                         <span className="w-5 h-5 bg-gray-100 rounded text-xs font-bold text-gray-500 flex items-center justify-center flex-shrink-0">{idx + 1}</span>
-                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setEditingItemModal(item.id)}>
+                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openItemForEdit(item.id)}>
                           <p className="text-sm font-medium text-gray-900 truncate">
                             {item.description || <span className="text-gray-400 italic">New line item — click to configure</span>}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
-                            {ps.categoryName && <Badge color="blue" className="text-[10px]">{ps.categoryName}</Badge>}
-                            {ps.quantity > 0 && <span className="text-xs text-gray-400">{ps.quantity.toLocaleString()} pcs</span>}
+                            {itemPs.categoryName && <Badge color="blue" className="text-[10px]">{itemPs.categoryName}</Badge>}
+                            {itemPs.quantity > 0 && <span className="text-xs text-gray-400">{itemPs.quantity.toLocaleString()} pcs</span>}
                           </div>
                         </div>
                         <div className="flex items-center gap-3 flex-shrink-0">
                           <p className="text-sm font-bold text-gray-900">{formatCurrency(item.sellPrice || 0)}</p>
                           <div className="flex items-center gap-1">
                             <button
-                              onClick={() => setEditingItemModal(item.id)}
+                              onClick={() => openItemForEdit(item.id)}
                               className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                               title="Edit item"
                             >
@@ -491,21 +637,18 @@ export const OrderDetail: React.FC = () => {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Subtotal</span>
-                  <span>{formatCurrency(isDirty ? editableSubtotal : order.subtotal)}</span>
+                  <span>{formatCurrency(order.subtotal)}</span>
                 </div>
                 {order.taxRate && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Tax ({order.taxRate}%)</span>
-                    <span>{formatCurrency(isDirty ? editableTaxAmount : (order.taxAmount || 0))}</span>
+                    <span>{formatCurrency(order.taxAmount || 0)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-lg font-bold border-t border-gray-100 pt-2">
                   <span>Total</span>
-                  <span className="text-blue-600">{formatCurrency(isDirty ? editableTotal : order.total)}</span>
+                  <span className="text-blue-600">{formatCurrency(order.total)}</span>
                 </div>
-                {isDirty && (
-                  <p className="text-[10px] text-amber-600 text-right">* Unsaved changes</p>
-                )}
               </div>
             </Card>
             <Card className="p-5">
@@ -772,10 +915,10 @@ export const OrderDetail: React.FC = () => {
         onConfirm={() => { deleteOrder(id!); navigate('/orders'); }}
         title="Delete Order" message={`Delete ${order.number}? This cannot be undone.`} />
 
-      {/* ProductEditModal */}
+      {/* ProductEditModal — same auto-save pattern as QuoteDetail */}
       {editingItemModal && (() => {
-        const editingItem = editableLineItems.find(i => i.id === editingItemModal);
-        const editingPs = editablePricingStates[editingItemModal] || DEFAULT_PRICING_STATE();
+        const editingItem = currentItemsRef.current.find((i: any) => i.id === editingItemModal);
+        const editingPs = getPricingState(editingItemModal);
         if (!editingItem) return null;
         return (
           <ProductEditModal
@@ -783,14 +926,63 @@ export const OrderDetail: React.FC = () => {
             pricingState={editingPs}
             isNew={!editingItem.description}
             onUpdateItem={updates => {
-              setEditableLineItems(prev => prev.map(i => i.id === editingItemModal ? { ...i, ...updates } : i));
-              setIsDirty(true);
+              // Auto-save directly to the store — no local state buffer
+              const newItems = currentItemsRef.current.map((i: any) =>
+                i.id === editingItemModal ? { ...i, ...updates } : i
+              );
+              persistOrderItems(newItems);
             }}
             onUpdatePricing={updates => {
-              setEditablePricingStates(prev => ({ ...prev, [editingItemModal]: { ...(prev[editingItemModal] || DEFAULT_PRICING_STATE()), ...updates } }));
-              setIsDirty(true);
+              // CRITICAL FIX: use pre-populated base state, never DEFAULT_PRICING_STATE
+              setPricingStates(prev => {
+                const existing = prev[editingItemModal];
+                let base: LineItemPricingState;
+                if (existing) {
+                  base = existing;
+                } else {
+                  const saved = currentItemsRef.current.find((i: any) => i.id === editingItemModal) as any;
+                  if (saved?.pricingContext) {
+                    base = { ...DEFAULT_PRICING_STATE(), ...(saved.pricingContext as Partial<LineItemPricingState>) };
+                  } else if (saved) {
+                    base = {
+                      ...DEFAULT_PRICING_STATE(),
+                      productId: saved.productId || '', productName: saved.productName || saved.description || '',
+                      categoryName: saved.categoryName || '', quantity: saved.quantity || 1000,
+                      finalWidth: saved.width || 0, finalHeight: saved.height || 0,
+                      materialId: saved.materialId || '', equipmentId: saved.equipmentId || '',
+                      colorMode: saved.colorMode || 'Color', sides: saved.sides || 'Double',
+                      foldingType: saved.foldingType || '', drillingType: saved.drillingType || '',
+                      cuttingEnabled: saved.cuttingEnabled ?? true, sheetsPerStack: saved.sheetsPerStack || 500,
+                      serviceLines: saved.serviceLines || [],
+                      selectedLaborIds: saved.selectedLaborIds || [],
+                      selectedBrokeredIds: saved.selectedBrokeredIds || [],
+                    };
+                  } else {
+                    base = DEFAULT_PRICING_STATE();
+                  }
+                }
+                return { ...prev, [editingItemModal]: { ...base, ...updates } };
+              });
             }}
-            onClose={() => setEditingItemModal(null)}
+            onClose={() => {
+              // Write final pricingContext to the item and persist to store.
+              // Always derive totalCost/sellPrice from live service lines so the order
+              // list shows the correct total even when the recompute effect never called onUpdateItem.
+              const finalPs = pricingStatesRef.current[editingItemModal] || getPricingState(editingItemModal);
+              const slTotalCost = finalPs.serviceLines?.reduce((s: number, l: any) => s + (l.totalCost || 0), 0) ?? 0;
+              const slTotalSell = finalPs.serviceLines?.reduce((s: number, l: any) => s + (l.sellPrice || 0), 0) ?? 0;
+              const slMarkup = slTotalCost > 0 ? Math.round(((slTotalSell - slTotalCost) / slTotalCost) * 100) : 0;
+              const finalItems = currentItemsRef.current.map((i: any) => {
+                if (i.id !== editingItemModal) return i;
+                const base = { ...i, pricingContext: { ...finalPs } };
+                if (slTotalSell > 0) {
+                  return { ...base, totalCost: slTotalCost, sellPrice: slTotalSell, markup: slMarkup };
+                }
+                return base;
+              });
+              persistOrderItems(finalItems);
+              setEditingItemModal(null);
+            }}
             onRemove={() => { removeLineItem(editingItemModal); setEditingItemModal(null); }}
             matchingTemplates={[]}
             onApplyTemplate={() => {}}

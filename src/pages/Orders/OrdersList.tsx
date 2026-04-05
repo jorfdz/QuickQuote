@@ -1,91 +1,273 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, AlertTriangle } from 'lucide-react';
 import { useStore } from '../../store';
-import { Button, SearchInput, Badge, Table, PageHeader, EmptyState, Card } from '../../components/ui';
+import { useNavigation } from '../../hooks/useNavigation';
+import { Button, SearchInput, Table, PageHeader, EmptyState, Card, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
+import type { OrderStatus } from '../../types';
 
-const STATUS_FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'in_progress', label: 'In Progress' },
-  { id: 'on_hold', label: 'On Hold' },
-  { id: 'completed', label: 'Completed' },
-  { id: 'canceled', label: 'Canceled' },
+// ─── Status config ────────────────────────────────────────────────────────────
+
+const STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'on_hold',     label: 'On Hold'     },
+  { value: 'completed',   label: 'Completed'   },
+  { value: 'canceled',    label: 'Canceled'    },
 ];
 
+const STATUS_COLORS: Record<string, string> = {
+  in_progress: 'bg-blue-500 text-white',
+  on_hold:     'bg-amber-500 text-white',
+  completed:   'bg-emerald-500 text-white',
+  canceled:    'bg-gray-400 text-white',
+};
+
+// ─── Date range options ───────────────────────────────────────────────────────
+
+const DATE_OPTIONS = [
+  { id: 'all',    label: 'All Time'     },
+  { id: 'week',   label: 'This Week'    },
+  { id: 'month',  label: 'This Month'   },
+  { id: 'last30', label: 'Last 30 Days' },
+  { id: 'last90', label: 'Last 90 Days' },
+];
+
+function inDateRange(dateStr: string, range: string): boolean {
+  if (range === 'all') return true;
+  const d = new Date(dateStr).getTime();
+  const now = Date.now();
+  const ms = (n: number) => n * 86400000;
+  if (range === 'last30') return d >= now - ms(30);
+  if (range === 'last90') return d >= now - ms(90);
+  const nowDate = new Date();
+  if (range === 'week') {
+    const start = new Date(nowDate);
+    start.setDate(nowDate.getDate() - nowDate.getDay());
+    start.setHours(0, 0, 0, 0);
+    return d >= start.getTime();
+  }
+  if (range === 'month') {
+    return d >= new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime();
+  }
+  return true;
+}
+
+// ─── Inline status picker ─────────────────────────────────────────────────────
+
+const StatusPicker: React.FC<{
+  current: OrderStatus;
+  onSelect: (s: OrderStatus) => void;
+}> = ({ current, onSelect }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  const label = STATUS_OPTIONS.find(s => s.value === current)?.label ?? current;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={e => { e.stopPropagation(); setOpen(!open); }}
+        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all whitespace-nowrap ${STATUS_COLORS[current] ?? 'bg-gray-200 text-gray-700'}`}
+      >
+        {label}
+        <ChevronDown className="w-3 h-3 opacity-70" />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-30 overflow-hidden min-w-[130px]">
+          {STATUS_OPTIONS.map(s => (
+            <button key={s.value}
+              onClick={e => { e.stopPropagation(); onSelect(s.value); setOpen(false); }}
+              className={`w-full text-left px-3 py-2 text-xs font-medium transition-colors ${
+                s.value === current ? 'bg-gray-50 font-bold' : 'hover:bg-gray-50'
+              }`}
+            >
+              <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${STATUS_COLORS[s.value]}`} />
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+
 export const OrdersList: React.FC = () => {
-  const { orders } = useStore();
+  const { orders, updateOrder, deleteOrder } = useStore();
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
+  const nav = useNavigation();
+
+  const [search, setSearch]             = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [customerFilter, setCustomerFilter] = useState('all');
+  const [dateFilter, setDateFilter]     = useState('all');
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const filtered = orders.filter(o => {
-    const matchSearch = !search || o.title.toLowerCase().includes(search.toLowerCase()) || o.number.toLowerCase().includes(search.toLowerCase()) || (o.customerName || '').toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === 'all' || o.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
+  const now = new Date();
 
-  const counts = {
-    in_progress: orders.filter(o => o.status === 'in_progress').length,
-    on_hold: orders.filter(o => o.status === 'on_hold').length,
-    completed: orders.filter(o => o.status === 'completed').length,
-  };
+  const customerOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const list: { id: string; name: string }[] = [];
+    orders.forEach(o => {
+      if (o.customerId && o.customerName && !seen.has(o.customerId)) {
+        seen.add(o.customerId);
+        list.push({ id: o.customerId, name: o.customerName });
+      }
+    });
+    return list.sort((a, b) => a.name.localeCompare(b.name));
+  }, [orders]);
+
+  const filtered = useMemo(() => orders.filter(o => {
+    if (search) {
+      const s = search.toLowerCase();
+      if (!o.title?.toLowerCase().includes(s) &&
+          !o.number?.toLowerCase().includes(s) &&
+          !(o.customerName || '').toLowerCase().includes(s)) return false;
+    }
+    if (statusFilter !== 'all' && o.status !== statusFilter) return false;
+    if (customerFilter !== 'all' && o.customerId !== customerFilter) return false;
+    if (!inDateRange(o.createdAt, dateFilter)) return false;
+    return true;
+  }), [orders, search, statusFilter, customerFilter, dateFilter]);
+
+  const filterCount = [statusFilter !== 'all', customerFilter !== 'all', dateFilter !== 'all'].filter(Boolean).length;
+  const orderToDelete = deleteConfirmId ? orders.find(o => o.id === deleteConfirmId) : null;
 
   return (
     <div>
-      <PageHeader title="Orders" subtitle={`${orders.length} total orders`}
-        actions={<Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => navigate('/orders/new')}>New Order</Button>}
+      <PageHeader
+        title="Orders"
+        subtitle={`${orders.length} total`}
+        actions={
+          <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => nav('/orders/new')}>
+            New Order
+          </Button>
+        }
       />
 
-      <div className="grid grid-cols-4 gap-4 mb-4">
-        {[
-          { label: 'Active', value: counts.in_progress, color: 'text-blue-600 bg-blue-50' },
-          { label: 'On Hold', value: counts.on_hold, color: 'text-amber-600 bg-amber-50' },
-          { label: 'Completed', value: counts.completed, color: 'text-emerald-600 bg-emerald-50' },
-          { label: 'Total Revenue', value: formatCurrency(orders.reduce((s, o) => s + o.total, 0)), color: 'text-gray-900 bg-gray-50' },
-        ].map(s => (
-          <Card key={s.label} className="p-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{s.label}</p>
-            <p className={`text-2xl font-bold mt-1 ${s.color.split(' ')[0]}`}>{s.value}</p>
-          </Card>
-        ))}
-      </div>
-
+      {/* ── Filter bar ── */}
       <Card className="mb-4">
-        <div className="flex items-center gap-4 px-4 py-3">
-          <SearchInput value={search} onChange={setSearch} placeholder="Search orders..." />
-          <div className="flex items-center gap-1 border border-gray-200 rounded-lg p-1">
-            {STATUS_FILTERS.map(f => (
-              <button key={f.id} onClick={() => setStatusFilter(f.id)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${statusFilter === f.id ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
-                {f.label}
+        <div className="px-4 py-3 space-y-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <SearchInput value={search} onChange={setSearch} placeholder="Search order #, title, customer…" />
+            {filterCount > 0 && (
+              <button
+                onClick={() => { setStatusFilter('all'); setCustomerFilter('all'); setDateFilter('all'); }}
+                className="text-xs text-[var(--brand)] hover:underline flex-shrink-0"
+              >
+                Clear {filterCount} filter{filterCount > 1 ? 's' : ''}
               </button>
-            ))}
+            )}
+            <span className="text-xs text-gray-400 ml-auto">
+              {filtered.length} order{filtered.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Status pills */}
+            <div className="flex items-center gap-1 flex-wrap">
+              {[{ id: 'all', label: 'All' }, ...STATUS_OPTIONS.map(s => ({ id: s.value, label: s.label }))].map(f => (
+                <button key={f.id} onClick={() => setStatusFilter(f.id)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border whitespace-nowrap ${
+                    statusFilter === f.id
+                      ? (f.id === 'all'
+                          ? 'bg-gray-800 text-white border-gray-800'
+                          : `${STATUS_COLORS[f.id]} border-transparent`)
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                  }`}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="w-px h-5 bg-gray-200 flex-shrink-0" />
+
+            <select value={customerFilter} onChange={e => setCustomerFilter(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[var(--brand)] bg-white text-gray-600">
+              <option value="all">All Customers</option>
+              {customerOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+
+            <select value={dateFilter} onChange={e => setDateFilter(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[var(--brand)] bg-white text-gray-600">
+              {DATE_OPTIONS.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+            </select>
           </div>
         </div>
       </Card>
 
+      {/* ── Table ── */}
       <Card>
         {filtered.length === 0 ? (
-          <EmptyState icon={<span className="text-2xl">📦</span>} title="No orders found" description="Create your first order to get started." action={<Button variant="primary" onClick={() => navigate('/orders/new')}>New Order</Button>} />
+          <EmptyState
+            icon={<span className="text-2xl">📦</span>}
+            title="No orders found"
+            description={filterCount > 0 ? 'Try adjusting your filters.' : 'Create your first order to get started.'}
+            action={<Button variant="primary" onClick={() => nav('/orders/new')}>New Order</Button>}
+          />
         ) : (
-          <Table headers={['Order #', 'Title', 'Customer', 'Status', 'Total', 'Due Date', 'Quote #', '']}>
+          <Table headers={['Order #', 'Title', 'Customer', 'Total', 'Due Date', 'Quote #', 'Status', '']}>
             {filtered.map(order => {
-              const isOverdue = order.dueDate && order.status === 'in_progress' && new Date(order.dueDate) < new Date();
+              const isOverdue = order.dueDate && order.status === 'in_progress' && new Date(order.dueDate) < now;
               return (
-                <tr key={order.id} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => navigate(`/orders/${order.id}`)}>
-                  <td className="py-3 px-4 obj-num text-xs text-gray-500">{order.number}</td>
-                  <td className="py-3 px-4"><p className="text-sm font-medium text-gray-900">{order.title}</p></td>
-                  <td className="py-3 px-4 text-sm text-gray-600">{order.customerName || '—'}</td>
-                  <td className="py-3 px-4"><Badge label={order.status} /></td>
-                  <td className="py-3 px-4 text-sm font-semibold text-gray-900">{formatCurrency(order.total)}</td>
+                <tr key={order.id}
+                  className="hover:bg-gray-50 cursor-pointer transition-colors group"
+                  onClick={() => navigate(`/orders/${order.id}`)}>
+
                   <td className="py-3 px-4">
-                    <span className={`text-sm ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-500'}`}>{order.dueDate ? formatDate(order.dueDate) : '—'}</span>
-                    {isOverdue && <span className="ml-1 text-xs text-red-500">⚠️ Overdue</span>}
+                    <span className="obj-num text-sm font-semibold text-gray-800">{order.number}</span>
                   </td>
-                  <td className="py-3 px-4 text-xs obj-num text-gray-400">{order.quoteNumber || '—'}</td>
+
+                  <td className="py-3 px-4 max-w-[180px]">
+                    <p className="text-sm font-medium text-gray-900 truncate">{order.title || '—'}</p>
+                  </td>
+
+                  <td className="py-3 px-4 text-sm text-gray-700">{order.customerName || '—'}</td>
+
+                  <td className="py-3 px-4 text-sm font-semibold text-gray-900 num">{formatCurrency(order.total)}</td>
+
+                  <td className="py-3 px-4 whitespace-nowrap">
+                    {order.dueDate ? (
+                      <span className={`text-xs font-medium flex items-center gap-1 ${isOverdue ? 'text-red-500' : 'text-gray-500'}`}>
+                        {isOverdue && <AlertTriangle className="w-3 h-3 flex-shrink-0" />}
+                        {formatDate(order.dueDate)}
+                      </span>
+                    ) : <span className="text-xs text-gray-300">—</span>}
+                  </td>
+
                   <td className="py-3 px-4">
-                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); navigate(`/orders/${order.id}`); }}>View</Button>
+                    {order.quoteNumber ? (
+                      <button
+                        onClick={e => { e.stopPropagation(); navigate(`/quotes/${order.quoteId}`); }}
+                        className="text-xs obj-num text-[var(--brand)] hover:underline"
+                      >
+                        {order.quoteNumber}
+                      </button>
+                    ) : <span className="text-xs text-gray-300">—</span>}
+                  </td>
+
+                  <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
+                    <StatusPicker current={order.status} onSelect={status => updateOrder(order.id, { status })} />
+                  </td>
+
+                  <td className="py-3 px-4 text-right" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={() => setDeleteConfirmId(order.id)}
+                      className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                      title="Delete order"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </td>
                 </tr>
               );
@@ -93,6 +275,19 @@ export const OrdersList: React.FC = () => {
           </Table>
         )}
       </Card>
+
+      <ConfirmDialog
+        isOpen={!!deleteConfirmId}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={() => {
+          if (deleteConfirmId) { deleteOrder(deleteConfirmId); setDeleteConfirmId(null); }
+        }}
+        title="Delete Order"
+        message={orderToDelete
+          ? `Delete ${orderToDelete.number}${orderToDelete.title ? ` — ${orderToDelete.title}` : ''}? This cannot be undone.`
+          : 'Delete this order?'}
+        confirmLabel="Delete"
+      />
     </div>
   );
 };

@@ -1,35 +1,17 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Layers, Package, Search, Copy, ChevronDown, FileText, X, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, Layers, Package, Search, Copy, FileText } from 'lucide-react';
 import { Card, PageHeader, Button, Input, Table, Modal, ConfirmDialog } from '../../components/ui';
 import { usePricingStore } from '../../store/pricingStore';
-import type { PricingCategory, PricingProduct, ProductPricingTemplate } from '../../types/pricing';
-
-// ─── Product Material Entry (multi-material support) ────────────────────────
-
-interface ProductMaterialEntry {
-  materialId: string;
-  materialName: string;
-  sides: 'Single' | 'Double';
-  color: 'Color' | 'Black' | 'Color & Black';
-  originals: number;
-}
-
-const blankMaterialEntry = (): ProductMaterialEntry => ({
-  materialId: '', materialName: '', sides: 'Double', color: 'Color', originals: 1,
-});
+import type { PricingCategory, PricingProduct } from '../../types/pricing';
+import { ProductEditModal, LineItemPricingState, DEFAULT_PRICING_STATE } from '../../components/pricing/ItemEditModal';
+import type { QuoteLineItem } from '../../types';
+import { nanoid } from '../../utils/nanoid';
 
 // ─── Form defaults ─────────────────────────────────────────────────────────
 
 const blankCategory = (): Omit<PricingCategory, 'id' | 'createdAt'> => ({
   name: '', description: '', sortOrder: 0,
-});
-
-const blankProduct = (): Omit<PricingProduct, 'id' | 'createdAt'> => ({
-  categoryIds: [], name: '', aliases: [], defaultQuantity: 1000,
-  defaultFinalSize: '', defaultFinalWidth: 0, defaultFinalHeight: 0,
-  defaultColor: 'Color', defaultSides: 'Double', isTemplate: false,
-  defaultFinishingIds: [],
 });
 
 const SUBTABS = [
@@ -44,11 +26,10 @@ export const Catalog: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const {
-    categories, products, materials, equipment, materialGroups, templates,
-    finishing, finishingGroups,
+    categories, products, templates,
     addCategory, updateCategory, deleteCategory,
     addProduct, updateProduct, deleteProduct,
-    deleteTemplate,
+    deleteTemplate, updateTemplate,
   } = usePricingStore();
 
   const [subTab, setSubTab] = useState('categories');
@@ -61,25 +42,27 @@ export const Catalog: React.FC = () => {
   const [catDeleteConfirm, setCatDeleteConfirm] = useState<string | null>(null);
 
   // ── Product state ──────────────────────────────────────────────────────
-  const [prodModalOpen, setProdModalOpen] = useState(false);
-  const [prodEditId, setProdEditId] = useState<string | null>(null);
-  const [prodForm, setProdForm] = useState(blankProduct());
-  const [prodAliasesStr, setProdAliasesStr] = useState('');
   const [prodDeleteConfirm, setProdDeleteConfirm] = useState<string | null>(null);
   const [prodCategoryFilter, setProdCategoryFilter] = useState('all');
-  const [prodMaterials, setProdMaterials] = useState<ProductMaterialEntry[]>([blankMaterialEntry()]);
-  const [prodFinishingIds, setProdFinishingIds] = useState<string[]>([]);
-  const [expandedFinishingGroups, setExpandedFinishingGroups] = useState<Record<string, boolean>>({});
+
+  // ── Full ProductEditModal for products (same UI as quotes/orders) ───────
+  const [prodItemModalOpen, setProdItemModalOpen] = useState(false);
+  const [prodItem, setProdItem] = useState<QuoteLineItem | null>(null);
+  const [prodPricingState, setProdPricingState] = useState<LineItemPricingState>(DEFAULT_PRICING_STATE());
+  // Store the editing product id separately from the old modal
+  const [prodItemEditId, setProdItemEditId] = useState<string | null>(null);
+  const [prodItemAliasesStr, setProdItemAliasesStr] = useState('');
 
   // ── Template state ─────────────────────────────────────────────────────
   const [tplDeleteConfirm, setTplDeleteConfirm] = useState<string | null>(null);
   const [tplRemoveAllConfirm, setTplRemoveAllConfirm] = useState(false);
   const [tplSearch, setTplSearch] = useState('');
 
-  // ── Material search state (per-row for multi-material) ─────────────────
-  const [materialQueries, setMaterialQueries] = useState<Record<number, string>>({});
-  const [showMaterialDropdown, setShowMaterialDropdown] = useState<number | null>(null);
-  const materialInputRef = useRef<HTMLInputElement>(null);
+  // ── Template edit modal (ProductEditModal, same as products) ───────────
+  const [tplItemModalOpen, setTplItemModalOpen] = useState(false);
+  const [tplItem, setTplItem] = useState<QuoteLineItem | null>(null);
+  const [tplPricingState, setTplPricingState] = useState<LineItemPricingState>(DEFAULT_PRICING_STATE());
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 
   // ── Derived ────────────────────────────────────────────────────────────
   const productCountByCategory = useMemo(() => {
@@ -87,11 +70,6 @@ export const Catalog: React.FC = () => {
     products.forEach(p => { p.categoryIds.forEach(cid => { counts[cid] = (counts[cid] || 0) + 1; }); });
     return counts;
   }, [products]);
-
-  const getCategoryNames = (ids: string[]) => {
-    if (!ids || ids.length === 0) return '--';
-    return ids.map(id => categories.find(c => c.id === id)?.name || '').filter(Boolean).join(', ');
-  };
 
   const filteredProducts = useMemo(() => {
     let list = products;
@@ -118,58 +96,90 @@ export const Catalog: React.FC = () => {
   const handleDeleteTemplate = (id: string) => { deleteTemplate(id); setTplDeleteConfirm(null); };
   const handleRemoveAllTemplates = () => { templates.forEach(t => deleteTemplate(t.id)); setTplRemoveAllConfirm(false); };
 
-  // ── Materials filtered by product's categories ────────────────────────
-  const availableMaterials = useMemo(() => {
-    if (!prodForm.categoryIds || prodForm.categoryIds.length === 0) return materials;
-    const matchingGroupIds = materialGroups
-      .filter(g => g.categoryIds.some(cid => prodForm.categoryIds.includes(cid)))
-      .map(g => g.id);
-    if (matchingGroupIds.length === 0) return materials;
-    return materials.filter(m => m.materialGroupIds && m.materialGroupIds.some(gid => matchingGroupIds.includes(gid)));
-  }, [prodForm.categoryIds, materials, materialGroups]);
-
-  const getFilteredMaterials = (rowIndex: number) => {
-    const query = materialQueries[rowIndex] || '';
-    if (!query.trim()) return availableMaterials;
-    const q = query.toLowerCase();
-    return availableMaterials.filter(m => m.name.toLowerCase().includes(q) || m.size.toLowerCase().includes(q));
+  const openEditTemplate = (t: typeof templates[number]) => {
+    const item: QuoteLineItem = {
+      id: t.id,
+      productFamily: 'digital_print',
+      description: t.name,
+      quantity: t.quantity,
+      unit: 'each',
+      width: t.finalWidth || undefined,
+      height: t.finalHeight || undefined,
+      materialId: t.materialId,
+      materialName: t.materialName,
+      equipmentId: t.equipmentId,
+      equipmentName: t.equipmentName,
+      totalCost: 0, markup: 0, sellPrice: 0,
+      pricingContext: {
+        productId: t.productId || '',
+        productName: t.productName,
+        categoryName: t.categoryName,
+        quantity: t.quantity,
+        finalWidth: t.finalWidth,
+        finalHeight: t.finalHeight,
+        materialId: t.materialId || '',
+        equipmentId: t.equipmentId || '',
+        colorMode: t.color === 'Black' ? 'Black' : 'Color',
+        sides: t.sides,
+        foldingType: t.folding || '',
+        drillingType: '',
+        cuttingEnabled: true,
+        sheetsPerStack: 500,
+        serviceLines: [],
+      } as Record<string, unknown>,
+    };
+    const ps: LineItemPricingState = {
+      ...DEFAULT_PRICING_STATE(),
+      productId: t.productId || '',
+      productName: t.productName,
+      categoryName: t.categoryName,
+      quantity: t.quantity,
+      finalWidth: t.finalWidth,
+      finalHeight: t.finalHeight,
+      materialId: t.materialId || '',
+      equipmentId: t.equipmentId || '',
+      colorMode: (t.color === 'Black' ? 'Black' : 'Color') as 'Color' | 'Black',
+      sides: t.sides,
+      foldingType: t.folding || '',
+    };
+    setTplItem(item);
+    setTplPricingState(ps);
+    setEditingTemplateId(t.id);
+    setTplItemModalOpen(true);
   };
 
-  // ── Finishing filtered by product's categories ────────────────────────
-  const availableFinishing = useMemo(() => {
-    if (!prodForm.categoryIds || prodForm.categoryIds.length === 0) return finishing;
-    return finishing.filter(f => f.categoryIds.some(cid => prodForm.categoryIds.includes(cid)));
-  }, [prodForm.categoryIds, finishing]);
-
-  // Group finishing services by their finishing groups
-  const finishingByGroup = useMemo(() => {
-    const grouped: Record<string, { group: { id: string; name: string }; services: typeof finishing }> = {};
-    // Build a map of finishing group id -> group
-    const groupMap = new Map(finishingGroups.map(g => [g.id, g]));
-    availableFinishing.forEach(f => {
-      f.finishingGroupIds.forEach(gid => {
-        const grp = groupMap.get(gid);
-        if (grp) {
-          if (!grouped[gid]) grouped[gid] = { group: grp, services: [] };
-          grouped[gid].services.push(f);
-        }
-      });
-      // If service has no groups, put in "Other"
-      if (f.finishingGroupIds.length === 0) {
-        if (!grouped['_other']) grouped['_other'] = { group: { id: '_other', name: 'Other' }, services: [] };
-        grouped['_other'].services.push(f);
-      }
+  const handleSaveTemplateFromModal = (finalItem: QuoteLineItem, finalPs: LineItemPricingState) => {
+    if (!editingTemplateId) return;
+    const w = finalPs.finalWidth || finalItem.width || 0;
+    const h = finalPs.finalHeight || finalItem.height || 0;
+    updateTemplate(editingTemplateId, {
+      name: finalItem.description || finalPs.productName || 'Template',
+      categoryId: categories.find(c => c.name === finalPs.categoryName)?.id || '',
+      categoryName: finalPs.categoryName,
+      productId: finalPs.productId || undefined,
+      productName: finalPs.productName,
+      quantity: finalPs.quantity || finalItem.quantity,
+      finalWidth: w,
+      finalHeight: h,
+      materialId: finalPs.materialId || finalItem.materialId || undefined,
+      materialName: finalItem.materialName || undefined,
+      equipmentId: finalPs.equipmentId || finalItem.equipmentId || undefined,
+      equipmentName: finalItem.equipmentName || undefined,
+      color: finalPs.colorMode,
+      sides: finalPs.sides,
+      folding: finalPs.foldingType || undefined,
     });
-    return Object.values(grouped);
-  }, [availableFinishing, finishingGroups]);
+    setTplItemModalOpen(false);
+    setTplItem(null);
+    setEditingTemplateId(null);
+  };
 
-  // ── Equipment filtered by product's categories ────────────────────────
-  const availableEquipment = useMemo(() => {
-    if (!prodForm.categoryIds || prodForm.categoryIds.length === 0) return equipment;
-    const catNames = prodForm.categoryIds.map(id => categories.find(c => c.id === id)?.name?.toLowerCase() || '').filter(Boolean);
-    if (catNames.length === 0) return equipment;
-    return equipment.filter(e => catNames.includes(e.categoryApplies.toLowerCase()));
-  }, [prodForm.categoryIds, equipment, categories]);
+  // Also sync prodPricingState on every onUpdatePricing so the latest state is always
+  // available to handleSaveProductFromModal when Done is clicked
+  const handleProdUpdatePricing = (updates: Partial<LineItemPricingState>) => {
+    setProdPricingState(prev => ({ ...prev, ...updates }));
+  };
+
 
   // ── Category handlers ──────────────────────────────────────────────────
   const openAddCategory = () => { setCatForm(blankCategory()); setCatEditId(null); setCatModalOpen(true); };
@@ -187,41 +197,77 @@ export const Catalog: React.FC = () => {
 
   // ── Product handlers ───────────────────────────────────────────────────
   const openAddProduct = () => {
-    setProdForm(blankProduct());
-    setProdAliasesStr('');
-    setProdEditId(null);
-    setMaterialQueries({});
-    setProdMaterials([blankMaterialEntry()]);
-    setProdFinishingIds([]);
-    setExpandedFinishingGroups({});
-    setProdModalOpen(true);
-  };
-  const openEditProduct = (p: PricingProduct) => {
-    setProdEditId(p.id);
-    setProdForm({
-      categoryIds: p.categoryIds, name: p.name, aliases: p.aliases,
-      defaultQuantity: p.defaultQuantity, defaultMaterialId: p.defaultMaterialId,
-      defaultMaterialName: p.defaultMaterialName,
-      defaultFinalSize: p.defaultFinalSize, defaultFinalWidth: p.defaultFinalWidth,
-      defaultFinalHeight: p.defaultFinalHeight, defaultEquipmentId: p.defaultEquipmentId,
-      defaultEquipmentName: p.defaultEquipmentName, defaultColor: p.defaultColor,
-      defaultSides: p.defaultSides, defaultFolding: p.defaultFolding, isTemplate: p.isTemplate,
-      defaultFinishingIds: p.defaultFinishingIds || [],
-    });
-    setProdAliasesStr(p.aliases.join(', '));
-    // Load first material entry from product defaults
-    const firstMat: ProductMaterialEntry = {
-      materialId: p.defaultMaterialId || '',
-      materialName: p.defaultMaterialName || '',
-      sides: p.defaultSides,
-      color: p.defaultColor,
-      originals: 1,
+    // Use the full ProductEditModal (same as quotes/orders)
+    const newItem: QuoteLineItem = {
+      id: nanoid(), productFamily: 'digital_print', description: '', quantity: 1000, unit: 'each',
+      totalCost: 0, markup: 0, sellPrice: 0,
     };
-    setProdMaterials([firstMat]);
-    setMaterialQueries({ 0: p.defaultMaterialName || '' });
-    setProdFinishingIds(p.defaultFinishingIds || []);
-    setExpandedFinishingGroups({});
-    setProdModalOpen(true);
+    setProdItem(newItem);
+    setProdPricingState(DEFAULT_PRICING_STATE());
+    setProdItemEditId(null);
+    setProdItemAliasesStr('');
+    setProdItemModalOpen(true);
+  };
+
+  const openEditProduct = (p: PricingProduct) => {
+    // If a full pricing context was previously saved, restore it directly — this preserves
+    // ALL modal state: labor, brokered, service lines, markup overrides, etc.
+    const savedCtx = p.defaultPricingContext as Partial<LineItemPricingState> | undefined;
+
+    const item: QuoteLineItem = {
+      id: p.id,
+      productFamily: 'digital_print',
+      description: p.name,
+      quantity: savedCtx?.quantity ?? p.defaultQuantity,
+      unit: 'each',
+      width: (savedCtx?.finalWidth || p.defaultFinalWidth) || undefined,
+      height: (savedCtx?.finalHeight || p.defaultFinalHeight) || undefined,
+      materialId: (savedCtx?.materialId || p.defaultMaterialId) || undefined,
+      materialName: p.defaultMaterialName || undefined,
+      equipmentId: (savedCtx?.equipmentId || p.defaultEquipmentId) || undefined,
+      equipmentName: p.defaultEquipmentName || undefined,
+      totalCost: 0, markup: 0, sellPrice: 0,
+      // Use saved context as pricingContext so the modal's 3-tier restore picks it up
+      pricingContext: savedCtx ? { ...savedCtx } : {
+        productName: p.name,
+        quantity: p.defaultQuantity,
+        finalWidth: p.defaultFinalWidth,
+        finalHeight: p.defaultFinalHeight,
+        materialId: p.defaultMaterialId || '',
+        equipmentId: p.defaultEquipmentId || '',
+        colorMode: p.defaultColor === 'Black' ? 'Black' : 'Color',
+        sides: p.defaultSides,
+        foldingType: p.defaultFolding || '',
+        drillingType: '',
+        cuttingEnabled: true,
+        sheetsPerStack: 500,
+        serviceLines: [],
+        selectedLaborIds: [],
+        selectedBrokeredIds: [],
+      } as Record<string, unknown>,
+    };
+
+    // Build the pricing state — prefer saved context so all fields including labor/brokered are restored
+    const ps: LineItemPricingState = savedCtx
+      ? { ...DEFAULT_PRICING_STATE(), ...savedCtx }
+      : {
+          ...DEFAULT_PRICING_STATE(),
+          productName: p.name,
+          quantity: p.defaultQuantity,
+          finalWidth: p.defaultFinalWidth,
+          finalHeight: p.defaultFinalHeight,
+          materialId: p.defaultMaterialId || '',
+          equipmentId: p.defaultEquipmentId || '',
+          colorMode: p.defaultColor === 'Black' ? 'Black' : 'Color',
+          sides: p.defaultSides,
+          foldingType: p.defaultFolding || '',
+        };
+
+    setProdItem(item);
+    setProdPricingState(ps);
+    setProdItemEditId(p.id);
+    setProdItemAliasesStr(p.aliases.join(', '));
+    setProdItemModalOpen(true);
   };
 
   const handleCloneProduct = (p: PricingProduct) => {
@@ -237,69 +283,49 @@ export const Catalog: React.FC = () => {
     });
   };
 
-  const handleSaveProduct = () => {
-    // Save first material entry to product defaults
-    const firstMat = prodMaterials[0] || blankMaterialEntry();
-    const data = {
-      ...prodForm,
-      aliases: prodAliasesStr.split(',').map(s => s.trim()).filter(Boolean),
-      defaultFinalSize: `${prodForm.defaultFinalWidth}x${prodForm.defaultFinalHeight}`,
-      defaultMaterialId: firstMat.materialId || prodForm.defaultMaterialId,
-      defaultMaterialName: firstMat.materialName || prodForm.defaultMaterialName,
-      defaultColor: firstMat.color,
-      defaultSides: firstMat.sides,
-      defaultFinishingIds: prodFinishingIds,
+  // Save from the full ProductEditModal
+  const handleSaveProductFromModal = (finalItem: QuoteLineItem, finalPs: LineItemPricingState) => {
+    const w = finalPs.finalWidth || finalItem.width || 0;
+    const h = finalPs.finalHeight || finalItem.height || 0;
+    let categoryIds: string[] = [];
+    if (prodItemEditId) {
+      categoryIds = products.find(p => p.id === prodItemEditId)?.categoryIds || [];
+    } else if (prodCategoryFilter !== 'all') {
+      categoryIds = [prodCategoryFilter];
+    } else if (categories.length > 0) {
+      categoryIds = [categories[0].id];
+    }
+    const productDefaults = {
+      categoryIds,
+      name: finalItem.description || finalPs.productName || 'New Product',
+      aliases: prodItemAliasesStr.split(',').map(s => s.trim()).filter(Boolean),
+      defaultQuantity: finalPs.quantity || finalItem.quantity || 1000,
+      defaultFinalSize: w && h ? `${w}x${h}` : '',
+      defaultFinalWidth: w,
+      defaultFinalHeight: h,
+      defaultMaterialId: finalPs.materialId || finalItem.materialId || undefined,
+      defaultMaterialName: finalItem.materialName || undefined,
+      defaultEquipmentId: finalPs.equipmentId || finalItem.equipmentId || undefined,
+      defaultEquipmentName: finalItem.equipmentName || undefined,
+      defaultColor: (finalPs.colorMode === 'Black' ? 'Black' : 'Color') as 'Color' | 'Black' | 'Color & Black',
+      defaultSides: finalPs.sides,
+      defaultFolding: finalPs.foldingType || undefined,
+      isTemplate: false,
+      defaultFinishingIds: [],
+      // ── Full pricing context — persists ALL modal state so it's restored exactly on re-open ──
+      // This is the critical fix: without this, labor/brokered services, service line overrides,
+      // markup edits, and all other modal state are lost when the user navigates away.
+      defaultPricingContext: { ...finalPs } as Record<string, unknown>,
     };
-    if (prodEditId) updateProduct(prodEditId, data);
-    else addProduct(data);
-    setProdModalOpen(false);
+    if (prodItemEditId) {
+      updateProduct(prodItemEditId, productDefaults);
+    } else {
+      addProduct(productDefaults);
+    }
+    setProdItemModalOpen(false);
+    setProdItem(null);
   };
   const handleDeleteProduct = (id: string) => { deleteProduct(id); setProdDeleteConfirm(null); };
-
-  const toggleCategoryId = (catId: string) => {
-    setProdForm(f => {
-      const ids = f.categoryIds.includes(catId)
-        ? f.categoryIds.filter(id => id !== catId)
-        : [...f.categoryIds, catId];
-      return { ...f, categoryIds: ids };
-    });
-  };
-
-  // ── Multi-material helpers ────────────────────────────────────────────
-  const updateMaterialEntry = (idx: number, updates: Partial<ProductMaterialEntry>) => {
-    setProdMaterials(prev => prev.map((m, i) => i === idx ? { ...m, ...updates } : m));
-  };
-  const addMaterialEntry = () => {
-    setProdMaterials(prev => [...prev, blankMaterialEntry()]);
-  };
-  const removeMaterialEntry = (idx: number) => {
-    setProdMaterials(prev => prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx));
-    setMaterialQueries(prev => {
-      const next = { ...prev };
-      delete next[idx];
-      // Re-index queries above the removed row
-      const reindexed: Record<number, string> = {};
-      Object.entries(next).forEach(([k, v]) => {
-        const key = parseInt(k);
-        reindexed[key > idx ? key - 1 : key] = v;
-      });
-      return reindexed;
-    });
-  };
-
-  const toggleFinishingId = (fId: string) => {
-    setProdFinishingIds(prev => prev.includes(fId) ? prev.filter(id => id !== fId) : [...prev, fId]);
-  };
-
-  const toggleFinishingGroup = (gId: string) => {
-    setExpandedFinishingGroups(prev => ({ ...prev, [gId]: !prev[gId] }));
-  };
-
-  // Selected equipment details for the modal
-  const selectedEquipment = useMemo(() => {
-    if (!prodForm.defaultEquipmentId) return null;
-    return equipment.find(e => e.id === prodForm.defaultEquipmentId) || null;
-  }, [prodForm.defaultEquipmentId, equipment]);
 
   // ═══════════════════════════════════════════════════════════════════════
 
@@ -445,34 +471,39 @@ export const Catalog: React.FC = () => {
         <Card>
           <Table headers={['Name', 'Product', 'Category', 'Qty', 'Size', 'Material', 'Color', 'Sides', 'Used', 'Actions']}>
             {filteredTemplates.map(t => (
-              <tr key={t.id} className="hover:bg-gray-50">
+              <tr key={t.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => openEditTemplate(t)}>
                 <td className="py-2.5 px-4 font-medium text-sm text-gray-900">{t.name}</td>
                 <td className="py-2.5 px-4 text-sm text-gray-600">{t.productName}</td>
                 <td className="py-2.5 px-4">
                   <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{t.categoryName || '--'}</span>
                 </td>
                 <td className="py-2.5 px-4 text-sm text-gray-600">{t.quantity.toLocaleString()}</td>
-                <td className="py-2.5 px-4 text-xs text-gray-600">{t.finalWidth}x{t.finalHeight}</td>
+                <td className="py-2.5 px-4 text-xs text-gray-600">{t.finalWidth && t.finalHeight ? `${t.finalWidth}x${t.finalHeight}` : '--'}</td>
                 <td className="py-2.5 px-4 text-xs text-gray-500 max-w-[120px] truncate">{t.materialName || '--'}</td>
                 <td className="py-2.5 px-4 text-xs text-gray-600">{t.color}</td>
                 <td className="py-2.5 px-4 text-xs text-gray-600">{t.sides}</td>
                 <td className="py-2.5 px-4 text-xs text-gray-400">{t.usageCount}x</td>
-                <td className="py-2.5 px-4">
-                  {tplDeleteConfirm === t.id ? (
-                    <div className="flex gap-1 items-center">
-                      <button onClick={() => handleDeleteTemplate(t.id)} className="px-2 py-0.5 text-xs bg-red-600 text-white rounded">Delete</button>
-                      <button onClick={() => setTplDeleteConfirm(null)} className="px-2 py-0.5 text-xs text-gray-500">Cancel</button>
-                    </div>
-                  ) : (
-                    <button onClick={() => setTplDeleteConfirm(t.id)} className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-600">
-                      <Trash2 className="w-3.5 h-3.5" />
+                <td className="py-2.5 px-4" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => openEditTemplate(t)} className="p-1.5 hover:bg-blue-50 rounded text-gray-400 hover:text-blue-600" title="Edit template">
+                      <Pencil className="w-3.5 h-3.5" />
                     </button>
-                  )}
+                    {tplDeleteConfirm === t.id ? (
+                      <div className="flex gap-1 items-center">
+                        <button onClick={() => handleDeleteTemplate(t.id)} className="px-2 py-0.5 text-xs bg-red-600 text-white rounded">Delete</button>
+                        <button onClick={() => setTplDeleteConfirm(null)} className="px-2 py-0.5 text-xs text-gray-500">Cancel</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setTplDeleteConfirm(t.id)} className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-600">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
             {filteredTemplates.length === 0 && (
-              <tr><td colSpan={10} className="py-12 text-center text-sm text-gray-400">No templates found. Create one to get started.</td></tr>
+              <tr><td colSpan={10} className="py-12 text-center text-sm text-gray-400">No templates found. Star an item inside a quote to create one.</td></tr>
             )}
           </Table>
         </Card>
@@ -501,223 +532,64 @@ export const Catalog: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ═══ PRODUCT MODAL ═══ */}
-      <Modal isOpen={prodModalOpen} onClose={() => setProdModalOpen(false)} title={prodEditId ? 'Edit Product' : 'Add Product'} size="xl">
-        <div className="space-y-5 max-h-[75vh] overflow-y-auto pr-1">
+      {/* ══ Full ProductEditModal for adding/editing products ══ */}
+      {prodItemModalOpen && prodItem && (
+        <ProductEditModal
+          item={prodItem}
+          pricingState={prodPricingState}
+          isNew={!prodItemEditId}
+          onUpdateItem={updates => {
+            setProdItem(prev => prev ? { ...prev, ...updates } : prev);
+          }}
+          onUpdatePricing={updates => {
+            setProdPricingState(prev => ({ ...prev, ...updates }));
+          }}
+          onClose={() => {
+            if (prodItem) {
+              handleSaveProductFromModal(prodItem, prodPricingState);
+            } else {
+              setProdItemModalOpen(false);
+            }
+          }}
+          onRemove={() => {
+            setProdItemModalOpen(false);
+            setProdItem(null);
+          }}
+          matchingTemplates={[]}
+          onApplyTemplate={() => {}}
+        />
+      )}
 
-          {/* ─── Section 1: Product Info ─────────────────────────────── */}
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Product Name</label>
-                <input
-                  value={prodForm.name}
-                  onChange={e => setProdForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Business Cards"
-                  className="w-full px-3 py-1.5 text-sm font-bold bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent placeholder-gray-400 transition-all"
-                />
-              </div>
-              <Input label="Aliases (comma-separated)" value={prodAliasesStr}
-                onChange={e => setProdAliasesStr(e.target.value)}
-                placeholder="e.g. BCARD, BC, Presentation Cards" />
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <Input label="Quantity" type="number" value={prodForm.defaultQuantity}
-                onChange={e => setProdForm(f => ({ ...f, defaultQuantity: parseInt(e.target.value) || 0 }))} />
-              <Input label="Width (in)" type="number" value={prodForm.defaultFinalWidth || ''}
-                onChange={e => setProdForm(f => ({ ...f, defaultFinalWidth: parseFloat(e.target.value) || 0 }))} />
-              <Input label="Height (in)" type="number" value={prodForm.defaultFinalHeight || ''}
-                onChange={e => setProdForm(f => ({ ...f, defaultFinalHeight: parseFloat(e.target.value) || 0 }))} />
-            </div>
-
-            {/* Categories as toggle pills */}
-            <div>
-              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Categories</label>
-              <div className="flex flex-wrap gap-2">
-                {categories.map(c => (
-                  <button key={c.id} type="button" onClick={() => toggleCategoryId(c.id)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${
-                      prodForm.categoryIds.includes(c.id)
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
-                    }`}>
-                    {c.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* ─── Section 2: Equipment ────────────────────────────────── */}
-          <div className="border-t border-gray-100 pt-4">
-            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Equipment</div>
-            <div>
-              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Equipment</label>
-              <select
-                value={prodForm.defaultEquipmentId || ''}
-                onChange={e => {
-                  const eq = equipment.find(x => x.id === e.target.value);
-                  setProdForm(f => ({ ...f, defaultEquipmentId: eq?.id || '', defaultEquipmentName: eq?.name || '' }));
-                }}
-                className="w-full px-3 py-1.5 text-sm border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent"
-              >
-                <option value="">Select equipment...</option>
-                {availableEquipment.map(eq => (
-                  <option key={eq.id} value={eq.id}>{eq.name} ({eq.categoryApplies})</option>
-                ))}
-              </select>
-            </div>
-            {selectedEquipment && (
-              <div className="mt-2 flex items-center gap-4 text-xs text-gray-500 bg-gray-50 rounded-md px-3 py-2">
-                <span>Cost Model: <span className="font-medium text-gray-700">{selectedEquipment.costType.replace(/_/g, ' ')}</span></span>
-                <span>Cost/Unit: <span className="font-medium text-gray-700">${selectedEquipment.unitCost.toFixed(4)}</span></span>
-                <span>Unit: <span className="font-medium text-gray-700">{selectedEquipment.costUnit === 'per_click' ? 'per click' : 'per sqft'}</span></span>
-              </div>
-            )}
-          </div>
-
-          {/* ─── Section 3: Materials & Sides ────────────────────────── */}
-          <div className="border-t border-gray-100 pt-4">
-            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Materials & Sides</div>
-            <div className="space-y-2">
-              {prodMaterials.map((mat, idx) => {
-                const rowMaterials = getFilteredMaterials(idx);
-                return (
-                  <div key={idx} className="flex items-start gap-2 bg-gray-50 rounded-lg p-2.5">
-                    {/* Material searchable dropdown */}
-                    <div className="relative flex-1 min-w-0">
-                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Material</label>
-                      <div className="relative">
-                        <input
-                          ref={idx === 0 ? materialInputRef : undefined}
-                          type="text"
-                          value={materialQueries[idx] ?? mat.materialName}
-                          onChange={e => {
-                            setMaterialQueries(prev => ({ ...prev, [idx]: e.target.value }));
-                            setShowMaterialDropdown(idx);
-                          }}
-                          onFocus={() => setShowMaterialDropdown(idx)}
-                          onBlur={() => setTimeout(() => setShowMaterialDropdown(null), 200)}
-                          placeholder="Search materials..."
-                          className="w-full px-3 py-1.5 text-sm border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent pr-8 placeholder-gray-400"
-                        />
-                        <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      </div>
-                      {showMaterialDropdown === idx && (
-                        <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                          {rowMaterials.length === 0 && (
-                            <div className="px-3 py-2 text-xs text-gray-400">No materials found</div>
-                          )}
-                          {rowMaterials.slice(0, 30).map(m => (
-                            <button key={m.id} type="button"
-                              onMouseDown={e => e.preventDefault()}
-                              onClick={() => {
-                                updateMaterialEntry(idx, { materialId: m.id, materialName: m.name });
-                                setMaterialQueries(prev => ({ ...prev, [idx]: m.name }));
-                                setShowMaterialDropdown(null);
-                              }}
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-gray-50 last:border-0">
-                              <span className="font-medium text-gray-900">{m.name}</span>
-                              <span className="text-xs text-gray-400 ml-2">{m.size}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Sides dropdown */}
-                    <div className="w-24 flex-shrink-0">
-                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Sides</label>
-                      <select value={mat.sides} onChange={e => updateMaterialEntry(idx, { sides: e.target.value as 'Single' | 'Double' })}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent">
-                        <option value="Single">Single</option>
-                        <option value="Double">Double</option>
-                      </select>
-                    </div>
-
-                    {/* Color dropdown */}
-                    <div className="w-32 flex-shrink-0">
-                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Color</label>
-                      <select value={mat.color} onChange={e => updateMaterialEntry(idx, { color: e.target.value as 'Color' | 'Black' | 'Color & Black' })}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent">
-                        <option value="Color">Color</option>
-                        <option value="Black">Black</option>
-                        <option value="Color & Black">Color & Black</option>
-                      </select>
-                    </div>
-
-                    {/* Originals */}
-                    <div className="w-16 flex-shrink-0">
-                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Orig.</label>
-                      <input type="number" min={1} value={mat.originals}
-                        onChange={e => updateMaterialEntry(idx, { originals: parseInt(e.target.value) || 1 })}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent text-center" />
-                    </div>
-
-                    {/* Remove button */}
-                    <div className="flex-shrink-0 pt-5">
-                      <button type="button" onClick={() => removeMaterialEntry(idx)}
-                        disabled={prodMaterials.length <= 1}
-                        className={`p-1.5 rounded transition-colors ${prodMaterials.length <= 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-red-500 hover:bg-red-50'}`}>
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <button type="button" onClick={addMaterialEntry}
-              className="mt-2 flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 px-2 py-1 rounded hover:bg-blue-50 transition-colors">
-              <Plus className="w-3.5 h-3.5" /> Add Material
-            </button>
-          </div>
-
-          {/* ─── Section 4: Finishing ────────────────────────────────── */}
-          <div className="border-t border-gray-100 pt-4">
-            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Finishing</div>
-            {finishingByGroup.length === 0 && (
-              <p className="text-xs text-gray-400 italic">No finishing services available for selected categories.</p>
-            )}
-            <div className="space-y-1">
-              {finishingByGroup.map(({ group, services }) => (
-                <div key={group.id} className="border border-gray-100 rounded-lg overflow-hidden">
-                  <button type="button" onClick={() => toggleFinishingGroup(group.id)}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-                    <ChevronRight className={`w-3.5 h-3.5 text-gray-400 transition-transform ${expandedFinishingGroups[group.id] ? 'rotate-90' : ''}`} />
-                    {group.name}
-                    <span className="text-[10px] text-gray-400 font-normal ml-auto">
-                      {services.filter(s => prodFinishingIds.includes(s.id)).length}/{services.length} selected
-                    </span>
-                  </button>
-                  {expandedFinishingGroups[group.id] && (
-                    <div className="border-t border-gray-100 px-3 py-2 space-y-1.5 bg-gray-50/50">
-                      {services.map(svc => (
-                        <label key={svc.id} className="flex items-center gap-2 text-sm cursor-pointer select-none py-0.5">
-                          <input type="checkbox"
-                            checked={prodFinishingIds.includes(svc.id)}
-                            onChange={() => toggleFinishingId(svc.id)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5" />
-                          <span className={prodFinishingIds.includes(svc.id) ? 'text-gray-900 font-medium' : 'text-gray-600'}>{svc.name}</span>
-                          <span className="text-[10px] text-gray-400 ml-auto">{svc.chargeBasis.replace(/_/g, ' ')}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ─── Actions ─────────────────────────────────────────────── */}
-          <div className="flex gap-3 justify-end pt-3 border-t border-gray-100">
-            <Button variant="secondary" onClick={() => setProdModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={handleSaveProduct} disabled={!prodForm.name || prodForm.categoryIds.length === 0}>
-              {prodEditId ? 'Save Changes' : 'Add Product'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      {/* ══ Full ProductEditModal for editing item templates ══ */}
+      {tplItemModalOpen && tplItem && (
+        <ProductEditModal
+          item={tplItem}
+          pricingState={tplPricingState}
+          isNew={false}
+          onUpdateItem={updates => {
+            setTplItem(prev => prev ? { ...prev, ...updates } : prev);
+          }}
+          onUpdatePricing={updates => {
+            setTplPricingState(prev => ({ ...prev, ...updates }));
+          }}
+          onClose={() => {
+            if (tplItem) {
+              handleSaveTemplateFromModal(tplItem, tplPricingState);
+            } else {
+              setTplItemModalOpen(false);
+            }
+          }}
+          onRemove={() => {
+            // Remove template on trash button inside modal
+            if (editingTemplateId) deleteTemplate(editingTemplateId);
+            setTplItemModalOpen(false);
+            setTplItem(null);
+            setEditingTemplateId(null);
+          }}
+          matchingTemplates={[]}
+          onApplyTemplate={() => {}}
+        />
+      )}
     </div>
   );
 };

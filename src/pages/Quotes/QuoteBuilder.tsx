@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '../../store';
 import { usePricingStore } from '../../store/pricingStore';
-import { Button, Input, Textarea, Card, Badge, Modal, ConfirmDialog } from '../../components/ui';
+import { Button, Textarea, Card, Badge, Modal } from '../../components/ui';
 import type { QuoteLineItem, Quote } from '../../types';
 import { formatCurrency } from '../../data/mockData';
 import { nanoid } from '../../utils/nanoid';
@@ -92,20 +92,51 @@ export const QuoteBuilder: React.FC = () => {
     if (!isEditMode && sourceClone && (sourceClone as any).lineItems?.length) {
       return (sourceClone as any).lineItems.map((li: QuoteLineItem) => ({ ...li, id: nanoid() }));
     }
-    return [EMPTY_LINE_ITEM()];
+    return [];
   });
   const [pricingStates, setPricingStates] = useState<Record<string, LineItemPricingState>>(() => {
     // Return empty — each item will get a default state when accessed via getPricingState
     return {};
   });
-  const [saving, setSaving] = useState(false);
+  // ── Draft initialization ref (prevents double-fire in StrictMode) ────
+  const draftInitialized = useRef(false);
+
+  // ── Auto-create draft for /quotes/new and redirect to edit mode ──────
+  useEffect(() => {
+    if (!isEditMode && !draftInitialized.current) {
+      draftInitialized.current = true;
+      const newId = nanoid();
+      const seedSource = sourceClone as any;
+      const initialLineItems = seedSource?.lineItems?.length
+        ? seedSource.lineItems.map((li: QuoteLineItem) => ({ ...li, id: nanoid() }))
+        : [];
+      const draft: Quote = {
+        id: newId,
+        number: quoteNumber,
+        status: 'pending',
+        customerId: seedSource?.customerId || initialCustomerId || undefined,
+        customerName: seedSource ? customers.find(c => c.id === seedSource.customerId)?.name : undefined,
+        contactId: seedSource?.contactId || initialContactId || undefined,
+        title: seedSource?.title ? `Copy of ${seedSource.title}` : '',
+        lineItems: initialLineItems,
+        subtotal: 0, taxRate: 7, taxAmount: 0, total: 0,
+        validUntil: daysFromNow(45),
+        csrId: seedSource?.csrId || currentUser.id,
+        salesId: seedSource?.salesId || currentUser.id,
+        source: 'scratch' as const,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      addQuote(draft);
+      navigate(`/quotes/${newId}`, { replace: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── UI state ──────────────────────────────────────────────────────────
   const [editingItemModal, setEditingItemModal] = useState<string | null>(null);
   const [expandedParts, setExpandedParts] = useState<Record<string, boolean>>({});
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-  const [showSaveDropdown, setShowSaveDropdown] = useState(false);
+  const [showNeedsCustomerWarning, setShowNeedsCustomerWarning] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [showShipToModal, setShowShipToModal] = useState(false);
@@ -143,9 +174,6 @@ export const QuoteBuilder: React.FC = () => {
     setPricingStates(prev => ({ ...prev, [id]: { ...(prev[id] || DEFAULT_PRICING_STATE()), ...updates } }));
   }, []);
 
-  // ── Has unsaved content check ─────────────────────────────────────────
-  const hasContent = lineItems.some(i => i.description || i.sellPrice > 0) || form.title || form.customerId;
-
   // ── Add / remove line items ───────────────────────────────────────────
   const addLineItem = () => {
     const item = EMPTY_LINE_ITEM();
@@ -155,7 +183,11 @@ export const QuoteBuilder: React.FC = () => {
   };
 
   const removeLineItem = (id: string) => {
-    setLineItems(prev => prev.filter(i => i.id !== id));
+    setLineItems(prev => {
+      const next = prev.filter(i => i.id !== id);
+      saveLineItemsToStore(next);
+      return next;
+    });
     setPricingStates(prev => { const next = { ...prev }; delete next[id]; return next; });
     if (editingItemModal === id) setEditingItemModal(null);
   };
@@ -163,7 +195,11 @@ export const QuoteBuilder: React.FC = () => {
   const duplicateLineItem = (item: QuoteLineItem) => {
     const newId = nanoid();
     const newItem = { ...item, id: newId };
-    setLineItems(prev => [...prev, newItem]);
+    setLineItems(prev => {
+      const next = [...prev, newItem];
+      saveLineItemsToStore(next);
+      return next;
+    });
     setPricingStates(prev => ({ ...prev, [newId]: { ...(prev[item.id] || DEFAULT_PRICING_STATE()) } }));
     setEditingItemModal(newId);
   };
@@ -211,62 +247,50 @@ export const QuoteBuilder: React.FC = () => {
     }));
   };
 
-  // ── Save ──────────────────────────────────────────────────────────────
-  const handleSave = async (andConvert = false) => {
-    setSaving(true);
-    const number = quoteNumber;
+  // ── Auto-save any form change to the store ────────────────────────────
+  const autoSave = useCallback((updates: Partial<typeof form>) => {
+    if (!existingQuote) return;
+    const merged = { ...form, ...updates };
+    const cust = customers.find(c => c.id === merged.customerId);
+    const sub = lineItems.reduce((s, i) => s + (i.sellPrice || 0), 0);
+    const da = merged.discountType === 'percent' ? sub * (merged.discount / 100) : merged.discount;
+    const afterD = sub - da + merged.shipping + merged.postage;
+    const ta = afterD * (merged.taxRate / 100);
+    updateQuote(existingQuote.id, {
+      title: merged.title || lineItems.find(i => i.description)?.description || `Quote ${quoteNumber}`,
+      status: merged.status,
+      customerId: merged.customerId || undefined,
+      customerName: cust?.name,
+      contactId: merged.contactId || undefined,
+      validUntil: merged.validUntil || undefined,
+      notes: merged.notes || undefined,
+      internalNotes: merged.internalNotes || undefined,
+      csrId: merged.csrId,
+      salesId: merged.salesId,
+      subtotal: sub,
+      taxRate: merged.taxRate,
+      taxAmount: ta,
+      total: afterD + ta,
+    });
+  }, [existingQuote, form, lineItems, customers, quoteNumber, updateQuote]);
 
-    if (isEditMode && existingQuote) {
-      // Update existing quote
-      updateQuote(existingQuote.id, {
-        title: form.title || `Quote ${number}`,
-        status: form.status,
-        customerId: form.customerId || undefined,
-        customerName: selectedCustomer?.name,
-        contactId: form.contactId || undefined,
-        lineItems,
-        subtotal,
-        taxRate: form.taxRate,
-        taxAmount,
-        total,
-        validUntil: form.validUntil || undefined,
-        notes: form.notes || undefined,
-        internalNotes: form.internalNotes || undefined,
-        csrId: form.csrId,
-        salesId: form.salesId,
-      });
-      await new Promise(r => setTimeout(r, 150));
-      setSaving(false);
-      if (andConvert) navigate(`/orders/new?quoteId=${existingQuote.id}`);
-      else navigate(`/quotes/${existingQuote.id}`);
-    } else {
-      // Create new quote
-      const quote: Quote = {
-        id: nanoid(), number, status: form.status,
-        customerId: form.customerId || undefined, customerName: selectedCustomer?.name,
-        contactId: form.contactId || undefined,
-        title: form.title || `Quote ${number}`,
-        lineItems, subtotal, taxRate: form.taxRate, taxAmount, total,
-        validUntil: form.validUntil || undefined,
-        notes: form.notes || undefined, internalNotes: form.internalNotes || undefined,
-        csrId: form.csrId, salesId: form.salesId, source: 'scratch',
-        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-      };
-      addQuote(quote);
-      await new Promise(r => setTimeout(r, 300));
-      setSaving(false);
-      if (andConvert) navigate(`/orders/new?quoteId=${quote.id}`);
-      else navigate(`/quotes/${quote.id}`);
-    }
-  };
+  // ── Auto-save line items to the store ────────────────────────────────
+  const saveLineItemsToStore = useCallback((items: QuoteLineItem[]) => {
+    if (!existingQuote) return;
+    const sub = items.reduce((s, i) => s + (i.sellPrice || 0), 0);
+    const da = form.discountType === 'percent' ? sub * (form.discount / 100) : form.discount;
+    const afterD = sub - da + form.shipping + form.postage;
+    const ta = afterD * (form.taxRate / 100);
+    updateQuote(existingQuote.id, { lineItems: items, subtotal: sub, taxAmount: ta, total: afterD + ta });
+  }, [existingQuote, form, updateQuote]);
 
   // ── Cancel handler ────────────────────────────────────────────────────
   const handleCancel = () => {
-    if (!isEditMode && hasContent) {
-      setShowCancelConfirm(true);
-    } else if (isEditMode) {
-      // In edit mode, cancel goes back to quote detail without confirming
-      navigate(`/quotes/${editId}`);
+    const quoteId = existingQuote?.id || editId;
+    if (quoteId && !form.customerId) {
+      setShowNeedsCustomerWarning(true);
+    } else if (quoteId) {
+      navigate(`/quotes/${quoteId}`);
     } else {
       navigate('/quotes');
     }
@@ -278,8 +302,6 @@ export const QuoteBuilder: React.FC = () => {
       if (customerSearchRef.current && !customerSearchRef.current.contains(e.target as Node)) {
         setShowCustomerDropdown(false);
       }
-      // Close Convert dropdown on any outside click
-      setShowSaveDropdown(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -299,6 +321,9 @@ export const QuoteBuilder: React.FC = () => {
   // ═══════════════════════════════════════════════════════════════════════
   // RENDER
   // ═══════════════════════════════════════════════════════════════════════
+  // If not in edit mode, we're in the process of creating the draft and
+  // redirecting to the detail view — render nothing to avoid a flash of the old form
+  if (!isEditMode) return null;
 
   return (
     <div>
@@ -311,26 +336,18 @@ export const QuoteBuilder: React.FC = () => {
             <span className="text-gray-900 font-medium obj-num">{quoteNumber}</span>
             {sourceClone && <span className="text-gray-400 ml-1">— Clone of {(sourceClone as any).number}</span>}
           </div>
-          <h1 className="text-xl font-bold text-gray-900">{isEditMode ? 'Edit Quote' : 'New Quote'}</h1>
+          <h1 className="text-xl font-bold text-gray-900">Quote</h1>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={handleCancel}>Cancel</Button>
-          <Button variant="success" onClick={() => handleSave(false)} loading={saving}>Save</Button>
-          {/* Clone — save first then open clone */}
-          <Button variant="secondary" icon={<Copy className="w-3.5 h-3.5" />} onClick={async () => {
-            setSaving(true);
-            const savedId = isEditMode ? existingQuote!.id : nanoid();
-            if (isEditMode) {
-              updateQuote(savedId, { title: form.title || `Quote ${quoteNumber}`, status: form.status, customerId: form.customerId || undefined, customerName: selectedCustomer?.name, contactId: form.contactId || undefined, lineItems, subtotal, taxRate: form.taxRate, taxAmount, total, validUntil: form.validUntil || undefined, notes: form.notes || undefined, internalNotes: form.internalNotes || undefined, csrId: form.csrId, salesId: form.salesId });
-            } else {
-              addQuote({ id: savedId, number: quoteNumber, status: form.status, customerId: form.customerId || undefined, customerName: selectedCustomer?.name, contactId: form.contactId || undefined, title: form.title || `Quote ${quoteNumber}`, lineItems, subtotal, taxRate: form.taxRate, taxAmount, total, validUntil: form.validUntil || undefined, notes: form.notes || undefined, internalNotes: form.internalNotes || undefined, csrId: form.csrId, salesId: form.salesId, source: 'scratch', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-            }
-            await new Promise(r => setTimeout(r, 150));
-            setSaving(false);
-            navigate(`/quotes/new?cloneId=${savedId}`);
-          }} loading={saving}>Clone</Button>
-          {/* Convert to Order — save first then convert */}
-          <Button variant="primary" icon={<ArrowRight className="w-3.5 h-3.5" />} onClick={() => handleSave(true)} loading={saving}>Convert to Order</Button>
+          {/* Clone — quote is already auto-saved */}
+          <Button variant="secondary" icon={<Copy className="w-3.5 h-3.5" />} onClick={() => {
+            if (existingQuote) navigate(`/quotes/new?cloneId=${existingQuote.id}`);
+          }}>Clone</Button>
+          {/* Convert to Order — quote is already auto-saved */}
+          <Button variant="primary" icon={<ArrowRight className="w-3.5 h-3.5" />} onClick={() => {
+            if (existingQuote) navigate(`/orders/new?quoteId=${existingQuote.id}`);
+          }}>Convert to Order</Button>
         </div>
       </div>
 
@@ -379,7 +396,7 @@ export const QuoteBuilder: React.FC = () => {
                 <div>
                   <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Quote Title</label>
                   <input
-                    type="text" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                    type="text" value={form.title} onChange={e => { const u = { title: e.target.value }; setForm(f => ({ ...f, ...u })); autoSave(u); }}
                     placeholder="e.g., Spring Marketing Package for Acme Corp"
                     className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
                   />
@@ -408,14 +425,14 @@ export const QuoteBuilder: React.FC = () => {
                         onChange={e => {
                           setCustomerSearch(e.target.value);
                           setShowCustomerDropdown(true);
-                          if (form.customerId) setForm(f => ({ ...f, customerId: '', contactId: '' }));
+                          if (form.customerId) { const u = { customerId: '', contactId: '' }; setForm(f => ({ ...f, ...u })); autoSave(u); }
                         }}
                         onFocus={() => setShowCustomerDropdown(true)}
                         placeholder="Search customers..."
                         className="w-full pl-8 pr-7 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
                       />
                       {form.customerId && (
-                        <button onClick={() => { setForm(f => ({ ...f, customerId: '', contactId: '' })); setCustomerSearch(''); }}
+                        <button onClick={() => { const u = { customerId: '', contactId: '' }; setForm(f => ({ ...f, ...u })); autoSave(u); setCustomerSearch(''); }}
                           className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 hover:bg-gray-100 rounded-full">
                           <X className="w-3 h-3 text-gray-400" />
                         </button>
@@ -426,7 +443,7 @@ export const QuoteBuilder: React.FC = () => {
                             <div className="px-4 py-3 text-sm text-gray-400">No customers found</div>
                           ) : filteredCustomers.map(c => (
                             <button key={c.id}
-                              onClick={() => { setForm(f => ({ ...f, customerId: c.id, contactId: '' })); setCustomerSearch(''); setShowCustomerDropdown(false); }}
+                              onClick={() => { const u = { customerId: c.id, contactId: '' }; setForm(f => ({ ...f, ...u })); autoSave(u); setCustomerSearch(''); setShowCustomerDropdown(false); }}
                               className="w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors text-sm border-b border-gray-50 last:border-0">
                               <span className="font-medium text-gray-900">{c.name}</span>
                               {c.email && <span className="text-xs text-gray-400 ml-2">{c.email}</span>}
@@ -455,7 +472,7 @@ export const QuoteBuilder: React.FC = () => {
                     </label>
                     <select
                       value={form.contactId}
-                      onChange={e => setForm(f => ({ ...f, contactId: e.target.value }))}
+                      onChange={e => { const u = { contactId: e.target.value }; setForm(f => ({ ...f, ...u })); autoSave(u); }}
                       disabled={!form.customerId}
                       className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
                     >
@@ -478,7 +495,7 @@ export const QuoteBuilder: React.FC = () => {
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Status</label>
-                    <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as Quote['status'] }))}
+                    <select value={form.status} onChange={e => { const u = { status: e.target.value as Quote['status'] }; setForm(f => ({ ...f, ...u })); autoSave(u); }}
                       className="w-full px-2 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="pending">Pending</option>
                       <option value="hot">Hot</option>
@@ -487,12 +504,12 @@ export const QuoteBuilder: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Valid Until</label>
-                    <input type="date" value={form.validUntil} onChange={e => setForm(f => ({ ...f, validUntil: e.target.value }))}
+                    <input type="date" value={form.validUntil} onChange={e => { const u = { validUntil: e.target.value }; setForm(f => ({ ...f, ...u })); autoSave(u); }}
                       className="w-full px-2 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Date Due</label>
-                    <input type="date" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+                    <input type="date" value={form.dueDate} onChange={e => { const u = { dueDate: e.target.value }; setForm(f => ({ ...f, ...u })); autoSave(u); }}
                       className="w-full px-2 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                 </div>
@@ -501,7 +518,7 @@ export const QuoteBuilder: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">CSR</label>
-                    <select value={form.csrId} onChange={e => setForm(f => ({ ...f, csrId: e.target.value }))}
+                    <select value={form.csrId} onChange={e => { const u = { csrId: e.target.value }; setForm(f => ({ ...f, ...u })); autoSave(u); }}
                       className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="">Select CSR...</option>
                       {csrUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -509,7 +526,7 @@ export const QuoteBuilder: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Sales Rep</label>
-                    <select value={form.salesId} onChange={e => setForm(f => ({ ...f, salesId: e.target.value }))}
+                    <select value={form.salesId} onChange={e => { const u = { salesId: e.target.value }; setForm(f => ({ ...f, ...u })); autoSave(u); }}
                       className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="">Select Sales Rep...</option>
                       {salesUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -721,8 +738,8 @@ export const QuoteBuilder: React.FC = () => {
           {/* Notes */}
           <Card className="p-5">
             <div className="grid grid-cols-2 gap-4">
-              <Textarea label="Customer Notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notes visible to customer on quote PDF..." rows={3} />
-              <Textarea label="Internal Notes" value={form.internalNotes} onChange={e => setForm(f => ({ ...f, internalNotes: e.target.value }))} placeholder="Internal notes for your team..." rows={3} />
+              <Textarea label="Customer Notes" value={form.notes} onChange={e => { const u = { notes: e.target.value }; setForm(f => ({ ...f, ...u })); autoSave(u); }} placeholder="Notes visible to customer on quote PDF..." rows={3} />
+              <Textarea label="Internal Notes" value={form.internalNotes} onChange={e => { const u = { internalNotes: e.target.value }; setForm(f => ({ ...f, ...u })); autoSave(u); }} placeholder="Internal notes for your team..." rows={3} />
             </div>
           </Card>
         </div>
@@ -800,7 +817,7 @@ export const QuoteBuilder: React.FC = () => {
               <div className="flex items-center justify-between text-sm text-gray-600">
                 <div className="flex items-center gap-2">
                   <span>Tax</span>
-                  <input type="number" value={form.taxRate} onChange={e => setForm(f => ({ ...f, taxRate: parseFloat(e.target.value) || 0 }))}
+                  <input type="number" value={form.taxRate} onChange={e => { const u = { taxRate: parseFloat(e.target.value) || 0 }; setForm(f => ({ ...f, ...u })); autoSave(u); }}
                     className="w-12 px-1 py-0.5 text-xs border border-gray-200 rounded text-center" />
                   <span>%</span>
                 </div>
@@ -858,15 +875,14 @@ export const QuoteBuilder: React.FC = () => {
         />
       )}
 
-      {/* ─── Cancel Confirmation Dialog ──────────────────────────────── */}
-      <ConfirmDialog
-        isOpen={showCancelConfirm}
-        onClose={() => setShowCancelConfirm(false)}
-        onConfirm={() => navigate('/quotes')}
-        title="Discard Changes?"
-        message="Are you sure? Unsaved changes will be lost."
-        confirmLabel="Discard"
-      />
+      {/* ─── Needs Customer Warning Modal ────────────────────────────── */}
+      <Modal isOpen={showNeedsCustomerWarning} onClose={() => setShowNeedsCustomerWarning(false)} title="Customer Required" size="sm">
+        <p className="text-sm text-gray-600 mb-4">Please assign a customer to this quote before leaving. A quote must have at least one customer assigned.</p>
+        <div className="flex gap-2 justify-end">
+          <Button variant="secondary" onClick={() => setShowNeedsCustomerWarning(false)}>Add Customer</Button>
+          <Button variant="danger" onClick={() => navigate('/quotes')}>Leave Without Customer</Button>
+        </div>
+      </Modal>
     </div>
   );
 };

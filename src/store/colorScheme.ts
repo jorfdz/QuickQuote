@@ -95,6 +95,7 @@ export function buildSchemeFromColor(brandColor: string): ColorScheme {
 
 // Persist chosen scheme
 const STORAGE_KEY = 'quikquote-color-scheme';
+const DARK_MODE_KEY = 'quikquote-dark-mode';
 
 export function loadSavedScheme(): ColorScheme {
   try {
@@ -109,4 +110,25 @@ export function loadSavedScheme(): ColorScheme {
 
 export function saveScheme(scheme: ColorScheme) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(scheme));
+}
+
+// ─── Dark Mode ───────────────────────────────────────────────────────────────
+
+export function isDarkModeEnabled(): boolean {
+  try {
+    return localStorage.getItem(DARK_MODE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function applyDarkMode(enabled: boolean) {
+  if (enabled) {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+  try {
+    localStorage.setItem(DARK_MODE_KEY, String(enabled));
+  } catch {}
 }

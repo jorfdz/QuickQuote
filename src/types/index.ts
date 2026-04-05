@@ -219,8 +219,18 @@ export interface QuoteLineItem {
   sheetSize?: string;
   // template
   templateId?: string;
-  // full pricing context snapshot — saved so it can be fully restored when re-opening the item
-  // (avoids losing material/equipment/color/sides/finishing settings on navigation)
+  // explicit print/finishing config — persisted as top-level fields so they survive
+  // even without pricingContext (e.g. on older items or if context snapshot fails)
+  colorMode?: 'Color' | 'Black';
+  sides?: 'Single' | 'Double';
+  foldingType?: string;
+  drillingType?: string;
+  cuttingEnabled?: boolean;
+  sheetsPerStack?: number;
+  productId?: string;
+  productName?: string;
+  categoryName?: string;
+  // full pricing context snapshot — complete LineItemPricingState backup for perfect restoration
   pricingContext?: Record<string, unknown>;
   // multi-part item
   isMultiPart?: boolean;
@@ -284,6 +294,7 @@ export interface CompanySettings {
   defaultBleed: number;
   defaultGutter: number;
   defaultBleedWide: number;
+  openLinksInNewTab: boolean;  // true = open new quotes/orders in new tab (default)
   defaultGutterWide: number;
 }
 
