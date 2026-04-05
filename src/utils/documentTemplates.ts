@@ -156,11 +156,11 @@ const buildWorkOrderItemsHtml = (order: Order, itemQrCodeUrls: Record<string, st
 
   const itemQrMarkup = (order.trackingMode || 'order') === 'item' && itemQrCodeUrls[item.id]
     ? `
-      <div style="margin-top:12px; display:flex; align-items:flex-start; gap:12px; padding:10px; border:1px solid #dbeafe; background:#eff6ff; border-radius:10px;">
-        <img src="${escapeHtml(itemQrCodeUrls[item.id])}" alt="Item tracker QR code" style="width:68px; height:68px; border-radius:8px; border:1px solid #bfdbfe; background:#ffffff;" />
-        <div>
-          <div style="font-size:10px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#64748b;">Item Tracker QR</div>
-          <div style="margin-top:4px; font-size:11px; color:#1e3a8a;">Scan to move only this item through the board.</div>
+      <div style="margin-top:12px; display:flex; align-items:center; gap:12px;">
+        <img src="${escapeHtml(itemQrCodeUrls[item.id])}" alt="Item tracker QR code" style="width:68px; height:68px; border-radius:8px; border:1px solid #dbeafe; background:#ffffff; flex-shrink:0;" />
+        <div style="min-width:0;">
+          <div style="font-size:13px; font-weight:600; color:#111827; line-height:1.35;">${escapeHtml(item.description)}</div>
+          <div style="margin-top:4px; font-size:11px; color:#6b7280;">Qty ${escapeHtml(String(item.quantity))} ${escapeHtml(item.unit)}</div>
         </div>
       </div>
     `
@@ -168,9 +168,10 @@ const buildWorkOrderItemsHtml = (order: Order, itemQrCodeUrls: Record<string, st
 
   return `<tr${index % 2 === 1 ? ' style="background:#f9fafb"' : ''}>
     <td>
-      <div class="item-title">${escapeHtml(item.description)}</div>
-      <span class="item-meta">Qty ${escapeHtml(String(item.quantity))} ${escapeHtml(item.unit)}</span>
-      ${itemQrMarkup}
+      ${(order.trackingMode || 'order') === 'item'
+        ? itemQrMarkup
+        : `<div class="item-title">${escapeHtml(item.description)}</div>
+      <span class="item-meta">Qty ${escapeHtml(String(item.quantity))} ${escapeHtml(item.unit)}</span>`}
     </td>
     <td>${productionDetails || '&mdash;'}</td>
     <td>${materialsAndServices || '&mdash;'}</td>
