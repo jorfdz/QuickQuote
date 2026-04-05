@@ -156,10 +156,10 @@ const buildWorkOrderItemsHtml = (order: Order, itemQrCodeUrls: Record<string, st
 
   const itemQrMarkup = (order.trackingMode || 'order') === 'item' && itemQrCodeUrls[item.id]
     ? `
-      <div style="margin-top:12px; display:flex; align-items:center; justify-content:space-between; gap:16px; width:100%;">
-        <div style="min-width:0; flex:1 1 auto;">
+      <div style="margin-top:4px; display:flex; align-items:center; justify-content:space-between; gap:16px; width:100%;">
+        <div style="min-width:0; flex:1 1 auto; display:flex; flex-direction:column; justify-content:center;">
           <div style="font-size:13px; font-weight:600; color:#111827; line-height:1.35;">${escapeHtml(item.description)}</div>
-          <div style="margin-top:4px; font-size:11px; color:#6b7280;">Qty ${escapeHtml(String(item.quantity))} ${escapeHtml(item.unit)}</div>
+          <div style="margin-top:4px; font-size:11px; line-height:1.35; color:#6b7280;">Qty ${escapeHtml(String(item.quantity))} ${escapeHtml(item.unit)}</div>
         </div>
         <img src="${escapeHtml(itemQrCodeUrls[item.id])}" alt="Item tracker QR code" style="width:68px; height:68px; border-radius:8px; border:1px solid #dbeafe; background:#ffffff; flex:0 0 68px; margin-left:auto;" />
       </div>
@@ -173,8 +173,8 @@ const buildWorkOrderItemsHtml = (order: Order, itemQrCodeUrls: Record<string, st
         : `<div class="item-title">${escapeHtml(item.description)}</div>
       <span class="item-meta">Qty ${escapeHtml(String(item.quantity))} ${escapeHtml(item.unit)}</span>`}
     </td>
-    <td>${productionDetails || '&mdash;'}</td>
-    <td>${materialsAndServices || '&mdash;'}</td>
+    <td style="font-size:12px; line-height:1.45; color:#475569;">${productionDetails || '&mdash;'}</td>
+    <td style="font-size:12px; line-height:1.45; color:#475569;">${materialsAndServices || '&mdash;'}</td>
   </tr>`;
 }).join('');
 
