@@ -139,12 +139,13 @@ const buildPurchaseOrderLineItemsHtml = (purchaseOrder: PurchaseOrder): string =
 )).join('');
 
 const buildWorkOrderItemsHtml = (order: Order, itemQrCodeUrls: Record<string, string> = {}): string => order.lineItems.map((item, index) => {
-  const productionDetails = [
+  const productionLines = [
     item.width && item.height ? `Final size: ${item.width}" x ${item.height}"` : '',
     item.productFamily ? `Family: ${item.productFamily.replace(/_/g, ' ')}` : '',
     item.equipmentName ? `Equipment: ${item.equipmentName}` : '',
     item.runTime ? `Runtime: ${item.runTime} hr` : '',
-  ].filter(Boolean).join('<br>');
+  ].filter(Boolean);
+  const productionDetails = productionLines.join('<br>');
 
   const materialsAndServices = [
     item.materialName ? `Material: ${item.materialName}` : '',
@@ -154,27 +155,34 @@ const buildWorkOrderItemsHtml = (order: Order, itemQrCodeUrls: Record<string, st
     item.notes ? `Notes: ${escapeHtml(item.notes)}` : '',
   ].filter(Boolean).join('<br>');
 
+  const inlineSpecMarkup = productionLines.length > 0
+    ? `<div style="margin-top:8px; font-size:10px; line-height:1.35; color:#64748b;">
+        ${productionLines.map((line) => `<div>${escapeHtml(line)}</div>`).join('')}
+      </div>`
+    : '';
+
   const itemQrMarkup = (order.trackingMode || 'order') === 'item' && itemQrCodeUrls[item.id]
     ? `
       <div style="margin-top:2px; display:flex; align-items:flex-start; justify-content:space-between; gap:18px; width:100%;">
         <div style="min-width:0; flex:1 1 auto; padding-top:2px;">
           <div style="font-size:13px; font-weight:700; color:#111827; line-height:1.2;">${escapeHtml(item.description)}</div>
           <div style="margin-top:5px; font-size:11px; line-height:1.25; color:#64748b;">Qty ${escapeHtml(String(item.quantity))} ${escapeHtml(item.unit)}</div>
+          ${inlineSpecMarkup}
         </div>
         <img src="${escapeHtml(itemQrCodeUrls[item.id])}" alt="Item tracker QR code" style="width:68px; height:68px; border-radius:8px; border:1px solid #dbeafe; background:#ffffff; flex:0 0 68px; margin-left:auto;" />
       </div>
     `
     : '';
 
-  return `<tr${index % 2 === 1 ? ' style="background:#f9fafb"' : ''}>
-    <td>
+  return `<tr style="${index > 0 ? 'border-top:2px solid #e5e7eb;' : ''}${index % 2 === 1 ? ' background:#f9fafb;' : ''}">
+    <td style="padding-top:16px; padding-bottom:16px;">
       ${(order.trackingMode || 'order') === 'item'
         ? itemQrMarkup
         : `<div class="item-title">${escapeHtml(item.description)}</div>
       <span class="item-meta">Qty ${escapeHtml(String(item.quantity))} ${escapeHtml(item.unit)}</span>`}
     </td>
-    <td style="font-size:11px; line-height:1.35; color:#64748b;">${productionDetails || '&mdash;'}</td>
-    <td style="font-size:11px; line-height:1.35; color:#64748b;">${materialsAndServices || '&mdash;'}</td>
+    <td style="padding-top:20px; padding-bottom:20px; font-size:10px; line-height:1.35; color:#64748b;">${(order.trackingMode || 'order') === 'item' ? '&mdash;' : (productionDetails || '&mdash;')}</td>
+    <td style="padding-top:20px; padding-bottom:20px; font-size:10px; line-height:1.35; color:#64748b;">${materialsAndServices || '&mdash;'}</td>
   </tr>`;
 }).join('');
 
