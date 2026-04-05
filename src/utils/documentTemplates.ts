@@ -181,7 +181,7 @@ const buildWorkOrderItemsHtml = (order: Order, itemQrCodeUrls: Record<string, st
         : `<div class="item-title">${escapeHtml(item.description)}</div>
       <span class="item-meta">Qty ${escapeHtml(String(item.quantity))} ${escapeHtml(item.unit)}</span>`}
     </td>
-    <td style="padding-top:20px; padding-bottom:20px; font-size:10px; line-height:1.35; color:#64748b;">${(order.trackingMode || 'order') === 'item' ? '&mdash;' : (productionDetails || '&mdash;')}</td>
+    <td style="padding-top:20px; padding-bottom:20px; font-size:10px; line-height:1.35; color:#64748b;">${(order.trackingMode || 'order') === 'item' ? '' : (productionDetails || '&mdash;')}</td>
     <td style="padding-top:20px; padding-bottom:20px; font-size:10px; line-height:1.35; color:#64748b;">${materialsAndServices || '&mdash;'}</td>
   </tr>`;
 }).join('');
