@@ -2370,10 +2370,12 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
         : 'border-emerald-300 bg-emerald-50 text-emerald-800 focus:ring-emerald-300'
     } ${extra}`;
 
-  const thCls = 'py-1 px-1.5 text-[8px] font-bold text-gray-400 uppercase tracking-wider text-right whitespace-nowrap';
-  const tdCls = 'py-1.5 px-1.5';
-  const numCls = 'text-[11px] num';        // body number cells
-  const dimCls = 'text-gray-300 text-right block text-[11px]'; // read-only dash cells
+  const thCls    = 'py-1 px-1.5 text-[8px] font-bold text-gray-400 uppercase tracking-wider text-right whitespace-nowrap';
+  const thSell   = 'py-1 px-1.5 text-[8px] font-bold uppercase tracking-wider text-right whitespace-nowrap text-emerald-600 bg-emerald-50';
+  const tdCls    = 'py-1.5 px-1.5';
+  const tdSell   = 'py-1.5 px-1.5 bg-emerald-50/60';   // sell-side body cells
+  const numCls   = 'text-[11px] num';
+  const dimCls   = 'text-gray-300 text-right block text-[11px]';
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-3">
@@ -2418,29 +2420,38 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
             </colgroup>
 
             <thead className="sticky top-0 z-10 bg-white">
-              {/* Group band */}
+              {/* Group band — TIME | COST (violet) | SELL (emerald) */}
               <tr className="border-b border-gray-100">
                 <th className="px-3 pt-2 pb-0" colSpan={2} />
+                {/* TIME group */}
                 <th className="px-1 pt-2 pb-0 text-center text-[8px] font-bold uppercase tracking-widest text-sky-500 bg-sky-50 border-l border-sky-200" colSpan={4}>
                   Time
                 </th>
-                <th className="px-1 pt-2 pb-0 text-center text-[8px] font-bold uppercase tracking-widest text-violet-500 bg-violet-50 border-l border-violet-200" colSpan={5}>
-                  Pricing
+                {/* COST group */}
+                <th className="px-1 pt-2 pb-0 text-center text-[8px] font-bold uppercase tracking-widest text-violet-500 bg-violet-50 border-l border-violet-200" colSpan={3}>
+                  Cost
+                </th>
+                {/* SELL group — distinct emerald band with thick left divider */}
+                <th className="px-1 pt-2 pb-0 text-center text-[8px] font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50 border-l-2 border-emerald-400" colSpan={2}>
+                  Sell
                 </th>
               </tr>
               {/* Column labels */}
               <tr className="border-b-2 border-gray-200">
                 <th className={`${thCls} text-left pl-3`}>Service</th>
                 <th className={`${thCls} text-left pl-2`}>Description</th>
+                {/* TIME cols */}
                 <th className={`${thCls} bg-sky-50 border-l border-sky-200`}>$/hr</th>
                 <th className={`${thCls} bg-sky-50`}>Calc</th>
                 <th className={`${thCls} bg-sky-50`}>Charge</th>
                 <th className={`${thCls} bg-sky-50`}>Time $</th>
+                {/* COST cols */}
                 <th className={`${thCls} bg-violet-50 border-l border-violet-200`}>Qty</th>
                 <th className={`${thCls} bg-violet-50`}>Unit $</th>
                 <th className={`${thCls} bg-violet-50`}>Cost $</th>
-                <th className={`${thCls} bg-violet-50`}>Markup %</th>
-                <th className={`${thCls} bg-violet-50 pr-3`}>Sell $</th>
+                {/* SELL cols — thick emerald left border as visual divider */}
+                <th className={`${thSell} border-l-2 border-emerald-400`}>Markup %</th>
+                <th className={`${thSell} pr-3`}>Sell $</th>
               </tr>
             </thead>
 
@@ -2514,26 +2525,26 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                       />
                     </td>
 
-                    {/* Markup % — editable */}
-                    <td className={`${tdCls} bg-violet-50/30`}>
+                    {/* Markup % — SELL SIDE — thick left border divides cost from sell */}
+                    <td className={`${tdSell} border-l-2 border-emerald-400`}>
                       <div className="relative">
                         <input
                           type="number" step="0.1"
                           value={fmtNum(line.markupPercent)}
                           onChange={e => updateField(line.id, 'markupPercent', e.target.value)}
-                          className={`${inp()} pr-3 ${line.markupPercent > 0 ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}
+                          className={`${inp('border-emerald-200 focus:ring-emerald-300')} pr-3 ${line.markupPercent > 0 ? 'text-emerald-700 font-semibold bg-emerald-50/80' : 'text-gray-400'}`}
                         />
-                        <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px] text-gray-400 pointer-events-none">%</span>
+                        <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px] text-emerald-400 pointer-events-none">%</span>
                       </div>
                     </td>
 
-                    {/* Sell Price — editable */}
-                    <td className={`${tdCls} bg-violet-50/30 pr-3`}>
+                    {/* Sell Price — SELL SIDE */}
+                    <td className={`${tdSell} pr-3`}>
                       <input
                         type="number" step="0.01" min="0"
                         value={fmtNum(line.sellPrice)}
                         onChange={e => updateField(line.id, 'sellPrice', e.target.value)}
-                        className={inp('font-bold text-gray-900')}
+                        className={inp('font-bold text-emerald-900 bg-emerald-50/80 border-emerald-200 focus:ring-emerald-300')}
                       />
                     </td>
                   </tr>
@@ -2565,8 +2576,8 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                 <td className={`py-1.5 px-1 bg-violet-50/60 text-right ${numCls} font-bold text-gray-800`}>
                   {formatCurrency(totalCost)}
                 </td>
-                {/* Total Markup % — editable, scales all lines */}
-                <td className="py-1 px-1 bg-violet-50/60">
+                {/* Total Markup % — SELL SIDE — editable, scales all lines */}
+                <td className="py-1 px-1 bg-emerald-50/80 border-l-2 border-emerald-400">
                   {totalMarkupInput !== null ? (
                     <div className="relative">
                       <input
@@ -2588,14 +2599,14 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                       type="button"
                       onClick={() => setTotalMarkupInput(fmtNum(totalMarkup))}
                       title="Click to scale all line markups to this %"
-                      className={`w-full px-1 py-1 text-right ${numCls} font-bold rounded border border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50 transition-colors text-emerald-700`}
+                      className={`w-full px-1 py-1 text-right ${numCls} font-bold rounded border border-dashed border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100/60 transition-colors text-emerald-700`}
                     >
                       {totalMarkup.toFixed(1)}%
                     </button>
                   )}
                 </td>
-                {/* Total Sell Price — editable, scales all lines */}
-                <td className="py-1 px-1 pr-3 bg-violet-50/60">
+                {/* Total Sell Price — SELL SIDE — editable, scales all lines */}
+                <td className="py-1 px-1 pr-3 bg-emerald-50/80">
                   {totalSellInput !== null ? (
                     <input
                       type="number" step="0.01" min="0" autoFocus
@@ -2614,7 +2625,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                       type="button"
                       onClick={() => setTotalSellInput(fmtNum(totalSell))}
                       title="Click to scale all sell prices to this total"
-                      className={`w-full px-1 py-1 text-right ${numCls} text-[12px] font-bold rounded border border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50 transition-colors text-gray-900`}
+                      className={`w-full px-1 py-1 text-right ${numCls} text-[12px] font-bold rounded border border-dashed border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100/60 transition-colors text-emerald-900`}
                     >
                       {formatCurrency(totalSell)}
                     </button>
