@@ -2381,7 +2381,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-3">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div
-        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[1080px] flex flex-col max-h-[92vh]"
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[1350px] flex flex-col max-h-[92vh]"
         onClick={e => e.stopPropagation()}
       >
         {/* ── Header ── */}
@@ -2400,23 +2400,24 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
 
         {/* ── Table ── */}
         <div className="overflow-x-auto overflow-y-auto flex-1">
-          <table className="w-full border-collapse" style={{ minWidth: '820px', fontSize: '11px' }}>
+          <table className="w-full border-collapse" style={{ minWidth: '1020px', fontSize: '11px' }}>
 
-            {/* Column widths: service fixed, description flexible, rest fixed narrow */}
+            {/* Column widths — scaled ~25% wider overall; sell cols get extra room */}
             <colgroup>
-              <col style={{ width: '88px'  }} /> {/* Service */}
-              <col />                             {/* Description — takes remaining space */}
+              <col style={{ width: '100px' }} /> {/* Service */}
+              <col />                             {/* Description — flexible, absorbs remaining */}
               {/* TIME */}
-              <col style={{ width: '62px'  }} />
-              <col style={{ width: '52px'  }} />
-              <col style={{ width: '70px'  }} />
-              <col style={{ width: '62px'  }} />
-              {/* PRICING */}
-              <col style={{ width: '78px'  }} />
-              <col style={{ width: '62px'  }} />
-              <col style={{ width: '82px'  }} />
-              <col style={{ width: '82px'  }} />
-              <col style={{ width: '90px'  }} />
+              <col style={{ width: '76px'  }} />
+              <col style={{ width: '64px'  }} />
+              <col style={{ width: '86px'  }} />
+              <col style={{ width: '76px'  }} />
+              {/* COST */}
+              <col style={{ width: '92px'  }} />
+              <col style={{ width: '76px'  }} />
+              <col style={{ width: '96px'  }} />
+              {/* SELL — extra wide so numbers + % symbol never clip */}
+              <col style={{ width: '108px' }} />
+              <col style={{ width: '116px' }} />
             </colgroup>
 
             <thead className="sticky top-0 z-10 bg-white">
