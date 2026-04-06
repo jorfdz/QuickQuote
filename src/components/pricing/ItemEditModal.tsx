@@ -1909,9 +1909,38 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               )}
 
               {/* ═══ PRICE BREAKDOWN ══════════════════════════════════ */}
-              {ps.serviceLines.length > 0 && (
+              {ps.serviceLines.length > 0 && (() => {
+                // Helper: derive a human-readable quantity cell from a service line
+                const lineQty = (line: PricingServiceLine): React.ReactNode => {
+                  // Time-based services — show time in mins or h:mm
+                  if (line.hourlyCost != null && line.hoursActual != null) {
+                    const h = line.hoursCharge ?? line.hoursActual;
+                    if (h <= 0) return <span className="text-gray-300">—</span>;
+                    const totalMin = Math.round(h * 60);
+                    const hrs  = Math.floor(totalMin / 60);
+                    const mins = totalMin % 60;
+                    const label = hrs === 0 ? `${mins} min` : mins === 0 ? `${hrs}h` : `${hrs}h ${mins}m`;
+                    return <span className="text-sky-600 font-medium num">{label}</span>;
+                  }
+                  // Qty-based services
+                  if (line.quantity != null && line.unit && line.unit !== 'flat') {
+                    return (
+                      <span className="text-gray-600 num">
+                        {line.quantity.toLocaleString()}
+                        <span className="text-[9px] text-gray-400 ml-0.5">{line.unit}</span>
+                      </span>
+                    );
+                  }
+                  // Flat / setup — show "flat"
+                  if (line.unit === 'flat' || line.quantity === 1) {
+                    return <span className="text-gray-400 text-[9px]">flat</span>;
+                  }
+                  return <span className="text-gray-300">—</span>;
+                };
+
+                return (
                 <div className="rounded-xl border border-emerald-200 overflow-hidden">
-                  {/* Header — click anywhere on the section to open edit dialog */}
+                  {/* Header */}
                   <button
                     type="button"
                     onClick={() => setShowBreakdownDialog(true)}
@@ -1930,56 +1959,97 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     </span>
                   </button>
 
-                  {/* Read-only summary — click to open dialog */}
+                  {/* Read-only summary table */}
                   <div
-                    className="bg-white cursor-pointer hover:bg-gray-50 transition-colors"
+                    className="bg-white cursor-pointer hover:bg-gray-50/60 transition-colors"
                     onClick={() => setShowBreakdownDialog(true)}
                   >
                     <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-100">
+                          {/* Service — no label needed, icon+name is self-explanatory */}
+                          <th className="py-1.5 px-4 text-left" />
+                          {/* Description — flexible */}
+                          <th className="py-1.5 px-3 text-left text-[9px] font-semibold text-gray-400 uppercase tracking-wide" />
+                          {/* Qty */}
+                          <th className="py-1.5 px-3 text-right text-[9px] font-semibold text-gray-400 uppercase tracking-wide">Qty</th>
+                          {/* Cost */}
+                          <th className="py-1.5 px-3 text-right text-[9px] font-semibold text-gray-400 uppercase tracking-wide">Cost</th>
+                          {/* Markup */}
+                          <th className="py-1.5 px-3 text-right text-[9px] font-semibold text-gray-400 uppercase tracking-wide">Markup</th>
+                          {/* Sell */}
+                          <th className="py-1.5 px-4 text-right text-[9px] font-semibold text-gray-400 uppercase tracking-wide">Sell</th>
+                        </tr>
+                      </thead>
                       <tbody className="divide-y divide-gray-50">
                         {ps.serviceLines.map(line => (
-                          <tr key={line.id}>
-                            <td className="py-2 px-4">
+                          <tr key={line.id} className="hover:bg-emerald-50/20 transition-colors">
+                            {/* Service name + icon */}
+                            <td className="py-2 px-4 whitespace-nowrap">
                               <div className="flex items-center gap-1.5">
-                                {line.service === 'Material' && <Package className="w-3 h-3 text-amber-400" />}
-                                {line.service === 'Printing' && <Printer className="w-3 h-3 text-blue-400" />}
-                                {line.service === 'Setup' && <Settings2 className="w-3 h-3 text-gray-400" />}
-                                {line.service === 'Cutting' && <Scissors className="w-3 h-3 text-purple-400" />}
-                                {line.service === 'Folding' && <FoldVertical className="w-3 h-3 text-emerald-400" />}
-                                {line.service === 'Drilling' && <CircleDot className="w-3 h-3 text-orange-400" />}
-                                {line.service === 'Labor' && <Hand className="w-3 h-3 text-blue-500" />}
-                                {line.service === 'Brokered' && <Package className="w-3 h-3 text-violet-400" />}
+                                {line.service === 'Material' && <Package    className="w-3 h-3 text-amber-400 flex-shrink-0"  />}
+                                {line.service === 'Printing' && <Printer    className="w-3 h-3 text-blue-400 flex-shrink-0"   />}
+                                {line.service === 'Setup'    && <Settings2  className="w-3 h-3 text-gray-400 flex-shrink-0"   />}
+                                {line.service === 'Cutting'  && <Scissors   className="w-3 h-3 text-purple-400 flex-shrink-0" />}
+                                {line.service === 'Folding'  && <FoldVertical className="w-3 h-3 text-emerald-400 flex-shrink-0" />}
+                                {line.service === 'Drilling' && <CircleDot  className="w-3 h-3 text-orange-400 flex-shrink-0" />}
+                                {line.service === 'Labor'    && <Hand       className="w-3 h-3 text-blue-500 flex-shrink-0"   />}
+                                {line.service === 'Brokered' && <Package    className="w-3 h-3 text-violet-400 flex-shrink-0" />}
                                 <span className="text-gray-700 font-medium">{line.service}</span>
-                                {manualOverrides[line.id] && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Manually overridden" />}
+                                {manualOverrides[line.id] && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Manually overridden" />
+                                )}
                               </div>
                             </td>
-                            <td className="py-2 px-3 text-gray-400 text-[10px] truncate max-w-[160px]">{line.description}</td>
-                            <td className="py-2 px-3 text-right num text-gray-500">{fmt(line.totalCost)}</td>
-                            <td className="py-2 px-3 text-right num">
-                              <span className={line.markupPercent > 0 ? 'text-emerald-600' : 'text-gray-400'}>{fmtPct(line.markupPercent)}</span>
+                            {/* Description */}
+                            <td className="py-2 px-3 text-gray-400 text-[10px] truncate max-w-[180px]">
+                              {line.description}
                             </td>
+                            {/* Qty */}
+                            <td className="py-2 px-3 text-right text-xs">
+                              {lineQty(line)}
+                            </td>
+                            {/* Cost */}
+                            <td className="py-2 px-3 text-right num text-gray-500">{fmt(line.totalCost)}</td>
+                            {/* Markup % */}
+                            <td className="py-2 px-3 text-right num">
+                              <span className={line.markupPercent > 0 ? 'text-emerald-600 font-medium' : 'text-gray-400'}>
+                                {fmtPct(line.markupPercent)}
+                              </span>
+                            </td>
+                            {/* Sell Price */}
                             <td className="py-2 px-4 text-right num font-semibold text-gray-900">{fmt(line.sellPrice)}</td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot>
-                        <tr className="border-t border-gray-100 bg-gray-50">
-                          <td className="py-2 px-4 text-[10px] font-semibold text-gray-500 uppercase" colSpan={2}>Total</td>
-                          <td className="py-2 px-3 text-right num text-gray-600 text-[11px]">{fmt(itemTotalCost)}</td>
-                          <td className="py-2 px-3 text-right num text-emerald-600 text-[11px]">
-                            {itemTotalCost > 0 ? fmtPct(((itemTotalSell - itemTotalCost) / itemTotalCost) * 100) : '—'}
+                        <tr className="border-t-2 border-gray-200 bg-gray-50">
+                          <td className="py-2 px-4 text-[10px] font-bold text-gray-600 uppercase tracking-wide" colSpan={2}>Total</td>
+                          {/* Qty — blank in totals */}
+                          <td className="py-2 px-3" />
+                          {/* Total Cost */}
+                          <td className="py-2 px-3 text-right num text-gray-700 font-semibold text-[11px]">{fmt(itemTotalCost)}</td>
+                          {/* Avg Markup */}
+                          <td className="py-2 px-3 text-right num text-[11px]">
+                            <span className={itemTotalCost > 0 ? 'text-emerald-600 font-bold' : 'text-gray-400'}>
+                              {itemTotalCost > 0 ? fmtPct(((itemTotalSell - itemTotalCost) / itemTotalCost) * 100) : '—'}
+                            </span>
                           </td>
-                          <td className="py-2 px-4 text-right num font-bold text-gray-900">{fmt(itemTotalSell)}</td>
+                          {/* Total Sell */}
+                          <td className="py-2 px-4 text-right num font-bold text-gray-900 text-sm">{fmt(itemTotalSell)}</td>
                         </tr>
                       </tfoot>
                     </table>
                     <div className="px-4 py-1.5 flex items-center justify-between bg-gray-50 border-t border-gray-100">
-                      <span className="text-[10px] text-gray-400">Margin: <span className={`font-semibold ${itemMarginPct >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{fmtPct(itemMarginPct)}</span></span>
+                      <span className="text-[10px] text-gray-400">
+                        Margin: <span className={`font-semibold ${itemMarginPct >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{fmtPct(itemMarginPct)}</span>
+                      </span>
                       <span className="text-[10px] text-gray-400">Click anywhere to edit →</span>
                     </div>
                   </div>
                 </div>
-              )}
+                );
+              })()}
 
               {/* ═══ PRICE BREAKDOWN EDIT DIALOG ══════════════════════ */}
               {showBreakdownDialog && (
