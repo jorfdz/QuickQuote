@@ -24,6 +24,67 @@ const Tip: React.FC<{ label: string; tip: string }> = ({ label, tip }) => (
   </span>
 );
 
+const MultiSelectFilter: React.FC<{
+  label: string;
+  options: { value: string; label: string }[];
+  selected: string[];
+  onChange: (selected: string[]) => void;
+}> = ({ label, options, selected, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+  const toggle = (value: string) =>
+    onChange(selected.includes(value) ? selected.filter(v => v !== value) : [...selected, value]);
+  const displayLabel = selected.length === 0
+    ? `All ${label}s`
+    : selected.length === 1
+      ? (options.find(o => o.value === selected[0])?.label ?? selected[0])
+      : `${selected.length} selected`;
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className={`flex items-center gap-1.5 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-nowrap ${
+          selected.length > 0 ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 bg-white hover:bg-gray-50'
+        }`}
+      >
+        {displayLabel}
+        <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[180px] max-h-60 overflow-y-auto">
+          {options.map(opt => (
+            <label key={opt.value} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selected.includes(opt.value)}
+                onChange={() => toggle(opt.value)}
+                className="rounded border-gray-300 text-blue-600"
+              />
+              {opt.label}
+            </label>
+          ))}
+          {selected.length > 0 && (
+            <button
+              onClick={() => { onChange([]); setOpen(false); }}
+              className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:text-red-500 border-t border-gray-100"
+            >
+              Clear filter
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const emptyForm = {
   materialType: 'paper' as MaterialType,
   name: '',
@@ -79,16 +140,16 @@ export const Materials: React.FC = () => {
 
   // Filters
   const sizeGroups = Array.from(new Set(materials.map(m => m.size).filter(Boolean))).sort();
-  const [sizeFilter, setSizeFilter] = useState('all');
-  const [groupFilter, setGroupFilter] = useState('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState<MaterialType | 'all'>('all');
+  const [sizeFilter, setSizeFilter] = useState<string[]>([]);
+  const [groupFilter, setGroupFilter] = useState<string[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
+  const [typeFilter, setTypeFilter] = useState<MaterialType[]>([]);
 
   // Vendor filter
   const vendorNames = useMemo(() =>
     Array.from(new Set(materials.map(m => m.vendorName).filter(Boolean) as string[])).sort(),
   [materials]);
-  const [vendorFilter, setVendorFilter] = useState('all');
+  const [vendorFilter, setVendorFilter] = useState<string[]>([]);
 
   // Favorites filter: 'favorites' or 'all'
   const hasFavorites = materials.some(m => m.isFavorite);
@@ -222,9 +283,9 @@ export const Materials: React.FC = () => {
 
   // Derive group IDs matching selected category filter
   const groupIdsForCategory = useMemo(() => {
-    if (categoryFilter === 'all') return null;
+    if (categoryFilter.length === 0) return null;
     return materialGroups
-      .filter(g => g.categoryIds.includes(categoryFilter))
+      .filter(g => g.categoryIds.some(cid => categoryFilter.includes(cid)))
       .map(g => g.id);
   }, [categoryFilter, materialGroups]);
 
@@ -240,12 +301,12 @@ export const Materials: React.FC = () => {
         || (m.vendorContactName && m.vendorContactName.toLowerCase().includes(q))
         || (m.vendorSalesRep && m.vendorSalesRep.toLowerCase().includes(q))
         || (MATERIAL_TYPE_LABELS[m.materialType] || '').toLowerCase().includes(q);
-      const matchSize = sizeFilter === 'all' || m.size === sizeFilter;
-      const matchGroup = groupFilter === 'all' || (m.materialGroupIds && m.materialGroupIds.includes(groupFilter));
+      const matchSize = sizeFilter.length === 0 || sizeFilter.includes(m.size || '');
+      const matchGroup = groupFilter.length === 0 || (m.materialGroupIds && m.materialGroupIds.some(gid => groupFilter.includes(gid)));
       const matchCategory = !groupIdsForCategory || (m.materialGroupIds && m.materialGroupIds.some(gid => groupIdsForCategory.includes(gid)));
-      const matchVendor = vendorFilter === 'all' || m.vendorName === vendorFilter;
+      const matchVendor = vendorFilter.length === 0 || vendorFilter.includes(m.vendorName || '');
       const matchFav = favFilter === 'all' || m.isFavorite;
-      const matchType = typeFilter === 'all' || (m.materialType || 'paper') === typeFilter;
+      const matchType = typeFilter.length === 0 || typeFilter.includes(m.materialType || 'paper' as MaterialType);
       return matchSearch && matchSize && matchGroup && matchCategory && matchVendor && matchFav && matchType;
     });
   }, [materials, search, sizeFilter, groupFilter, groupIdsForCategory, vendorFilter, favFilter, typeFilter]);
@@ -282,7 +343,7 @@ export const Materials: React.FC = () => {
 
   // Reset to page 1 when filters / sort change
   const prevFilterKey = useRef('');
-  const filterKey = `${search}|${sizeFilter}|${groupFilter}|${categoryFilter}|${vendorFilter}|${favFilter}|${typeFilter}|${sortCol}|${sortDir}|${pageSize}`;
+  const filterKey = `${search}|${sizeFilter.join(',')}|${groupFilter.join(',')}|${categoryFilter.join(',')}|${vendorFilter.join(',')}|${favFilter}|${typeFilter.join(',')}|${sortCol}|${sortDir}|${pageSize}`;
   if (filterKey !== prevFilterKey.current) {
     prevFilterKey.current = filterKey;
     if (currentPage !== 1) setCurrentPage(1);
@@ -622,56 +683,36 @@ export const Materials: React.FC = () => {
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <select
-            value={typeFilter}
-            onChange={e => setTypeFilter(e.target.value as MaterialType | 'all')}
-            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Types</option>
-            {(['paper', 'roll_media', 'rigid_substrate', 'blanks'] as MaterialType[]).map(t => (
-              <option key={t} value={t}>{MATERIAL_TYPE_LABELS[t]}</option>
-            ))}
-          </select>
-          <select
-            value={sizeFilter}
-            onChange={e => setSizeFilter(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Sizes</option>
-            {sizeGroups.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <select
-            value={groupFilter}
-            onChange={e => setGroupFilter(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Groups</option>
-            {materialGroups.map(g => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </select>
-          <select
-            value={categoryFilter}
-            onChange={e => setCategoryFilter(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Categories</option>
-            {categories.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <select
-            value={vendorFilter}
-            onChange={e => setVendorFilter(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Vendors</option>
-            {vendorNames.map(v => (
-              <option key={v} value={v}>{v}</option>
-            ))}
-          </select>
+          <MultiSelectFilter
+            label="Material Type"
+            options={(['paper', 'roll_media', 'rigid_substrate', 'blanks'] as MaterialType[]).map(t => ({ value: t, label: MATERIAL_TYPE_LABELS[t] }))}
+            selected={typeFilter}
+            onChange={v => setTypeFilter(v as MaterialType[])}
+          />
+          <MultiSelectFilter
+            label="Material Group"
+            options={materialGroups.map(g => ({ value: g.id, label: g.name }))}
+            selected={groupFilter}
+            onChange={setGroupFilter}
+          />
+          <MultiSelectFilter
+            label="Size"
+            options={(sizeGroups as string[]).map(s => ({ value: s, label: s }))}
+            selected={sizeFilter}
+            onChange={setSizeFilter}
+          />
+          <MultiSelectFilter
+            label="Category"
+            options={categories.map(c => ({ value: c.id, label: c.name }))}
+            selected={categoryFilter}
+            onChange={setCategoryFilter}
+          />
+          <MultiSelectFilter
+            label="Vendor"
+            options={vendorNames.map(v => ({ value: v, label: v }))}
+            selected={vendorFilter}
+            onChange={setVendorFilter}
+          />
           <button
             onClick={() => setFavFilter(f => f === 'favorites' ? 'all' : 'favorites')}
             className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors ${
