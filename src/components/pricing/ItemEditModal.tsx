@@ -2200,8 +2200,16 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     setShowBreakdownDialog(false);
                   }}
                   onRecalculate={() => {
-                    handleRecalculate();
-                    setShowBreakdownDialog(false);
+                    // Reset overrides + recompute, but DON'T close the dialog
+                    setManualOverrides({});
+                    setEditingLineId(null);
+                    setEditValues({});
+                    const fresh = computeServiceLines();
+                    onUpdatePricing({ serviceLines: fresh });
+                    const tc = fresh.reduce((s, l) => s + l.totalCost, 0);
+                    const ts = fresh.reduce((s, l) => s + l.sellPrice, 0);
+                    onUpdateItem({ totalCost: tc, sellPrice: ts, markup: Math.round(tc > 0 ? ((ts - tc) / tc) * 100 : 0) });
+                    return fresh;
                   }}
                   onClose={() => setShowBreakdownDialog(false)}
                 />
@@ -2349,32 +2357,28 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 interface PriceBreakdownDialogProps {
   lines: PricingServiceLine[];
   onSave: (updatedLines: PricingServiceLine[]) => void;
-  onRecalculate: () => void;
+  // Returns the freshly-computed service lines so the dialog can reset in-place without closing
+  onRecalculate: () => PricingServiceLine[];
   onClose: () => void;
 }
 
-// Format decimal hours → "1h 30m" or "45m"
+// Format decimal hours → always in whole minutes, rounded UP to next minute.
+// e.g. 0.067 hrs (4m) → "4 min", 1.5 hrs → "90 min", 0 → "—"
 const fmtHours = (h: number) => {
   if (h <= 0) return '—';
-  const totalMin = Math.round(h * 60);
-  const hrs = Math.floor(totalMin / 60);
-  const mins = totalMin % 60;
-  if (hrs === 0) return `${mins}m`;
-  return mins === 0 ? `${hrs}h` : `${hrs}h ${mins}m`;
+  const mins = Math.ceil(h * 60);   // round UP to next minute
+  return `${mins} min`;
 };
 
-// Parse "1h 30m", "45m", "1.5" (decimal hours) → decimal hours
+// Parse "45", "45m", "45 min", "1h 30m" → decimal hours
 const parseHoursInput = (s: string): number | null => {
   const trimmed = s.trim();
   // "1h 30m" or "1h30m"
-  const hm = trimmed.match(/^(\d+)h\s*(\d+)m?$/i);
+  const hm = trimmed.match(/^(\d+)\s*h\s*(\d+)\s*m?$/i);
   if (hm) return parseInt(hm[1]) + parseInt(hm[2]) / 60;
-  // "45m"
-  const m = trimmed.match(/^(\d+)m?$/i);
-  if (m) return parseInt(m[1]) / 60;
-  // decimal hours "1.5"
-  const n = parseFloat(trimmed);
-  if (!isNaN(n) && n >= 0) return n;
+  // "90 min" or "90m" or plain "90"
+  const m = trimmed.match(/^(\d+(?:\.\d+)?)\s*(?:min|m)?$/i);
+  if (m) return parseFloat(m[1]) / 60;
   return null;
 };
 
@@ -2403,10 +2407,15 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
     }))
   );
 
-  // Per-row charge-time input buffer (typed string before parsing)
+  // Per-row charge-time input buffer — always stored as "N min" string
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
-    lines.forEach(l => { if (l.hourlyCost != null) init[l.id] = fmtHours(l.hoursCharge ?? l.hoursActual ?? 0); });
+    lines.forEach(l => {
+      if (l.hourlyCost != null) {
+        const h = l.hoursCharge ?? l.hoursActual ?? 0;
+        init[l.id] = h > 0 ? `${Math.ceil(h * 60)} min` : '0 min';
+      }
+    });
     return init;
   });
   const [timeErrors, setTimeErrors] = useState<Record<string, boolean>>({});
@@ -2449,11 +2458,18 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
   };
 
   // ── Per-line field update ─────────────────────────────────────────────
-  const updateField = (id: string, field: 'totalCost' | 'markupPercent' | 'profitPercent' | 'sellPrice', raw: string) => {
+  const updateField = (id: string, field: 'unitCost' | 'totalCost' | 'markupPercent' | 'profitPercent' | 'sellPrice', raw: string) => {
     const val = parseFloat(raw);
     if (isNaN(val)) return;
     setLocalLines(prev => prev.map(l => {
       if (l.id !== id) return l;
+      if (field === 'unitCost') {
+        // Recalculate totalCost from chargeQty × new unitCost; keep markup, recompute sell
+        const effectiveQty = l.chargeQty ?? l.quantity ?? 1;
+        const newCost = parseFloat((effectiveQty * val).toFixed(2));
+        const newSell = parseFloat((newCost * (1 + l.markupPercent / 100)).toFixed(2));
+        return { ...l, unitCost: val, totalCost: newCost, sellPrice: newSell };
+      }
       if (field === 'totalCost') {
         const mk = val > 0 ? ((l.sellPrice - val) / val) * 100 : l.markupPercent;
         return { ...l, totalCost: val, markupPercent: parseFloat(mk.toFixed(2)) };
@@ -2462,7 +2478,6 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
         return { ...l, markupPercent: val, sellPrice: parseFloat((l.totalCost * (1 + val / 100)).toFixed(2)) };
       }
       if (field === 'profitPercent') {
-        // Convert profit% → markup%, then compute sell
         const mk = profitToMarkup(val);
         return { ...l, markupPercent: parseFloat(mk.toFixed(2)), sellPrice: parseFloat((l.totalCost * (1 + mk / 100)).toFixed(2)) };
       }
@@ -2660,9 +2675,9 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                 <th className="pb-0 pt-1 text-center text-[7px] font-bold uppercase tracking-widest text-sky-500 bg-sky-50/80 border-l border-sky-200" colSpan={4}>
                   Time
                 </th>
-                {/* QTY sub-band */}
+                {/* USAGE sub-band */}
                 <th className="pb-0 pt-1 text-center text-[7px] font-bold uppercase tracking-widest text-violet-500 bg-violet-50/80 border-l border-violet-200" colSpan={4}>
-                  Quantity &amp; Cost
+                  Usage
                 </th>
                 <th className="pb-0 pt-1 bg-emerald-50 border-l-2 border-emerald-400" colSpan={2} />
               </tr>
@@ -2715,11 +2730,13 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                     <td className={`${tdTime} border-l border-sky-100 text-right`}>
                       {timeBased ? <span className={`text-sky-700 font-medium ${numCls}`}>{formatCurrency(line.hourlyCost!)}</span> : <span className={dimCls}>—</span>}
                     </td>
-                    {/* Actual time (read-only) */}
+                    {/* Actual time (read-only) — always in minutes, rounded up */}
                     <td className={`${tdTime} text-right`}>
-                      {timeBased ? <span className={`text-gray-400 ${numCls}`}>{fmtHours(line.hoursActual!)}</span> : <span className={dimCls}>—</span>}
+                      {timeBased
+                        ? <span className={`text-gray-400 ${numCls}`}>{fmtHours(line.hoursActual!)}</span>
+                        : <span className={dimCls}>—</span>}
                     </td>
-                    {/* Charge time (editable) */}
+                    {/* Charge time (editable) — enter minutes */}
                     <td className={tdTime}>
                       {timeBased ? (
                         <input
@@ -2728,9 +2745,9 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                           onChange={e => setTimeInputs(t => ({ ...t, [line.id]: e.target.value }))}
                           onBlur={() => commitTimeInput(line.id)}
                           onKeyDown={e => { if (e.key === 'Enter') commitTimeInput(line.id); }}
-                          placeholder="45m"
+                          placeholder="e.g. 30"
                           className={inpSky(timeErr)}
-                          title="Format: 45m · 1h · 1h 30m"
+                          title="Enter minutes (e.g. 30 or 90)"
                         />
                       ) : <span className={dimCls}>—</span>}
                     </td>
@@ -2764,12 +2781,17 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                         />
                       ) : <span className={dimCls}>—</span>}
                     </td>
-                    {/* Unit $ */}
-                    <td className={`${tdVio} text-right`}>
-                      {(qtyBased || line.service === 'Setup') && line.unitCost > 0
-                        ? <span className={`text-gray-500 ${numCls}`}>{formatCurrency(line.unitCost)}</span>
-                        : <span className={dimCls}>—</span>
-                      }
+                    {/* Unit $ — editable, 3 decimal places; changing it recalculates cost+sell */}
+                    <td className={tdVio}>
+                      {(qtyBased || line.service === 'Setup') && line.unitCost > 0 ? (
+                        <input
+                          type="number" step="0.001" min="0"
+                          value={parseFloat(line.unitCost.toFixed(3))}
+                          onChange={e => updateField(line.id, 'unitCost', e.target.value)}
+                          className={inpViolet(false)}
+                          title="Unit cost — changing this recalculates total cost and sell price"
+                        />
+                      ) : <span className={dimCls}>—</span>}
                     </td>
                     {/* Cost $ (editable direct override) */}
                     <td className={tdVio}>
@@ -2782,12 +2804,12 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                     </td>
 
                     {/* ── SELL cols ── */}
-                    {/* Markup or Profit % */}
+                    {/* Markup or Profit % — 2 decimal places */}
                     <td className={`${tdSell} border-l-2 border-emerald-400`}>
                       <div className="relative">
                         <input
-                          type="number" step="0.1"
-                          value={fmtNum(pctVal)}
+                          type="number" step="0.01"
+                          value={fmtNum(pctVal, 2)}
                           onChange={e => updateField(line.id, showProfit ? 'profitPercent' : 'markupPercent', e.target.value)}
                           className={`${inpEmerald(true)} pr-4 ${pctVal > 0 ? 'font-semibold' : 'text-gray-400'}`}
                         />
@@ -2832,7 +2854,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                   {totalMarkupInput !== null ? (
                     <div className="relative">
                       <input
-                        type="number" step="0.1" autoFocus
+                        type="number" step="0.01" autoFocus
                         value={totalMarkupInput}
                         onChange={e => { setTotalMarkupInput(e.target.value); setTotalMarkupError(false); }}
                         onBlur={e => applyTotalMarkup(e.target.value)}
@@ -2851,7 +2873,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                       title={`Click to set all lines to this ${pctLabel}`}
                       className={`w-full px-1 py-1 text-right ${numCls} font-bold rounded border border-dashed border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100/60 transition-colors text-emerald-700`}
                     >
-                      {mkOrProfit(totalMarkup).toFixed(1)}{pctSuffix}
+                      {mkOrProfit(totalMarkup).toFixed(2)}{pctSuffix}
                     </button>
                   )}
                 </td>
@@ -2903,7 +2925,28 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
 
         {/* ── Footer ── */}
         <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-white rounded-b-2xl">
-          <button type="button" onClick={onRecalculate}
+          <button type="button" onClick={() => {
+            // Get fresh computed lines from parent, reset local state in-place — dialog stays open
+            const fresh = onRecalculate();
+            setLocalLines(fresh.map(l => ({ ...l, chargeQty: l.chargeQty ?? l.quantity })));
+            setTimeInputs(() => {
+              const init: Record<string, string> = {};
+              fresh.forEach(l => {
+                if (l.hourlyCost != null) {
+                  const h = l.hoursCharge ?? l.hoursActual ?? 0;
+                  init[l.id] = h > 0 ? `${Math.ceil(h * 60)} min` : '0 min';
+                }
+              });
+              return init;
+            });
+            setQtyInputs(() => {
+              const init: Record<string, string> = {};
+              fresh.forEach(l => { if (l.quantity != null && l.unit !== 'flat') init[l.id] = String(l.quantity); });
+              return init;
+            });
+            setTimeErrors({});
+            setQtyErrors({});
+          }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-gray-500 hover:text-[#F890E7] hover:bg-pink-50 rounded-lg transition-colors"
           >
             <RefreshCw className="w-3 h-3" /> Reset to calculated values
