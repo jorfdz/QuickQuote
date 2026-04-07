@@ -845,7 +845,7 @@ export const Materials: React.FC = () => {
 
       {/* Add / Edit Material Modal */}
       <Modal isOpen={showNew || editingId !== null} onClose={() => { setShowNew(false); setEditingId(null); }}
-        title={editingId ? 'Edit Material' : 'Add Material'} size="half">
+        title={editingId ? 'Edit Material' : 'Add Material'} size="4xl">
         {/* Tab Bar */}
         <div className="flex border-b border-gray-200 mb-4 -mt-1">
           <button
