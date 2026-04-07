@@ -1895,13 +1895,13 @@ export const Materials: React.FC = () => {
             </div>
             <div className="w-24">
               {form.pricingModel === 'cost_per_m' && (
-                <Input label="Per M" type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                <Input type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
               )}
               {form.pricingModel === 'cost_per_unit' && (
-                <Input label="Per Unit" type="number" value={form.costPerUnit || ''} onChange={e => setForm(f => ({ ...f, costPerUnit: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                <Input type="number" value={form.costPerUnit || ''} onChange={e => setForm(f => ({ ...f, costPerUnit: parseFloat(e.target.value) || 0 }))} prefix="$" />
               )}
               {form.pricingModel === 'cost_per_sqft' && (
-                <Input label="Per Sq Ft" type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                <Input type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
               )}
             </div>
             {/* Roll reference calculator (inline) */}
