@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   Plus, Trash2, ChevronDown, ChevronRight, ChevronUp, Search, X, Scissors, FoldVertical, CircleDot, Printer,
   Package, DollarSign, Grid3X3, Edit3, Check, Star, Settings2,
-  Percent, Hash, Info, RefreshCw, Eye, Layers, Wrench, Hand,
+  Percent, Hash, Info, RefreshCw, Eye, Layers, Wrench, Hand, Lock, LockOpen,
 } from 'lucide-react';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Badge, ConfirmDialog } from '../../components/ui';
@@ -2431,6 +2431,11 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
   // Markup ↔ Profit % toggle — purely a display convenience, doesn't change any values
   const [showProfit, setShowProfit] = useState(false);
 
+  // ── Row lock state — locked rows are skipped by global markup/sell scaling ──
+  const [lockedIds, setLockedIds] = useState<Set<string>>(new Set());
+  const toggleLock = (id: string) =>
+    setLockedIds(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+
   // ── Totals row editing state ──────────────────────────────────────────
   const [totalMarkupInput, setTotalMarkupInput] = useState<string | null>(null);
   const [totalSellInput, setTotalSellInput]     = useState<string | null>(null);
@@ -2524,26 +2529,30 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
   const applyTotalMarkup = (raw: string) => {
     let newMarkup = parseFloat(raw);
     if (isNaN(newMarkup)) { setTotalMarkupError(true); return; }
-    // If user entered a profit%, convert first
     if (showProfit) newMarkup = profitToMarkup(newMarkup);
     if (isNaN(newMarkup)) { setTotalMarkupError(true); return; }
     setTotalMarkupError(false);
     setLocalLines(prev => prev.map(l => {
+      if (lockedIds.has(l.id)) return l;               // ← skip locked rows
       const newSell = parseFloat((l.totalCost * (1 + newMarkup / 100)).toFixed(2));
       return { ...l, markupPercent: parseFloat(newMarkup.toFixed(2)), sellPrice: newSell };
     }));
     setTotalMarkupInput(null);
   };
 
-  // ── Totals-row: scale all sell prices proportionally to reach new total ─
+  // ── Totals-row: scale all UNLOCKED sell prices proportionally ─────────
   const applyTotalSell = (raw: string) => {
     const newTotal = parseFloat(raw);
     if (isNaN(newTotal) || newTotal < 0) { setTotalSellError(true); return; }
     setTotalSellError(false);
-    const currentTotal = localLines.reduce((s, l) => s + l.sellPrice, 0);
-    if (currentTotal === 0) return;
-    const ratio = newTotal / currentTotal;
+    // Only the unlocked portion is scaled; locked lines keep their sell price
+    const lockedSell   = localLines.filter(l => lockedIds.has(l.id)).reduce((s, l) => s + l.sellPrice, 0);
+    const unlockedSell = localLines.filter(l => !lockedIds.has(l.id)).reduce((s, l) => s + l.sellPrice, 0);
+    const targetUnlocked = newTotal - lockedSell;
+    if (targetUnlocked <= 0 || unlockedSell === 0) { setTotalSellError(true); return; }
+    const ratio = targetUnlocked / unlockedSell;
     setLocalLines(prev => prev.map(l => {
+      if (lockedIds.has(l.id)) return l;               // ← skip locked rows
       const newSell = parseFloat((l.sellPrice * ratio).toFixed(2));
       const mk = l.totalCost > 0 ? ((newSell - l.totalCost) / l.totalCost) * 100 : 0;
       return { ...l, sellPrice: newSell, markupPercent: parseFloat(mk.toFixed(2)) };
@@ -2697,22 +2706,25 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                 <th className={thVio}>Cost $</th>
                 {/* SELL */}
                 <th className={`${thSell} border-l-2 border-emerald-400`}>{pctLabel}</th>
-                <th className={`${thSell} pr-3`}>Sell $</th>
+                <th className={`${thSell} pr-2`} title="Lock row to exclude from global scaling">
+                  <span className="flex items-center justify-end gap-1">Sell $ <Lock className="w-2.5 h-2.5 opacity-40" /></span>
+                </th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-gray-50">
               {localLines.map(line => {
-                const accent   = SERVICE_ACCENT[line.service] ?? { dot: 'bg-gray-300' };
+                const accent    = SERVICE_ACCENT[line.service] ?? { dot: 'bg-gray-300' };
                 const timeBased = isTimeBased(line);
                 const qtyBased  = isQtyBased(line);
                 const timeErr   = timeErrors[line.id];
                 const qtyErr    = qtyErrors[line.id];
                 const chargeQty = line.chargeQty ?? line.quantity;
                 const pctVal    = mkOrProfit(line.markupPercent);
+                const isLocked  = lockedIds.has(line.id);
 
                 return (
-                  <tr key={line.id} className="hover:bg-gray-50/60 transition-colors">
+                  <tr key={line.id} className={`transition-colors ${isLocked ? 'bg-amber-50/20 hover:bg-amber-50/30' : 'hover:bg-gray-50/60'}`}>
                     {/* Service */}
                     <td className={`${tdCls} pl-3`}>
                       <div className="flex items-center gap-1 min-w-0">
@@ -2816,14 +2828,36 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                         <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px] text-emerald-400 pointer-events-none">{pctSuffix}</span>
                       </div>
                     </td>
-                    {/* Sell $ */}
-                    <td className={`${tdSell} pr-3`}>
-                      <input
-                        type="number" step="0.01" min="0"
-                        value={fmtNum(line.sellPrice)}
-                        onChange={e => updateField(line.id, 'sellPrice', e.target.value)}
-                        className={inpEmerald(true) + ' font-bold'}
-                      />
+                    {/* Sell $ — with lock button */}
+                    <td className={`${tdSell} pr-2`}>
+                      <div className="flex items-center gap-1">
+                        {/* Lock toggle — small, inconspicuous, sits left of the input */}
+                        <button
+                          type="button"
+                          onClick={() => toggleLock(line.id)}
+                          title={isLocked
+                            ? 'Sell price locked — click to unlock (will be included in global scaling)'
+                            : 'Click to lock this sell price (excluded from global scaling)'}
+                          className={`flex-shrink-0 p-0.5 rounded transition-all ${
+                            isLocked
+                              ? 'text-amber-500 hover:text-amber-600'
+                              : 'text-gray-300 hover:text-gray-500'
+                          }`}
+                        >
+                          {isLocked
+                            ? <Lock className="w-3 h-3" />
+                            : <LockOpen className="w-3 h-3" />
+                          }
+                        </button>
+                        <input
+                          type="number" step="0.01" min="0"
+                          value={fmtNum(line.sellPrice)}
+                          onChange={e => updateField(line.id, 'sellPrice', e.target.value)}
+                          className={`${inpEmerald(true)} font-bold flex-1 ${isLocked ? 'opacity-70 cursor-not-allowed' : ''}`}
+                          readOnly={isLocked}
+                          title={isLocked ? 'Locked — unlock to edit' : undefined}
+                        />
+                      </div>
                     </td>
                   </tr>
                 );
@@ -2834,7 +2868,15 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
             <tfoot>
               <tr className="border-t-2 border-gray-300 bg-gray-50/90">
                 <td className="py-1.5 pl-3 pr-1 text-[9px] font-bold text-gray-600 uppercase tracking-wider" colSpan={2}>
-                  Total <span className="text-[8px] font-normal text-gray-400 normal-case">— click % or $ to scale all</span>
+                  <span className="flex items-center gap-1.5">
+                    Total
+                    <span className="text-[8px] font-normal text-gray-400 normal-case">— click % or $ to scale unlocked rows</span>
+                    {lockedIds.size > 0 && (
+                      <span className="inline-flex items-center gap-0.5 text-[8px] font-semibold text-amber-500">
+                        <Lock className="w-2.5 h-2.5" />{lockedIds.size} locked
+                      </span>
+                    )}
+                  </span>
                 </td>
                 {/* TIME total cells */}
                 <td className={`py-1.5 px-1 ${tdTime} border-l border-sky-200`} colSpan={2} />
