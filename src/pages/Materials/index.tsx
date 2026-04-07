@@ -887,7 +887,7 @@ export const Materials: React.FC = () => {
 
       {/* Add / Edit Material Modal */}
       <Modal isOpen={showNew || editingId !== null} onClose={() => { setShowNew(false); setEditingId(null); }}
-        title={editingId ? 'Edit Material' : 'Add Material'} size="4xl">
+        title={editingId ? 'Edit Material' : 'Add Material'} size="4xl" className="h-[90vh]">
         {/* Tab Bar */}
         <div className="flex border-b border-gray-200 mb-4 -mt-1">
           <button
@@ -947,9 +947,6 @@ export const Materials: React.FC = () => {
             </button>
           )}
         </div>
-
-        {/* Tab content — fixed min-height keeps modal stable across all tabs */}
-        <div className="min-h-[60vh]">
 
         {/* ── Change History Tab ── */}
         {modalTab === 'history' && editingId && (
@@ -1959,8 +1956,6 @@ export const Materials: React.FC = () => {
             </div>
           </div>
         )}
-
-        </div>{/* end tab content min-height wrapper */}
 
         {/* Save / Cancel buttons (visible on all tabs) */}
         <div className="flex gap-3 justify-end pt-4 border-t border-gray-100 mt-4">
