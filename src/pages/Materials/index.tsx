@@ -1124,12 +1124,15 @@ export const Materials: React.FC = () => {
             <div className="flex-1 space-y-3">
               <div className="flex items-center gap-3">
                 <div className="flex-[3]">
-                  <Input label="Material Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    <Tip label="Material Name" tip="The name that identifies this material in your catalog, quotes, and orders." />
+                  </label>
+                  <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                     placeholder="e.g. 100lb Gloss Cover" />
                 </div>
                 <div className="flex-[2]">
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                    Material Groups
+                    <Tip label="Material Groups" tip="Assign this material to one or more groups for organization and filtering in the material list." />
                   </label>
                   <div className="relative" ref={groupDropdownRef}>
                     <button
@@ -1210,7 +1213,9 @@ export const Materials: React.FC = () => {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Description</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  <Tip label="Description" tip="Optional notes about this material such as finish, weight, coating, or best use cases." />
+                </label>
                 <textarea
                   value={form.description}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
@@ -1576,9 +1581,11 @@ export const Materials: React.FC = () => {
             {!costConfigCollapsed && (
               <div className="mt-3 space-y-4 pl-6">
 
-          {/* ── Type toggle ── */}
+          {/* ── Material Type toggle ── */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Type</label>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+              <Tip label="Material Type" tip="The physical form of this material — affects available cost models and dimension inputs." />
+            </label>
             <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
               {(['paper', 'roll_media', 'rigid_substrate', 'blanks'] as MaterialType[]).map(type => (
                 <button
@@ -1607,28 +1614,38 @@ export const Materials: React.FC = () => {
           </div>
 
           {/* ── Dimensions (conditional by type) ── */}
-          {form.materialType !== 'blanks' && (
-            <div className={`grid gap-4 ${form.materialType === 'roll_media' ? 'grid-cols-1 max-w-xs' : 'grid-cols-2 max-w-sm'}`}>
-              <Input label={form.materialType === 'roll_media' ? 'Roll Width (in)' : 'Width (in)'} type="number" value={form.sizeWidth || ''} onChange={e => setForm(f => ({ ...f, sizeWidth: parseFloat(e.target.value) || 0 }))} />
-              {form.materialType !== 'roll_media' && (
-                <Input label="Height (in)" type="number" value={form.sizeHeight || ''} onChange={e => setForm(f => ({ ...f, sizeHeight: parseFloat(e.target.value) || 0 }))} />
-              )}
+          {form.materialType === 'roll_media' && (
+            <div className="max-w-xs">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                <Tip label="Roll Width (in)" tip="The width of the roll in inches. Used to calculate square footage for cost and pricing." />
+              </label>
+              <Input type="number" value={form.sizeWidth || ''} onChange={e => setForm(f => ({ ...f, sizeWidth: parseFloat(e.target.value) || 0 }))} />
+            </div>
+          )}
+          {(form.materialType === 'paper' || form.materialType === 'rigid_substrate') && (
+            <div className="max-w-xs">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                <Tip label="Size" tip="The sheet size of this material (e.g. 8.5x11, 12x18, 24x36). Displayed in the material list." />
+              </label>
+              <Input type="text" value={form.size || ''} placeholder="e.g. 8.5x11" onChange={e => setForm(f => ({ ...f, size: e.target.value }))} />
             </div>
           )}
 
           {/* ── Cost Unit selector ── */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Cost Unit</label>
-            <div className="flex gap-2 flex-wrap">
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+              <Tip label="Cost Unit" tip="How the cost of this material is measured. Choose based on how your supplier prices it." />
+            </label>
+            <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
               {MATERIAL_TYPE_PRICING_MODELS[form.materialType].map(model => (
                 <button
                   key={model}
                   type="button"
                   onClick={() => setForm(f => ({ ...f, pricingModel: model }))}
-                  className={`px-3 py-2 text-sm rounded-lg border-2 transition-all ${
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                     form.pricingModel === model
-                      ? 'border-blue-600 bg-blue-50 text-blue-700 font-semibold shadow-sm'
-                      : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                      ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                      : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
                   {PRICING_MODEL_LABELS[model]}
@@ -1642,13 +1659,28 @@ export const Materials: React.FC = () => {
             {/* Primary cost input */}
             <div className="w-36">
               {form.pricingModel === 'cost_per_m' && (
-                <Input label="Price per M" type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                <>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    <Tip label="Price per M" tip="Your supplier cost per 1,000 sheets (M = mille). The system converts this to a per-sheet cost automatically." />
+                  </label>
+                  <Input type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                </>
               )}
               {form.pricingModel === 'cost_per_unit' && (
-                <Input label="Cost per Unit" type="number" value={form.costPerUnit || ''} onChange={e => setForm(f => ({ ...f, costPerUnit: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                <>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    <Tip label="Cost per Unit" tip="Your cost for each individual unit of this material." />
+                  </label>
+                  <Input type="number" value={form.costPerUnit || ''} onChange={e => setForm(f => ({ ...f, costPerUnit: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                </>
               )}
               {form.pricingModel === 'cost_per_sqft' && (
-                <Input label="Cost per Sq Ft" type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                <>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    <Tip label="Cost per Sq Ft" tip="Your cost per square foot of this material. Can be derived automatically from roll cost and dimensions below." />
+                  </label>
+                  <Input type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                </>
               )}
             </div>
             {/* Roll reference calculator (flat row, aligned with cost input) */}
@@ -1656,7 +1688,10 @@ export const Materials: React.FC = () => {
               <div className="flex items-end gap-2">
                 <span className="text-[10px] text-amber-600 font-semibold pb-1.5">←</span>
                 <div className="w-28">
-                  <Input label="Roll $" type="number" value={form.rollCost || ''} prefix="$"
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    <Tip label="Roll $" tip="Total cost of one roll from your supplier. Used with roll length and width to auto-calculate cost per sq ft." />
+                  </label>
+                  <Input type="number" value={form.rollCost || ''} prefix="$"
                     onChange={e => {
                       const rollCost = parseFloat(e.target.value) || 0;
                       setForm(f => {
@@ -1667,7 +1702,10 @@ export const Materials: React.FC = () => {
                     }} />
                 </div>
                 <div className="w-28">
-                  <Input label="Length (ft)" type="number" value={form.rollLength || ''} suffix="ft"
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    <Tip label="Length (ft)" tip="The length of the roll in feet. Combined with roll width and cost to calculate cost per sq ft." />
+                  </label>
+                  <Input type="number" value={form.rollLength || ''} suffix="ft"
                     onChange={e => {
                       const rollLength = parseFloat(e.target.value) || 0;
                       setForm(f => {
@@ -1686,10 +1724,12 @@ export const Materials: React.FC = () => {
             )}
           </div>
 
-          {/* ── Tier Pricing (optional) ── */}
+          {/* ── Tier Cost (optional) ── */}
           <div className="max-w-xs">
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Quantity Tier Pricing</label>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <Tip label="Tier Cost" tip="Define quantity-based price breaks. When the order quantity meets a tier's minimum, that tier's cost replaces the base cost." />
+              </label>
               <button
                 type="button"
                 onClick={() => setForm(f => ({ ...f, pricingTiers: [...f.pricingTiers, { minQty: 0, costPerUnit: 0 }] }))}
@@ -1749,7 +1789,9 @@ export const Materials: React.FC = () => {
 
           {/* ── Markup (last — applies on top of everything) ── */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Markup</label>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              <Tip label="Markup" tip="Profit margin added on top of the material cost. Choose the type that matches your pricing strategy." />
+            </label>
             <div className="flex gap-3 items-end">
               <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
                 <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'percent' }))}
