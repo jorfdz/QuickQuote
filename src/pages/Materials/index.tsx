@@ -163,11 +163,48 @@ export const Materials: React.FC = () => {
     next.has(id) ? next.delete(id) : next.add(id);
     return next;
   });
-  const clearSelection = () => setSelectedIds(new Set());
+  const clearSelection = () => { setSelectedIds(new Set()); setBulkPanel(null); };
   const handleBulkDelete = () => {
     selectedIds.forEach(id => deleteMaterial(id));
     clearSelection();
   };
+
+  // Bulk action panel state
+  type BulkPanel = 'type' | 'group' | 'markup' | 'vendor' | 'favorite' | 'delete' | null;
+  const [bulkPanel, setBulkPanel] = useState<BulkPanel>(null);
+  const [bulkType, setBulkType] = useState<MaterialType>('paper');
+  const [bulkGroupIds, setBulkGroupIds] = useState<string[]>([]);
+  const [bulkGroupMode, setBulkGroupMode] = useState<'add' | 'replace'>('add');
+  const [bulkMarkupType, setBulkMarkupType] = useState<'percent' | 'fixed' | 'global_percent' | 'global_flat'>('percent');
+  const [bulkMarkupValue, setBulkMarkupValue] = useState(0);
+  const [bulkVendor, setBulkVendor] = useState('');
+  const [bulkFavorite, setBulkFavorite] = useState(true);
+
+  const openBulkPanel = (panel: BulkPanel) => setBulkPanel(prev => prev === panel ? null : panel);
+
+  const applyBulkUpdate = (patch: Partial<PricingMaterial>) => {
+    selectedIds.forEach(id => updateMaterial(id, patch));
+    setBulkPanel(null);
+  };
+
+  const applyBulkType = () => applyBulkUpdate({ materialType: bulkType });
+
+  const applyBulkGroup = () => {
+    selectedIds.forEach(id => {
+      const m = materials.find(x => x.id === id);
+      if (!m) return;
+      const existing = m.materialGroupIds || [];
+      const next = bulkGroupMode === 'replace'
+        ? bulkGroupIds
+        : Array.from(new Set([...existing, ...bulkGroupIds]));
+      updateMaterial(id, { materialGroupIds: next });
+    });
+    setBulkPanel(null);
+  };
+
+  const applyBulkMarkup = () => applyBulkUpdate({ markupType: bulkMarkupType, markup: bulkMarkupValue });
+  const applyBulkVendor = () => applyBulkUpdate({ vendorName: bulkVendor });
+  const applyBulkFavorite = () => applyBulkUpdate({ isFavorite: bulkFavorite });
 
   // Sorting
   const [sortCol, setSortCol] = useState<SortColumn | null>(null);
@@ -754,25 +791,173 @@ export const Materials: React.FC = () => {
       </Card>
 
       {/* Bulk Action Bar */}
-      {selectedIds.size > 0 && (
-        <div className="mb-3 flex items-center gap-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl">
-          <span className="text-sm font-semibold text-blue-700">{selectedIds.size} selected</span>
-          <div className="flex-1" />
-          <button
-            onClick={clearSelection}
-            className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors"
-          >
-            Clear selection
-          </button>
-          <button
-            onClick={handleBulkDelete}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Delete {selectedIds.size} material{selectedIds.size !== 1 ? 's' : ''}
-          </button>
-        </div>
-      )}
+      {selectedIds.size > 0 && (() => {
+        const btnBase = 'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap';
+        const btnActive = 'bg-blue-600 text-white border-blue-600';
+        const btnIdle = 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50';
+        return (
+          <div className="mb-3">
+            {/* Main bar */}
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl flex-wrap">
+              <span className="text-sm font-semibold text-blue-700 mr-1">{selectedIds.size} selected</span>
+              <span className="text-blue-200 text-lg leading-none">|</span>
+              <span className="text-[11px] font-semibold text-blue-400 uppercase tracking-wide mr-1">Edit:</span>
+
+              <button onClick={() => openBulkPanel('type')} className={`${btnBase} ${bulkPanel === 'type' ? btnActive : btnIdle}`}>
+                <Layers className="w-3.5 h-3.5" /> Material Type
+              </button>
+              <button onClick={() => openBulkPanel('group')} className={`${btnBase} ${bulkPanel === 'group' ? btnActive : btnIdle}`}>
+                <Package className="w-3.5 h-3.5" /> Group
+              </button>
+              <button onClick={() => openBulkPanel('markup')} className={`${btnBase} ${bulkPanel === 'markup' ? btnActive : btnIdle}`}>
+                <ArrowUpDown className="w-3.5 h-3.5" /> Markup
+              </button>
+              <button onClick={() => openBulkPanel('vendor')} className={`${btnBase} ${bulkPanel === 'vendor' ? btnActive : btnIdle}`}>
+                <Truck className="w-3.5 h-3.5" /> Vendor
+              </button>
+              <button onClick={() => openBulkPanel('favorite')} className={`${btnBase} ${bulkPanel === 'favorite' ? btnActive : btnIdle}`}>
+                <Star className="w-3.5 h-3.5" /> Favorite
+              </button>
+
+              <div className="flex-1" />
+              <button onClick={clearSelection} className={`${btnBase} ${btnIdle}`}>
+                <X className="w-3.5 h-3.5" /> Clear
+              </button>
+              <button
+                onClick={() => openBulkPanel('delete')}
+                className={`${btnBase} ${bulkPanel === 'delete' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-red-600 border-red-300 hover:bg-red-50'}`}
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete
+              </button>
+            </div>
+
+            {/* Inline panels */}
+            {bulkPanel === 'type' && (
+              <div className="mt-1.5 px-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm flex items-center gap-4 flex-wrap">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Set Material Type to:</span>
+                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                  {(['paper', 'roll_media', 'rigid_substrate', 'blanks'] as MaterialType[]).map(t => (
+                    <button key={t} type="button" onClick={() => setBulkType(t)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${bulkType === t ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
+                      {MATERIAL_TYPE_LABELS[t]}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={applyBulkType} className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+                  Apply to {selectedIds.size}
+                </button>
+                <button onClick={() => setBulkPanel(null)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+              </div>
+            )}
+
+            {bulkPanel === 'group' && (
+              <div className="mt-1.5 px-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm flex items-center gap-4 flex-wrap">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Material Groups:</span>
+                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                  {(['add', 'replace'] as const).map(mode => (
+                    <button key={mode} type="button" onClick={() => setBulkGroupMode(mode)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${bulkGroupMode === mode ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
+                      {mode === 'add' ? 'Add to' : 'Replace'}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  {materialGroups.map(g => (
+                    <label key={g.id} className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border cursor-pointer transition-colors ${bulkGroupIds.includes(g.id) ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                      <input type="checkbox" className="sr-only" checked={bulkGroupIds.includes(g.id)}
+                        onChange={() => setBulkGroupIds(prev => prev.includes(g.id) ? prev.filter(x => x !== g.id) : [...prev, g.id])} />
+                      {bulkGroupIds.includes(g.id) && <Check className="w-3 h-3" />}
+                      {g.name}
+                    </label>
+                  ))}
+                  {materialGroups.length === 0 && <span className="text-xs text-gray-400">No groups defined</span>}
+                </div>
+                <button onClick={applyBulkGroup} disabled={bulkGroupIds.length === 0} className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors">
+                  Apply to {selectedIds.size}
+                </button>
+                <button onClick={() => setBulkPanel(null)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+              </div>
+            )}
+
+            {bulkPanel === 'markup' && (
+              <div className="mt-1.5 px-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm flex items-center gap-4 flex-wrap">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Set Markup:</span>
+                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                  {([['percent','Per Unit %'],['fixed','Per Unit $'],['global_percent','Global %'],['global_flat','Flat $']] as const).map(([v,label]) => (
+                    <button key={v} type="button" onClick={() => setBulkMarkupType(v)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${bulkMarkupType === v ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="relative w-28">
+                  {(bulkMarkupType === 'fixed' || bulkMarkupType === 'global_flat') && <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>}
+                  <input type="number" value={bulkMarkupValue || ''} placeholder="0"
+                    onChange={e => setBulkMarkupValue(parseFloat(e.target.value) || 0)}
+                    className={`w-full py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${bulkMarkupType === 'fixed' || bulkMarkupType === 'global_flat' ? 'pl-6 pr-3' : 'pl-3 pr-6'}`} />
+                  {(bulkMarkupType === 'percent' || bulkMarkupType === 'global_percent') && <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">%</span>}
+                </div>
+                <button onClick={applyBulkMarkup} className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+                  Apply to {selectedIds.size}
+                </button>
+                <button onClick={() => setBulkPanel(null)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+              </div>
+            )}
+
+            {bulkPanel === 'vendor' && (
+              <div className="mt-1.5 px-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm flex items-center gap-4 flex-wrap">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Set Vendor:</span>
+                <input type="text" value={bulkVendor} onChange={e => setBulkVendor(e.target.value)}
+                  placeholder="Vendor name…"
+                  list="bulk-vendor-list"
+                  className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-52" />
+                <datalist id="bulk-vendor-list">
+                  {vendorNames.map(v => <option key={v} value={v} />)}
+                </datalist>
+                <button onClick={applyBulkVendor} disabled={!bulkVendor.trim()} className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors">
+                  Apply to {selectedIds.size}
+                </button>
+                <button onClick={() => setBulkPanel(null)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+              </div>
+            )}
+
+            {bulkPanel === 'favorite' && (
+              <div className="mt-1.5 px-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm flex items-center gap-4 flex-wrap">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Set Favorite status:</span>
+                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                  <button type="button" onClick={() => setBulkFavorite(true)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${bulkFavorite ? 'bg-white text-amber-600 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
+                    <Star className={`w-3.5 h-3.5 ${bulkFavorite ? 'fill-amber-400 text-amber-400' : ''}`} /> Mark as Favorite
+                  </button>
+                  <button type="button" onClick={() => setBulkFavorite(false)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${!bulkFavorite ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
+                    <Star className="w-3.5 h-3.5" /> Remove Favorite
+                  </button>
+                </div>
+                <button onClick={applyBulkFavorite} className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+                  Apply to {selectedIds.size}
+                </button>
+                <button onClick={() => setBulkPanel(null)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+              </div>
+            )}
+
+            {bulkPanel === 'delete' && (
+              <div className="mt-1.5 px-4 py-3 bg-red-50 border border-red-200 rounded-xl shadow-sm flex items-center gap-3 flex-wrap">
+                <Trash2 className="w-4 h-4 text-red-500" />
+                <span className="text-sm text-red-700 font-medium">Delete {selectedIds.size} material{selectedIds.size !== 1 ? 's' : ''}? This cannot be undone.</span>
+                <div className="flex-1" />
+                <button onClick={() => { handleBulkDelete(); setBulkPanel(null); }}
+                  className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors">
+                  Yes, delete {selectedIds.size}
+                </button>
+                <button onClick={() => setBulkPanel(null)} className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors">
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Sortable Table */}
       <Card>
@@ -1687,67 +1872,44 @@ export const Materials: React.FC = () => {
             </div>
           )}
 
-          {/* ── Cost Unit selector ── */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              <Tip label="Cost Unit" tip="How the cost of this material is measured. Choose based on how your supplier prices it." />
-            </label>
-            <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
-              {MATERIAL_TYPE_PRICING_MODELS[form.materialType].map(model => (
-                <button
-                  key={model}
-                  type="button"
-                  onClick={() => setForm(f => ({ ...f, pricingModel: model }))}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                    form.pricingModel === model
-                      ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {PRICING_MODEL_LABELS[model]}
-                </button>
-              ))}
+          {/* ── Cost Unit + cost value (single row) ── */}
+          <div className="flex items-end gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost Unit</label>
+              <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                {MATERIAL_TYPE_PRICING_MODELS[form.materialType].map(model => (
+                  <button
+                    key={model}
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, pricingModel: model }))}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                      form.pricingModel === model
+                        ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {PRICING_MODEL_LABELS[model]}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-
-          {/* ── Base cost + roll reference (single row) ── */}
-          <div className="flex gap-3 items-end">
-            {/* Primary cost input */}
-            <div className="w-36">
+            <div className="w-24">
               {form.pricingModel === 'cost_per_m' && (
-                <>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                    <Tip label="Price per M" tip="Your supplier cost per 1,000 sheets (M = mille). The system converts this to a per-sheet cost automatically." />
-                  </label>
-                  <Input type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
-                </>
+                <Input label="Per M" type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
               )}
               {form.pricingModel === 'cost_per_unit' && (
-                <>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                    <Tip label="Cost per Unit" tip="Your cost for each individual unit of this material." />
-                  </label>
-                  <Input type="number" value={form.costPerUnit || ''} onChange={e => setForm(f => ({ ...f, costPerUnit: parseFloat(e.target.value) || 0 }))} prefix="$" />
-                </>
+                <Input label="Per Unit" type="number" value={form.costPerUnit || ''} onChange={e => setForm(f => ({ ...f, costPerUnit: parseFloat(e.target.value) || 0 }))} prefix="$" />
               )}
               {form.pricingModel === 'cost_per_sqft' && (
-                <>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                    <Tip label="Cost per Sq Ft" tip="Your cost per square foot of this material. Can be derived automatically from roll cost and dimensions below." />
-                  </label>
-                  <Input type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
-                </>
+                <Input label="Per Sq Ft" type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
               )}
             </div>
-            {/* Roll reference calculator (flat row, aligned with cost input) */}
+            {/* Roll reference calculator (inline) */}
             {form.materialType === 'roll_media' && (
-              <div className="flex items-end gap-2">
+              <>
                 <span className="text-[10px] text-amber-600 font-semibold pb-1.5">←</span>
-                <div className="w-28">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                    <Tip label="Roll $" tip="Total cost of one roll from your supplier. Used with roll length and width to auto-calculate cost per sq ft." />
-                  </label>
-                  <Input type="number" value={form.rollCost || ''} prefix="$"
+                <div className="w-20">
+                  <Input label="Roll $" type="number" value={form.rollCost || ''} prefix="$"
                     onChange={e => {
                       const rollCost = parseFloat(e.target.value) || 0;
                       setForm(f => {
@@ -1757,11 +1919,8 @@ export const Materials: React.FC = () => {
                       });
                     }} />
                 </div>
-                <div className="w-28">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                    <Tip label="Length (ft)" tip="The length of the roll in feet. Combined with roll width and cost to calculate cost per sq ft." />
-                  </label>
-                  <Input type="number" value={form.rollLength || ''} suffix="ft"
+                <div className="w-20">
+                  <Input label="Length" type="number" value={form.rollLength || ''} suffix="ft"
                     onChange={e => {
                       const rollLength = parseFloat(e.target.value) || 0;
                       setForm(f => {
@@ -1776,7 +1935,7 @@ export const Materials: React.FC = () => {
                     = {(form.rollLength * (form.sizeWidth / 12)).toFixed(0)} sqft → <span className="font-semibold">{formatCurrency(deriveRollCostPerSqft(form.rollCost, form.rollLength, form.sizeWidth))}/sqft</span>
                   </span>
                 )}
-              </div>
+              </>
             )}
           </div>
 
