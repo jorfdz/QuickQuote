@@ -156,6 +156,19 @@ export const Materials: React.FC = () => {
   const hasFavorites = materials.some(m => m.isFavorite);
   const [favFilter, setFavFilter] = useState<'favorites' | 'all'>(hasFavorites ? 'favorites' : 'all');
 
+  // Multi-select
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const toggleSelect = (id: string) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  const clearSelection = () => setSelectedIds(new Set());
+  const handleBulkDelete = () => {
+    selectedIds.forEach(id => deleteMaterial(id));
+    clearSelection();
+  };
+
   // Sorting
   const [sortCol, setSortCol] = useState<SortColumn | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -341,6 +354,17 @@ export const Materials: React.FC = () => {
     const start = (safePage - 1) * pageSize;
     return sorted.slice(start, start + pageSize);
   }, [sorted, safePage, pageSize]);
+
+  // Multi-select derived (depends on paginatedRows)
+  const allPageSelected = paginatedRows.length > 0 && paginatedRows.every(m => selectedIds.has(m.id));
+  const somePageSelected = paginatedRows.some(m => selectedIds.has(m.id)) && !allPageSelected;
+  const toggleSelectAll = () => {
+    if (allPageSelected) {
+      setSelectedIds(prev => { const next = new Set(prev); paginatedRows.forEach(m => next.delete(m.id)); return next; });
+    } else {
+      setSelectedIds(prev => { const next = new Set(prev); paginatedRows.forEach(m => next.add(m.id)); return next; });
+    }
+  };
 
   // Reset to page 1 when filters / sort change
   const prevFilterKey = useRef('');
@@ -729,6 +753,27 @@ export const Materials: React.FC = () => {
         </div>
       </Card>
 
+      {/* Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <div className="mb-3 flex items-center gap-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl">
+          <span className="text-sm font-semibold text-blue-700">{selectedIds.size} selected</span>
+          <div className="flex-1" />
+          <button
+            onClick={clearSelection}
+            className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors"
+          >
+            Clear selection
+          </button>
+          <button
+            onClick={handleBulkDelete}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete {selectedIds.size} material{selectedIds.size !== 1 ? 's' : ''}
+          </button>
+        </div>
+      )}
+
       {/* Sortable Table */}
       <Card>
         {sorted.length > 0 && <PaginationBar />}
@@ -736,6 +781,15 @@ export const Materials: React.FC = () => {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
+                <th className="py-2.5 px-3 w-8">
+                  <input
+                    type="checkbox"
+                    checked={allPageSelected}
+                    ref={el => { if (el) el.indeterminate = somePageSelected; }}
+                    onChange={toggleSelectAll}
+                    className="rounded border-gray-300 text-blue-600 cursor-pointer"
+                  />
+                </th>
                 <th className="text-left py-2.5 px-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-8"></th>
                 {([
                   ['name',         'Material Name'],
@@ -762,9 +816,17 @@ export const Materials: React.FC = () => {
               {paginatedRows.map(m => (
                 <tr
                   key={m.id}
-                  className="hover:bg-gray-50 transition-colors cursor-pointer"
+                  className={`hover:bg-gray-50 transition-colors cursor-pointer ${selectedIds.has(m.id) ? 'bg-blue-50/60' : ''}`}
                   onClick={() => handleStartEdit(m)}
                 >
+                  <td className="py-3 px-3 w-8" onClick={e => { e.stopPropagation(); toggleSelect(m.id); }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(m.id)}
+                      onChange={() => toggleSelect(m.id)}
+                      className="rounded border-gray-300 text-blue-600 cursor-pointer"
+                    />
+                  </td>
                   <td className="py-3 px-2 w-8">
                     {(() => {
                       const favCats = (m.favoriteCategoryIds || []).map(id => categories.find(c => c.id === id)).filter(Boolean);
@@ -959,15 +1021,8 @@ export const Materials: React.FC = () => {
               </div>
             ) : (
               <>
-                <div className="flex items-center justify-between">
+                <div>
                   <p className="text-xs text-gray-500">{historyRecords.length} change{historyRecords.length !== 1 ? 's' : ''} recorded</p>
-                  <button
-                    type="button"
-                    onClick={() => { if (editingId) clearMaterialHistory(editingId); }}
-                    className="text-[10px] text-red-400 hover:text-red-600 font-medium transition-colors"
-                  >
-                    Clear history
-                  </button>
                 </div>
                 <div className="relative">
                   {/* Timeline line */}

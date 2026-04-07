@@ -92,6 +92,54 @@ src/
 
 ---
 
+## Change History (Audit Trail)
+
+Every edit/add screen for a **record type** (materials, equipment, finishing, labor, brokered, products, etc.) **must** include a **Change History** tab that automatically tracks all field-level changes. This is a non-negotiable audit requirement.
+
+### Rules
+
+1. **Automatic tracking** — Every create, update, and delete action must record a `ChangeRecord` with the user who made the change (`userId`, `userName`), a timestamp, the action type (`created` | `updated` | `deleted`), and the list of field-level diffs.
+2. **Field-level diffs** — On update, compare every field (except `id`, `createdAt`, and binary data like `imageUrl`) against the previous value. Only record fields that actually changed. For arrays, use order-independent comparison.
+3. **History is immutable** — Users must **not** be able to delete or clear change history. Never expose a "Clear history" button. History is permanent.
+4. **Stored in the entity's Zustand store** — Add a `<entity>ChangeHistory: ChangeRecord[]` array to the relevant store and persist it. Add a `get<Entity>History(id)` helper that returns records sorted newest-first.
+5. **User attribution** — Every record must include the current user's `id` and `name`, obtained from the app store via `useStore.getState().currentUser`.
+6. **UI placement** — The Change History tab appears as the **last tab** in the edit modal. It is only shown when editing an existing record (not when adding new). It displays a timeline with:
+   - Color-coded action icons (green = created, blue = updated, red = deleted)
+   - User name and timestamp on each entry
+   - A table of changed fields with three fixed-width columns: **Field** (30%), **Previous Value** (35%), **New Value** (35%) using `table-fixed` layout
+   - Human-readable field labels and resolved names for ID references (e.g. category IDs → category names)
+7. **Badge count** — The Change History tab button shows a count badge with the number of history entries.
+
+### Reference implementation
+
+See `src/pages/Materials/index.tsx` (Change History tab) and `src/store/pricingStore.ts` (material change tracking with `materialChangeHistory`, `getMaterialHistory`) for the canonical pattern to follow when adding change history to other entity types.
+
+### Types (defined in `src/types/pricing.ts`)
+
+```ts
+interface MaterialFieldChange {
+  field: string;
+  fieldLabel: string;
+  oldValue: string | number | boolean | string[] | null;
+  newValue: string | number | boolean | string[] | null;
+}
+
+interface MaterialChangeRecord {
+  id: string;
+  materialId: string;
+  materialName: string;
+  action: 'created' | 'updated' | 'deleted';
+  changes: MaterialFieldChange[];
+  userId: string;
+  userName: string;
+  timestamp: string;
+}
+```
+
+When implementing for a new entity, create analogous interfaces (e.g. `EquipmentChangeRecord`, `FinishingChangeRecord`) following this same shape.
+
+---
+
 ## Conventions
 
 - Use **functional components** only.
