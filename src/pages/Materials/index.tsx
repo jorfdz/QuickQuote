@@ -701,8 +701,6 @@ export const Materials: React.FC = () => {
                   ['group',        'Group'],
                   ['vendor',       'Vendor'],
                   ['size',         'Size'],
-                  ['sizeWidth',    'W'],
-                  ['sizeHeight',   'H'],
                   ['unitCost',     'Unit Cost'],
                   ['markup',       'Markup'],
                   ['unitSell',     'Sell Price'],
@@ -794,8 +792,6 @@ export const Materials: React.FC = () => {
                   <td className="py-3 px-4 text-sm text-gray-500">{getGroupNames(m.materialGroupIds)}</td>
                   <td className="py-3 px-4 text-sm text-gray-500 truncate max-w-[120px]" title={m.vendorName || '--'}>{m.vendorName || '--'}</td>
                   <td className="py-3 px-4 text-sm text-gray-600 font-medium">{m.materialType === 'blanks' ? '--' : m.materialType === 'roll_media' ? `${m.sizeWidth}" wide` : m.size || '--'}</td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{m.materialType === 'blanks' ? '--' : `${m.sizeWidth}"`}</td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{m.materialType === 'blanks' || m.materialType === 'roll_media' ? '--' : `${m.sizeHeight}"`}</td>
                   <td className="py-3 px-4 text-sm text-gray-700 font-medium">{formatCurrency(getUnitCost(m))}<span className="text-[10px] text-gray-400 ml-0.5">{getUnitLabel(m)}</span></td>
                   <td className="py-3 px-4 text-sm text-gray-500">{m.markupType === 'percent' || !m.markupType ? `${m.markup}%/u` : m.markupType === 'fixed' ? `$${m.markup}/u` : m.markupType === 'global_percent' ? `${m.markup}% total` : `$${m.markup} flat`}</td>
                   <td className="py-3 px-4 text-sm font-bold text-blue-700">
