@@ -205,6 +205,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // Restore from pricingContext (ps) if available — this is what survives navigation
   const [selectedLaborIds, setSelectedLaborIds] = useState<string[]>(() => ps.selectedLaborIds ?? []);
   const [selectedBrokeredIds, setSelectedBrokeredIds] = useState<string[]>(() => ps.selectedBrokeredIds ?? []);
+  const [serviceNotes, setServiceNotes] = useState<Record<string, string>>(() => ps.serviceNotes ?? {});
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
 
   // Sync labor/brokered selections into pricing state so they persist in pricingContext
   useEffect(() => {
@@ -221,15 +223,23 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBrokeredIds]);
 
+  useEffect(() => {
+    if (JSON.stringify(serviceNotes) !== JSON.stringify(ps.serviceNotes ?? {})) {
+      onUpdatePricing({ serviceNotes });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serviceNotes]);
+
   // Sync first material entry to pricing state
   useEffect(() => {
     if (materialEntries.length > 0) {
       const first = materialEntries[0];
-      if (first.materialId !== ps.materialId || first.sides !== ps.sides || first.colorMode !== ps.colorMode) {
+      if (first.materialId !== ps.materialId || first.sides !== ps.sides || first.colorMode !== ps.colorMode || (first.originals ?? 1) !== (ps.originals ?? 1)) {
         onUpdatePricing({
           materialId: first.materialId,
           sides: first.sides,
           colorMode: first.colorMode,
+          originals: first.originals ?? 1,
         });
       }
     }
@@ -1476,8 +1486,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               </div>
 
 
-              {/* ── Quantity / Size / Sides / Color (4-col row) ────── */}
-              <div className="grid grid-cols-4 gap-3">
+              {/* ── Quantity / Size / Originals / Sides / Color (5-col row) ────── */}
+              <div className="grid grid-cols-5 gap-3">
                 <div>
                   <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Quantity</label>
                   <input type="text" value={multiQtyInput}
@@ -1490,6 +1500,29 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     placeholder="e.g. 1000"
                     className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]" />
                   {isMultiQty && <p className="text-[10px] text-purple-500 mt-0.5">{parsedQuantities.length} quantities</p>}
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1 flex items-center gap-1">
+                    Originals
+                    <span className="ml-0.5 text-gray-300 cursor-help" title="Number of unique designs. Each original is a separate run. 3 originals × 500 qty = 3 separate runs of 500.">ⓘ</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={materialEntries[0]?.originals ?? 1}
+                    onChange={e => {
+                      trackInteraction();
+                      const v = Math.max(1, parseInt(e.target.value) || 1);
+                      const updated = [...materialEntries];
+                      updated[0] = { ...updated[0], originals: v };
+                      setMaterialEntries(updated);
+                    }}
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]"
+                  />
+                  {(materialEntries[0]?.originals ?? 1) > 1 && (
+                    <p className="text-[9px] text-violet-500 mt-0.5">{materialEntries[0].originals} runs</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Size (L x H, in)</label>
@@ -1729,27 +1762,55 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     </div>
                     {selectedFinishingIds.map(id => {
                       const svc = finishing.find(f => f.id === id);
-                      return svc ? (
-                        <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-purple-100 text-purple-700 border border-purple-200">
-                          {svc.name}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const nextIds = selectedFinishingIds.filter(x => x !== id);
-                              setSelectedFinishingIds(nextIds);
-                              const sel = finishing.filter(f => nextIds.includes(f.id));
-                              onUpdatePricing({
-                                cuttingEnabled: sel.some(f => f.name === 'Cut'),
-                                foldingType: sel.find(f => f.finishingGroupIds?.includes('fg2'))?.name || '',
-                                drillingType: sel.find(f => f.finishingGroupIds?.includes('fg3'))?.name || '',
-                              });
-                            }}
-                            className="hover:text-purple-900 ml-0.5"
-                          >
-                            <X className="w-2.5 h-2.5" />
-                          </button>
+                      const note = serviceNotes[id] || '';
+                      if (!svc) return null;
+                      return (
+                        <span key={id} className="inline-flex flex-col gap-0.5">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold border transition-all ${
+                            note ? 'bg-purple-200 text-purple-800 border-purple-300' : 'bg-purple-100 text-purple-700 border-purple-200'
+                          }`}>
+                            <button
+                              type="button"
+                              onClick={() => setEditingNoteId(editingNoteId === id ? null : id)}
+                              title={note ? `Notes: ${note}\nClick to edit` : 'Click to add a note'}
+                              className="flex items-center gap-0.5 hover:opacity-70 transition-opacity"
+                            >
+                              <Edit3 className="w-2 h-2 opacity-50" />
+                              {svc.name}
+                              {note && <span className="w-1 h-1 rounded-full bg-purple-600 ml-0.5 flex-shrink-0" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextIds = selectedFinishingIds.filter(x => x !== id);
+                                setSelectedFinishingIds(nextIds);
+                                const sel = finishing.filter(f => nextIds.includes(f.id));
+                                onUpdatePricing({
+                                  cuttingEnabled: sel.some(f => f.name === 'Cut'),
+                                  foldingType: sel.find(f => f.finishingGroupIds?.includes('fg2'))?.name || '',
+                                  drillingType: sel.find(f => f.finishingGroupIds?.includes('fg3'))?.name || '',
+                                });
+                                setServiceNotes(prev => { const n = { ...prev }; delete n[id]; return n; });
+                              }}
+                              className="hover:text-purple-900 ml-0.5"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </span>
+                          {editingNoteId === id && (
+                            <input
+                              autoFocus
+                              type="text"
+                              value={note}
+                              onChange={e => setServiceNotes(prev => ({ ...prev, [id]: e.target.value }))}
+                              onBlur={() => setEditingNoteId(null)}
+                              onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditingNoteId(null); }}
+                              placeholder="Add instructions..."
+                              className="text-[10px] px-2 py-0.5 border border-purple-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-400 bg-purple-50 text-purple-800 min-w-[150px] max-w-[220px]"
+                            />
+                          )}
                         </span>
-                      ) : null;
+                      );
                     })}
                   </div>
 
@@ -1800,14 +1861,41 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       </div>
                       {selectedLaborIds.map(id => {
                         const svc = pricing.labor.find(l => l.id === id);
-                        return svc ? (
-                          <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-blue-100 text-blue-700 border border-blue-200">
-                            {svc.name}
-                            <button type="button" onClick={() => setSelectedLaborIds(prev => prev.filter(x => x !== id))} className="hover:text-blue-900 ml-0.5">
-                              <X className="w-2.5 h-2.5" />
-                            </button>
+                        const note = serviceNotes[id] || '';
+                        if (!svc) return null;
+                        return (
+                          <span key={id} className="inline-flex flex-col gap-0.5">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold border transition-all ${
+                              note ? 'bg-blue-200 text-blue-800 border-blue-300' : 'bg-blue-100 text-blue-700 border-blue-200'
+                            }`}>
+                              <button
+                                type="button"
+                                onClick={() => setEditingNoteId(editingNoteId === id ? null : id)}
+                                title={note ? `Notes: ${note}\nClick to edit` : 'Click to add a note'}
+                                className="flex items-center gap-0.5 hover:opacity-70 transition-opacity"
+                              >
+                                <Edit3 className="w-2 h-2 opacity-50" />
+                                {svc.name}
+                                {note && <span className="w-1 h-1 rounded-full bg-blue-600 ml-0.5 flex-shrink-0" />}
+                              </button>
+                              <button type="button" onClick={() => { setSelectedLaborIds(prev => prev.filter(x => x !== id)); setServiceNotes(prev => { const n = { ...prev }; delete n[id]; return n; }); }} className="hover:text-blue-900 ml-0.5">
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </span>
+                            {editingNoteId === id && (
+                              <input
+                                autoFocus
+                                type="text"
+                                value={note}
+                                onChange={e => setServiceNotes(prev => ({ ...prev, [id]: e.target.value }))}
+                                onBlur={() => setEditingNoteId(null)}
+                                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditingNoteId(null); }}
+                                placeholder="Add instructions..."
+                                className="text-[10px] px-2 py-0.5 border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 bg-blue-50 text-blue-800 min-w-[150px] max-w-[220px]"
+                              />
+                            )}
                           </span>
-                        ) : null;
+                        );
                       })}
                     </div>
 
@@ -1846,14 +1934,41 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       </div>
                       {selectedBrokeredIds.map(id => {
                         const svc = pricing.brokered.find(b => b.id === id);
-                        return svc ? (
-                          <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
-                            {svc.name}
-                            <button type="button" onClick={() => setSelectedBrokeredIds(prev => prev.filter(x => x !== id))} className="hover:text-amber-900 ml-0.5">
-                              <X className="w-2.5 h-2.5" />
-                            </button>
+                        const note = serviceNotes[id] || '';
+                        if (!svc) return null;
+                        return (
+                          <span key={id} className="inline-flex flex-col gap-0.5">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold border transition-all ${
+                              note ? 'bg-amber-200 text-amber-800 border-amber-300' : 'bg-amber-100 text-amber-700 border-amber-200'
+                            }`}>
+                              <button
+                                type="button"
+                                onClick={() => setEditingNoteId(editingNoteId === id ? null : id)}
+                                title={note ? `Notes: ${note}\nClick to edit` : 'Click to add a note'}
+                                className="flex items-center gap-0.5 hover:opacity-70 transition-opacity"
+                              >
+                                <Edit3 className="w-2 h-2 opacity-50" />
+                                {svc.name}
+                                {note && <span className="w-1 h-1 rounded-full bg-amber-600 ml-0.5 flex-shrink-0" />}
+                              </button>
+                              <button type="button" onClick={() => { setSelectedBrokeredIds(prev => prev.filter(x => x !== id)); setServiceNotes(prev => { const n = { ...prev }; delete n[id]; return n; }); }} className="hover:text-amber-900 ml-0.5">
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </span>
+                            {editingNoteId === id && (
+                              <input
+                                autoFocus
+                                type="text"
+                                value={note}
+                                onChange={e => setServiceNotes(prev => ({ ...prev, [id]: e.target.value }))}
+                                onBlur={() => setEditingNoteId(null)}
+                                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditingNoteId(null); }}
+                                placeholder="Add instructions..."
+                                className="text-[10px] px-2 py-0.5 border border-amber-300 rounded focus:outline-none focus:ring-1 focus:ring-amber-400 bg-amber-50 text-amber-800 min-w-[150px] max-w-[220px]"
+                              />
+                            )}
                           </span>
-                        ) : null;
+                        );
                       })}
                     </div>
 
