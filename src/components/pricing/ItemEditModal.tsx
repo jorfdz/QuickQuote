@@ -25,6 +25,7 @@ export interface LineItemPricingState {
   productName: string;
   categoryName: string;
   quantity: number;
+  originals: number;               // number of unique designs (default 1). Each original multiplies qty for sheet/click calc.
   finalWidth: number;
   finalHeight: number;
   materialId: string;
@@ -39,11 +40,13 @@ export interface LineItemPricingState {
   // Persisted service selections — so Labor and Brokered survive navigation
   selectedLaborIds: string[];
   selectedBrokeredIds: string[];
+  // Per-service custom notes (keyed by service selection ID)
+  serviceNotes: Record<string, string>;
 }
 
 export const DEFAULT_PRICING_STATE = (): LineItemPricingState => ({
   productId: '', productName: '', categoryName: '',
-  quantity: 1000, finalWidth: 0, finalHeight: 0,
+  quantity: 1000, originals: 1, finalWidth: 0, finalHeight: 0,
   materialId: '', equipmentId: '',
   colorMode: 'Color', sides: 'Double',
   foldingType: '', drillingType: '',
@@ -51,6 +54,7 @@ export const DEFAULT_PRICING_STATE = (): LineItemPricingState => ({
   serviceLines: [],
   selectedLaborIds: [],
   selectedBrokeredIds: [],
+  serviceNotes: {},
 });
 
 // ─── PART SNAPSHOT ──────────────────────────────────────────────────────────

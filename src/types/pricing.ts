@@ -347,6 +347,8 @@ export interface PricingServiceLine {
   hourlyCost?: number;             // $ per hour for this service
   hoursActual?: number;            // system-calculated hours
   hoursCharge?: number;            // hours to actually charge (user-overridable)
+  // Quantity override — user can bill a different qty than the system-calculated actual qty
+  chargeQty?: number;              // qty to actually charge (defaults to quantity when not set)
 }
 
 export interface PricingJob {

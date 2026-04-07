@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useEffect } from 'react';
+import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Printer, Receipt, KanbanSquare, Edit3, Trash2, CheckCircle, ChevronDown, ChevronUp, Copy, ArrowRight, ShoppingCart, Plus, Search } from 'lucide-react';
 import { useStore } from '../../store';
@@ -93,6 +93,7 @@ import {
   LineItemPricingState,
   DEFAULT_PRICING_STATE,
 } from '../../components/pricing/ItemEditModal';
+import { usePricingStore } from '../../store/pricingStore';
 
 // ─── EMPTY LINE ITEM ────────────────────────────────────────────────────────
 
@@ -105,6 +106,7 @@ export const OrderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { orders, invoices, updateOrder, updateOrderTrackingMode, deleteOrder, addInvoice, nextInvoiceNumber, invoiceCount, workflows, users, equipment, purchaseOrders, vendors, customers, contacts, companySettings, documentTemplates } = useStore();
+  const { templates: pricingTemplates } = usePricingStore();
   const [activeTab, setActiveTab] = useState('overview');
   const [showDelete, setShowDelete] = useState(false);
   const [showCloneQuoteConfirm, setShowCloneQuoteConfirm] = useState(false);
@@ -217,6 +219,44 @@ export const OrderDetail: React.FC = () => {
     });
     setEditingItemModal(itemId);
   };
+
+  // ── Matching templates for the currently-editing item ────────────────────
+  const matchingTemplatesForItem = useMemo(() => {
+    if (!editingItemModal) return [];
+    const ps = pricingStatesRef.current[editingItemModal];
+    return pricingTemplates.filter(t =>
+      (ps?.productId && t.productId === ps.productId) ||
+      (ps?.categoryName && t.categoryName === ps.categoryName)
+    );
+  }, [editingItemModal, pricingTemplates, pricingStates]);
+
+  const handleApplyTemplate = useCallback((tmplId: string) => {
+    const tmpl = pricingTemplates.find(t => t.id === tmplId);
+    if (!tmpl || !editingItemModal) return;
+    setPricingStates(prev => ({
+      ...prev,
+      [editingItemModal]: {
+        ...DEFAULT_PRICING_STATE(),
+        productId: tmpl.productId || '',
+        productName: tmpl.productName,
+        categoryName: tmpl.categoryName,
+        quantity: tmpl.quantity,
+        finalWidth: tmpl.finalWidth,
+        finalHeight: tmpl.finalHeight,
+        materialId: tmpl.materialId || '',
+        equipmentId: tmpl.equipmentId || '',
+        colorMode: (tmpl.color === 'Black' ? 'Black' : 'Color') as 'Color' | 'Black',
+        sides: tmpl.sides,
+        foldingType: tmpl.folding || '',
+        drillingType: '',
+        cuttingEnabled: true,
+        sheetsPerStack: 500,
+        serviceLines: [],
+        selectedLaborIds: [],
+        selectedBrokeredIds: [],
+      },
+    }));
+  }, [editingItemModal, pricingTemplates]);
 
   const workflow = workflows.find(w => w.id === order.workflowId) || workflows[0];
   const trackingMode = order.trackingMode || 'order';
@@ -1011,8 +1051,8 @@ export const OrderDetail: React.FC = () => {
               setEditingItemModal(null);
             }}
             onRemove={() => { removeLineItem(editingItemModal); setEditingItemModal(null); }}
-            matchingTemplates={[]}
-            onApplyTemplate={() => {}}
+            matchingTemplates={matchingTemplatesForItem}
+            onApplyTemplate={handleApplyTemplate}
           />
         );
       })()}

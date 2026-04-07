@@ -7,6 +7,7 @@ import { formatCurrency, formatDate } from '../../data/mockData';
 import type { QuoteStatus } from '../../types';
 import { buildQuoteTemplateHtml } from '../../utils/documentTemplates';
 import { ProductEditModal, LineItemPricingState, DEFAULT_PRICING_STATE } from '../../components/pricing/ItemEditModal';
+import { usePricingStore } from '../../store/pricingStore';
 import { nanoid } from '../../utils/nanoid';
 
 // ─── Status options ──────────────────────────────────────────────────────────
@@ -216,6 +217,7 @@ export const QuoteDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { quotes, updateQuote, deleteQuote, users, customers, contacts, companySettings, documentTemplates } = useStore();
+  const { templates: pricingTemplates } = usePricingStore();
 
   const [showDelete, setShowDelete] = useState(false);
   const [showConvertConfirm, setShowConvertConfirm] = useState(false);
@@ -323,6 +325,44 @@ export const QuoteDetail: React.FC = () => {
     setEditingItemId(itemId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Matching templates for the currently-editing item ────────────────────
+  const matchingTemplatesForItem = useMemo(() => {
+    if (!editingItemId) return [];
+    const ps = pricingStatesRef.current[editingItemId];
+    return pricingTemplates.filter(t =>
+      (ps?.productId && t.productId === ps.productId) ||
+      (ps?.categoryName && t.categoryName === ps.categoryName)
+    );
+  }, [editingItemId, pricingTemplates, pricingStates]);
+
+  const handleApplyTemplate = useCallback((tmplId: string) => {
+    const tmpl = pricingTemplates.find(t => t.id === tmplId);
+    if (!tmpl || !editingItemId) return;
+    setPricingStates(prev => ({
+      ...prev,
+      [editingItemId]: {
+        ...DEFAULT_PRICING_STATE(),
+        productId: tmpl.productId || '',
+        productName: tmpl.productName,
+        categoryName: tmpl.categoryName,
+        quantity: tmpl.quantity,
+        finalWidth: tmpl.finalWidth,
+        finalHeight: tmpl.finalHeight,
+        materialId: tmpl.materialId || '',
+        equipmentId: tmpl.equipmentId || '',
+        colorMode: (tmpl.color === 'Black' ? 'Black' : 'Color') as 'Color' | 'Black',
+        sides: tmpl.sides,
+        foldingType: tmpl.folding || '',
+        drillingType: '',
+        cuttingEnabled: true,
+        sheetsPerStack: 500,
+        serviceLines: [],
+        selectedLaborIds: [],
+        selectedBrokeredIds: [],
+      },
+    }));
+  }, [editingItemId, pricingTemplates]);
 
   // ── Write items to store ──────────────────────────────────────────────────
   const persistItems = useCallback((items: any[]) => {
@@ -727,8 +767,8 @@ export const QuoteDetail: React.FC = () => {
               setEditingItemId(null);
             }}
             onRemove={() => { removeItem(editingItemId); setEditingItemId(null); }}
-            matchingTemplates={[]}
-            onApplyTemplate={() => {}}
+            matchingTemplates={matchingTemplatesForItem}
+            onApplyTemplate={handleApplyTemplate}
           />
         );
       })()}
