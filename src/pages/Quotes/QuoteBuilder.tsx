@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '../../store';
 import { usePricingStore } from '../../store/pricingStore';
-import { Button, Textarea, Card, Badge, Modal } from '../../components/ui';
+import { Button, Textarea, Card, Badge, Modal, ConfirmDialog } from '../../components/ui';
 import type { QuoteLineItem, Quote } from '../../types';
 import { formatCurrency } from '../../data/mockData';
 import { nanoid } from '../../utils/nanoid';
@@ -137,6 +137,8 @@ export const QuoteBuilder: React.FC = () => {
   const [expandedParts, setExpandedParts] = useState<Record<string, boolean>>({});
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [showNeedsCustomerWarning, setShowNeedsCustomerWarning] = useState(false);
+  const [showConvertConfirm, setShowConvertConfirm] = useState(false);
+  const [showCloneConfirm, setShowCloneConfirm] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [showShipToModal, setShowShipToModal] = useState(false);
@@ -342,11 +344,11 @@ export const QuoteBuilder: React.FC = () => {
           <Button variant="secondary" onClick={handleCancel}>Cancel</Button>
           {/* Clone — quote is already auto-saved */}
           <Button variant="secondary" icon={<Copy className="w-3.5 h-3.5" />} onClick={() => {
-            if (existingQuote) navigate(`/quotes/new?cloneId=${existingQuote.id}`);
+            if (existingQuote) setShowCloneConfirm(true);
           }}>Clone</Button>
           {/* Convert to Order — quote is already auto-saved */}
           <Button variant="primary" icon={<ArrowRight className="w-3.5 h-3.5" />} onClick={() => {
-            if (existingQuote) navigate(`/orders/new?quoteId=${existingQuote.id}`);
+            if (existingQuote) setShowConvertConfirm(true);
           }}>Convert to Order</Button>
         </div>
       </div>
@@ -883,6 +885,22 @@ export const QuoteBuilder: React.FC = () => {
           <Button variant="danger" onClick={() => navigate('/quotes')}>Leave Without Customer</Button>
         </div>
       </Modal>
+      <ConfirmDialog
+        isOpen={showConvertConfirm}
+        onClose={() => setShowConvertConfirm(false)}
+        onConfirm={() => { if (existingQuote) { navigate(`/orders/new?quoteId=${existingQuote.id}`); } setShowConvertConfirm(false); }}
+        title="Convert to Order"
+        message={existingQuote ? `Convert ${existingQuote.number} into a new Order? The quote will be marked as Won.` : 'Convert this quote into a new Order?'}
+        confirmLabel="Convert to Order"
+      />
+      <ConfirmDialog
+        isOpen={showCloneConfirm}
+        onClose={() => setShowCloneConfirm(false)}
+        onConfirm={() => { if (existingQuote) { navigate(`/quotes/new?cloneId=${existingQuote.id}`); } setShowCloneConfirm(false); }}
+        title="Clone Quote"
+        message={existingQuote ? `Create a new duplicate of ${existingQuote.number}${existingQuote.title ? ` — ${existingQuote.title}` : ''}?` : 'Clone this quote?'}
+        confirmLabel="Clone Quote"
+      />
     </div>
   );
 };

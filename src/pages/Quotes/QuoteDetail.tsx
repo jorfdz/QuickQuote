@@ -218,6 +218,8 @@ export const QuoteDetail: React.FC = () => {
   const { quotes, updateQuote, deleteQuote, users, customers, contacts, companySettings, documentTemplates } = useStore();
 
   const [showDelete, setShowDelete] = useState(false);
+  const [showConvertConfirm, setShowConvertConfirm] = useState(false);
+  const [showCloneConfirm, setShowCloneConfirm] = useState(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const convertRef = useRef<HTMLDivElement>(null);
@@ -418,10 +420,10 @@ export const QuoteDetail: React.FC = () => {
         actions={
           <div className="flex items-center gap-2">
             <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />} onClick={openPrintWindow}>Print PDF</Button>
-            <Button variant="secondary" size="sm" icon={<Copy className="w-4 h-4" />} onClick={() => navigate(`/quotes/new?cloneId=${quote.id}`)}>Clone</Button>
+            <Button variant="secondary" size="sm" icon={<Copy className="w-4 h-4" />} onClick={() => setShowCloneConfirm(true)}>Clone</Button>
             {!quote.convertedToOrderId && (
               <Button variant="secondary" size="sm" icon={<ArrowRight className="w-4 h-4" />}
-                onClick={() => { updateQuote(id!, { status: 'won' }); navigate(`/orders/new?quoteId=${quote.id}`); }}>
+                onClick={() => setShowConvertConfirm(true)}>
                 Convert to Order
               </Button>
             )}
@@ -731,6 +733,22 @@ export const QuoteDetail: React.FC = () => {
         );
       })()}
 
+      <ConfirmDialog
+        isOpen={showConvertConfirm}
+        onClose={() => setShowConvertConfirm(false)}
+        onConfirm={() => { updateQuote(id!, { status: 'won' }); navigate(`/orders/new?quoteId=${quote.id}`); setShowConvertConfirm(false); }}
+        title="Convert to Order"
+        message={`Convert ${quote.number} into a new Order? The quote will be marked as Won.`}
+        confirmLabel="Convert to Order"
+      />
+      <ConfirmDialog
+        isOpen={showCloneConfirm}
+        onClose={() => setShowCloneConfirm(false)}
+        onConfirm={() => { navigate(`/quotes/new?cloneId=${quote.id}`); setShowCloneConfirm(false); }}
+        title="Clone Quote"
+        message={`Create a new duplicate of ${quote.number}${quote.title ? ` — ${quote.title}` : ''}?`}
+        confirmLabel="Clone Quote"
+      />
       {/* Delete quote confirm */}
       <ConfirmDialog isOpen={showDelete} onClose={() => setShowDelete(false)}
         onConfirm={() => { deleteQuote(id!); navigate('/quotes'); }}

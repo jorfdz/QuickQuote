@@ -107,6 +107,9 @@ export const OrderDetail: React.FC = () => {
   const { orders, invoices, updateOrder, updateOrderTrackingMode, deleteOrder, addInvoice, nextInvoiceNumber, invoiceCount, workflows, users, equipment, purchaseOrders, vendors, customers, contacts, companySettings, documentTemplates } = useStore();
   const [activeTab, setActiveTab] = useState('overview');
   const [showDelete, setShowDelete] = useState(false);
+  const [showCloneQuoteConfirm, setShowCloneQuoteConfirm] = useState(false);
+  const [showCloneOrderConfirm, setShowCloneOrderConfirm] = useState(false);
+  const [showInvoiceConfirm, setShowInvoiceConfirm] = useState(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
@@ -408,16 +411,16 @@ export const OrderDetail: React.FC = () => {
               {convertOpen && (
                 <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50">
                   <button className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                    onClick={() => { setConvertOpen(false); navigate(`/quotes/new?cloneId=${order.id}&source=order`); }}>
+                    onClick={() => { setConvertOpen(false); setShowCloneQuoteConfirm(true); }}>
                     <Copy className="w-4 h-4 text-gray-400" /> Clone as New Quote
                   </button>
                   <button className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
-                    onClick={() => { setConvertOpen(false); navigate(`/orders/new?cloneOrderId=${order.id}`); }}>
+                    onClick={() => { setConvertOpen(false); setShowCloneOrderConfirm(true); }}>
                     <Copy className="w-4 h-4 text-gray-400" /> Clone as New Order
                   </button>
                   {!order.invoiceId && (
                     <button className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
-                      onClick={() => { setConvertOpen(false); createInvoice(); }}>
+                      onClick={() => { setConvertOpen(false); setShowInvoiceConfirm(true); }}>
                       <Receipt className="w-4 h-4 text-gray-400" /> Create Invoice
                     </button>
                   )}
@@ -911,6 +914,30 @@ export const OrderDetail: React.FC = () => {
         </div>
       )}
 
+      <ConfirmDialog
+        isOpen={showCloneQuoteConfirm}
+        onClose={() => setShowCloneQuoteConfirm(false)}
+        onConfirm={() => { navigate(`/quotes/new?cloneId=${order.id}&source=order`); setShowCloneQuoteConfirm(false); }}
+        title="Clone as New Quote"
+        message={`Create a new Quote based on Order ${order.number}${order.title ? ` — ${order.title}` : ''}?`}
+        confirmLabel="Clone as Quote"
+      />
+      <ConfirmDialog
+        isOpen={showCloneOrderConfirm}
+        onClose={() => setShowCloneOrderConfirm(false)}
+        onConfirm={() => { navigate(`/orders/new?cloneOrderId=${order.id}`); setShowCloneOrderConfirm(false); }}
+        title="Clone as New Order"
+        message={`Create a new duplicate Order from ${order.number}${order.title ? ` — ${order.title}` : ''}?`}
+        confirmLabel="Clone as Order"
+      />
+      <ConfirmDialog
+        isOpen={showInvoiceConfirm}
+        onClose={() => setShowInvoiceConfirm(false)}
+        onConfirm={() => { createInvoice(); setShowInvoiceConfirm(false); }}
+        title="Create Invoice"
+        message={`Generate an Invoice for Order ${order.number}${order.title ? ` — ${order.title}` : ''}? The order will be marked as Completed.`}
+        confirmLabel="Create Invoice"
+      />
       <ConfirmDialog isOpen={showDelete} onClose={() => setShowDelete(false)}
         onConfirm={() => { deleteOrder(id!); navigate('/orders'); }}
         title="Delete Order" message={`Delete ${order.number}? This cannot be undone.`} />

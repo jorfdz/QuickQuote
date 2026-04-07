@@ -2439,8 +2439,8 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
               </tr>
               {/* Column labels */}
               <tr className="border-b-2 border-gray-200">
-                <th className={`${thCls} text-left pl-3`}>Service</th>
-                <th className={`${thCls} text-left pl-2`}>Description</th>
+                <th className="py-1 pl-3 pr-1.5 text-[8px] font-bold text-gray-400 uppercase tracking-wider text-left whitespace-nowrap">Service</th>
+                <th className="py-1 pl-2 pr-1.5 text-[8px] font-bold text-gray-400 uppercase tracking-wider text-left whitespace-nowrap">Description</th>
                 {/* TIME cols */}
                 <th className={`${thCls} bg-sky-50 border-l border-sky-200`}>$/hr</th>
                 <th className={`${thCls} bg-sky-50`}>Calc</th>

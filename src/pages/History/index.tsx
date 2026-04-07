@@ -1,14 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RotateCcw, Copy } from 'lucide-react';
 import { useStore } from '../../store';
-import { Button, Card, PageHeader, Table, Badge } from '../../components/ui';
+import { Button, Card, PageHeader, Table, Badge, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
 
 export const History: React.FC = () => {
   const { orders } = useStore();
   const navigate = useNavigate();
   const completed = orders.filter(o => ['completed', 'canceled'].includes(o.status));
+  const [reorderTarget, setReorderTarget] = useState<typeof completed[0] | null>(null);
+  const [cloneQuoteTarget, setCloneQuoteTarget] = useState<typeof completed[0] | null>(null);
 
   return (
     <div>
@@ -34,7 +36,7 @@ export const History: React.FC = () => {
                 <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => navigate(`/orders/new?cloneOrderId=${o.id}`)}
+                      onClick={() => setReorderTarget(o)}
                       className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline px-2 py-1 rounded-md hover:bg-blue-50 transition-colors font-medium"
                       title="Re-order"
                     >
@@ -42,7 +44,7 @@ export const History: React.FC = () => {
                       Re-order
                     </button>
                     <button
-                      onClick={() => navigate(`/quotes/new?cloneId=${o.id}&source=order`)}
+                      onClick={() => setCloneQuoteTarget(o)}
                       className="inline-flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 hover:underline px-2 py-1 rounded-md hover:bg-violet-50 transition-colors font-medium"
                       title="Clone as Quote"
                     >
@@ -55,6 +57,22 @@ export const History: React.FC = () => {
             ))}
         </Table>
       </Card>
+      <ConfirmDialog
+        isOpen={!!reorderTarget}
+        onClose={() => setReorderTarget(null)}
+        onConfirm={() => { if (reorderTarget) navigate(`/orders/new?cloneOrderId=${reorderTarget.id}`); setReorderTarget(null); }}
+        title="Re-order"
+        message={reorderTarget ? `Create a new Order based on ${reorderTarget.number}${reorderTarget.title ? ` — ${reorderTarget.title}` : ''}?` : ''}
+        confirmLabel="Re-order"
+      />
+      <ConfirmDialog
+        isOpen={!!cloneQuoteTarget}
+        onClose={() => setCloneQuoteTarget(null)}
+        onConfirm={() => { if (cloneQuoteTarget) navigate(`/quotes/new?cloneId=${cloneQuoteTarget.id}&source=order`); setCloneQuoteTarget(null); }}
+        title="Clone as Quote"
+        message={cloneQuoteTarget ? `Create a new Quote from Order ${cloneQuoteTarget.number}${cloneQuoteTarget.title ? ` — ${cloneQuoteTarget.title}` : ''}?` : ''}
+        confirmLabel="Clone as Quote"
+      />
     </div>
   );
 };
