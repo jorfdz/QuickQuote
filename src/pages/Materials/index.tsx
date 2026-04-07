@@ -42,8 +42,9 @@ const MultiSelectFilter: React.FC<{
   }, [open]);
   const toggle = (value: string) =>
     onChange(selected.includes(value) ? selected.filter(v => v !== value) : [...selected, value]);
+  const pluralize = (s: string) => s.endsWith('y') ? s.slice(0, -1) + 'ies' : s + 's';
   const displayLabel = selected.length === 0
-    ? `All ${label}s`
+    ? `All ${pluralize(label)}`
     : selected.length === 1
       ? (options.find(o => o.value === selected[0])?.label ?? selected[0])
       : `${selected.length} selected`;
@@ -946,6 +947,9 @@ export const Materials: React.FC = () => {
             </button>
           )}
         </div>
+
+        {/* Tab content — fixed min-height keeps modal stable across all tabs */}
+        <div className="min-h-[60vh]">
 
         {/* ── Change History Tab ── */}
         {modalTab === 'history' && editingId && (
@@ -1955,6 +1959,8 @@ export const Materials: React.FC = () => {
             </div>
           </div>
         )}
+
+        </div>{/* end tab content min-height wrapper */}
 
         {/* Save / Cancel buttons (visible on all tabs) */}
         <div className="flex gap-3 justify-end pt-4 border-t border-gray-100 mt-4">
