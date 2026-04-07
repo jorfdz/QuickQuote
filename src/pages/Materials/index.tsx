@@ -1011,29 +1011,30 @@ export const Materials: React.FC = () => {
                             <span className="text-[10px] text-gray-400">{formatTimestamp(record.timestamp)}</span>
                           </div>
 
-                          {/* Field changes — fully expanded, no truncation */}
+                          {/* Field changes — fixed-width columns for consistent alignment across entries */}
                           {record.changes.length > 0 && (
                             <div className="mt-2.5 border border-gray-100 rounded-lg overflow-hidden">
-                              <table className="w-full text-xs">
+                              <table className="w-full text-xs table-fixed">
+                                <colgroup>
+                                  <col className="w-[30%]" />
+                                  <col className="w-[35%]" />
+                                  <col className="w-[35%]" />
+                                </colgroup>
                                 <thead>
                                   <tr className="bg-gray-50 border-b border-gray-100">
-                                    <th className="text-left px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider w-[160px]">Field</th>
+                                    <th className="text-left px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Field</th>
                                     <th className="text-left px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Previous Value</th>
-                                    <th className="w-6"></th>
                                     <th className="text-left px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">New Value</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {record.changes.map((change, cIdx) => (
                                     <tr key={cIdx} className={cIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                                      <td className="px-3 py-2 font-semibold text-gray-600 align-top whitespace-nowrap">
+                                      <td className="px-3 py-2 font-semibold text-gray-600 align-top truncate" title={change.fieldLabel}>
                                         {change.fieldLabel}
                                       </td>
                                       <td className="px-3 py-2 text-red-400 align-top break-words">
                                         <span className="line-through">{formatChangeValue(change.field, change.oldValue)}</span>
-                                      </td>
-                                      <td className="py-2 text-center align-top">
-                                        <ArrowRight className="w-3 h-3 text-gray-300 inline-block" />
                                       </td>
                                       <td className="px-3 py-2 text-gray-800 font-medium align-top break-words">
                                         {formatChangeValue(change.field, change.newValue)}
