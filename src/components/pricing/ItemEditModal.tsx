@@ -2706,9 +2706,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                 <th className={thVio}>Cost $</th>
                 {/* SELL */}
                 <th className={`${thSell} border-l-2 border-emerald-400`}>{pctLabel}</th>
-                <th className={`${thSell} pr-2`} title="Lock row to exclude from global scaling">
-                  <span className="flex items-center justify-end gap-1">Sell $ <Lock className="w-2.5 h-2.5 opacity-40" /></span>
-                </th>
+                <th className={`${thSell} pr-2`}>Sell $</th>
               </tr>
             </thead>
 
@@ -2831,24 +2829,6 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                     {/* Sell $ — with lock button */}
                     <td className={`${tdSell} pr-2`}>
                       <div className="flex items-center gap-1">
-                        {/* Lock toggle — small, inconspicuous, sits left of the input */}
-                        <button
-                          type="button"
-                          onClick={() => toggleLock(line.id)}
-                          title={isLocked
-                            ? 'Sell price locked — click to unlock (will be included in global scaling)'
-                            : 'Click to lock this sell price (excluded from global scaling)'}
-                          className={`flex-shrink-0 p-0.5 rounded transition-all ${
-                            isLocked
-                              ? 'text-amber-500 hover:text-amber-600'
-                              : 'text-gray-300 hover:text-gray-500'
-                          }`}
-                        >
-                          {isLocked
-                            ? <Lock className="w-3 h-3" />
-                            : <LockOpen className="w-3 h-3" />
-                          }
-                        </button>
                         <input
                           type="number" step="0.01" min="0"
                           value={fmtNum(line.sellPrice)}
@@ -2857,6 +2837,21 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                           readOnly={isLocked}
                           title={isLocked ? 'Locked — unlock to edit' : undefined}
                         />
+                        {/* Lock toggle — sits right of the sell price input */}
+                        <button
+                          type="button"
+                          onClick={() => toggleLock(line.id)}
+                          title={isLocked
+                            ? 'Sell price locked — click to unlock'
+                            : 'Lock this sell price to exclude from global scaling'}
+                          className={`flex-shrink-0 p-0.5 rounded transition-all ${
+                            isLocked
+                              ? 'text-amber-500 hover:text-amber-600'
+                              : 'text-gray-300 hover:text-gray-500'
+                          }`}
+                        >
+                          {isLocked ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
+                        </button>
                       </div>
                     </td>
                   </tr>
