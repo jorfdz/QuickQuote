@@ -1702,7 +1702,7 @@ export const Materials: React.FC = () => {
                   Profit %
                 </button>
               </div>
-              <div className="w-28">
+              <div className="w-20">
                 <Input
                   type="number"
                   value={form.markup}
