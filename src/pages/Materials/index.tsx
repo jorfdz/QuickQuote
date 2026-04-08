@@ -1854,26 +1854,20 @@ export const Materials: React.FC = () => {
             </div>
           </div>
 
-          {/* ── Dimensions (conditional by type) ── */}
-          {form.materialType === 'roll_media' && (
-            <div className="max-w-xs">
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                <Tip label="Roll Width (in)" tip="The width of the roll in inches. Used to calculate square footage for cost and pricing." />
-              </label>
-              <Input type="number" value={form.sizeWidth || ''} onChange={e => setForm(f => ({ ...f, sizeWidth: parseFloat(e.target.value) || 0 }))} />
-            </div>
-          )}
-          {(form.materialType === 'paper' || form.materialType === 'rigid_substrate') && (
-            <div className="max-w-xs">
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                <Tip label="Size" tip="The sheet size of this material (e.g. 8.5x11, 12x18, 24x36). Displayed in the material list." />
-              </label>
-              <Input type="text" value={form.size || ''} placeholder="e.g. 8.5x11" onChange={e => setForm(f => ({ ...f, size: e.target.value }))} />
-            </div>
-          )}
-
-          {/* ── Cost Unit + cost value (single row) ── */}
+          {/* ── Size + Cost Unit + cost value (single row) ── */}
           <div className="flex items-end gap-3">
+            {/* Size field */}
+            {form.materialType === 'roll_media' && (
+              <div className="w-20">
+                <Input label="Width (in)" type="number" value={form.sizeWidth || ''} onChange={e => setForm(f => ({ ...f, sizeWidth: parseFloat(e.target.value) || 0 }))} />
+              </div>
+            )}
+            {(form.materialType === 'paper' || form.materialType === 'rigid_substrate') && (
+              <div className="w-24">
+                <Input label="Size" type="text" value={form.size || ''} placeholder="8.5x11" onChange={e => setForm(f => ({ ...f, size: e.target.value }))} />
+              </div>
+            )}
+            {/* Cost Unit toggle */}
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost Unit</label>
               <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
@@ -1893,6 +1887,7 @@ export const Materials: React.FC = () => {
                 ))}
               </div>
             </div>
+            {/* Cost value */}
             <div className="w-24">
               {form.pricingModel === 'cost_per_m' && (
                 <Input type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
