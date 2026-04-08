@@ -1705,11 +1705,12 @@ export const Materials: React.FC = () => {
 
           {/* ── Markup By (last — applies on top of everything) ── */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              <Tip label="Markup By" tip="How the sell price is calculated from cost. Markup % adds a percentage on top of cost, Multiplier multiplies cost by a factor, and Profit % targets a gross margin." />
-            </label>
             <div className="flex gap-3 items-end flex-wrap">
-              <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  <Tip label="Markup By" tip="How the sell price is calculated from cost. Markup % adds a percentage on top of cost, Multiplier multiplies cost by a factor, and Profit % targets a gross margin." />
+                </label>
+                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
                 <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'percent' }))}
                   className={`px-2.5 py-1.5 text-sm font-medium rounded-md transition-all ${
                     form.markupType === 'percent' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
@@ -1728,6 +1729,7 @@ export const Materials: React.FC = () => {
                   }`}>
                   Profit %
                 </button>
+                </div>
               </div>
               <div className="w-20">
                 <Input
