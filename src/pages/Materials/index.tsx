@@ -1737,7 +1737,7 @@ export const Materials: React.FC = () => {
                   suffix={form.markupType === 'multiplier' ? '×' : '%'}
                 />
               </div>
-              <div className="w-28">
+              <div className="ml-8 w-28">
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                   <Tip label="Min Charge" tip="If the calculated total is below this amount, this minimum will be charged instead. Set to 0 for no minimum." />
                 </label>
