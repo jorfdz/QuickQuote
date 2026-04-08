@@ -1507,7 +1507,10 @@ export const Materials: React.FC = () => {
             {/* Dimension fields — paper / rigid */}
             {(form.materialType === 'paper' || form.materialType === 'rigid_substrate') && (
               <div className="w-24">
-                <Input label="Size" type="text" value={form.size || ''} placeholder="8.5x11" onChange={e => setForm(f => ({ ...f, size: e.target.value }))} />
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  <Tip label="Size" tip="The sheet dimensions in Width×Height format (e.g. 8.5x11). Used for cost calculations based on area." />
+                </label>
+                <Input type="text" value={form.size || ''} placeholder="8.5x11" onChange={e => setForm(f => ({ ...f, size: e.target.value }))} />
               </div>
             )}
 
@@ -1515,7 +1518,10 @@ export const Materials: React.FC = () => {
             {form.materialType === 'roll_media' && (
               <>
                 <div className="w-20">
-                  <Input label="Width (in)" type="number" value={form.sizeWidth || ''}
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    <Tip label="Width (in)" tip="The roll width in inches. Used together with length to calculate the total area and cost per square foot." />
+                  </label>
+                  <Input type="number" value={form.sizeWidth || ''}
                     onChange={e => {
                       const w = parseFloat(e.target.value) || 0;
                       setForm(f => {
@@ -1563,7 +1569,9 @@ export const Materials: React.FC = () => {
             {/* Cost field — non-roll types and roll direct mode */}
             {form.materialType !== 'roll_media' && (
               <div className="w-24">
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  <Tip label="Cost" tip="The base cost of this material in the selected pricing model. This is the cost before any markup is applied." />
+                </label>
                 {form.pricingModel === 'cost_per_m' && (
                   <Input type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
                 )}
@@ -1577,7 +1585,10 @@ export const Materials: React.FC = () => {
             )}
             {form.materialType === 'roll_media' && form.rollPricingMode === 'direct' && (
               <div className="w-24">
-                <Input label="Cost" type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  <Tip label="Cost" tip="The base cost of this material per square foot. This is the cost before any markup is applied." />
+                </label>
+                <Input type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
               </div>
             )}
 
@@ -1726,16 +1737,13 @@ export const Materials: React.FC = () => {
                   suffix={form.markupType === 'multiplier' ? '×' : '%'}
                 />
               </div>
-              <div className="ml-4 flex items-center gap-2">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
+              <div className="w-28">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                   <Tip label="Min Charge" tip="If the calculated total is below this amount, this minimum will be charged instead. Set to 0 for no minimum." />
                 </label>
-                <div className="relative w-28">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                  <input type="number" value={form.minimumCharge || ''}
-                    onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))}
-                    className="w-full pl-6 pr-2 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 transition-all" />
-                </div>
+                <Input type="number" value={form.minimumCharge || ''}
+                  onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))}
+                  prefix="$" />
               </div>
             </div>
             <p className="text-[10px] text-gray-400 mt-1.5">
