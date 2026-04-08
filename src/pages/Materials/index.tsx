@@ -1880,7 +1880,6 @@ export const Materials: React.FC = () => {
             </div>
             {/* Cost Unit toggle */}
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Unit</label>
               <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
                 {MATERIAL_TYPE_PRICING_MODELS[form.materialType].map(model => (
                   <button
@@ -2017,15 +2016,15 @@ export const Materials: React.FC = () => {
                   suffix={form.markupType === 'multiplier' ? '×' : '%'}
                 />
               </div>
-              <div className="w-36">
+              <div className="ml-4 w-24">
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                  <Tip label="Minimum Charge" tip="If the calculated total is below this amount, this minimum will be charged instead. Set to 0 for no minimum." />
+                  <Tip label="Min Charge" tip="If the calculated total is below this amount, this minimum will be charged instead. Set to 0 for no minimum." />
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
                   <input type="number" value={form.minimumCharge || ''}
                     onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))}
-                    className="w-full pl-8 pr-3 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 transition-all" />
+                    className="w-full pl-6 pr-2 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 transition-all" />
                 </div>
               </div>
             </div>
