@@ -1466,6 +1466,7 @@ export const Materials: React.FC = () => {
               </div>
             </div>
           </div>
+          <div className="border-t border-gray-200" />
           {/* ── Material Type toggle ── */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
@@ -1870,6 +1871,7 @@ export const Materials: React.FC = () => {
             );
           })()}
 
+          <div className="border-t border-gray-200" />
           {/* ── Product & Category Assignments ── */}
           {(() => {
             const totalSelected = form.categoryIds.length + form.productIds.length;
