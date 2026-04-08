@@ -1487,7 +1487,7 @@ export const Materials: React.FC = () => {
                       ...(type === 'roll_media' ? { sizeHeight: 0, size: '' } : {}),
                     }));
                   }}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
                     form.materialType === type
                       ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
                       : 'text-gray-500 hover:text-gray-700'
@@ -1587,7 +1587,7 @@ export const Materials: React.FC = () => {
                       key={model}
                       type="button"
                       onClick={() => setForm(f => ({ ...f, pricingModel: model }))}
-                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                      className={`px-2.5 py-1.5 text-sm font-medium rounded-md transition-all ${
                         form.pricingModel === model
                           ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
                           : 'text-gray-500 hover:text-gray-700'
@@ -1606,7 +1606,7 @@ export const Materials: React.FC = () => {
                 <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
                   <button type="button"
                     onClick={() => setForm(f => ({ ...f, rollPricingMode: 'direct' as const, rollCost: 0, rollLength: 0 }))}
-                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                    className={`px-2.5 py-1.5 text-sm font-medium rounded-md transition-all ${
                       form.rollPricingMode === 'direct'
                         ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
                         : 'text-gray-500 hover:text-gray-700'
@@ -1615,7 +1615,7 @@ export const Materials: React.FC = () => {
                   </button>
                   <button type="button"
                     onClick={() => setForm(f => ({ ...f, rollPricingMode: 'from_roll' as const, costPerSqft: 0 }))}
-                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                    className={`px-2.5 py-1.5 text-sm font-medium rounded-md transition-all ${
                       form.rollPricingMode === 'from_roll'
                         ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
                         : 'text-gray-500 hover:text-gray-700'
@@ -1697,19 +1697,19 @@ export const Materials: React.FC = () => {
             <div className="flex gap-3 items-end flex-wrap">
               <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
                 <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'percent' }))}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                  className={`px-2.5 py-1.5 text-sm font-medium rounded-md transition-all ${
                     form.markupType === 'percent' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
                   }`}>
                   Markup %
                 </button>
                 <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'multiplier' }))}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                  className={`px-2.5 py-1.5 text-sm font-medium rounded-md transition-all ${
                     form.markupType === 'multiplier' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
                   }`}>
                   Multiplier
                 </button>
                 <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'profit_percent' }))}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                  className={`px-2.5 py-1.5 text-sm font-medium rounded-md transition-all ${
                     form.markupType === 'profit_percent' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
                   }`}>
                   Profit %
