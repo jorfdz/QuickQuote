@@ -96,11 +96,12 @@ const emptyForm = {
   pricePerM: 0,
   costPerUnit: 0,
   costPerSqft: 0,
+  rollPricingMode: 'direct' as 'direct' | 'from_roll',
   rollCost: 0,
   rollLength: 0,
   pricingTiers: [] as { minQty: number; costPerUnit: number }[],
   minimumCharge: 0,
-  markupType: 'percent' as 'percent' | 'fixed' | 'global_flat' | 'global_percent',
+  markupType: 'percent' as 'percent' | 'multiplier' | 'profit_percent',
   markup: 70,
   materialGroupIds: [] as string[],
   categoryIds: [] as string[],
@@ -175,7 +176,7 @@ export const Materials: React.FC = () => {
   const [bulkType, setBulkType] = useState<MaterialType>('paper');
   const [bulkGroupIds, setBulkGroupIds] = useState<string[]>([]);
   const [bulkGroupMode, setBulkGroupMode] = useState<'add' | 'replace'>('add');
-  const [bulkMarkupType, setBulkMarkupType] = useState<'percent' | 'fixed' | 'global_percent' | 'global_flat'>('percent');
+  const [bulkMarkupType, setBulkMarkupType] = useState<'percent' | 'multiplier' | 'profit_percent'>('percent');
   const [bulkMarkupValue, setBulkMarkupValue] = useState(0);
   const [bulkVendor, setBulkVendor] = useState('');
   const [bulkFavorite, setBulkFavorite] = useState(true);
@@ -525,6 +526,7 @@ export const Materials: React.FC = () => {
       pricePerM: m.pricePerM,
       costPerUnit: m.costPerUnit || 0,
       costPerSqft: m.costPerSqft || 0,
+      rollPricingMode: ((m.rollCost && m.rollLength) ? 'from_roll' : 'direct') as 'direct' | 'from_roll',
       rollCost: m.rollCost || 0,
       rollLength: m.rollLength || 0,
       pricingTiers: m.pricingTiers || [],
@@ -601,6 +603,7 @@ export const Materials: React.FC = () => {
       pricePerM: m.pricePerM,
       costPerUnit: m.costPerUnit || 0,
       costPerSqft: m.costPerSqft || 0,
+      rollPricingMode: ((m.rollCost && m.rollLength) ? 'from_roll' : 'direct') as 'direct' | 'from_roll',
       rollCost: m.rollCost || 0,
       rollLength: m.rollLength || 0,
       pricingTiers: m.pricingTiers || [],
@@ -652,7 +655,7 @@ export const Materials: React.FC = () => {
     }
     if (field === 'materialType') return MATERIAL_TYPE_LABELS[value as MaterialType] || String(value);
     if (field === 'pricingModel') return PRICING_MODEL_LABELS[value as MaterialPricingModel] || String(value);
-    if (field === 'markupType') return value === 'percent' ? 'Per Unit %' : value === 'fixed' ? 'Per Unit $' : value === 'global_flat' ? 'Flat Total $' : value === 'global_percent' ? 'Global Total %' : String(value);
+    if (field === 'markupType') return value === 'percent' ? 'Markup %' : value === 'multiplier' ? 'Multiplier' : value === 'profit_percent' ? 'Profit %' : String(value);
     if (field === 'pricePerM' || field === 'costPerUnit' || field === 'costPerSqft' || field === 'rollCost' || field === 'minimumCharge') return `$${Number(value).toFixed(2)}`;
     if (field === 'rollLength') return `${value} ft`;
     if (field === 'markup') return String(value);
@@ -881,9 +884,9 @@ export const Materials: React.FC = () => {
 
             {bulkPanel === 'markup' && (
               <div className="mt-1.5 px-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm flex items-center gap-4 flex-wrap">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Set Markup:</span>
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Markup By:</span>
                 <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
-                  {([['percent','Per Unit %'],['fixed','Per Unit $'],['global_percent','Global %'],['global_flat','Flat $']] as const).map(([v,label]) => (
+                  {([['percent','Markup %'],['multiplier','Multiplier'],['profit_percent','Profit %']] as const).map(([v,label]) => (
                     <button key={v} type="button" onClick={() => setBulkMarkupType(v)}
                       className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${bulkMarkupType === v ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
                       {label}
@@ -891,11 +894,10 @@ export const Materials: React.FC = () => {
                   ))}
                 </div>
                 <div className="relative w-28">
-                  {(bulkMarkupType === 'fixed' || bulkMarkupType === 'global_flat') && <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>}
                   <input type="number" value={bulkMarkupValue || ''} placeholder="0"
                     onChange={e => setBulkMarkupValue(parseFloat(e.target.value) || 0)}
-                    className={`w-full py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${bulkMarkupType === 'fixed' || bulkMarkupType === 'global_flat' ? 'pl-6 pr-3' : 'pl-3 pr-6'}`} />
-                  {(bulkMarkupType === 'percent' || bulkMarkupType === 'global_percent') && <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">%</span>}
+                    className="w-full pl-3 pr-7 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">{bulkMarkupType === 'multiplier' ? '×' : '%'}</span>
                 </div>
                 <button onClick={applyBulkMarkup} className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
                   Apply to {selectedIds.size}
@@ -1082,10 +1084,9 @@ export const Materials: React.FC = () => {
                   <td className="py-3 px-4 text-sm text-gray-500 truncate max-w-[120px]" title={m.vendorName || '--'}>{m.vendorName || '--'}</td>
                   <td className="py-3 px-4 text-sm text-gray-600 font-medium">{m.materialType === 'blanks' ? '--' : m.materialType === 'roll_media' ? `${m.sizeWidth}" wide` : m.size || '--'}</td>
                   <td className="py-3 px-4 text-sm text-gray-700 font-medium">{formatCurrency(getUnitCost(m))}<span className="text-[10px] text-gray-400 ml-0.5">{getUnitLabel(m)}</span></td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{m.markupType === 'percent' || !m.markupType ? `${m.markup}%/u` : m.markupType === 'fixed' ? `$${m.markup}/u` : m.markupType === 'global_percent' ? `${m.markup}% total` : `$${m.markup} flat`}</td>
+                  <td className="py-3 px-4 text-sm text-gray-500">{m.markupType === 'multiplier' ? `${m.markup}×` : m.markupType === 'profit_percent' ? `${m.markup}% margin` : `${m.markup}%`}</td>
                   <td className="py-3 px-4 text-sm font-bold text-blue-700">
                     {formatCurrency(getUnitSell(m))}<span className="text-[10px] text-gray-400 ml-0.5">{getUnitLabel(m)}</span>
-                    {(m.markupType === 'global_flat' || m.markupType === 'global_percent') && <span className="text-[9px] text-amber-500 ml-1" title="Markup is applied on the order total">+total</span>}
                   </td>
                   <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-1">
@@ -1467,6 +1468,425 @@ export const Materials: React.FC = () => {
               </div>
             </div>
           </div>
+          {/* ── Material Attributes & Cost Configurations (collapsible) ── */}
+          <div className="border-t border-gray-200 pt-4">
+            <button
+              type="button"
+              onClick={() => setCostConfigCollapsed(c => !c)}
+              className="w-full flex items-center justify-between group"
+            >
+              <div className="flex items-center gap-2">
+                {costConfigCollapsed
+                  ? <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                  : <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />}
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Material Attributes &amp; Cost Configurations</h3>
+              </div>
+              {costConfigCollapsed && (
+                <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                  {MATERIAL_TYPE_LABELS[form.materialType]} · {PRICING_MODEL_LABELS[form.pricingModel]} · {form.markupType === 'multiplier' ? `${form.markup}×` : form.markupType === 'profit_percent' ? `${form.markup}% margin` : `${form.markup}%`}
+                </span>
+              )}
+            </button>
+
+            {!costConfigCollapsed && (
+              <div className="mt-3 space-y-4 pl-6">
+
+          {/* ── Material Type toggle ── */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+              <Tip label="Material Type" tip="The physical form of this material — affects available cost models and dimension inputs." />
+            </label>
+            <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+              {(['paper', 'roll_media', 'rigid_substrate', 'blanks'] as MaterialType[]).map(type => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => {
+                    const allowedModels = MATERIAL_TYPE_PRICING_MODELS[type];
+                    setForm(f => ({
+                      ...f,
+                      materialType: type,
+                      pricingModel: allowedModels.includes(f.pricingModel) ? f.pricingModel : allowedModels[0],
+                      ...(type === 'blanks' ? { sizeWidth: 0, sizeHeight: 0, size: '' } : {}),
+                      ...(type === 'roll_media' ? { sizeHeight: 0, size: '' } : {}),
+                    }));
+                  }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    form.materialType === type
+                      ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {MATERIAL_TYPE_LABELS[type]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Size + Cost (non-roll types) ── */}
+          {form.materialType !== 'roll_media' && (
+            <div className="flex items-end gap-3">
+              {(form.materialType === 'paper' || form.materialType === 'rigid_substrate') && (
+                <div className="w-24">
+                  <Input label="Size" type="text" value={form.size || ''} placeholder="8.5x11" onChange={e => setForm(f => ({ ...f, size: e.target.value }))} />
+                </div>
+              )}
+              <div className="w-24">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost</label>
+                {form.pricingModel === 'cost_per_m' && (
+                  <Input type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                )}
+                {form.pricingModel === 'cost_per_unit' && (
+                  <Input type="number" value={form.costPerUnit || ''} onChange={e => setForm(f => ({ ...f, costPerUnit: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                )}
+                {form.pricingModel === 'cost_per_sqft' && (
+                  <Input type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                )}
+              </div>
+              <div>
+                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                  {MATERIAL_TYPE_PRICING_MODELS[form.materialType].map(model => (
+                    <button
+                      key={model}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, pricingModel: model }))}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                        form.pricingModel === model
+                          ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {PRICING_MODEL_LABELS[model]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Roll Media pricing (two exclusive modes) ── */}
+          {form.materialType === 'roll_media' && (
+            <div className="space-y-3">
+              {/* Mode toggle */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Roll Pricing</label>
+                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                  <button type="button"
+                    onClick={() => setForm(f => ({ ...f, rollPricingMode: 'direct' as const, rollCost: 0, rollLength: 0 }))}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                      form.rollPricingMode === 'direct'
+                        ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}>
+                    Width + Cost /sq. ft.
+                  </button>
+                  <button type="button"
+                    onClick={() => setForm(f => ({ ...f, rollPricingMode: 'from_roll' as const, costPerSqft: 0 }))}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                      form.rollPricingMode === 'from_roll'
+                        ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}>
+                    Width + Length + Roll Price
+                  </button>
+                </div>
+              </div>
+
+              {/* Option A: Width + direct cost/sqft */}
+              {form.rollPricingMode === 'direct' && (
+                <div className="flex items-end gap-3">
+                  <div className="w-20">
+                    <Input label="Width (in)" type="number" value={form.sizeWidth || ''} onChange={e => setForm(f => ({ ...f, sizeWidth: parseFloat(e.target.value) || 0 }))} />
+                  </div>
+                  <div className="w-24">
+                    <Input label="Cost" type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                  </div>
+                  <span className="pb-1.5 text-xs text-gray-500">/sq. ft.</span>
+                </div>
+              )}
+
+              {/* Option B: Width + Length + Roll Price → derived cost/sqft */}
+              {form.rollPricingMode === 'from_roll' && (
+                <div className="flex items-end gap-3">
+                  <div className="w-20">
+                    <Input label="Width (in)" type="number" value={form.sizeWidth || ''}
+                      onChange={e => {
+                        const w = parseFloat(e.target.value) || 0;
+                        setForm(f => {
+                          const derived = f.rollCost > 0 && f.rollLength > 0 && w > 0
+                            ? deriveRollCostPerSqft(f.rollCost, f.rollLength, w) : null;
+                          return { ...f, sizeWidth: w, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
+                        });
+                      }} />
+                  </div>
+                  <div className="w-20">
+                    <Input label="Length (ft)" type="number" value={form.rollLength || ''}
+                      onChange={e => {
+                        const rollLength = parseFloat(e.target.value) || 0;
+                        setForm(f => {
+                          const derived = f.rollCost > 0 && rollLength > 0 && f.sizeWidth > 0
+                            ? deriveRollCostPerSqft(f.rollCost, rollLength, f.sizeWidth) : null;
+                          return { ...f, rollLength, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
+                        });
+                      }} />
+                  </div>
+                  <div className="w-24">
+                    <Input label="Roll Price" type="number" value={form.rollCost || ''} prefix="$"
+                      onChange={e => {
+                        const rollCost = parseFloat(e.target.value) || 0;
+                        setForm(f => {
+                          const derived = rollCost > 0 && f.rollLength > 0 && f.sizeWidth > 0
+                            ? deriveRollCostPerSqft(rollCost, f.rollLength, f.sizeWidth) : null;
+                          return { ...f, rollCost, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
+                        });
+                      }} />
+                  </div>
+                  {form.rollCost > 0 && form.rollLength > 0 && form.sizeWidth > 0 && (
+                    <span className="text-[10px] text-amber-600 pb-1.5 whitespace-nowrap">
+                      = {(form.rollLength * (form.sizeWidth / 12)).toFixed(0)} sq ft → <span className="font-semibold">{formatCurrency(deriveRollCostPerSqft(form.rollCost, form.rollLength, form.sizeWidth))}/sq. ft.</span>
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Tier Cost (optional) ── */}
+          <div className="max-w-xs">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <Tip label="Tier Cost" tip="Define quantity-based price breaks. When the order quantity meets a tier's minimum, that tier's cost replaces the base cost." />
+              </label>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, pricingTiers: [...f.pricingTiers, { minQty: 0, costPerUnit: 0 }] }))}
+                className="text-[10px] text-blue-600 hover:text-blue-700 font-medium"
+              >
+                + Add Tier
+              </button>
+            </div>
+            {form.pricingTiers.length === 0 ? (
+              <p className="text-[10px] text-gray-400">No tiers — base cost above applies to all quantities.</p>
+            ) : (
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="grid grid-cols-[112px_112px_24px] gap-1 bg-gray-50 border-b border-gray-200 px-2 py-1">
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase">Min Qty</span>
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase">Cost</span>
+                  <span></span>
+                </div>
+                {form.pricingTiers.map((tier, i) => (
+                  <div key={i} className="grid grid-cols-[112px_112px_24px] gap-1 items-center px-2 py-1 border-b border-gray-100 last:border-0">
+                    <input type="number" value={tier.minQty || ''} placeholder="0"
+                      className="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      onChange={e => setForm(f => ({
+                        ...f,
+                        pricingTiers: f.pricingTiers.map((t, idx) => idx === i ? { ...t, minQty: parseFloat(e.target.value) || 0 } : t),
+                      }))} />
+                    <div className="relative">
+                      <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]">$</span>
+                      <input type="number" value={tier.costPerUnit || ''} placeholder="0.00"
+                        className="w-full pl-4 pr-1 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        onChange={e => setForm(f => ({
+                          ...f,
+                          pricingTiers: f.pricingTiers.map((t, idx) => idx === i ? { ...t, costPerUnit: parseFloat(e.target.value) || 0 } : t),
+                        }))} />
+                    </div>
+                    <button type="button" onClick={() => setForm(f => ({ ...f, pricingTiers: f.pricingTiers.filter((_, idx) => idx !== i) }))}
+                      className="p-0.5 text-gray-300 hover:text-red-500 transition-colors">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Markup By (last — applies on top of everything) ── */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              <Tip label="Markup By" tip="How the sell price is calculated from cost. Markup % adds a percentage on top of cost, Multiplier multiplies cost by a factor, and Profit % targets a gross margin." />
+            </label>
+            <div className="flex gap-3 items-end flex-wrap">
+              <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'percent' }))}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                    form.markupType === 'percent' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
+                  }`}>
+                  Markup %
+                </button>
+                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'multiplier' }))}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                    form.markupType === 'multiplier' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
+                  }`}>
+                  Multiplier
+                </button>
+                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'profit_percent' }))}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                    form.markupType === 'profit_percent' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
+                  }`}>
+                  Profit %
+                </button>
+              </div>
+              <div className="w-28">
+                <Input
+                  type="number"
+                  value={form.markup}
+                  onChange={e => setForm(f => ({ ...f, markup: parseFloat(e.target.value) || 0 }))}
+                  suffix={form.markupType === 'multiplier' ? '×' : '%'}
+                />
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
+                  <Tip label="Min Charge" tip="If the calculated total is below this amount, this minimum will be charged instead. Set to 0 for no minimum." />
+                </label>
+                <div className="relative w-28">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input type="number" value={form.minimumCharge || ''}
+                    onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))}
+                    className="w-full pl-6 pr-2 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 transition-all" />
+                </div>
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1.5">
+              {form.markupType === 'percent' && `Sell = cost + ${form.markup}%. e.g. cost $1.00 → sell ${(1 * (1 + form.markup / 100)).toFixed(2)}`}
+              {form.markupType === 'multiplier' && `Sell = cost × ${form.markup}. e.g. cost $1.00 → sell $${(1 * (form.markup || 1)).toFixed(2)}`}
+              {form.markupType === 'profit_percent' && `Sell = cost ÷ (1 − ${form.markup}%). e.g. cost $1.00 → sell $${(1 / (1 - Math.min(form.markup, 99.99) / 100)).toFixed(2)} (${form.markup}% margin)`}
+            </p>
+          </div>
+
+          {/* ── Test Price Calculator ── */}
+          {(() => {
+            const { rollPricingMode: _rpm, ...formFields } = form;
+            const preview = { ...formFields, materialType: form.materialType || 'paper', pricingModel: form.pricingModel || 'cost_per_m' } as PricingMaterial;
+            const baseCostPerUnit = getUnitCost(preview);
+            const unitLabel = getUnitLabel(preview);
+            const model = form.pricingModel || 'cost_per_m';
+
+            if (baseCostPerUnit <= 0 && !showTestPanel) return (
+              <button type="button" onClick={() => setShowTestPanel(true)}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:text-amber-900 transition-colors opacity-50 cursor-not-allowed" disabled>
+                <FlaskConical className="w-3.5 h-3.5" /> Test Price
+              </button>
+            );
+
+            // Determine quantity label and how to interpret testQty
+            const matType = form.materialType || 'paper';
+            const qtyLabel = model === 'cost_per_sqft' ? 'Sq Ft' : model === 'cost_per_m' ? (matType === 'blanks' ? 'Items' : 'Sheets') : 'Units';
+
+            // Tier lookup: tiers store costPerUnit in the same unit as the base cost field
+            // For cost_per_m, tiers store price-per-M → divide by 1000 to get per-sheet
+            // For cost_per_unit / cost_per_sqft, tiers store the direct per-unit / per-sqft cost
+            const tierRaw = getTierCost(preview, testQty);
+            const tierCostPerUnit = tierRaw !== null
+              ? (model === 'cost_per_m' ? tierRaw / 1000 : tierRaw)
+              : null;
+
+            const effectiveCostPerUnit = tierCostPerUnit !== null ? tierCostPerUnit : baseCostPerUnit;
+
+            // Markup & sell via getOrderSell
+            const orderResult = getOrderSell(
+              { ...preview, markupType: form.markupType, markup: form.markup } as PricingMaterial,
+              testQty,
+              effectiveCostPerUnit,
+            );
+            const { sellPerUnit, markupPerUnit, totalSell, isGlobalMarkup } = orderResult;
+
+            // Totals
+            const totalCost = effectiveCostPerUnit * testQty;
+            const minApplied = form.minimumCharge > 0 && totalSell < form.minimumCharge;
+            const finalTotal = minApplied ? form.minimumCharge : totalSell;
+
+            // For display: show the tier raw value in the user's configured unit
+            const tierDisplayLabel = model === 'cost_per_m' ? '/M' : unitLabel;
+            const tierDisplayValue = tierRaw;
+
+            return (
+              <div className="space-y-2">
+                <button type="button" onClick={() => setShowTestPanel(p => !p)}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:text-amber-900 transition-colors">
+                  <FlaskConical className="w-3.5 h-3.5" />
+                  {showTestPanel ? 'Hide Test' : 'Test Price'}
+                </button>
+
+                {showTestPanel && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <FlaskConical className="w-3.5 h-3.5 text-amber-600" />
+                        <span className="text-[11px] font-semibold text-amber-800">Test Price Calculator</span>
+                      </div>
+                      <button type="button" onClick={() => setShowTestPanel(false)} className="p-0.5 hover:bg-amber-100 rounded">
+                        <X className="w-3.5 h-3.5 text-amber-500" />
+                      </button>
+                    </div>
+
+                    {/* Test quantity input */}
+                    <div className="flex items-center gap-2">
+                      <label className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide whitespace-nowrap">
+                        Test {qtyLabel}
+                      </label>
+                      <input type="number" value={testQty}
+                        onChange={e => setTestQty(parseInt(e.target.value) || 0)}
+                        className="w-28 px-2 py-1 text-sm bg-white border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                    </div>
+
+                    {/* Results */}
+                    <div className="bg-white/60 rounded-md px-3 py-2 space-y-1">
+                      {/* Per-unit breakdown */}
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-gray-600">Base cost{unitLabel}:</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(baseCostPerUnit)}</span>
+                      </div>
+                      {tierCostPerUnit !== null && tierDisplayValue !== null && (
+                        <div className="flex justify-between text-[11px]">
+                          <span className="text-gray-500">Tier price{tierDisplayLabel} (≥{testQty.toLocaleString()}):</span>
+                          <span className="font-medium text-purple-700">{formatCurrency(tierDisplayValue)}</span>
+                        </div>
+                      )}
+                      {tierCostPerUnit !== null && model === 'cost_per_m' && (
+                        <div className="flex justify-between text-[11px]">
+                          <span className="text-gray-500">Tier cost{unitLabel}:</span>
+                          <span className="font-medium text-purple-700">{formatCurrency(tierCostPerUnit)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-gray-500">+ Markup ({form.markupType === 'multiplier' ? `${form.markup}× cost` : form.markupType === 'profit_percent' ? `${form.markup}% margin` : `${form.markup}%`}):</span>
+                        <span className="font-medium text-gray-700">{isGlobalMarkup ? formatCurrency(totalSell - (effectiveCostPerUnit * testQty)) + ' total' : formatCurrency(markupPerUnit) + unitLabel}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px] pt-1 border-t border-amber-200/60">
+                        <span className="text-gray-600 font-medium">Sell{unitLabel}:</span>
+                        <span className="font-semibold text-blue-700">{formatCurrency(sellPerUnit)}</span>
+                      </div>
+
+                      {/* Totals */}
+                      <div className="flex justify-between text-[11px] pt-1.5 mt-1.5 border-t border-amber-200">
+                        <span className="text-gray-500">× {testQty.toLocaleString()} {qtyLabel.toLowerCase()}</span>
+                        <span></span>
+                      </div>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-gray-500">Total cost:</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(totalCost)}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="font-semibold text-amber-800">Total sell:</span>
+                        <span className="font-bold text-amber-900">{formatCurrency(finalTotal)}</span>
+                      </div>
+                      {minApplied && (
+                        <div className="text-[10px] text-amber-700 bg-amber-100 rounded px-2 py-1 mt-1">
+                          Calculated total {formatCurrency(totalSell)} is below minimum — {formatCurrency(form.minimumCharge)} charged instead
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+              </div>
+            )}
+          </div>
+
           {/* ── Product & Category Assignments (collapsible) ── */}
           {(() => {
             const totalSelected = form.categoryIds.length + form.productIds.length;
@@ -1798,391 +2218,6 @@ export const Materials: React.FC = () => {
               </div>
             );
           })()}
-
-          {/* ── Material Attributes & Cost Configurations (collapsible) ── */}
-          <div className="border-t border-gray-200 pt-4">
-            <button
-              type="button"
-              onClick={() => setCostConfigCollapsed(c => !c)}
-              className="w-full flex items-center justify-between group"
-            >
-              <div className="flex items-center gap-2">
-                {costConfigCollapsed
-                  ? <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
-                  : <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />}
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Material Attributes &amp; Cost Configurations</h3>
-              </div>
-              {costConfigCollapsed && (
-                <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                  {MATERIAL_TYPE_LABELS[form.materialType]} · {PRICING_MODEL_LABELS[form.pricingModel]} · {form.markupType === 'percent' ? `${form.markup}%/u` : form.markupType === 'fixed' ? `$${form.markup}/u` : form.markupType === 'global_percent' ? `${form.markup}% total` : `$${form.markup} flat`}
-                </span>
-              )}
-            </button>
-
-            {!costConfigCollapsed && (
-              <div className="mt-3 space-y-4 pl-6">
-
-          {/* ── Material Type toggle ── */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              <Tip label="Material Type" tip="The physical form of this material — affects available cost models and dimension inputs." />
-            </label>
-            <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
-              {(['paper', 'roll_media', 'rigid_substrate', 'blanks'] as MaterialType[]).map(type => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => {
-                    const allowedModels = MATERIAL_TYPE_PRICING_MODELS[type];
-                    setForm(f => ({
-                      ...f,
-                      materialType: type,
-                      pricingModel: allowedModels.includes(f.pricingModel) ? f.pricingModel : allowedModels[0],
-                      ...(type === 'blanks' ? { sizeWidth: 0, sizeHeight: 0, size: '' } : {}),
-                      ...(type === 'roll_media' ? { sizeHeight: 0, size: '' } : {}),
-                    }));
-                  }}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                    form.materialType === type
-                      ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {MATERIAL_TYPE_LABELS[type]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* ── Dimensions (conditional by type) ── */}
-          {form.materialType === 'roll_media' && (
-            <div className="max-w-xs">
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                <Tip label="Roll Width (in)" tip="The width of the roll in inches. Used to calculate square footage for cost and pricing." />
-              </label>
-              <Input type="number" value={form.sizeWidth || ''} onChange={e => setForm(f => ({ ...f, sizeWidth: parseFloat(e.target.value) || 0 }))} />
-            </div>
-          )}
-          {(form.materialType === 'paper' || form.materialType === 'rigid_substrate') && (
-            <div className="max-w-xs">
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                <Tip label="Size" tip="The sheet size of this material (e.g. 8.5x11, 12x18, 24x36). Displayed in the material list." />
-              </label>
-              <Input type="text" value={form.size || ''} placeholder="e.g. 8.5x11" onChange={e => setForm(f => ({ ...f, size: e.target.value }))} />
-            </div>
-          )}
-
-          {/* ── Cost Unit + cost value (single row) ── */}
-          <div className="flex items-end gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost Unit</label>
-              <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
-                {MATERIAL_TYPE_PRICING_MODELS[form.materialType].map(model => (
-                  <button
-                    key={model}
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, pricingModel: model }))}
-                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                      form.pricingModel === model
-                        ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    {PRICING_MODEL_LABELS[model]}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="w-24">
-              {form.pricingModel === 'cost_per_m' && (
-                <Input label="Per M" type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
-              )}
-              {form.pricingModel === 'cost_per_unit' && (
-                <Input label="Per Unit" type="number" value={form.costPerUnit || ''} onChange={e => setForm(f => ({ ...f, costPerUnit: parseFloat(e.target.value) || 0 }))} prefix="$" />
-              )}
-              {form.pricingModel === 'cost_per_sqft' && (
-                <Input label="Per Sq Ft" type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
-              )}
-            </div>
-            {/* Roll reference calculator (inline) */}
-            {form.materialType === 'roll_media' && (
-              <>
-                <span className="text-[10px] text-amber-600 font-semibold pb-1.5">←</span>
-                <div className="w-20">
-                  <Input label="Roll $" type="number" value={form.rollCost || ''} prefix="$"
-                    onChange={e => {
-                      const rollCost = parseFloat(e.target.value) || 0;
-                      setForm(f => {
-                        const derived = rollCost > 0 && f.rollLength > 0 && f.sizeWidth > 0
-                          ? deriveRollCostPerSqft(rollCost, f.rollLength, f.sizeWidth) : null;
-                        return { ...f, rollCost, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
-                      });
-                    }} />
-                </div>
-                <div className="w-20">
-                  <Input label="Length" type="number" value={form.rollLength || ''} suffix="ft"
-                    onChange={e => {
-                      const rollLength = parseFloat(e.target.value) || 0;
-                      setForm(f => {
-                        const derived = f.rollCost > 0 && rollLength > 0 && f.sizeWidth > 0
-                          ? deriveRollCostPerSqft(f.rollCost, rollLength, f.sizeWidth) : null;
-                        return { ...f, rollLength, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
-                      });
-                    }} />
-                </div>
-                {form.rollCost > 0 && form.rollLength > 0 && form.sizeWidth > 0 && (
-                  <span className="text-[10px] text-amber-600 pb-1.5 whitespace-nowrap">
-                    = {(form.rollLength * (form.sizeWidth / 12)).toFixed(0)} sqft → <span className="font-semibold">{formatCurrency(deriveRollCostPerSqft(form.rollCost, form.rollLength, form.sizeWidth))}/sqft</span>
-                  </span>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* ── Tier Cost (optional) ── */}
-          <div className="max-w-xs">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                <Tip label="Tier Cost" tip="Define quantity-based price breaks. When the order quantity meets a tier's minimum, that tier's cost replaces the base cost." />
-              </label>
-              <button
-                type="button"
-                onClick={() => setForm(f => ({ ...f, pricingTiers: [...f.pricingTiers, { minQty: 0, costPerUnit: 0 }] }))}
-                className="text-[10px] text-blue-600 hover:text-blue-700 font-medium"
-              >
-                + Add Tier
-              </button>
-            </div>
-            {form.pricingTiers.length === 0 ? (
-              <p className="text-[10px] text-gray-400">No tiers — base cost above applies to all quantities.</p>
-            ) : (
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="grid grid-cols-[112px_112px_24px] gap-1 bg-gray-50 border-b border-gray-200 px-2 py-1">
-                  <span className="text-[10px] font-semibold text-gray-400 uppercase">Min Qty</span>
-                  <span className="text-[10px] font-semibold text-gray-400 uppercase">Cost</span>
-                  <span></span>
-                </div>
-                {form.pricingTiers.map((tier, i) => (
-                  <div key={i} className="grid grid-cols-[112px_112px_24px] gap-1 items-center px-2 py-1 border-b border-gray-100 last:border-0">
-                    <input type="number" value={tier.minQty || ''} placeholder="0"
-                      className="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      onChange={e => setForm(f => ({
-                        ...f,
-                        pricingTiers: f.pricingTiers.map((t, idx) => idx === i ? { ...t, minQty: parseFloat(e.target.value) || 0 } : t),
-                      }))} />
-                    <div className="relative">
-                      <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]">$</span>
-                      <input type="number" value={tier.costPerUnit || ''} placeholder="0.00"
-                        className="w-full pl-4 pr-1 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        onChange={e => setForm(f => ({
-                          ...f,
-                          pricingTiers: f.pricingTiers.map((t, idx) => idx === i ? { ...t, costPerUnit: parseFloat(e.target.value) || 0 } : t),
-                        }))} />
-                    </div>
-                    <button type="button" onClick={() => setForm(f => ({ ...f, pricingTiers: f.pricingTiers.filter((_, idx) => idx !== i) }))}
-                      className="p-0.5 text-gray-300 hover:text-red-500 transition-colors">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ── Minimum Charge ── */}
-          <div className="w-36">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              <Tip label="Minimum Charge" tip="If the calculated total is below this amount, this minimum will be charged instead. Set to 0 for no minimum." />
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-              <input type="number" value={form.minimumCharge || ''}
-                onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))}
-                className="w-full pl-8 px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent placeholder-gray-400 transition-all" />
-            </div>
-          </div>
-
-          {/* ── Markup (last — applies on top of everything) ── */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              <Tip label="Markup" tip="Profit margin added on top of the material cost. Choose the type that matches your pricing strategy." />
-            </label>
-            <div className="flex gap-3 items-end">
-              <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
-                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'percent' }))}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                    form.markupType === 'percent' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
-                  }`}>
-                  Per Unit %
-                </button>
-                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'fixed' }))}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                    form.markupType === 'fixed' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
-                  }`}>
-                  Per Unit $
-                </button>
-                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'global_percent' }))}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                    form.markupType === 'global_percent' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
-                  }`}>
-                  Global Total %
-                </button>
-                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'global_flat' }))}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                    form.markupType === 'global_flat' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
-                  }`}>
-                  Flat Total $
-                </button>
-              </div>
-              <div className="w-28">
-                <Input
-                  type="number"
-                  value={form.markup}
-                  onChange={e => setForm(f => ({ ...f, markup: parseFloat(e.target.value) || 0 }))}
-                  prefix={form.markupType === 'fixed' || form.markupType === 'global_flat' ? '$' : undefined}
-                  suffix={form.markupType === 'percent' || form.markupType === 'global_percent' ? '%' : undefined}
-                />
-              </div>
-            </div>
-            <p className="text-[10px] text-gray-400 mt-1.5">
-              {form.markupType === 'percent' && 'Percentage added to each unit cost.'}
-              {form.markupType === 'fixed' && 'Fixed dollar amount added to each unit cost.'}
-              {form.markupType === 'global_percent' && 'Percentage applied to the calculated order total.'}
-              {form.markupType === 'global_flat' && 'Flat dollar amount added to the order total, regardless of quantity.'}
-            </p>
-          </div>
-
-          {/* ── Test Price Calculator ── */}
-          {(() => {
-            const preview = { ...form, materialType: form.materialType || 'paper', pricingModel: form.pricingModel || 'cost_per_m' } as PricingMaterial;
-            const baseCostPerUnit = getUnitCost(preview);
-            const unitLabel = getUnitLabel(preview);
-            const model = form.pricingModel || 'cost_per_m';
-
-            if (baseCostPerUnit <= 0 && !showTestPanel) return (
-              <button type="button" onClick={() => setShowTestPanel(true)}
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:text-amber-900 transition-colors opacity-50 cursor-not-allowed" disabled>
-                <FlaskConical className="w-3.5 h-3.5" /> Test Price
-              </button>
-            );
-
-            // Determine quantity label and how to interpret testQty
-            const matType = form.materialType || 'paper';
-            const qtyLabel = model === 'cost_per_sqft' ? 'Sq Ft' : model === 'cost_per_m' ? (matType === 'blanks' ? 'Items' : 'Sheets') : 'Units';
-
-            // Tier lookup: tiers store costPerUnit in the same unit as the base cost field
-            // For cost_per_m, tiers store price-per-M → divide by 1000 to get per-sheet
-            // For cost_per_unit / cost_per_sqft, tiers store the direct per-unit / per-sqft cost
-            const tierRaw = getTierCost(preview, testQty);
-            const tierCostPerUnit = tierRaw !== null
-              ? (model === 'cost_per_m' ? tierRaw / 1000 : tierRaw)
-              : null;
-
-            const effectiveCostPerUnit = tierCostPerUnit !== null ? tierCostPerUnit : baseCostPerUnit;
-
-            // Markup & sell via getOrderSell
-            const orderResult = getOrderSell(
-              { ...preview, markupType: form.markupType, markup: form.markup } as PricingMaterial,
-              testQty,
-              effectiveCostPerUnit,
-            );
-            const { sellPerUnit, markupPerUnit, totalSell, isGlobalMarkup } = orderResult;
-
-            // Totals
-            const totalCost = effectiveCostPerUnit * testQty;
-            const minApplied = form.minimumCharge > 0 && totalSell < form.minimumCharge;
-            const finalTotal = minApplied ? form.minimumCharge : totalSell;
-
-            // For display: show the tier raw value in the user's configured unit
-            const tierDisplayLabel = model === 'cost_per_m' ? '/M' : unitLabel;
-            const tierDisplayValue = tierRaw;
-
-            return (
-              <div className="space-y-2">
-                <button type="button" onClick={() => setShowTestPanel(p => !p)}
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:text-amber-900 transition-colors">
-                  <FlaskConical className="w-3.5 h-3.5" />
-                  {showTestPanel ? 'Hide Test' : 'Test Price'}
-                </button>
-
-                {showTestPanel && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <FlaskConical className="w-3.5 h-3.5 text-amber-600" />
-                        <span className="text-[11px] font-semibold text-amber-800">Test Price Calculator</span>
-                      </div>
-                      <button type="button" onClick={() => setShowTestPanel(false)} className="p-0.5 hover:bg-amber-100 rounded">
-                        <X className="w-3.5 h-3.5 text-amber-500" />
-                      </button>
-                    </div>
-
-                    {/* Test quantity input */}
-                    <div className="flex items-center gap-2">
-                      <label className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide whitespace-nowrap">
-                        Test {qtyLabel}
-                      </label>
-                      <input type="number" value={testQty}
-                        onChange={e => setTestQty(parseInt(e.target.value) || 0)}
-                        className="w-28 px-2 py-1 text-sm bg-white border border-amber-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500" />
-                    </div>
-
-                    {/* Results */}
-                    <div className="bg-white/60 rounded-md px-3 py-2 space-y-1">
-                      {/* Per-unit breakdown */}
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-gray-600">Base cost{unitLabel}:</span>
-                        <span className="font-medium text-gray-900">{formatCurrency(baseCostPerUnit)}</span>
-                      </div>
-                      {tierCostPerUnit !== null && tierDisplayValue !== null && (
-                        <div className="flex justify-between text-[11px]">
-                          <span className="text-gray-500">Tier price{tierDisplayLabel} (≥{testQty.toLocaleString()}):</span>
-                          <span className="font-medium text-purple-700">{formatCurrency(tierDisplayValue)}</span>
-                        </div>
-                      )}
-                      {tierCostPerUnit !== null && model === 'cost_per_m' && (
-                        <div className="flex justify-between text-[11px]">
-                          <span className="text-gray-500">Tier cost{unitLabel}:</span>
-                          <span className="font-medium text-purple-700">{formatCurrency(tierCostPerUnit)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-gray-500">+ Markup ({form.markupType === 'percent' ? `${form.markup}%/unit` : form.markupType === 'fixed' ? `${formatCurrency(form.markup)}/unit` : form.markupType === 'global_percent' ? `${form.markup}% on total` : `${formatCurrency(form.markup)} flat total`}):</span>
-                        <span className="font-medium text-gray-700">{isGlobalMarkup ? formatCurrency(totalSell - (effectiveCostPerUnit * testQty)) + ' total' : formatCurrency(markupPerUnit) + unitLabel}</span>
-                      </div>
-                      <div className="flex justify-between text-[11px] pt-1 border-t border-amber-200/60">
-                        <span className="text-gray-600 font-medium">Sell{unitLabel}:</span>
-                        <span className="font-semibold text-blue-700">{formatCurrency(sellPerUnit)}</span>
-                      </div>
-
-                      {/* Totals */}
-                      <div className="flex justify-between text-[11px] pt-1.5 mt-1.5 border-t border-amber-200">
-                        <span className="text-gray-500">× {testQty.toLocaleString()} {qtyLabel.toLowerCase()}</span>
-                        <span></span>
-                      </div>
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-gray-500">Total cost:</span>
-                        <span className="font-medium text-gray-900">{formatCurrency(totalCost)}</span>
-                      </div>
-                      <div className="flex justify-between text-[11px]">
-                        <span className="font-semibold text-amber-800">Total sell:</span>
-                        <span className="font-bold text-amber-900">{formatCurrency(finalTotal)}</span>
-                      </div>
-                      {minApplied && (
-                        <div className="text-[10px] text-amber-700 bg-amber-100 rounded px-2 py-1 mt-1">
-                          Calculated total {formatCurrency(totalSell)} is below minimum — {formatCurrency(form.minimumCharge)} charged instead
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-              </div>
-            )}
-          </div>
 
         </div>}
 
