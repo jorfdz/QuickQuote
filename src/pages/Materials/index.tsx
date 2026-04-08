@@ -1872,6 +1872,36 @@ export const Materials: React.FC = () => {
           })()}
 
           <div className="border-t border-gray-200" />
+
+          {/* ── Include in Categories ── */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              <Tip label="Include in Categories" tip="Select which product categories this material belongs to. A material can belong to multiple categories." />
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {categories.map(c => {
+                const isSelected = form.categoryIds.includes(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => toggleFormCategory(c.id)}
+                    className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
+                      isSelected
+                        ? 'bg-purple-600 text-white border-purple-600'
+                        : 'border-gray-200 text-gray-500 hover:border-purple-300 hover:text-purple-600'
+                    }`}
+                  >
+                    {c.name}
+                  </button>
+                );
+              })}
+              {categories.length === 0 && (
+                <p className="text-[10px] text-gray-400">No categories available. Create categories in Settings first.</p>
+              )}
+            </div>
+          </div>
+
           {/* ── Product & Category Assignments ── */}
           {(() => {
             const totalSelected = form.categoryIds.length + form.productIds.length;
