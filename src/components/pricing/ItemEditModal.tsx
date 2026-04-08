@@ -2565,33 +2565,40 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
     return parseFloat(n.toFixed(dp)).toString();
   };
 
+  // ── Shared padding — every header and every cell uses the same px so columns line up ──
+  const COL_PX = 'px-2';   // 8px left+right — applies to th AND td uniformly
+
+  // Inputs: no outer cell padding needed since the cell already has COL_PX;
+  // inputs themselves get minimal inner padding so they fill the column cleanly.
   const inp = (extra = '') =>
-    `w-full px-1 py-1 text-[11px] text-right num bg-white border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent transition-colors ${extra}`;
+    `w-full px-1.5 py-1 text-[11px] text-right num bg-white border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent transition-colors ${extra}`;
   const inpSky = (err = false) =>
-    `w-full px-1 py-1 text-[11px] text-right num bg-sky-50/60 border rounded focus:outline-none focus:ring-1 transition-colors ${err ? 'border-red-400 focus:ring-red-300 text-red-700' : 'border-sky-300 focus:ring-sky-300 text-sky-800'}`;
+    `w-full px-1.5 py-1 text-[11px] text-right num bg-sky-50/60 border rounded focus:outline-none focus:ring-1 transition-colors ${err ? 'border-red-400 focus:ring-red-300 text-red-700' : 'border-sky-300 focus:ring-sky-300 text-sky-800'}`;
   const inpViolet = (err = false) =>
-    `w-full px-1 py-1 text-[11px] text-right num bg-violet-50/40 border rounded focus:outline-none focus:ring-1 transition-colors ${err ? 'border-red-400 focus:ring-red-300 text-red-700' : 'border-violet-200 focus:ring-violet-300 text-violet-800'}`;
+    `w-full px-1.5 py-1 text-[11px] text-right num bg-violet-50/40 border rounded focus:outline-none focus:ring-1 transition-colors ${err ? 'border-red-400 focus:ring-red-300 text-red-700' : 'border-violet-200 focus:ring-violet-300 text-violet-800'}`;
   const inpEmerald = (bold = false) =>
-    `w-full px-1 py-1 text-[11px] text-right num bg-emerald-50/80 border border-emerald-200 rounded focus:outline-none focus:ring-1 focus:ring-emerald-300 transition-colors text-emerald-900 ${bold ? 'font-bold' : ''}`;
+    `w-full px-1.5 py-1 text-[11px] text-right num bg-emerald-50/80 border border-emerald-200 rounded focus:outline-none focus:ring-1 focus:ring-emerald-300 transition-colors text-emerald-900 ${bold ? 'font-bold' : ''}`;
   const totInp = (hasError: boolean, extra = '') =>
-    `w-full px-1 py-1 text-[11px] text-right num border rounded focus:outline-none focus:ring-1 transition-colors font-bold ${
+    `w-full px-1.5 py-1 text-[11px] text-right num border rounded focus:outline-none focus:ring-1 transition-colors font-bold ${
       hasError
         ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300'
         : 'border-emerald-300 bg-emerald-50 text-emerald-800 focus:ring-emerald-300'
     } ${extra}`;
 
-  // Header + cell class shorthands
-  const thBase  = 'py-1 px-1 text-[8px] font-bold uppercase tracking-wider text-right whitespace-nowrap';
-  const thCost  = `${thBase} text-gray-500 bg-gray-50`;
+  // Headers — all right-aligned, same px as cells, no extra padding
+  const thBase  = `py-1.5 ${COL_PX} text-[8px] font-bold uppercase tracking-wider text-right whitespace-nowrap`;
   const thTime  = `${thBase} text-sky-600 bg-sky-50`;
   const thVio   = `${thBase} text-violet-600 bg-violet-50`;
   const thSell  = `${thBase} text-emerald-600 bg-emerald-50`;
-  const tdCls   = 'py-1.5 px-1';
-  const tdTime  = 'py-1.5 px-1 bg-sky-50/40';
-  const tdVio   = 'py-1.5 px-1 bg-violet-50/30';
-  const tdSell  = 'py-1.5 px-1 bg-emerald-50/60';
+
+  // Cells — same px as headers; content (span or input) fills to edge
+  const tdCls   = `py-1.5 ${COL_PX}`;
+  const tdTime  = `py-1.5 ${COL_PX} bg-sky-50/40`;
+  const tdVio   = `py-1.5 ${COL_PX} bg-violet-50/30`;
+  const tdSell  = `py-1.5 ${COL_PX} bg-emerald-50/60`;
   const numCls  = 'text-[11px] num';
-  const dimCls  = 'text-gray-300 text-right block text-[11px]';
+  // Dash placeholder: right-aligned, same width as an input so the column doesn't shift
+  const dimCls  = 'text-gray-300 text-right block text-[11px] w-full';
 
   const mkOrProfit = (mk: number) => showProfit ? markupToProfit(mk) : mk;
   const pctLabel = showProfit ? 'Profit %' : 'Markup %';
@@ -2690,23 +2697,23 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                 </th>
                 <th className="pb-0 pt-1 bg-emerald-50 border-l-2 border-emerald-400" colSpan={2} />
               </tr>
-              {/* ── Column labels ── */}
+              {/* ── Column labels ── all use same px as cells for alignment ── */}
               <tr className="border-b-2 border-gray-200">
-                <th className="py-1 pl-3 pr-1 text-[8px] font-bold text-gray-400 uppercase tracking-wider text-left whitespace-nowrap">Service</th>
-                <th className="py-1 pl-2 pr-1 text-[8px] font-bold text-gray-400 uppercase tracking-wider text-left whitespace-nowrap">Description</th>
-                {/* TIME */}
+                <th className={`py-1.5 pl-3 pr-2 text-[8px] font-bold text-gray-400 uppercase tracking-wider text-left whitespace-nowrap`}>Service</th>
+                <th className={`py-1.5 pl-2 pr-2 text-[8px] font-bold text-gray-400 uppercase tracking-wider text-left whitespace-nowrap`}>Description</th>
+                {/* TIME — right-aligned to match number content */}
                 <th className={`${thTime} border-l border-sky-200`}>$/hr</th>
                 <th className={thTime}>Actual</th>
                 <th className={`${thTime} text-sky-700`}>Charge ✎</th>
                 <th className={thTime}>Cost $</th>
-                {/* QTY */}
+                {/* USAGE */}
                 <th className={`${thVio} border-l border-violet-200`}>Actual</th>
                 <th className={`${thVio} text-violet-700`}>Charge ✎</th>
                 <th className={thVio}>Unit $</th>
                 <th className={thVio}>Cost $</th>
                 {/* SELL */}
                 <th className={`${thSell} border-l-2 border-emerald-400`}>{pctLabel}</th>
-                <th className={`${thSell} pr-2`}>Sell $</th>
+                <th className={`${thSell}`}>Sell $</th>
               </tr>
             </thead>
 
@@ -2723,30 +2730,32 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
 
                 return (
                   <tr key={line.id} className={`transition-colors ${isLocked ? 'bg-amber-50/20 hover:bg-amber-50/30' : 'hover:bg-gray-50/60'}`}>
-                    {/* Service */}
+                    {/* Service — left-aligned, same pl as header */}
                     <td className={`${tdCls} pl-3`}>
-                      <div className="flex items-center gap-1 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <span className={`w-1.5 h-1.5 rounded-sm flex-shrink-0 ${accent.dot}`} />
                         <span className={`font-semibold text-gray-800 truncate ${numCls}`}>{line.service}</span>
                       </div>
                     </td>
-                    {/* Description */}
+                    {/* Description — left-aligned, same pl as header */}
                     <td className={`${tdCls} pl-2`} style={{ maxWidth: 0 }}>
                       <span className="text-gray-500 block truncate" title={line.description}>{line.description}</span>
                     </td>
 
-                    {/* ── TIME cols ── */}
-                    {/* $/hr */}
-                    <td className={`${tdTime} border-l border-sky-100 text-right`}>
-                      {timeBased ? <span className={`text-sky-700 font-medium ${numCls}`}>{formatCurrency(line.hourlyCost!)}</span> : <span className={dimCls}>—</span>}
-                    </td>
-                    {/* Actual time (read-only) — always in minutes, rounded up */}
-                    <td className={`${tdTime} text-right`}>
+                    {/* ── TIME zone ── */}
+                    {/* $/hr — read-only, right-aligned span */}
+                    <td className={`${tdTime} border-l border-sky-200`}>
                       {timeBased
-                        ? <span className={`text-gray-400 ${numCls}`}>{fmtHours(line.hoursActual!)}</span>
+                        ? <span className={`text-sky-700 font-medium ${numCls} block text-right`}>{formatCurrency(line.hourlyCost!)}</span>
                         : <span className={dimCls}>—</span>}
                     </td>
-                    {/* Charge time (editable) — enter minutes */}
+                    {/* Actual time — read-only, right-aligned */}
+                    <td className={tdTime}>
+                      {timeBased
+                        ? <span className={`text-gray-400 ${numCls} block text-right`}>{fmtHours(line.hoursActual!)}</span>
+                        : <span className={dimCls}>—</span>}
+                    </td>
+                    {/* Charge time — editable input fills full column */}
                     <td className={tdTime}>
                       {timeBased ? (
                         <input
@@ -2761,37 +2770,35 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                         />
                       ) : <span className={dimCls}>—</span>}
                     </td>
-                    {/* Time cost $ */}
-                    <td className={`${tdTime} text-right`}>
-                      {timeBased ? <span className={`text-sky-800 font-semibold ${numCls}`}>{formatCurrency(line.totalCost)}</span> : <span className={dimCls}>—</span>}
+                    {/* Time cost — read-only, right-aligned */}
+                    <td className={tdTime}>
+                      {timeBased
+                        ? <span className={`text-sky-800 font-semibold ${numCls} block text-right`}>{formatCurrency(line.totalCost)}</span>
+                        : <span className={dimCls}>—</span>}
                     </td>
 
-                    {/* ── QTY cols ── */}
-                    {/* Actual qty (read-only) */}
-                    <td className={`${tdVio} border-l border-violet-100 text-right`}>
+                    {/* ── USAGE zone ── */}
+                    {/* Actual qty — read-only, right-aligned */}
+                    <td className={`${tdVio} border-l border-violet-200`}>
                       {qtyBased && line.quantity != null
-                        ? <span className={`text-gray-400 ${numCls}`}>{line.quantity.toLocaleString()}<span className="text-[9px] ml-0.5">{line.unit}</span></span>
-                        : <span className={dimCls}>—</span>
-                      }
+                        ? <span className={`text-gray-400 ${numCls} block text-right`}>{line.quantity.toLocaleString()}<span className="text-[9px] ml-0.5">{line.unit}</span></span>
+                        : <span className={dimCls}>—</span>}
                     </td>
-                    {/* Charge qty (editable) */}
+                    {/* Charge qty — editable input */}
                     <td className={tdVio}>
                       {qtyBased && line.quantity != null ? (
                         <input
                           type="number" step="1" min="1"
                           value={qtyInputs[line.id] ?? chargeQty}
-                          onChange={e => {
-                            setQtyInputs(q => ({ ...q, [line.id]: e.target.value }));
-                            setQtyErrors(q => ({ ...q, [line.id]: false }));
-                          }}
+                          onChange={e => { setQtyInputs(q => ({ ...q, [line.id]: e.target.value })); setQtyErrors(q => ({ ...q, [line.id]: false })); }}
                           onBlur={() => commitChargeQty(line.id)}
                           onKeyDown={e => { if (e.key === 'Enter') commitChargeQty(line.id); }}
                           className={inpViolet(qtyErr)}
-                          title="Billable quantity — defaults to actual, adjust to charge differently"
+                          title="Billable quantity"
                         />
                       ) : <span className={dimCls}>—</span>}
                     </td>
-                    {/* Unit $ — editable, 3 decimal places; changing it recalculates cost+sell */}
+                    {/* Unit $ — editable, 3 dp */}
                     <td className={tdVio}>
                       {(qtyBased || line.service === 'Setup') && line.unitCost > 0 ? (
                         <input
@@ -2799,11 +2806,11 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                           value={parseFloat(line.unitCost.toFixed(3))}
                           onChange={e => updateField(line.id, 'unitCost', e.target.value)}
                           className={inpViolet(false)}
-                          title="Unit cost — changing this recalculates total cost and sell price"
+                          title="Unit cost"
                         />
                       ) : <span className={dimCls}>—</span>}
                     </td>
-                    {/* Cost $ (editable direct override) */}
+                    {/* Cost $ — editable */}
                     <td className={tdVio}>
                       <input
                         type="number" step="0.01" min="0"
@@ -2813,17 +2820,17 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                       />
                     </td>
 
-                    {/* ── SELL cols ── */}
-                    {/* Markup or Profit % — 2 decimal places */}
+                    {/* ── SELL zone ── */}
+                    {/* Markup / Profit % */}
                     <td className={`${tdSell} border-l-2 border-emerald-400`}>
                       <div className="relative">
                         <input
                           type="number" step="0.01"
                           value={fmtNum(pctVal, 2)}
                           onChange={e => updateField(line.id, showProfit ? 'profitPercent' : 'markupPercent', e.target.value)}
-                          className={`${inpEmerald(true)} pr-4 ${pctVal > 0 ? 'font-semibold' : 'text-gray-400'}`}
+                          className={`${inpEmerald(true)} pr-5 ${pctVal > 0 ? 'font-semibold' : 'text-gray-400'}`}
                         />
-                        <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px] text-emerald-400 pointer-events-none">{pctSuffix}</span>
+                        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] text-emerald-400 pointer-events-none">{pctSuffix}</span>
                       </div>
                     </td>
                     {/* Sell $ — with lock button */}
@@ -2873,21 +2880,21 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                     )}
                   </span>
                 </td>
-                {/* TIME total cells */}
-                <td className={`py-1.5 px-1 ${tdTime} border-l border-sky-200`} colSpan={2} />
-                <td className={`py-1.5 px-1 ${tdTime} text-right ${numCls} text-sky-600`}>
+                {/* TIME total cells — same padding as body */}
+                <td className={`${tdTime} border-l border-sky-200`} colSpan={2} />
+                <td className={`${tdTime} ${numCls} text-right text-sky-600 font-medium`}>
                   {fmtHours(localLines.reduce((s, l) => s + (l.hoursCharge ?? l.hoursActual ?? 0), 0))}
                 </td>
-                <td className={`py-1.5 px-1 ${tdTime} text-right ${numCls} text-sky-700 font-semibold`}>
+                <td className={`${tdTime} ${numCls} text-right text-sky-700 font-semibold`}>
                   {formatCurrency(localLines.filter(isTimeBased).reduce((s, l) => s + l.totalCost, 0))}
                 </td>
-                {/* QTY total cells */}
-                <td className={`py-1.5 px-1 ${tdVio} border-l border-violet-200`} colSpan={3} />
-                <td className={`py-1.5 px-1 ${tdVio} text-right ${numCls} font-bold text-gray-800`}>
+                {/* USAGE total cells */}
+                <td className={`${tdVio} border-l border-violet-200`} colSpan={3} />
+                <td className={`${tdVio} ${numCls} text-right font-bold text-gray-800`}>
                   {formatCurrency(totalCost)}
                 </td>
-                {/* Markup/Profit % total — editable */}
-                <td className="py-1 px-1 bg-emerald-50/80 border-l-2 border-emerald-400">
+                {/* Markup/Profit % total — same px, editable */}
+                <td className={`py-1 ${COL_PX} bg-emerald-50/80 border-l-2 border-emerald-400`}>
                   {totalMarkupInput !== null ? (
                     <div className="relative">
                       <input
@@ -2899,23 +2906,23 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                           if (e.key === 'Enter') applyTotalMarkup((e.target as HTMLInputElement).value);
                           if (e.key === 'Escape') { setTotalMarkupInput(null); setTotalMarkupError(false); }
                         }}
-                        className={`${totInp(totalMarkupError)} pr-3`}
+                        className={`${totInp(totalMarkupError)} pr-4`}
                         placeholder={showProfit ? '60' : '80'}
                       />
-                      <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px] text-emerald-600 pointer-events-none">{pctSuffix}</span>
+                      <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] text-emerald-600 pointer-events-none">{pctSuffix}</span>
                     </div>
                   ) : (
                     <button type="button"
                       onClick={() => setTotalMarkupInput(fmtNum(mkOrProfit(totalMarkup)))}
                       title={`Click to set all lines to this ${pctLabel}`}
-                      className={`w-full px-1 py-1 text-right ${numCls} font-bold rounded border border-dashed border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100/60 transition-colors text-emerald-700`}
+                      className={`w-full px-1.5 py-1 text-right ${numCls} font-bold rounded border border-dashed border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100/60 transition-colors text-emerald-700`}
                     >
                       {mkOrProfit(totalMarkup).toFixed(2)}{pctSuffix}
                     </button>
                   )}
                 </td>
-                {/* Sell $ total — editable */}
-                <td className="py-1 px-1 pr-3 bg-emerald-50/80">
+                {/* Sell $ total — same px */}
+                <td className={`py-1 ${COL_PX} bg-emerald-50/80`}>
                   {totalSellInput !== null ? (
                     <input
                       type="number" step="0.01" min="0" autoFocus
@@ -2933,7 +2940,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                     <button type="button"
                       onClick={() => setTotalSellInput(fmtNum(totalSell))}
                       title="Click to scale all sell prices to this total"
-                      className={`w-full px-1 py-1 text-right ${numCls} text-[12px] font-bold rounded border border-dashed border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100/60 transition-colors text-emerald-900`}
+                      className={`w-full px-1.5 py-1 text-right ${numCls} text-[12px] font-bold rounded border border-dashed border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100/60 transition-colors text-emerald-900`}
                     >
                       {formatCurrency(totalSell)}
                     </button>
