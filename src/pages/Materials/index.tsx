@@ -291,12 +291,18 @@ export const Materials: React.FC = () => {
   }, []);
 
   const toggleFormProduct = useCallback((prodId: string) => {
-    setForm(f => ({
-      ...f,
-      productIds: f.productIds.includes(prodId)
-        ? f.productIds.filter(id => id !== prodId)
-        : [...f.productIds, prodId],
-    }));
+    setForm(f => {
+      const removing = f.productIds.includes(prodId);
+      return {
+        ...f,
+        productIds: removing
+          ? f.productIds.filter(id => id !== prodId)
+          : [...f.productIds, prodId],
+        favoriteProductIds: removing
+          ? f.favoriteProductIds.filter(id => id !== prodId)
+          : f.favoriteProductIds.includes(prodId) ? f.favoriteProductIds : [...f.favoriteProductIds, prodId],
+      };
+    });
   }, []);
 
   const removeFormProduct = useCallback((prodId: string) => {
@@ -1909,7 +1915,7 @@ export const Materials: React.FC = () => {
               <div className="flex" style={{ minHeight: '280px' }}>
 
                 {/* Left panel — Search & browse products */}
-                <div className="w-72 flex flex-col border-r border-gray-200">
+                <div className="w-1/2 flex flex-col border-r border-gray-200">
                   <div className="p-2.5 border-b border-gray-100 bg-gray-50/50">
                     <div className="relative">
                       <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1955,7 +1961,7 @@ export const Materials: React.FC = () => {
                 </div>
 
                 {/* Right panel — Selected products */}
-                <div className="flex-1 flex flex-col">
+                <div className="w-1/2 flex flex-col">
                   <div className="px-3 py-2 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
                     <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                       Selected {form.productIds.length > 0 && <span className="text-blue-600">({form.productIds.length})</span>}
@@ -1981,26 +1987,18 @@ export const Materials: React.FC = () => {
                         {form.productIds.map(pid => {
                           const prod = products.find(p => p.id === pid);
                           if (!prod) return null;
-                          const isProdFav = form.favoriteProductIds.includes(pid);
                           return (
                             <div key={`sel-${pid}`} className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-blue-50 group">
                               <button
                                 type="button"
-                                onClick={() => toggleProductFavorite(pid)}
+                                onClick={() => removeFormProduct(pid)}
                                 className="p-0.5 flex-shrink-0 transition-colors"
-                                title={isProdFav ? 'Remove from favorites' : 'Mark as favorite'}
+                                title="Remove from favorites"
                               >
-                                <Star className={`w-3.5 h-3.5 ${isProdFav ? 'fill-amber-400 text-amber-400' : 'text-gray-300 hover:text-amber-300'}`} />
+                                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 hover:fill-amber-200 hover:text-amber-200" />
                               </button>
                               <Package className="w-3 h-3 text-blue-500 flex-shrink-0" />
                               <span className="text-xs font-medium text-blue-700 flex-1 truncate">{prod.name}</span>
-                              <button
-                                type="button"
-                                onClick={() => removeFormProduct(pid)}
-                                className="p-0.5 rounded hover:bg-blue-200 opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <X className="w-3 h-3 text-blue-500" />
-                              </button>
                             </div>
                           );
                         })}
