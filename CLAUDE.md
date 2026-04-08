@@ -63,6 +63,10 @@ All modals keep a `max-h-[90vh]` constraint with scrollable body content. The `M
 </Modal>
 ```
 
+### Number & Currency Inputs
+
+All `<input type="number">` fields **must not** display browser-native spin buttons (up/down arrows). This is enforced globally via CSS in `src/index.css`. Never add styles that re-enable the spinners. If a field needs increment/decrement controls, build custom buttons instead.
+
 ### Lists & Tables
 
 Every list/table view **must** include all of the following:
