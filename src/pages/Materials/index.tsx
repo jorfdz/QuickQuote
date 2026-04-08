@@ -231,8 +231,6 @@ export const Materials: React.FC = () => {
 
   // Product & category assignment state
   const [productSearch, setProductSearch] = useState('');
-  const [assignmentsCollapsed, setAssignmentsCollapsed] = useState(false);
-  const [costConfigCollapsed, setCostConfigCollapsed] = useState(false);
   const [browseCategoryFilter, setBrowseCategoryFilter] = useState<string>('all');
   const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
   const groupDropdownRef = useRef<HTMLDivElement>(null);
@@ -1468,29 +1466,6 @@ export const Materials: React.FC = () => {
               </div>
             </div>
           </div>
-          {/* ── Material Attributes & Cost Configurations (collapsible) ── */}
-          <div className="border-t border-gray-200 pt-4">
-            <button
-              type="button"
-              onClick={() => setCostConfigCollapsed(c => !c)}
-              className="w-full flex items-center justify-between group"
-            >
-              <div className="flex items-center gap-2">
-                {costConfigCollapsed
-                  ? <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
-                  : <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />}
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Material Attributes &amp; Cost Configurations</h3>
-              </div>
-              {costConfigCollapsed && (
-                <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                  {MATERIAL_TYPE_LABELS[form.materialType]} · {PRICING_MODEL_LABELS[form.pricingModel]} · {form.markupType === 'multiplier' ? `${form.markup}×` : form.markupType === 'profit_percent' ? `${form.markup}% margin` : `${form.markup}%`}
-                </span>
-              )}
-            </button>
-
-            {!costConfigCollapsed && (
-              <div className="mt-3 space-y-4 pl-6">
-
           {/* ── Material Type toggle ── */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
@@ -1883,61 +1858,10 @@ export const Materials: React.FC = () => {
             );
           })()}
 
-              </div>
-            )}
-          </div>
-
-          {/* ── Product & Category Assignments (collapsible) ── */}
+          {/* ── Product & Category Assignments ── */}
           {(() => {
             const totalSelected = form.categoryIds.length + form.productIds.length;
             return (
-              <div className="border-t border-gray-200 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setAssignmentsCollapsed(c => !c)}
-                  className="w-full flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-2">
-                    {assignmentsCollapsed
-                      ? <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
-                      : <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />}
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Product &amp; Category Assignments</h3>
-                  </div>
-                  {totalSelected > 0 && (
-                    <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                      {totalSelected} selected
-                    </span>
-                  )}
-                </button>
-
-                {/* Collapsed summary */}
-                {assignmentsCollapsed && totalSelected > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-2 pl-6">
-                    {form.categoryIds.map(cid => {
-                      const cat = categories.find(c => c.id === cid);
-                      if (!cat) return null;
-                      return (
-                        <span key={`cat-${cid}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 text-[10px] font-medium">
-                          <Layers className="w-2.5 h-2.5" />
-                          {cat.name}
-                        </span>
-                      );
-                    })}
-                    {form.productIds.map(pid => {
-                      const prod = products.find(p => p.id === pid);
-                      if (!prod) return null;
-                      return (
-                        <span key={`prod-${pid}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-medium">
-                          <Package className="w-2.5 h-2.5" />
-                          {prod.name}
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Expanded assignments panel */}
-                {!assignmentsCollapsed && (
                   <div className="mt-3 border border-gray-200 rounded-lg overflow-hidden">
                     {/* Two-column layout: left = related items, right = browser */}
                     <div className="flex" style={{ minHeight: '320px' }}>
@@ -2214,8 +2138,6 @@ export const Materials: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
             );
           })()}
 
