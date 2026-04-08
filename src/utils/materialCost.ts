@@ -49,21 +49,24 @@ export const getTierCost = (m: PricingMaterial, qty: number): number | null => {
   return tier ? tier.costPerUnit : null;
 };
 
-/** Sell price per unit, applying markup (percent, per-unit fixed, or global types).
- *  Note: 'global_flat' and 'global_percent' are applied on the total — they cannot be
- *  expressed per-unit without knowing quantity, so we return base cost here.
- *  Use getOrderSell() for total calculations that include global markup types. */
+/** Sell price per unit, applying markup.
+ *  - percent:       sell = cost × (1 + markup/100)       e.g. markup=70 → +70%
+ *  - multiplier:    sell = cost × markup                  e.g. markup=1.7 → 1.7× cost
+ *  - profit_percent: sell = cost / (1 - markup/100)       e.g. markup=30 → 30% gross margin
+ */
 export const getUnitSell = (m: PricingMaterial): number => {
   const cost = getUnitCost(m);
   const type = m.markupType || 'percent';
-  if (type === 'fixed') {
-    return cost + (m.markup || 0);
+  const markupVal = m.markup || 0;
+  if (type === 'multiplier') {
+    return cost * (markupVal || 1);
   }
-  if (type === 'global_flat' || type === 'global_percent') {
-    // Can't express a global markup per-unit without qty; return cost as-is
-    return cost;
+  if (type === 'profit_percent') {
+    const margin = Math.min(markupVal, 99.99) / 100;
+    return margin < 1 ? cost / (1 - margin) : cost;
   }
-  return cost * (1 + (m.markup || 0) / 100);
+  // percent (default)
+  return cost * (1 + markupVal / 100);
 };
 
 /** Calculate total sell for a given quantity, properly handling all markup types */
@@ -72,25 +75,16 @@ export const getOrderSell = (m: PricingMaterial, qty: number, effectiveCostPerUn
   const type = m.markupType || 'percent';
   const markupVal = m.markup || 0;
 
-  if (type === 'fixed') {
-    const markupPerUnit = markupVal;
-    const sellPerUnit = costPerUnit + markupPerUnit;
+  if (type === 'multiplier') {
+    const sellPerUnit = costPerUnit * (markupVal || 1);
+    const markupPerUnit = sellPerUnit - costPerUnit;
     return { sellPerUnit, markupPerUnit, totalSell: sellPerUnit * qty, isGlobalMarkup: false };
   }
-  if (type === 'global_flat') {
-    const totalCost = costPerUnit * qty;
-    const totalSell = totalCost + markupVal;
-    const sellPerUnit = qty > 0 ? totalSell / qty : costPerUnit;
-    const markupPerUnit = qty > 0 ? markupVal / qty : 0;
-    return { sellPerUnit, markupPerUnit, totalSell, isGlobalMarkup: true };
-  }
-  if (type === 'global_percent') {
-    const totalCost = costPerUnit * qty;
-    const totalMarkup = totalCost * (markupVal / 100);
-    const totalSell = totalCost + totalMarkup;
-    const sellPerUnit = qty > 0 ? totalSell / qty : costPerUnit;
-    const markupPerUnit = qty > 0 ? totalMarkup / qty : 0;
-    return { sellPerUnit, markupPerUnit, totalSell, isGlobalMarkup: true };
+  if (type === 'profit_percent') {
+    const margin = Math.min(markupVal, 99.99) / 100;
+    const sellPerUnit = margin < 1 ? costPerUnit / (1 - margin) : costPerUnit;
+    const markupPerUnit = sellPerUnit - costPerUnit;
+    return { sellPerUnit, markupPerUnit, totalSell: sellPerUnit * qty, isGlobalMarkup: false };
   }
   // percent (per unit)
   const markupPerUnit = costPerUnit * (markupVal / 100);

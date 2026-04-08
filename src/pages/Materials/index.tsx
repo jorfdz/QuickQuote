@@ -100,7 +100,7 @@ const emptyForm = {
   rollLength: 0,
   pricingTiers: [] as { minQty: number; costPerUnit: number }[],
   minimumCharge: 0,
-  markupType: 'percent' as 'percent' | 'fixed' | 'global_flat' | 'global_percent',
+  markupType: 'percent' as 'percent' | 'multiplier' | 'profit_percent',
   markup: 70,
   materialGroupIds: [] as string[],
   categoryIds: [] as string[],
@@ -175,7 +175,7 @@ export const Materials: React.FC = () => {
   const [bulkType, setBulkType] = useState<MaterialType>('paper');
   const [bulkGroupIds, setBulkGroupIds] = useState<string[]>([]);
   const [bulkGroupMode, setBulkGroupMode] = useState<'add' | 'replace'>('add');
-  const [bulkMarkupType, setBulkMarkupType] = useState<'percent' | 'fixed' | 'global_percent' | 'global_flat'>('percent');
+  const [bulkMarkupType, setBulkMarkupType] = useState<'percent' | 'multiplier' | 'profit_percent'>('percent');
   const [bulkMarkupValue, setBulkMarkupValue] = useState(0);
   const [bulkVendor, setBulkVendor] = useState('');
   const [bulkFavorite, setBulkFavorite] = useState(true);
@@ -652,7 +652,7 @@ export const Materials: React.FC = () => {
     }
     if (field === 'materialType') return MATERIAL_TYPE_LABELS[value as MaterialType] || String(value);
     if (field === 'pricingModel') return PRICING_MODEL_LABELS[value as MaterialPricingModel] || String(value);
-    if (field === 'markupType') return value === 'percent' ? 'Per Unit %' : value === 'fixed' ? 'Per Unit $' : value === 'global_flat' ? 'Flat Total $' : value === 'global_percent' ? 'Global Total %' : String(value);
+    if (field === 'markupType') return value === 'percent' ? 'Markup %' : value === 'multiplier' ? 'Multiplier' : value === 'profit_percent' ? 'Profit %' : String(value);
     if (field === 'pricePerM' || field === 'costPerUnit' || field === 'costPerSqft' || field === 'rollCost' || field === 'minimumCharge') return `$${Number(value).toFixed(2)}`;
     if (field === 'rollLength') return `${value} ft`;
     if (field === 'markup') return String(value);
@@ -881,9 +881,9 @@ export const Materials: React.FC = () => {
 
             {bulkPanel === 'markup' && (
               <div className="mt-1.5 px-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm flex items-center gap-4 flex-wrap">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Set Markup:</span>
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Markup By:</span>
                 <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
-                  {([['percent','Per Unit %'],['fixed','Per Unit $'],['global_percent','Global %'],['global_flat','Flat $']] as const).map(([v,label]) => (
+                  {([['percent','Markup %'],['multiplier','Multiplier'],['profit_percent','Profit %']] as const).map(([v,label]) => (
                     <button key={v} type="button" onClick={() => setBulkMarkupType(v)}
                       className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${bulkMarkupType === v ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
                       {label}
@@ -891,11 +891,10 @@ export const Materials: React.FC = () => {
                   ))}
                 </div>
                 <div className="relative w-28">
-                  {(bulkMarkupType === 'fixed' || bulkMarkupType === 'global_flat') && <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>}
                   <input type="number" value={bulkMarkupValue || ''} placeholder="0"
                     onChange={e => setBulkMarkupValue(parseFloat(e.target.value) || 0)}
-                    className={`w-full py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${bulkMarkupType === 'fixed' || bulkMarkupType === 'global_flat' ? 'pl-6 pr-3' : 'pl-3 pr-6'}`} />
-                  {(bulkMarkupType === 'percent' || bulkMarkupType === 'global_percent') && <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">%</span>}
+                    className="w-full pl-3 pr-7 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">{bulkMarkupType === 'multiplier' ? '×' : '%'}</span>
                 </div>
                 <button onClick={applyBulkMarkup} className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
                   Apply to {selectedIds.size}
@@ -1082,10 +1081,9 @@ export const Materials: React.FC = () => {
                   <td className="py-3 px-4 text-sm text-gray-500 truncate max-w-[120px]" title={m.vendorName || '--'}>{m.vendorName || '--'}</td>
                   <td className="py-3 px-4 text-sm text-gray-600 font-medium">{m.materialType === 'blanks' ? '--' : m.materialType === 'roll_media' ? `${m.sizeWidth}" wide` : m.size || '--'}</td>
                   <td className="py-3 px-4 text-sm text-gray-700 font-medium">{formatCurrency(getUnitCost(m))}<span className="text-[10px] text-gray-400 ml-0.5">{getUnitLabel(m)}</span></td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{m.markupType === 'percent' || !m.markupType ? `${m.markup}%/u` : m.markupType === 'fixed' ? `$${m.markup}/u` : m.markupType === 'global_percent' ? `${m.markup}% total` : `$${m.markup} flat`}</td>
+                  <td className="py-3 px-4 text-sm text-gray-500">{m.markupType === 'multiplier' ? `${m.markup}×` : m.markupType === 'profit_percent' ? `${m.markup}% margin` : `${m.markup}%`}</td>
                   <td className="py-3 px-4 text-sm font-bold text-blue-700">
                     {formatCurrency(getUnitSell(m))}<span className="text-[10px] text-gray-400 ml-0.5">{getUnitLabel(m)}</span>
-                    {(m.markupType === 'global_flat' || m.markupType === 'global_percent') && <span className="text-[9px] text-amber-500 ml-1" title="Markup is applied on the order total">+total</span>}
                   </td>
                   <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-1">
@@ -1814,7 +1812,7 @@ export const Materials: React.FC = () => {
               </div>
               {costConfigCollapsed && (
                 <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                  {MATERIAL_TYPE_LABELS[form.materialType]} · {PRICING_MODEL_LABELS[form.pricingModel]} · {form.markupType === 'percent' ? `${form.markup}%/u` : form.markupType === 'fixed' ? `$${form.markup}/u` : form.markupType === 'global_percent' ? `${form.markup}% total` : `$${form.markup} flat`}
+                  {MATERIAL_TYPE_LABELS[form.materialType]} · {PRICING_MODEL_LABELS[form.pricingModel]} · {form.markupType === 'multiplier' ? `${form.markup}×` : form.markupType === 'profit_percent' ? `${form.markup}% margin` : `${form.markup}%`}
                 </span>
               )}
             </button>
@@ -1997,10 +1995,10 @@ export const Materials: React.FC = () => {
             </div>
           </div>
 
-          {/* ── Markup (last — applies on top of everything) ── */}
+          {/* ── Markup By (last — applies on top of everything) ── */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              <Tip label="Markup" tip="Profit margin added on top of the material cost. Choose the type that matches your pricing strategy." />
+              <Tip label="Markup By" tip="How the sell price is calculated from cost. Markup % adds a percentage on top of cost, Multiplier multiplies cost by a factor, and Profit % targets a gross margin." />
             </label>
             <div className="flex gap-3 items-end">
               <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
@@ -2008,25 +2006,19 @@ export const Materials: React.FC = () => {
                   className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
                     form.markupType === 'percent' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
                   }`}>
-                  Per Unit %
+                  Markup %
                 </button>
-                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'fixed' }))}
+                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'multiplier' }))}
                   className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                    form.markupType === 'fixed' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
+                    form.markupType === 'multiplier' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
                   }`}>
-                  Per Unit $
+                  Multiplier
                 </button>
-                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'global_percent' }))}
+                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'profit_percent' }))}
                   className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                    form.markupType === 'global_percent' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
+                    form.markupType === 'profit_percent' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
                   }`}>
-                  Global Total %
-                </button>
-                <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'global_flat' }))}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                    form.markupType === 'global_flat' ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
-                  }`}>
-                  Flat Total $
+                  Profit %
                 </button>
               </div>
               <div className="w-28">
@@ -2034,16 +2026,14 @@ export const Materials: React.FC = () => {
                   type="number"
                   value={form.markup}
                   onChange={e => setForm(f => ({ ...f, markup: parseFloat(e.target.value) || 0 }))}
-                  prefix={form.markupType === 'fixed' || form.markupType === 'global_flat' ? '$' : undefined}
-                  suffix={form.markupType === 'percent' || form.markupType === 'global_percent' ? '%' : undefined}
+                  suffix={form.markupType === 'multiplier' ? '×' : '%'}
                 />
               </div>
             </div>
             <p className="text-[10px] text-gray-400 mt-1.5">
-              {form.markupType === 'percent' && 'Percentage added to each unit cost.'}
-              {form.markupType === 'fixed' && 'Fixed dollar amount added to each unit cost.'}
-              {form.markupType === 'global_percent' && 'Percentage applied to the calculated order total.'}
-              {form.markupType === 'global_flat' && 'Flat dollar amount added to the order total, regardless of quantity.'}
+              {form.markupType === 'percent' && `Sell = cost + ${form.markup}%. e.g. cost $1.00 → sell ${(1 * (1 + form.markup / 100)).toFixed(2)}`}
+              {form.markupType === 'multiplier' && `Sell = cost × ${form.markup}. e.g. cost $1.00 → sell $${(1 * (form.markup || 1)).toFixed(2)}`}
+              {form.markupType === 'profit_percent' && `Sell = cost ÷ (1 − ${form.markup}%). e.g. cost $1.00 → sell $${(1 / (1 - Math.min(form.markup, 99.99) / 100)).toFixed(2)} (${form.markup}% margin)`}
             </p>
           </div>
 
@@ -2142,7 +2132,7 @@ export const Materials: React.FC = () => {
                         </div>
                       )}
                       <div className="flex justify-between text-[11px]">
-                        <span className="text-gray-500">+ Markup ({form.markupType === 'percent' ? `${form.markup}%/unit` : form.markupType === 'fixed' ? `${formatCurrency(form.markup)}/unit` : form.markupType === 'global_percent' ? `${form.markup}% on total` : `${formatCurrency(form.markup)} flat total`}):</span>
+                        <span className="text-gray-500">+ Markup ({form.markupType === 'multiplier' ? `${form.markup}× cost` : form.markupType === 'profit_percent' ? `${form.markup}% margin` : `${form.markup}%`}):</span>
                         <span className="font-medium text-gray-700">{isGlobalMarkup ? formatCurrency(totalSell - (effectiveCostPerUnit * testQty)) + ' total' : formatCurrency(markupPerUnit) + unitLabel}</span>
                       </div>
                       <div className="flex justify-between text-[11px] pt-1 border-t border-amber-200/60">

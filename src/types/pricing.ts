@@ -291,7 +291,7 @@ export interface MaterialPricingTier {
   costPerUnit: number;              // cost at this tier
 }
 
-export type MaterialMarkupType = 'percent' | 'fixed' | 'global_flat' | 'global_percent';
+export type MaterialMarkupType = 'percent' | 'multiplier' | 'profit_percent';
 
 export interface PricingMaterial {
   id: string;
