@@ -2021,27 +2021,45 @@ export const Materials: React.FC = () => {
 
         {/* ── Vendor Info Tab ── */}
         {modalTab === 'vendor' && (
-          <div className="space-y-6 py-2">
-            <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Vendor Details</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <Input label="Vendor Name" value={form.vendorName || ''} onChange={e => setForm(f => ({ ...f, vendorName: e.target.value }))}
-                  placeholder="e.g. Grimco Inc" />
-                <Input label="Vendor ID" value={form.vendorId || ''} onChange={e => setForm(f => ({ ...f, vendorId: e.target.value }))}
-                  placeholder="e.g. V-10042" />
-                <Input label="Vendor Material ID" value={form.vendorMaterialId || ''} onChange={e => setForm(f => ({ ...f, vendorMaterialId: e.target.value }))}
-                  placeholder="e.g. MAT-55810" />
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  <Tip label="Vendor Name" tip="The name of the supplier or vendor company that provides this material." />
+                </label>
+                <Input value={form.vendorName || ''} onChange={e => setForm(f => ({ ...f, vendorName: e.target.value }))} placeholder="e.g. Grimco Inc" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  <Tip label="Vendor ID" tip="Your account number or customer ID with this vendor. Useful for placing orders." />
+                </label>
+                <Input value={form.vendorId || ''} onChange={e => setForm(f => ({ ...f, vendorId: e.target.value }))} placeholder="e.g. V-10042" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  <Tip label="Vendor Material ID" tip="The vendor's SKU or part number for this specific material. Used when reordering." />
+                </label>
+                <Input value={form.vendorMaterialId || ''} onChange={e => setForm(f => ({ ...f, vendorMaterialId: e.target.value }))} placeholder="e.g. MAT-55810" />
               </div>
             </div>
-            <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Contact Information</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <Input label="Primary Contact Name" value={form.vendorContactName || ''} onChange={e => setForm(f => ({ ...f, vendorContactName: e.target.value }))}
-                  placeholder="e.g. Jane Smith" />
-                <Input label="Contact Title" value={form.vendorContactTitle || ''} onChange={e => setForm(f => ({ ...f, vendorContactTitle: e.target.value }))}
-                  placeholder="e.g. Account Director" />
-                <Input label="Sales Rep / Account Manager" value={form.vendorSalesRep || ''} onChange={e => setForm(f => ({ ...f, vendorSalesRep: e.target.value }))}
-                  placeholder="e.g. John Doe" />
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  <Tip label="Primary Contact" tip="The main person you communicate with at this vendor for orders, questions, or issues." />
+                </label>
+                <Input value={form.vendorContactName || ''} onChange={e => setForm(f => ({ ...f, vendorContactName: e.target.value }))} placeholder="e.g. Jane Smith" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  <Tip label="Contact Title" tip="The job title or role of your primary contact at the vendor." />
+                </label>
+                <Input value={form.vendorContactTitle || ''} onChange={e => setForm(f => ({ ...f, vendorContactTitle: e.target.value }))} placeholder="e.g. Account Director" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  <Tip label="Sales Rep" tip="The sales representative or account manager assigned to your account at this vendor." />
+                </label>
+                <Input value={form.vendorSalesRep || ''} onChange={e => setForm(f => ({ ...f, vendorSalesRep: e.target.value }))} placeholder="e.g. John Doe" />
               </div>
             </div>
           </div>
