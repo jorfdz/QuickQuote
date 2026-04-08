@@ -1865,9 +1865,22 @@ export const Materials: React.FC = () => {
                 <Input label="Size" type="text" value={form.size || ''} placeholder="8.5x11" onChange={e => setForm(f => ({ ...f, size: e.target.value }))} />
               </div>
             )}
+            {/* Cost value */}
+            <div className="w-24">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost</label>
+              {form.pricingModel === 'cost_per_m' && (
+                <Input type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
+              )}
+              {form.pricingModel === 'cost_per_unit' && (
+                <Input type="number" value={form.costPerUnit || ''} onChange={e => setForm(f => ({ ...f, costPerUnit: parseFloat(e.target.value) || 0 }))} prefix="$" />
+              )}
+              {form.pricingModel === 'cost_per_sqft' && (
+                <Input type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
+              )}
+            </div>
             {/* Cost Unit toggle */}
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost Unit</label>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Unit</label>
               <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
                 {MATERIAL_TYPE_PRICING_MODELS[form.materialType].map(model => (
                   <button
@@ -1884,18 +1897,6 @@ export const Materials: React.FC = () => {
                   </button>
                 ))}
               </div>
-            </div>
-            {/* Cost value */}
-            <div className="w-24">
-              {form.pricingModel === 'cost_per_m' && (
-                <Input type="number" value={form.pricePerM || ''} onChange={e => setForm(f => ({ ...f, pricePerM: parseFloat(e.target.value) || 0 }))} prefix="$" />
-              )}
-              {form.pricingModel === 'cost_per_unit' && (
-                <Input type="number" value={form.costPerUnit || ''} onChange={e => setForm(f => ({ ...f, costPerUnit: parseFloat(e.target.value) || 0 }))} prefix="$" />
-              )}
-              {form.pricingModel === 'cost_per_sqft' && (
-                <Input type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
-              )}
             </div>
             {/* Roll reference calculator (inline) */}
             {form.materialType === 'roll_media' && (
@@ -1982,25 +1983,12 @@ export const Materials: React.FC = () => {
             )}
           </div>
 
-          {/* ── Minimum Charge ── */}
-          <div className="w-36">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              <Tip label="Minimum Charge" tip="If the calculated total is below this amount, this minimum will be charged instead. Set to 0 for no minimum." />
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-              <input type="number" value={form.minimumCharge || ''}
-                onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))}
-                className="w-full pl-8 px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent placeholder-gray-400 transition-all" />
-            </div>
-          </div>
-
           {/* ── Markup By (last — applies on top of everything) ── */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
               <Tip label="Markup By" tip="How the sell price is calculated from cost. Markup % adds a percentage on top of cost, Multiplier multiplies cost by a factor, and Profit % targets a gross margin." />
             </label>
-            <div className="flex gap-3 items-end">
+            <div className="flex gap-3 items-end flex-wrap">
               <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
                 <button type="button" onClick={() => setForm(f => ({ ...f, markupType: 'percent' }))}
                   className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
@@ -2028,6 +2016,17 @@ export const Materials: React.FC = () => {
                   onChange={e => setForm(f => ({ ...f, markup: parseFloat(e.target.value) || 0 }))}
                   suffix={form.markupType === 'multiplier' ? '×' : '%'}
                 />
+              </div>
+              <div className="w-36">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  <Tip label="Minimum Charge" tip="If the calculated total is below this amount, this minimum will be charged instead. Set to 0 for no minimum." />
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input type="number" value={form.minimumCharge || ''}
+                    onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))}
+                    className="w-full pl-8 pr-3 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 transition-all" />
+                </div>
               </div>
             </div>
             <p className="text-[10px] text-gray-400 mt-1.5">

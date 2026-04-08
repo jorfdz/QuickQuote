@@ -271,9 +271,9 @@ export const MATERIAL_TYPE_LABELS: Record<MaterialType, string> = {
 };
 
 export const PRICING_MODEL_LABELS: Record<MaterialPricingModel, string> = {
-  cost_per_m: 'Cost per Thousand',
-  cost_per_unit: 'Cost per Unit',
-  cost_per_sqft: 'Cost per Square Foot',
+  cost_per_m: '/m',
+  cost_per_unit: '/unit',
+  cost_per_sqft: '/sq. ft.',
 };
 
 /** Which pricing models are available for each material type */
