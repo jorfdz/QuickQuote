@@ -1342,9 +1342,6 @@ export const Materials: React.FC = () => {
               )}
               {/* Sample material photos */}
               <div className="break-inside-avoid">
-                <img src="https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=400&h=300&fit=crop" alt="Paper texture closeup" className="w-full rounded-lg border border-gray-200 object-cover" />
-              </div>
-              <div className="break-inside-avoid">
                 <img src="https://images.unsplash.com/photo-1586075010923-2dd4570fb338?w=400&h=500&fit=crop" alt="Stacked paper sheets" className="w-full rounded-lg border border-gray-200 object-cover" />
               </div>
               <div className="break-inside-avoid">
@@ -1910,7 +1907,9 @@ export const Materials: React.FC = () => {
 
           {/* ── Favorite on Products ── */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Favorite on Products</label>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              <Tip label="Favorite on Products" tip="Select products where this material should appear as a favorite option. Starred products will be prioritized when selecting materials during quoting." />
+            </label>
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               <div className="flex" style={{ minHeight: '280px' }}>
 
