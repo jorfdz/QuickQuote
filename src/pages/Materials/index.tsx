@@ -1498,14 +1498,66 @@ export const Materials: React.FC = () => {
             </div>
           </div>
 
-          {/* ── Size + Cost (non-roll types) ── */}
-          {form.materialType !== 'roll_media' && (
-            <div className="flex items-end gap-3">
-              {(form.materialType === 'paper' || form.materialType === 'rigid_substrate') && (
-                <div className="w-24">
-                  <Input label="Size" type="text" value={form.size || ''} placeholder="8.5x11" onChange={e => setForm(f => ({ ...f, size: e.target.value }))} />
+          {/* ── Size + Cost row (all material types) ── */}
+          <div className="flex items-end gap-3 flex-wrap">
+            {/* Dimension fields — paper / rigid */}
+            {(form.materialType === 'paper' || form.materialType === 'rigid_substrate') && (
+              <div className="w-24">
+                <Input label="Size" type="text" value={form.size || ''} placeholder="8.5x11" onChange={e => setForm(f => ({ ...f, size: e.target.value }))} />
+              </div>
+            )}
+
+            {/* Dimension fields — roll media */}
+            {form.materialType === 'roll_media' && (
+              <>
+                <div className="w-20">
+                  <Input label="Width (in)" type="number" value={form.sizeWidth || ''}
+                    onChange={e => {
+                      const w = parseFloat(e.target.value) || 0;
+                      setForm(f => {
+                        if (f.rollPricingMode === 'from_roll' && f.rollCost > 0 && f.rollLength > 0 && w > 0) {
+                          const derived = deriveRollCostPerSqft(f.rollCost, f.rollLength, w);
+                          return { ...f, sizeWidth: w, costPerSqft: Math.round(derived * 10000) / 10000 };
+                        }
+                        return { ...f, sizeWidth: w };
+                      });
+                    }} />
                 </div>
-              )}
+                {form.rollPricingMode === 'from_roll' && (
+                  <>
+                    <div className="w-20">
+                      <Input label="Length (ft)" type="number" value={form.rollLength || ''}
+                        onChange={e => {
+                          const rollLength = parseFloat(e.target.value) || 0;
+                          setForm(f => {
+                            if (f.rollCost > 0 && rollLength > 0 && f.sizeWidth > 0) {
+                              const derived = deriveRollCostPerSqft(f.rollCost, rollLength, f.sizeWidth);
+                              return { ...f, rollLength, costPerSqft: Math.round(derived * 10000) / 10000 };
+                            }
+                            return { ...f, rollLength };
+                          });
+                        }} />
+                    </div>
+                    <div className="w-24">
+                      <Input label="Roll Price" type="number" value={form.rollCost || ''} prefix="$"
+                        onChange={e => {
+                          const rollCost = parseFloat(e.target.value) || 0;
+                          setForm(f => {
+                            if (rollCost > 0 && f.rollLength > 0 && f.sizeWidth > 0) {
+                              const derived = deriveRollCostPerSqft(rollCost, f.rollLength, f.sizeWidth);
+                              return { ...f, rollCost, costPerSqft: Math.round(derived * 10000) / 10000 };
+                            }
+                            return { ...f, rollCost };
+                          });
+                        }} />
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* Cost field — non-roll types and roll direct mode */}
+            {form.materialType !== 'roll_media' && (
               <div className="w-24">
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost</label>
                 {form.pricingModel === 'cost_per_m' && (
@@ -1518,6 +1570,15 @@ export const Materials: React.FC = () => {
                   <Input type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
                 )}
               </div>
+            )}
+            {form.materialType === 'roll_media' && form.rollPricingMode === 'direct' && (
+              <div className="w-24">
+                <Input label="Cost" type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
+              </div>
+            )}
+
+            {/* Pricing model toggle — non-roll types */}
+            {form.materialType !== 'roll_media' && (
               <div>
                 <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
                   {MATERIAL_TYPE_PRICING_MODELS[form.materialType].map(model => (
@@ -1536,15 +1597,11 @@ export const Materials: React.FC = () => {
                   ))}
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* ── Roll Media pricing (two exclusive modes) ── */}
-          {form.materialType === 'roll_media' && (
-            <div className="space-y-3">
-              {/* Mode toggle */}
+            {/* Roll pricing mode toggle */}
+            {form.materialType === 'roll_media' && (
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Roll Pricing</label>
                 <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
                   <button type="button"
                     onClick={() => setForm(f => ({ ...f, rollPricingMode: 'direct' as const, rollCost: 0, rollLength: 0 }))}
@@ -1553,7 +1610,7 @@ export const Materials: React.FC = () => {
                         ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
                         : 'text-gray-500 hover:text-gray-700'
                     }`}>
-                    Width + Cost /sq. ft.
+                    Cost /sq. ft.
                   </button>
                   <button type="button"
                     onClick={() => setForm(f => ({ ...f, rollPricingMode: 'from_roll' as const, costPerSqft: 0 }))}
@@ -1562,69 +1619,24 @@ export const Materials: React.FC = () => {
                         ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
                         : 'text-gray-500 hover:text-gray-700'
                     }`}>
-                    Width + Length + Roll Price
+                    From Roll
                   </button>
                 </div>
               </div>
+            )}
 
-              {/* Option A: Width + direct cost/sqft */}
-              {form.rollPricingMode === 'direct' && (
-                <div className="flex items-end gap-3">
-                  <div className="w-20">
-                    <Input label="Width (in)" type="number" value={form.sizeWidth || ''} onChange={e => setForm(f => ({ ...f, sizeWidth: parseFloat(e.target.value) || 0 }))} />
-                  </div>
-                  <div className="w-24">
-                    <Input label="Cost" type="number" value={form.costPerSqft || ''} onChange={e => setForm(f => ({ ...f, costPerSqft: parseFloat(e.target.value) || 0 }))} prefix="$" />
-                  </div>
-                  <span className="pb-1.5 text-xs text-gray-500">/sq. ft.</span>
-                </div>
-              )}
+            {/* Roll direct — unit hint */}
+            {form.materialType === 'roll_media' && form.rollPricingMode === 'direct' && (
+              <span className="pb-1.5 text-xs text-gray-500">/sq. ft.</span>
+            )}
 
-              {/* Option B: Width + Length + Roll Price → derived cost/sqft */}
-              {form.rollPricingMode === 'from_roll' && (
-                <div className="flex items-end gap-3">
-                  <div className="w-20">
-                    <Input label="Width (in)" type="number" value={form.sizeWidth || ''}
-                      onChange={e => {
-                        const w = parseFloat(e.target.value) || 0;
-                        setForm(f => {
-                          const derived = f.rollCost > 0 && f.rollLength > 0 && w > 0
-                            ? deriveRollCostPerSqft(f.rollCost, f.rollLength, w) : null;
-                          return { ...f, sizeWidth: w, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
-                        });
-                      }} />
-                  </div>
-                  <div className="w-20">
-                    <Input label="Length (ft)" type="number" value={form.rollLength || ''}
-                      onChange={e => {
-                        const rollLength = parseFloat(e.target.value) || 0;
-                        setForm(f => {
-                          const derived = f.rollCost > 0 && rollLength > 0 && f.sizeWidth > 0
-                            ? deriveRollCostPerSqft(f.rollCost, rollLength, f.sizeWidth) : null;
-                          return { ...f, rollLength, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
-                        });
-                      }} />
-                  </div>
-                  <div className="w-24">
-                    <Input label="Roll Price" type="number" value={form.rollCost || ''} prefix="$"
-                      onChange={e => {
-                        const rollCost = parseFloat(e.target.value) || 0;
-                        setForm(f => {
-                          const derived = rollCost > 0 && f.rollLength > 0 && f.sizeWidth > 0
-                            ? deriveRollCostPerSqft(rollCost, f.rollLength, f.sizeWidth) : null;
-                          return { ...f, rollCost, ...(derived !== null ? { costPerSqft: Math.round(derived * 10000) / 10000 } : {}) };
-                        });
-                      }} />
-                  </div>
-                  {form.rollCost > 0 && form.rollLength > 0 && form.sizeWidth > 0 && (
-                    <span className="text-[10px] text-amber-600 pb-1.5 whitespace-nowrap">
-                      = {(form.rollLength * (form.sizeWidth / 12)).toFixed(0)} sq ft → <span className="font-semibold">{formatCurrency(deriveRollCostPerSqft(form.rollCost, form.rollLength, form.sizeWidth))}/sq. ft.</span>
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+            {/* Roll from_roll — derived cost display */}
+            {form.materialType === 'roll_media' && form.rollPricingMode === 'from_roll' && form.rollCost > 0 && form.rollLength > 0 && form.sizeWidth > 0 && (
+              <span className="text-[10px] text-amber-600 pb-1.5 whitespace-nowrap">
+                = {(form.rollLength * (form.sizeWidth / 12)).toFixed(0)} sq ft → <span className="font-semibold">{formatCurrency(deriveRollCostPerSqft(form.rollCost, form.rollLength, form.sizeWidth))}/sq. ft.</span>
+              </span>
+            )}
+          </div>
 
           {/* ── Tier Cost (optional) ── */}
           <div className="max-w-xs">
