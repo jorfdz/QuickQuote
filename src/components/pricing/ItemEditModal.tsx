@@ -146,6 +146,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // • Existing items: panel starts COLLAPSED — user can re-open with the ⭐ button.
   const [templatePanelCollapsed, setTemplatePanelCollapsed] = useState(!isNew);
   const [userInteracted, setUserInteracted] = useState(false);
+  // Ref attached to the template panel div so clicks inside it don't collapse it
+  const templatePanelRef = React.useRef<HTMLDivElement>(null);
 
   // ── Price breakdown state ────────────────────────────────────────────
   const [manualOverrides, setManualOverrides] = useState<Record<string, boolean>>({});
