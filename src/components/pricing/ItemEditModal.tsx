@@ -248,6 +248,14 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serviceNotes]);
 
+  // Sync multiQtyString → pricingContext so it survives modal close/reopen
+  useEffect(() => {
+    if (multiQtyInput !== (ps.multiQtyString ?? '')) {
+      onUpdatePricing({ multiQtyString: multiQtyInput });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [multiQtyInput]);
+
   // Sync first material entry to pricing state
   useEffect(() => {
     if (materialEntries.length > 0) {
@@ -1023,7 +1031,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       skipInitialRecompute.current = !!(savedCtx.serviceLines && savedCtx.serviceLines.length > 0);
       userChangedPricing.current = false;
       onUpdateItem({ description: product.name, quantity: savedCtx.quantity || product.defaultQuantity });
-      setMultiQtyInput(String(savedCtx.quantity || product.defaultQuantity));
+      // Restore the full multi-qty string if it was saved (e.g. "1000, 2000, 5000")
+      setMultiQtyInput(savedCtx.multiQtyString || String(savedCtx.quantity || product.defaultQuantity));
       if (savedCtx.finalWidth && savedCtx.finalHeight) {
         setSizeInput(`${savedCtx.finalWidth}x${savedCtx.finalHeight}`);
       }
