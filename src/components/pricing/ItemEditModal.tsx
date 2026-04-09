@@ -2829,7 +2829,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </div>
               ) : (
                 /* Expanded — slides in from the right, 13rem wide */
-                <div className="w-52 flex-shrink-0 animate-[slideInRight_0.18s_ease-out]">
+                <div ref={templatePanelRef} className="w-52 flex-shrink-0 animate-[slideInRight_0.18s_ease-out]">
                   <div className="sticky top-0">
                     {/* Panel header */}
                     <div className="flex items-center justify-between mb-2">
