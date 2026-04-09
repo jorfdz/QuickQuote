@@ -137,7 +137,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [customRunHeight, setCustomRunHeight] = useState(0);
 
   // ── Template panel state ─────────────────────────────────────────────
-  const [templatePanelCollapsed, setTemplatePanelCollapsed] = useState(false);
+  // • New items: panel starts OPEN — collapses automatically the moment the user
+  //   clicks anything outside the product field (trackInteraction fires).
+  // • Existing items: panel starts COLLAPSED — user can re-open with the ⭐ button.
+  const [templatePanelCollapsed, setTemplatePanelCollapsed] = useState(!isNew);
   const [userInteracted, setUserInteracted] = useState(false);
 
   // ── Price breakdown state ────────────────────────────────────────────
@@ -302,11 +305,13 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoDescribe, buildDescription, isMultiPart]);
 
-  // Auto-collapse template panel when user starts filling fields
+  // Auto-collapse template panel as soon as the user fills any field outside the product search.
+  // Only applies to new items — existing items start collapsed and re-open manually.
   useEffect(() => {
-    if (userInteracted && matchingTemplates.length > 0 && !templatePanelCollapsed) {
+    if (isNew && userInteracted && !templatePanelCollapsed) {
       setTemplatePanelCollapsed(true);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userInteracted]);
 
   // ── Derived data ──────────────────────────────────────────────────────
@@ -445,15 +450,53 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       if (selectedEquipment.costUnit === 'per_click') {
         const totalClicks = effectiveSheetsNeeded * (ps.sides === 'Double' ? 2 : 1);
         const costPerClick = selectedEquipment.unitCost;
-        const totalCost = totalClicks * costPerClick;
+        const clickCost   = totalClicks * costPerClick;
         const sellPerClick = lookupClickPrice(selectedEquipment.id, totalClicks, ps.colorMode);
-        const totalSell = totalClicks * sellPerClick;
+        const clickSell   = totalClicks * sellPerClick;
+
+        // ── Cost + Time equipment (e.g. "Ricoh 9200 w/ Staff Support") ──────
+        // When costType === 'cost_plus_time', add operator/staff time on top of
+        // the per-click cost: time = totalClicks / unitsPerHour × timeCostPerHour.
+        // The time portion uses the same proportional markup as the click portion.
+        const isCostPlusTime =
+          selectedEquipment.costType === 'cost_plus_time' &&
+          (selectedEquipment.unitsPerHour ?? 0) > 0 &&
+          (selectedEquipment.timeCostPerHour ?? 0) > 0;
+
+        let totalCost = clickCost;
+        let totalSell = clickSell;
+        let descSuffix = '';
+
+        if (isCostPlusTime) {
+          const hours        = totalClicks / selectedEquipment.unitsPerHour!;
+          const timeCostRate = selectedEquipment.timeCostPerHour!;
+          const timeCost     = hours * timeCostRate;
+
+          // Apply the same markup ratio as the click tier to the time component
+          const clickMarkupRatio = clickCost > 0 ? clickSell / clickCost : 1;
+          const timeSell = timeCost * clickMarkupRatio;
+
+          totalCost = clickCost + timeCost;
+          totalSell = clickSell + timeSell;
+          descSuffix = ` + ${hours.toFixed(2)}h staff @ ${fmt(timeCostRate)}/hr`;
+
+          // Also push a separate time service line so it's visible in the breakdown
+          const timeMarkupPct = timeCost > 0 ? ((timeSell - timeCost) / timeCost) * 100 : 0;
+          lines.push({
+            id: slId('printing_time'), service: 'Printing',
+            description: `${selectedEquipment.name} — staff time: ${hours.toFixed(2)}h @ ${fmt(timeCostRate)}/hr`,
+            quantity: totalClicks, unit: 'clicks', unitCost: timeCostRate / selectedEquipment.unitsPerHour!,
+            totalCost: timeCost, markupPercent: timeMarkupPct, sellPrice: timeSell, editable: true,
+            hourlyCost: timeCostRate, hoursActual: hours, hoursCharge: hours,
+          });
+        }
+
         const markupPct = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
         lines.push({
           id: slId('printing'), service: 'Printing',
-          description: `${selectedEquipment.name} — ${totalClicks} clicks (${ps.colorMode}, ${ps.sides === 'Double' ? '2-sided' : '1-sided'}) @ ${fmt(sellPerClick)}/click`,
+          description: `${selectedEquipment.name} — ${totalClicks} clicks (${ps.colorMode}, ${ps.sides === 'Double' ? '2-sided' : '1-sided'}) @ ${fmt(sellPerClick)}/click${descSuffix}`,
           quantity: totalClicks, unit: 'clicks', unitCost: costPerClick,
-          totalCost, markupPercent: markupPct, sellPrice: totalSell, editable: true,
+          totalCost: clickCost, markupPercent: markupPct, sellPrice: clickSell, editable: true,
         });
       } else if (selectedEquipment.costUnit === 'per_sqft') {
         const sqft = (ps.finalWidth * ps.finalHeight * ps.quantity) / 144;
@@ -2245,40 +2288,99 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
             </div>
 
             {/* ── Right panel: Templates ──────────────────────────────── */}
+            {/* Always render the collapsed ⭐ button when templates exist so existing-item
+                users can expand on demand. For new items the panel slides in automatically
+                when a product is selected and collapses the moment any other field is touched. */}
             {matchingTemplates.length > 0 && (
               templatePanelCollapsed ? (
-                <div className="flex-shrink-0">
+                /* Collapsed — tiny star button flush with the form */
+                <div className="flex-shrink-0 pt-0.5">
                   <button
                     onClick={() => setTemplatePanelCollapsed(false)}
-                    className="p-2 rounded-lg border border-gray-200 hover:border-[#F890E7] hover:bg-pink-50/50 transition-all"
-                    title="Show templates"
+                    title="Show matching templates"
+                    className="group flex flex-col items-center gap-1 p-2 rounded-xl border border-dashed border-gray-200 hover:border-amber-400 hover:bg-amber-50/40 transition-all duration-200"
                   >
-                    <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                    <Star className="w-4 h-4 text-amber-400 fill-amber-400 group-hover:scale-110 transition-transform" />
+                    <span className="text-[8px] font-semibold text-gray-400 uppercase tracking-wide group-hover:text-amber-600 writing-mode-vertical" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>
+                      {matchingTemplates.length} template{matchingTemplates.length !== 1 ? 's' : ''}
+                    </span>
                   </button>
                 </div>
               ) : (
-                <div className="w-52 flex-shrink-0 transition-all duration-300">
+                /* Expanded — slides in from the right, 13rem wide */
+                <div className="w-52 flex-shrink-0 animate-[slideInRight_0.18s_ease-out]">
                   <div className="sticky top-0">
+                    {/* Panel header */}
                     <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Templates</h4>
-                      <button onClick={() => setTemplatePanelCollapsed(true)}
-                        className="p-1 hover:bg-gray-100 rounded transition-colors" title="Collapse">
+                      <div className="flex items-center gap-1.5">
+                        <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                        <h4 className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">
+                          Templates
+                        </h4>
+                        <span className="text-[9px] text-gray-400">({matchingTemplates.length})</span>
+                      </div>
+                      <button
+                        onClick={() => setTemplatePanelCollapsed(true)}
+                        className="p-1 hover:bg-gray-100 rounded transition-colors"
+                        title="Collapse panel"
+                      >
                         <ChevronRight className="w-3 h-3 text-gray-400" />
                       </button>
                     </div>
-                    <div className="space-y-1.5 max-h-[60vh] overflow-y-auto">
-                      {matchingTemplates.slice(0, 12).map(t => (
-                        <button key={t.id} onClick={() => onApplyTemplate(t.id)}
-                          className="w-full text-left p-2.5 rounded-lg border border-gray-100 hover:border-[#F890E7] hover:bg-pink-50/50 transition-all text-xs group">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium text-gray-900 group-hover:text-[#F890E7] truncate">{t.name}</span>
-                            {t.isFavorite && <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400 flex-shrink-0" />}
-                          </div>
-                          <div className="text-[10px] text-gray-400 mt-0.5">
-                            {t.categoryName} · {t.quantity.toLocaleString()} pcs
-                          </div>
-                        </button>
-                      ))}
+                    {/* Hint for new items */}
+                    {isNew && (
+                      <p className="text-[9px] text-gray-400 mb-2 leading-snug">
+                        Select a template or fill fields manually — panel hides when you start editing.
+                      </p>
+                    )}
+                    {/* Template list — 2-line cards with full tooltip on hover */}
+                    <div className="space-y-1.5 max-h-[60vh] overflow-y-auto pr-0.5">
+                      {matchingTemplates.slice(0, 15).map(t => {
+                        // Build a rich tooltip with all available template details
+                        const tooltipLines = [
+                          t.name,
+                          `${t.categoryName} — ${t.quantity.toLocaleString()} pcs`,
+                          t.materialName ? `Material: ${t.materialName}` : null,
+                          t.equipmentName ? `Equipment: ${t.equipmentName}` : null,
+                          t.folding ? `Folding: ${t.folding}` : null,
+                          (t.finalWidth && t.finalHeight) ? `Size: ${t.finalWidth}×${t.finalHeight}″` : null,
+                        ].filter(Boolean).join('\n');
+
+                        const detailLine = [
+                          t.materialName,
+                          t.equipmentName,
+                          t.folding,
+                        ].filter(Boolean).join(' · ');
+
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => onApplyTemplate(t.id)}
+                            title={tooltipLines}
+                            className="w-full text-left px-2.5 py-2 rounded-lg border border-gray-100 hover:border-[#F890E7] hover:bg-pink-50/50 hover:shadow-sm transition-all text-xs group"
+                          >
+                            {/* Line 1: name + star */}
+                            <div className="flex items-start justify-between gap-1">
+                              <span className="font-semibold text-gray-800 group-hover:text-[#F890E7] leading-snug line-clamp-1 flex-1">
+                                {t.name}
+                              </span>
+                              {t.isFavorite && (
+                                <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400 flex-shrink-0 mt-0.5" />
+                              )}
+                            </div>
+                            {/* Line 2: category · qty */}
+                            <div className="text-[9px] text-gray-500 mt-0.5 leading-snug">
+                              {t.categoryName} · {t.quantity.toLocaleString()} pcs
+                            </div>
+                            {/* Line 3 (if available): material / equipment / folding details */}
+                            {detailLine && (
+                              <div className="text-[9px] text-gray-400 mt-0.5 leading-snug truncate">
+                                {detailLine}
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

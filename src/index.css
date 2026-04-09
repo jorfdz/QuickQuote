@@ -88,6 +88,12 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
+/* Template panel slide-in animation */
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0);    }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
