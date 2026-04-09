@@ -730,8 +730,19 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     // (that would wipe manual edits saved in a previous session).
     // Once the user changes a fundamental (material, equipment, quantity etc.) this guard drops.
     if (skipInitialRecompute.current) {
-      if (!userChangedPricing.current) return;  // still on initial open — preserve saved lines
-      skipInitialRecompute.current = false;       // user changed something — allow recompute from now on
+      // Exception: if the selected equipment is cost_plus_time but the saved lines don't have
+      // a time entry for Printing, the saved data is stale — force a fresh recompute.
+      const hasCostPlusTime = selectedEquipment?.costType === 'cost_plus_time';
+      const hasPrintingTimeLine = ps.serviceLines.some(
+        l => l.service === 'Printing' && l.hourlyCost != null
+      );
+      if (hasCostPlusTime && !hasPrintingTimeLine) {
+        // Stale lines — drop the guard and recompute
+        skipInitialRecompute.current = false;
+      } else {
+        if (!userChangedPricing.current) return;  // still on initial open — preserve saved lines
+        skipInitialRecompute.current = false;       // user changed something — allow recompute from now on
+      }
     }
 
     const lines = computeServiceLines();
