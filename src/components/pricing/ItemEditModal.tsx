@@ -42,6 +42,8 @@ export interface LineItemPricingState {
   selectedBrokeredIds: string[];
   // Per-service custom notes (keyed by service selection ID)
   serviceNotes: Record<string, string>;
+  // Multi-quantity string (e.g. "1000, 2000, 5000") — persists the full input across sessions
+  multiQtyString?: string;
 }
 
 export const DEFAULT_PRICING_STATE = (): LineItemPricingState => ({
@@ -55,6 +57,7 @@ export const DEFAULT_PRICING_STATE = (): LineItemPricingState => ({
   selectedLaborIds: [],
   selectedBrokeredIds: [],
   serviceNotes: {},
+  multiQtyString: '',
 });
 
 // ─── PART SNAPSHOT ──────────────────────────────────────────────────────────
@@ -117,7 +120,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // at which point a fresh recompute is appropriate.
   const skipInitialRecompute = React.useRef(ps.serviceLines != null && ps.serviceLines.length > 0);
   const [savedAsTemplate, setSavedAsTemplate] = useState(false);
-  const [multiQtyInput, setMultiQtyInput] = useState(String(ps.quantity || 1000));
+  // Restore the full multi-qty string from pricingContext if it was previously saved
+  const [multiQtyInput, setMultiQtyInput] = useState(ps.multiQtyString || String(ps.quantity || 1000));
   // Auto-describe is ON only for brand-new items (no existing description).
   // If the item already has a description written by the user, default to OFF
   // so we never overwrite what they typed.
@@ -277,7 +281,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   // Sync product query when pricing state changes externally (e.g. template load)
   useEffect(() => { setProductQuery(ps.productName || ''); }, [ps.productName]);
-  useEffect(() => { setMultiQtyInput(String(ps.quantity || 1000)); }, [ps.quantity]);
+  // Only reset the qty input when the quantity changes AND there's no saved multi-qty string.
+  // Without this guard, external quantity updates (template load) would wipe a "1000,2000,5000" string.
+  useEffect(() => {
+    if (!ps.multiQtyString) setMultiQtyInput(String(ps.quantity || 1000));
+  }, [ps.quantity]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (ps.finalWidth > 0 && ps.finalHeight > 0) {
       setSizeInput(`${ps.finalWidth}x${ps.finalHeight}`);
