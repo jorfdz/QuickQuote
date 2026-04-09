@@ -145,7 +145,18 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   // ── Price breakdown state ────────────────────────────────────────────
   const [manualOverrides, setManualOverrides] = useState<Record<string, boolean>>({});
-  const [showBreakdownDialog, setShowBreakdownDialog] = useState(false);
+  // ── Inline breakdown state (replaces separate dialog) ─────────────────
+  const [breakdownExpanded, setBreakdownExpanded] = useState(false);
+  const [bTimeInputs, setBTimeInputs] = useState<Record<string, string>>({});
+  const [bQtyInputs,  setBQtyInputs]  = useState<Record<string, string>>({});
+  const [bTimeErrors, setBTimeErrors] = useState<Record<string, boolean>>({});
+  const [bQtyErrors,  setBQtyErrors]  = useState<Record<string, boolean>>({});
+  const [bLockedIds,  setBLockedIds]  = useState<Set<string>>(new Set());
+  const [bShowProfit, setBShowProfit] = useState(false);
+  const [bTotalMkInput, setBTotalMkInput] = useState<string | null>(null);
+  const [bTotalSellInput, setBTotalSellInput] = useState<string | null>(null);
+  const [bTotalMkErr,   setBTotalMkErr]   = useState(false);
+  const [bTotalSellErr, setBTotalSellErr] = useState(false);
 
   // ── Multi-part state — restore from item if it was previously saved as multi-part ──
   const [isMultiPart, setIsMultiPart] = useState(() => !!(item as any).isMultiPart);
@@ -932,13 +943,150 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     setManualOverrides({});
     setEditingLineId(null);
     setEditValues({});
-    // Force fresh recompute now that overrides are cleared
     const lines = computeServiceLines();
     onUpdatePricing({ serviceLines: lines });
     const totalCost = lines.reduce((s, l) => s + l.totalCost, 0);
     const totalSell = lines.reduce((s, l) => s + l.sellPrice, 0);
     const overallMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
     onUpdateItem({ totalCost, sellPrice: totalSell, markup: Math.round(overallMarkup) });
+    // Reset inline breakdown buffers so inputs reflect new computed values
+    const tInputs: Record<string, string> = {};
+    const qInputs: Record<string, string> = {};
+    lines.forEach(l => {
+      if (l.hourlyCost != null) {
+        const h = l.hoursCharge ?? l.hoursActual ?? 0;
+        tInputs[l.id] = h > 0 ? `${Math.ceil(h * 60)} min` : '0 min';
+      }
+      if (l.quantity != null && l.unit !== 'flat') qInputs[l.id] = String(l.quantity);
+    });
+    setBTimeInputs(tInputs);
+    setBQtyInputs(qInputs);
+    setBTimeErrors({});
+    setBQtyErrors({});
+  };
+
+  // ── Inline breakdown field helpers ────────────────────────────────────
+  // Convert profit% → markup% for storage
+  const profitToMarkupB = (p: number) => p >= 100 ? 9999 : (100 * p) / (100 - p);
+  const markupToProfitB = (mk: number) => mk / (1 + mk / 100);
+
+  // Apply a field change to ps.serviceLines and immediately sync to parent
+  const bUpdateField = (id: string, field: 'unitCost' | 'totalCost' | 'markupPercent' | 'profitPercent' | 'sellPrice', raw: string) => {
+    const val = parseFloat(raw);
+    if (isNaN(val)) return;
+    const updated = ps.serviceLines.map(l => {
+      if (l.id !== id) return l;
+      if (field === 'unitCost') {
+        const qty = l.chargeQty ?? l.quantity ?? 1;
+        const newCost = parseFloat((qty * val).toFixed(2));
+        return { ...l, unitCost: val, totalCost: newCost, sellPrice: parseFloat((newCost * (1 + l.markupPercent / 100)).toFixed(2)) };
+      }
+      if (field === 'totalCost') {
+        const mk = val > 0 ? ((l.sellPrice - val) / val) * 100 : l.markupPercent;
+        return { ...l, totalCost: val, markupPercent: parseFloat(mk.toFixed(2)) };
+      }
+      if (field === 'markupPercent') {
+        return { ...l, markupPercent: val, sellPrice: parseFloat((l.totalCost * (1 + val / 100)).toFixed(2)) };
+      }
+      if (field === 'profitPercent') {
+        const mk = profitToMarkupB(val);
+        return { ...l, markupPercent: parseFloat(mk.toFixed(2)), sellPrice: parseFloat((l.totalCost * (1 + mk / 100)).toFixed(2)) };
+      }
+      if (field === 'sellPrice') {
+        const mk = l.totalCost > 0 ? ((val - l.totalCost) / l.totalCost) * 100 : 0;
+        return { ...l, sellPrice: val, markupPercent: parseFloat(mk.toFixed(2)) };
+      }
+      return l;
+    });
+    const tc = updated.reduce((s, l) => s + l.totalCost, 0);
+    const ts = updated.reduce((s, l) => s + l.sellPrice, 0);
+    onUpdatePricing({ serviceLines: updated });
+    onUpdateItem({ totalCost: tc, sellPrice: ts, markup: Math.round(tc > 0 ? ((ts - tc) / tc) * 100 : 0) });
+    setManualOverrides(prev => ({ ...prev, [id]: true }));
+  };
+
+  const bCommitTime = (id: string) => {
+    const raw = bTimeInputs[id] ?? '';
+    // Parse "45 min", "45", "1h 30m" → decimal hours
+    const trimmed = raw.trim();
+    const hm = trimmed.match(/^(\d+)\s*h\s*(\d+)\s*m?$/i);
+    const justMin = trimmed.match(/^(\d+(?:\.\d+)?)\s*(?:min|m)?$/i);
+    let h: number | null = null;
+    if (hm) h = parseInt(hm[1]) + parseInt(hm[2]) / 60;
+    else if (justMin) h = parseFloat(justMin[1]) / 60;
+    if (h === null || isNaN(h) || h < 0) { setBTimeErrors(e => ({ ...e, [id]: true })); return; }
+    setBTimeErrors(e => ({ ...e, [id]: false }));
+    const updated = ps.serviceLines.map(l => {
+      if (l.id !== id || l.hourlyCost == null) return l;
+      const newCost = parseFloat((h! * l.hourlyCost).toFixed(2));
+      const newSell = parseFloat((newCost * (1 + l.markupPercent / 100)).toFixed(2));
+      return { ...l, hoursCharge: h!, totalCost: newCost, sellPrice: newSell };
+    });
+    setBTimeInputs(t => ({ ...t, [id]: `${Math.ceil(h! * 60)} min` }));
+    const tc = updated.reduce((s, l) => s + l.totalCost, 0);
+    const ts = updated.reduce((s, l) => s + l.sellPrice, 0);
+    onUpdatePricing({ serviceLines: updated });
+    onUpdateItem({ totalCost: tc, sellPrice: ts, markup: Math.round(tc > 0 ? ((ts - tc) / tc) * 100 : 0) });
+    setManualOverrides(prev => ({ ...prev, [id]: true }));
+  };
+
+  const bCommitQty = (id: string) => {
+    const qty = parseFloat(bQtyInputs[id] ?? '');
+    if (isNaN(qty) || qty <= 0) { setBQtyErrors(e => ({ ...e, [id]: true })); return; }
+    setBQtyErrors(e => ({ ...e, [id]: false }));
+    const updated = ps.serviceLines.map(l => {
+      if (l.id !== id || l.hourlyCost != null || l.unit === 'flat' || l.quantity == null) return l;
+      const newCost = parseFloat((qty * l.unitCost).toFixed(2));
+      const newSell = parseFloat((newCost * (1 + l.markupPercent / 100)).toFixed(2));
+      return { ...l, chargeQty: qty, totalCost: newCost, sellPrice: newSell };
+    });
+    setBQtyInputs(q => ({ ...q, [id]: String(qty) }));
+    const tc = updated.reduce((s, l) => s + l.totalCost, 0);
+    const ts = updated.reduce((s, l) => s + l.sellPrice, 0);
+    onUpdatePricing({ serviceLines: updated });
+    onUpdateItem({ totalCost: tc, sellPrice: ts, markup: Math.round(tc > 0 ? ((ts - tc) / tc) * 100 : 0) });
+    setManualOverrides(prev => ({ ...prev, [id]: true }));
+  };
+
+  const bApplyTotalMarkup = (raw: string) => {
+    let mk = parseFloat(raw);
+    if (isNaN(mk)) { setBTotalMkErr(true); return; }
+    if (bShowProfit) mk = profitToMarkupB(mk);
+    if (isNaN(mk)) { setBTotalMkErr(true); return; }
+    setBTotalMkErr(false);
+    const updated = ps.serviceLines.map(l => {
+      if (bLockedIds.has(l.id)) return l;
+      return { ...l, markupPercent: parseFloat(mk.toFixed(2)), sellPrice: parseFloat((l.totalCost * (1 + mk / 100)).toFixed(2)) };
+    });
+    const tc = updated.reduce((s, l) => s + l.totalCost, 0);
+    const ts = updated.reduce((s, l) => s + l.sellPrice, 0);
+    onUpdatePricing({ serviceLines: updated });
+    onUpdateItem({ totalCost: tc, sellPrice: ts, markup: Math.round(tc > 0 ? ((ts - tc) / tc) * 100 : 0) });
+    setManualOverrides(prev => { const n = { ...prev }; updated.forEach(l => { n[l.id] = true; }); return n; });
+    setBTotalMkInput(null);
+  };
+
+  const bApplyTotalSell = (raw: string) => {
+    const newTotal = parseFloat(raw);
+    if (isNaN(newTotal) || newTotal < 0) { setBTotalSellErr(true); return; }
+    setBTotalSellErr(false);
+    const lockedSell   = ps.serviceLines.filter(l => bLockedIds.has(l.id)).reduce((s, l) => s + l.sellPrice, 0);
+    const unlockedSell = ps.serviceLines.filter(l => !bLockedIds.has(l.id)).reduce((s, l) => s + l.sellPrice, 0);
+    const target = newTotal - lockedSell;
+    if (target <= 0 || unlockedSell === 0) { setBTotalSellErr(true); return; }
+    const ratio = target / unlockedSell;
+    const updated = ps.serviceLines.map(l => {
+      if (bLockedIds.has(l.id)) return l;
+      const s = parseFloat((l.sellPrice * ratio).toFixed(2));
+      const mk = l.totalCost > 0 ? ((s - l.totalCost) / l.totalCost) * 100 : 0;
+      return { ...l, sellPrice: s, markupPercent: parseFloat(mk.toFixed(2)) };
+    });
+    const tc = updated.reduce((s, l) => s + l.totalCost, 0);
+    const ts = updated.reduce((s, l) => s + l.sellPrice, 0);
+    onUpdatePricing({ serviceLines: updated });
+    onUpdateItem({ totalCost: tc, sellPrice: ts, markup: Math.round(tc > 0 ? ((ts - tc) / tc) * 100 : 0) });
+    setManualOverrides(prev => { const n = { ...prev }; updated.forEach(l => { n[l.id] = true; }); return n; });
+    setBTotalSellInput(null);
   };
 
   // ── Save / update as template ─────────────────────────────────────────
@@ -2078,185 +2226,291 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </div>
               )}
 
-              {/* ═══ PRICE BREAKDOWN ══════════════════════════════════ */}
+              {/* ═══ PRICE BREAKDOWN — inline expandable ══════════════ */}
               {ps.serviceLines.length > 0 && (() => {
-                // Helper: derive a human-readable quantity cell from a service line
-                const lineQty = (line: PricingServiceLine): React.ReactNode => {
-                  // Time-based services — show time in mins or h:mm
-                  if (line.hourlyCost != null && line.hoursActual != null) {
-                    const h = line.hoursCharge ?? line.hoursActual;
-                    if (h <= 0) return <span className="text-gray-300">—</span>;
-                    const totalMin = Math.round(h * 60);
-                    const hrs  = Math.floor(totalMin / 60);
-                    const mins = totalMin % 60;
-                    const label = hrs === 0 ? `${mins} min` : mins === 0 ? `${hrs}h` : `${hrs}h ${mins}m`;
-                    return <span className="text-sky-600 font-medium num">{label}</span>;
-                  }
-                  // Qty-based services
-                  if (line.quantity != null && line.unit && line.unit !== 'flat') {
-                    return (
-                      <span className="text-gray-600 num">
-                        {line.quantity.toLocaleString()}
-                        <span className="text-[9px] text-gray-400 ml-0.5">{line.unit}</span>
-                      </span>
-                    );
-                  }
-                  // Flat / setup — show "flat"
-                  if (line.unit === 'flat' || line.quantity === 1) {
-                    return <span className="text-gray-400 text-[9px]">flat</span>;
-                  }
-                  return <span className="text-gray-300">—</span>;
+                const bLines = ps.serviceLines;
+                const bTotalCost = bLines.reduce((s, l) => s + l.totalCost, 0);
+                const bTotalSell = bLines.reduce((s, l) => s + l.sellPrice, 0);
+                const bMarkup    = bTotalCost > 0 ? ((bTotalSell - bTotalCost) / bTotalCost) * 100 : 0;
+                const bMargin    = bTotalSell > 0 ? ((bTotalSell - bTotalCost) / bTotalSell) * 100 : 0;
+                const bProfit    = bTotalSell - bTotalCost;
+                const bMkOrPft   = (mk: number) => bShowProfit ? markupToProfitB(mk) : mk;
+                const bPctSuffix = bShowProfit ? 'p' : '%';
+
+                // Group consecutive same-service lines (e.g. Printing time + clicks)
+                const bGroups: Array<{ service: string; lines: PricingServiceLine[]; isGrouped: boolean; label: string }> = [];
+                let gi = 0;
+                while (gi < bLines.length) {
+                  const svc = bLines[gi].service;
+                  let gj = gi + 1;
+                  while (gj < bLines.length && bLines[gj].service === svc) gj++;
+                  const grp = bLines.slice(gi, gj);
+                  bGroups.push({ service: svc, lines: grp, isGrouped: grp.length > 1, label: grp[0].description.split(' — ')[0] ?? svc });
+                  gi = gj;
+                }
+
+                const bSubLabel = (l: PricingServiceLine) => {
+                  if (l.hourlyCost != null) return '↳ Time';
+                  if (l.unit === 'clicks') return '↳ Click Charges';
+                  if (l.unit === 'sqft')   return '↳ Area';
+                  return '↳ Usage';
                 };
 
-                return (
-                <div className="rounded-xl border border-emerald-200 overflow-hidden">
-                  {/* Header */}
-                  <button
-                    type="button"
-                    onClick={() => setShowBreakdownDialog(true)}
-                    className="w-full text-left px-4 py-2.5 flex items-center justify-between bg-emerald-50/60 hover:bg-emerald-50 transition-colors border-b border-emerald-200/60"
-                  >
-                    <span className="text-[10px] font-semibold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
-                      <DollarSign className="w-3.5 h-3.5 text-emerald-500" /> Price Breakdown
-                      {Object.keys(manualOverrides).length > 0 && (
-                        <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px]">
-                          {Object.keys(manualOverrides).length} override{Object.keys(manualOverrides).length > 1 ? 's' : ''}
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-[10px] text-[#F890E7] font-medium flex items-center gap-1">
-                      <Edit3 className="w-3 h-3" /> Edit Pricing
-                    </span>
-                  </button>
+                // Input style — compact, fixed width so they don't stretch
+                const bInp = 'w-[72px] px-1.5 py-0.5 text-[11px] text-right num bg-white border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#F890E7] transition-colors';
+                const bInpG = 'w-[72px] px-1.5 py-0.5 text-[11px] text-right num bg-emerald-50 border border-emerald-200 rounded focus:outline-none focus:ring-1 focus:ring-emerald-300 text-emerald-900 transition-colors';
+                const bInpSky = (err: boolean) => `w-[68px] px-1.5 py-0.5 text-[11px] text-right num rounded focus:outline-none focus:ring-1 transition-colors border ${err ? 'border-red-400 text-red-600 bg-red-50' : 'border-sky-200 text-sky-700 bg-sky-50 focus:ring-sky-300'}`;
+                const bInpVio = (err: boolean) => `w-[68px] px-1.5 py-0.5 text-[11px] text-right num rounded focus:outline-none focus:ring-1 transition-colors border ${err ? 'border-red-400 text-red-600 bg-red-50' : 'border-violet-200 text-violet-700 bg-violet-50 focus:ring-violet-300'}`;
 
-                  {/* Read-only summary table */}
-                  <div
-                    className="bg-white cursor-pointer hover:bg-gray-50/60 transition-colors"
-                    onClick={() => setShowBreakdownDialog(true)}
-                  >
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-gray-100">
-                          {/* Service — no label needed, icon+name is self-explanatory */}
-                          <th className="py-1.5 px-4 text-left" />
-                          {/* Description — flexible */}
-                          <th className="py-1.5 px-3 text-left text-[9px] font-semibold text-gray-400 uppercase tracking-wide" />
-                          {/* Qty */}
-                          <th className="py-1.5 px-3 text-right text-[9px] font-semibold text-gray-400 uppercase tracking-wide">Qty</th>
-                          {/* Cost */}
-                          <th className="py-1.5 px-3 text-right text-[9px] font-semibold text-gray-400 uppercase tracking-wide">Cost</th>
-                          {/* Markup */}
-                          <th className="py-1.5 px-3 text-right text-[9px] font-semibold text-gray-400 uppercase tracking-wide">Markup</th>
-                          {/* Sell */}
-                          <th className="py-1.5 px-4 text-right text-[9px] font-semibold text-gray-400 uppercase tracking-wide">Sell</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {ps.serviceLines.map(line => (
-                          <tr key={line.id} className="hover:bg-emerald-50/20 transition-colors">
-                            {/* Service name + icon */}
-                            <td className="py-2 px-4 whitespace-nowrap">
-                              <div className="flex items-center gap-1.5">
-                                {line.service === 'Material' && <Package    className="w-3 h-3 text-amber-400 flex-shrink-0"  />}
-                                {line.service === 'Printing' && <Printer    className="w-3 h-3 text-blue-400 flex-shrink-0"   />}
-                                {line.service === 'Setup'    && <Settings2  className="w-3 h-3 text-gray-400 flex-shrink-0"   />}
-                                {line.service === 'Cutting'  && <Scissors   className="w-3 h-3 text-purple-400 flex-shrink-0" />}
-                                {line.service === 'Folding'  && <FoldVertical className="w-3 h-3 text-emerald-400 flex-shrink-0" />}
-                                {line.service === 'Drilling' && <CircleDot  className="w-3 h-3 text-orange-400 flex-shrink-0" />}
-                                {line.service === 'Labor'    && <Hand       className="w-3 h-3 text-blue-500 flex-shrink-0"   />}
-                                {line.service === 'Brokered' && <Package    className="w-3 h-3 text-violet-400 flex-shrink-0" />}
-                                <span className="text-gray-700 font-medium">{line.service}</span>
-                                {manualOverrides[line.id] && (
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Manually overridden" />
-                                )}
-                              </div>
-                            </td>
-                            {/* Description */}
-                            <td className="py-2 px-3 text-gray-400 text-[10px] truncate max-w-[180px]">
-                              {line.description}
-                            </td>
-                            {/* Qty */}
-                            <td className="py-2 px-3 text-right text-xs">
-                              {lineQty(line)}
-                            </td>
-                            {/* Cost */}
-                            <td className="py-2 px-3 text-right num text-gray-500">{fmt(line.totalCost)}</td>
-                            {/* Markup % */}
-                            <td className="py-2 px-3 text-right num">
-                              <span className={line.markupPercent > 0 ? 'text-emerald-600 font-medium' : 'text-gray-400'}>
-                                {fmtPct(line.markupPercent)}
-                              </span>
-                            </td>
-                            {/* Sell Price */}
-                            <td className="py-2 px-4 text-right num font-semibold text-gray-900">{fmt(line.sellPrice)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="border-t-2 border-gray-200 bg-gray-50">
-                          <td className="py-2 px-4 text-[10px] font-bold text-gray-600 uppercase tracking-wide" colSpan={2}>Total</td>
-                          {/* Qty — blank in totals */}
-                          <td className="py-2 px-3" />
-                          {/* Total Cost */}
-                          <td className="py-2 px-3 text-right num text-gray-700 font-semibold text-[11px]">{fmt(itemTotalCost)}</td>
-                          {/* Avg Markup */}
-                          <td className="py-2 px-3 text-right num text-[11px]">
-                            <span className={itemTotalCost > 0 ? 'text-emerald-600 font-bold' : 'text-gray-400'}>
-                              {itemTotalCost > 0 ? fmtPct(((itemTotalSell - itemTotalCost) / itemTotalCost) * 100) : '—'}
-                            </span>
-                          </td>
-                          {/* Total Sell */}
-                          <td className="py-2 px-4 text-right num font-bold text-gray-900 text-sm">{fmt(itemTotalSell)}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                    <div className="px-4 py-1.5 flex items-center justify-between bg-gray-50 border-t border-gray-100">
-                      <span className="text-[10px] text-gray-400">
-                        Margin: <span className={`font-semibold ${itemMarginPct >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{fmtPct(itemMarginPct)}</span>
+                return (
+                  <div className="rounded-xl border border-emerald-200 overflow-hidden">
+
+                    {/* ── Collapsed header — always visible, shows summary stats ── */}
+                    <button
+                      type="button"
+                      onClick={() => setBreakdownExpanded(x => !x)}
+                      className="w-full text-left px-4 py-2.5 flex items-center justify-between bg-emerald-50/60 hover:bg-emerald-50 transition-colors border-b border-emerald-200/60"
+                    >
+                      <span className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-700 uppercase tracking-wide">
+                        <DollarSign className="w-3.5 h-3.5 text-emerald-500" />
+                        Price Breakdown
+                        {Object.keys(manualOverrides).length > 0 && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px] normal-case font-medium">
+                            {Object.keys(manualOverrides).length} edited
+                          </span>
+                        )}
                       </span>
-                      <span className="text-[10px] text-gray-400">Click anywhere to edit →</span>
-                    </div>
+                      <div className="flex items-center gap-3">
+                        {/* Summary stats — always visible even when collapsed */}
+                        <div className="flex items-center gap-2 text-[11px] num">
+                          <span className="text-gray-500">Cost <span className="font-medium text-gray-700">{fmt(bTotalCost)}</span></span>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-gray-500">Markup <span className={`font-medium ${bMarkup > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>{bMarkup.toFixed(1)}%</span></span>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-gray-500">Margin <span className={`font-medium ${bMargin >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{bMargin.toFixed(1)}%</span></span>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-gray-500">Profit <span className="font-medium text-emerald-700">{fmt(bProfit)}</span></span>
+                          <span className="text-gray-300">·</span>
+                          <span className="font-bold text-gray-900">{fmt(bTotalSell)}</span>
+                        </div>
+                        {breakdownExpanded
+                          ? <ChevronUp className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          : <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                        }
+                      </div>
+                    </button>
+
+                    {/* ── Expanded inline editor ── */}
+                    {breakdownExpanded && (
+                      <div className="bg-white">
+                        {/* Markup ↔ Profit toggle + Reset */}
+                        <div className="flex items-center justify-between px-4 py-1.5 bg-gray-50 border-b border-gray-100">
+                          <div className="flex items-center gap-1 bg-gray-200/60 rounded-md p-0.5">
+                            <button type="button" onClick={() => setBShowProfit(false)}
+                              className={`px-2 py-0.5 rounded text-[9px] font-semibold transition-all ${!bShowProfit ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                              Markup %
+                            </button>
+                            <button type="button" onClick={() => setBShowProfit(true)}
+                              className={`px-2 py-0.5 rounded text-[9px] font-semibold transition-all ${bShowProfit ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                              Profit %
+                            </button>
+                          </div>
+                          <button type="button" onClick={handleRecalculate}
+                            className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-[#F890E7] transition-colors">
+                            <RefreshCw className="w-3 h-3" /> Reset to calculated
+                          </button>
+                        </div>
+
+                        {/* 5-column table — compact inputs, no stretching */}
+                        <table className="w-full text-[11px]">
+                          <thead className="border-b border-gray-200 bg-gray-50/80">
+                            <tr>
+                              <th className="py-1.5 px-4 text-[9px] font-bold text-gray-400 uppercase tracking-wide text-left">Service</th>
+                              <th className="py-1.5 px-3 text-[9px] font-bold text-gray-400 uppercase tracking-wide text-left">Details</th>
+                              <th className="py-1.5 px-3 text-[9px] font-bold text-gray-400 uppercase tracking-wide text-right">Cost $</th>
+                              <th className="py-1.5 px-3 text-[9px] font-bold text-emerald-600 uppercase tracking-wide text-right bg-emerald-50/60">{bShowProfit ? 'Profit %' : 'Markup %'}</th>
+                              <th className="py-1.5 px-4 text-[9px] font-bold text-emerald-600 uppercase tracking-wide text-right bg-emerald-50/60">Sell $</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {bGroups.map(({ service, lines: grpLines, isGrouped, label }) => (
+                              <React.Fragment key={service + grpLines[0].id}>
+                                {isGrouped && (
+                                  <tr className="bg-gray-50/40">
+                                    <td className="py-1.5 px-4 font-semibold text-gray-700">{service}</td>
+                                    <td className="py-1.5 px-3 text-gray-400">{label}</td>
+                                    <td colSpan={3} />
+                                  </tr>
+                                )}
+                                {grpLines.map(line => {
+                                  const timeBased = line.hourlyCost != null && line.hoursActual != null;
+                                  const qtyBased  = !timeBased && line.quantity != null && line.unit !== 'flat';
+                                  const isLocked  = bLockedIds.has(line.id);
+                                  const pctVal    = bMkOrPft(line.markupPercent);
+                                  const chargeQty = line.chargeQty ?? line.quantity;
+                                  return (
+                                    <tr key={line.id} className={`transition-colors ${isLocked ? 'bg-amber-50/20' : 'hover:bg-gray-50/60'}`}>
+                                      {/* SERVICE */}
+                                      <td className={`py-1.5 ${isGrouped ? 'pl-8' : 'px-4'} ${isGrouped ? 'pr-4' : ''} text-gray-700 ${isGrouped ? 'text-gray-500 text-[10px]' : 'font-semibold'}`}>
+                                        {isGrouped ? bSubLabel(line) : service}
+                                        {manualOverrides[line.id] && <span className="ml-1 w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" title="Edited" />}
+                                      </td>
+                                      {/* DETAILS */}
+                                      <td className="py-1 px-3">
+                                        {timeBased ? (
+                                          <div className="flex items-center gap-1.5">
+                                            <input
+                                              type="text"
+                                              value={bTimeInputs[line.id] ?? `${Math.ceil((line.hoursCharge ?? line.hoursActual ?? 0) * 60)} min`}
+                                              onChange={e => setBTimeInputs(t => ({ ...t, [line.id]: e.target.value }))}
+                                              onBlur={() => bCommitTime(line.id)}
+                                              onKeyDown={e => { if (e.key === 'Enter') bCommitTime(line.id); }}
+                                              className={bInpSky(bTimeErrors[line.id] ?? false)}
+                                              title="Charge time in minutes"
+                                            />
+                                            <span className="text-[10px] text-gray-400">@ {fmt(line.hourlyCost!)}/hr</span>
+                                          </div>
+                                        ) : qtyBased ? (
+                                          <div className="flex items-center gap-1.5">
+                                            <input
+                                              type="number" step="1" min="1"
+                                              value={bQtyInputs[line.id] ?? chargeQty}
+                                              onChange={e => { setBQtyInputs(q => ({ ...q, [line.id]: e.target.value })); setBQtyErrors(q => ({ ...q, [line.id]: false })); }}
+                                              onBlur={() => bCommitQty(line.id)}
+                                              onKeyDown={e => { if (e.key === 'Enter') bCommitQty(line.id); }}
+                                              className={bInpVio(bQtyErrors[line.id] ?? false)}
+                                              title="Billable quantity"
+                                            />
+                                            <span className="text-[10px] text-gray-400">{line.unit}{line.unitCost > 0 ? ` @ ${fmt(line.unitCost)}` : ''}</span>
+                                          </div>
+                                        ) : (
+                                          <span className="text-[10px] text-gray-400 truncate block max-w-[200px]" title={line.description}>
+                                            {line.description.includes(' — ') ? line.description.split(' — ').slice(1).join(' — ') : line.description}
+                                          </span>
+                                        )}
+                                      </td>
+                                      {/* COST $ */}
+                                      <td className="py-1 px-3 text-right">
+                                        <input
+                                          type="number" step="0.01" min="0"
+                                          value={parseFloat(line.totalCost.toFixed(2))}
+                                          onChange={e => bUpdateField(line.id, 'totalCost', e.target.value)}
+                                          className={bInp}
+                                        />
+                                      </td>
+                                      {/* MARKUP / PROFIT % */}
+                                      <td className="py-1 px-3 text-right bg-emerald-50/30">
+                                        <div className="relative inline-block">
+                                          <input
+                                            type="number" step="0.01"
+                                            value={parseFloat(pctVal.toFixed(2))}
+                                            onChange={e => bUpdateField(line.id, bShowProfit ? 'profitPercent' : 'markupPercent', e.target.value)}
+                                            className={`${bInpG} pr-4 font-semibold`}
+                                          />
+                                          <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] text-emerald-400 pointer-events-none">{bPctSuffix}</span>
+                                        </div>
+                                      </td>
+                                      {/* SELL $ + lock */}
+                                      <td className="py-1 px-4 text-right bg-emerald-50/30">
+                                        <div className="flex items-center justify-end gap-1">
+                                          <input
+                                            type="number" step="0.01" min="0"
+                                            value={parseFloat(line.sellPrice.toFixed(2))}
+                                            onChange={e => bUpdateField(line.id, 'sellPrice', e.target.value)}
+                                            readOnly={isLocked}
+                                            className={`${bInpG} font-bold ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => setBLockedIds(prev => { const s = new Set(prev); s.has(line.id) ? s.delete(line.id) : s.add(line.id); return s; })}
+                                            title={isLocked ? 'Locked — click to unlock' : 'Lock sell price'}
+                                            className={`flex-shrink-0 p-0.5 rounded transition-all ${isLocked ? 'text-amber-500' : 'text-gray-300 hover:text-gray-500'}`}
+                                          >
+                                            {isLocked ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </React.Fragment>
+                            ))}
+                          </tbody>
+
+                          {/* Totals row */}
+                          <tfoot className="border-t-2 border-gray-200 bg-gray-50/80">
+                            <tr>
+                              <td className="py-2 px-4 text-[10px] font-bold text-gray-600 uppercase tracking-wide" colSpan={2}>
+                                <span className="flex items-center gap-2">
+                                  Total
+                                  {bLockedIds.size > 0 && (
+                                    <span className="text-[8px] text-amber-500 flex items-center gap-0.5">
+                                      <Lock className="w-2.5 h-2.5" />{bLockedIds.size} locked
+                                    </span>
+                                  )}
+                                </span>
+                              </td>
+                              {/* Total Cost — read-only */}
+                              <td className="py-2 px-3 text-right num font-bold text-gray-800">{fmt(bTotalCost)}</td>
+                              {/* Total Markup/Profit — click to scale all */}
+                              <td className="py-1 px-3 text-right bg-emerald-50/60">
+                                {bTotalMkInput !== null ? (
+                                  <div className="relative inline-block">
+                                    <input
+                                      type="number" step="0.01" autoFocus
+                                      value={bTotalMkInput}
+                                      onChange={e => { setBTotalMkInput(e.target.value); setBTotalMkErr(false); }}
+                                      onBlur={e => bApplyTotalMarkup(e.target.value)}
+                                      onKeyDown={e => { if (e.key === 'Enter') bApplyTotalMarkup((e.target as HTMLInputElement).value); if (e.key === 'Escape') { setBTotalMkInput(null); setBTotalMkErr(false); } }}
+                                      className={`w-[72px] px-1.5 py-0.5 text-[11px] text-right num font-bold border rounded focus:outline-none focus:ring-1 pr-4 ${bTotalMkErr ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300' : 'border-emerald-300 bg-emerald-50 text-emerald-800 focus:ring-emerald-300'}`}
+                                    />
+                                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] text-emerald-500 pointer-events-none">{bPctSuffix}</span>
+                                  </div>
+                                ) : (
+                                  <button type="button"
+                                    onClick={() => setBTotalMkInput(parseFloat(bMkOrPft(bMarkup).toFixed(2)).toString())}
+                                    title={`Click to scale all ${bShowProfit ? 'profit' : 'markup'} %`}
+                                    className="w-[72px] px-1.5 py-0.5 text-right text-[11px] num font-bold rounded border border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-100/60 transition-colors text-emerald-700"
+                                  >
+                                    {bMkOrPft(bMarkup).toFixed(2)}{bPctSuffix}
+                                  </button>
+                                )}
+                              </td>
+                              {/* Total Sell — click to scale all */}
+                              <td className="py-1 px-4 bg-emerald-50/60">
+                                {bTotalSellInput !== null ? (
+                                  <input
+                                    type="number" step="0.01" min="0" autoFocus
+                                    value={bTotalSellInput}
+                                    onChange={e => { setBTotalSellInput(e.target.value); setBTotalSellErr(false); }}
+                                    onBlur={e => bApplyTotalSell(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter') bApplyTotalSell((e.target as HTMLInputElement).value); if (e.key === 'Escape') { setBTotalSellInput(null); setBTotalSellErr(false); } }}
+                                    className={`w-[72px] px-1.5 py-0.5 text-[11px] text-right num font-bold border rounded focus:outline-none focus:ring-1 ${bTotalSellErr ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300' : 'border-emerald-300 bg-emerald-50 text-emerald-800 focus:ring-emerald-300'}`}
+                                  />
+                                ) : (
+                                  <button type="button"
+                                    onClick={() => setBTotalSellInput(parseFloat(bTotalSell.toFixed(2)).toString())}
+                                    title="Click to scale all sell prices"
+                                    className="w-[72px] px-1.5 py-0.5 text-right text-[12px] num font-bold rounded border border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-100/60 transition-colors text-emerald-900"
+                                  >
+                                    {fmt(bTotalSell)}
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+
+                        {/* Margin footer */}
+                        <div className="px-4 py-1.5 flex items-center gap-4 bg-gray-50 border-t border-gray-100 text-[10px] text-gray-500">
+                          <span>Margin: <span className={`font-semibold ${bMargin >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{bMargin.toFixed(1)}%</span></span>
+                          <span>Profit: <span className="font-semibold text-emerald-600">{fmt(bProfit)}</span></span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
                 );
               })()}
-
-              {/* ═══ PRICE BREAKDOWN EDIT DIALOG ══════════════════════ */}
-              {showBreakdownDialog && (
-                <PriceBreakdownDialog
-                  lines={ps.serviceLines}
-                  onSave={(updatedLines) => {
-                    onUpdatePricing({ serviceLines: updatedLines });
-                    const totalCost = updatedLines.reduce((s, l) => s + l.totalCost, 0);
-                    const totalSell = updatedLines.reduce((s, l) => s + l.sellPrice, 0);
-                    const overallMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
-                    onUpdateItem({ totalCost, sellPrice: totalSell, markup: Math.round(overallMarkup) });
-                    // Mark all lines with changes as overridden
-                    const newOverrides: Record<string, boolean> = {};
-                    updatedLines.forEach((l, i) => {
-                      const orig = ps.serviceLines[i];
-                      if (orig && (l.totalCost !== orig.totalCost || l.markupPercent !== orig.markupPercent)) {
-                        newOverrides[l.id] = true;
-                      }
-                    });
-                    setManualOverrides(prev => ({ ...prev, ...newOverrides }));
-                    setShowBreakdownDialog(false);
-                  }}
-                  onRecalculate={() => {
-                    // Reset overrides + recompute, but DON'T close the dialog
-                    setManualOverrides({});
-                    setEditingLineId(null);
-                    setEditValues({});
-                    const fresh = computeServiceLines();
-                    onUpdatePricing({ serviceLines: fresh });
-                    const tc = fresh.reduce((s, l) => s + l.totalCost, 0);
-                    const ts = fresh.reduce((s, l) => s + l.sellPrice, 0);
-                    onUpdateItem({ totalCost: tc, sellPrice: ts, markup: Math.round(tc > 0 ? ((ts - tc) / tc) * 100 : 0) });
-                    return fresh;
-                  }}
-                  onClose={() => setShowBreakdownDialog(false)}
-                />
-              )}
 
               {/* ── Notes ─────────────────────────────────────────────── */}
               <div className="grid grid-cols-2 gap-3 pt-2">
