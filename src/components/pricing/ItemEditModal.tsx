@@ -1430,7 +1430,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col">
 
         {/* ═══ Modal Header ═══════════════════════════════════════════════ */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -2469,32 +2469,80 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           </button>
                         </div>
 
-                        {/* Table: SERVICE | DESCRIPTION | ACTUAL | UNIT | CHARGE | COST $ | MARKUP % | SELL $ */}
-                        <table className="w-full text-[11px]">
-                          <thead className="border-b border-gray-200 bg-gray-50/80">
-                            <tr>
-                              <th className="py-1.5 px-3 text-[9px] font-bold text-gray-400 uppercase tracking-wide text-left">Service</th>
-                              <th className="py-1.5 px-3 text-[9px] font-bold text-gray-400 uppercase tracking-wide text-left">Description</th>
-                              {/* COST zone */}
-                              <th className="py-1.5 px-2 text-[9px] font-bold text-gray-400 uppercase tracking-wide text-right border-l border-gray-100">Actual</th>
-                              <th className="py-1.5 px-2 text-[9px] font-bold text-gray-400 uppercase tracking-wide text-right">Unit</th>
-                              <th className="py-1.5 px-2 text-[9px] font-bold text-violet-500 uppercase tracking-wide text-right">Charge ✎</th>
-                              <th className="py-1.5 px-3 text-[9px] font-bold text-gray-400 uppercase tracking-wide text-right border-l border-gray-100">Cost $</th>
-                              {/* SELL zone */}
-                              <th className="py-1.5 px-2 text-[9px] font-bold text-emerald-600 uppercase tracking-wide text-right bg-emerald-50/60 border-l-2 border-emerald-200">{bShowProfit ? 'Profit %' : 'Markup %'}</th>
-                              <th className="py-1.5 px-3 text-[9px] font-bold text-emerald-600 uppercase tracking-wide text-right bg-emerald-50/60">Sell $</th>
+                        {/* ── Price breakdown table ─────────────────────────────────────────── */}
+                        {/* Column widths lock header↔cell alignment precisely */}
+                        <table className="w-full border-collapse" style={{ tableLayout: 'fixed', fontSize: '11px' }}>
+                          <colgroup>
+                            <col style={{ width: '110px' }} /> {/* Service */}
+                            <col />                             {/* Description — flexible, takes remainder */}
+                            <col style={{ width: '68px'  }} /> {/* Actual */}
+                            <col style={{ width: '82px'  }} /> {/* Unit Cost */}
+                            <col style={{ width: '72px'  }} /> {/* Charge ✎ */}
+                            <col style={{ width: '80px'  }} /> {/* Cost */}
+                            <col style={{ width: '80px'  }} /> {/* Markup/Profit % */}
+                            <col style={{ width: '82px'  }} /> {/* Sell $ */}
+                            <col style={{ width: '28px'  }} /> {/* 🔒 lock — dedicated narrow col */}
+                          </colgroup>
+
+                          {/* ── Column headers ── */}
+                          <thead>
+                            {/* Zone band */}
+                            <tr className="border-b border-gray-100 bg-gray-50/60">
+                              <th colSpan={2} className="py-1 px-3 text-left" />
+                              {/* COST zone label */}
+                              <th colSpan={4}
+                                className="py-1 px-0 text-center text-[8px] font-bold uppercase tracking-widest text-gray-400 border-l border-gray-200">
+                                Cost
+                              </th>
+                              {/* SELL zone label */}
+                              <th colSpan={3}
+                                className="py-1 px-0 text-center text-[8px] font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50/60 border-l-2 border-emerald-300">
+                                Sell
+                              </th>
+                            </tr>
+                            {/* Column labels — same px as cells so they register */}
+                            <tr className="border-b-2 border-gray-200 bg-gray-50/80">
+                              <th className="py-1.5 px-3 text-left text-[9px] font-bold text-gray-500 uppercase tracking-wide">Service</th>
+                              <th className="py-1.5 px-3 text-left text-[9px] font-bold text-gray-500 uppercase tracking-wide">Description</th>
+                              {/* COST cols */}
+                              <th className="py-1.5 px-3 text-right text-[9px] font-bold text-gray-400 uppercase tracking-wide border-l border-gray-200">Actual</th>
+                              <th className="py-1.5 px-3 text-right text-[9px] font-bold text-gray-400 uppercase tracking-wide">Unit Cost</th>
+                              <th className="py-1.5 px-3 text-right text-[9px] font-bold text-violet-500 uppercase tracking-wide">Charge</th>
+                              <th className="py-1.5 px-3 text-right text-[9px] font-bold text-gray-500 uppercase tracking-wide">Cost</th>
+                              {/* SELL cols */}
+                              <th className="py-1.5 px-3 text-right text-[9px] font-bold text-emerald-600 uppercase tracking-wide bg-emerald-50/50 border-l-2 border-emerald-300">
+                                <button type="button" onClick={() => setBShowProfit(p => !p)}
+                                  title="Toggle Markup % / Profit %"
+                                  className="flex items-center justify-end gap-0.5 w-full hover:text-emerald-700 transition-colors">
+                                  {bShowProfit ? 'Profit %' : 'Markup %'}
+                                  <span className="text-[7px] opacity-40">↕</span>
+                                </button>
+                              </th>
+                              <th className="py-1.5 px-3 text-right text-[9px] font-bold text-emerald-600 uppercase tracking-wide bg-emerald-50/50">Sell $</th>
+                              <th className="py-1.5 px-1 bg-emerald-50/50" title="Lock sell price to exclude from global scaling">
+                                {bLockedIds.size > 0
+                                  ? <span className="flex justify-center"><Lock className="w-2.5 h-2.5 text-amber-400" /></span>
+                                  : null}
+                              </th>
                             </tr>
                           </thead>
+
+                          {/* ── Body rows ── */}
                           <tbody className="divide-y divide-gray-50">
                             {bGroups.map(({ service, lines: grpLines, isGrouped, label }) => (
                               <React.Fragment key={service + grpLines[0].id}>
+                                {/* Grouped parent header row */}
                                 {isGrouped && (
-                                  <tr className="bg-gray-50/40">
-                                    <td className="py-1.5 px-3 font-semibold text-gray-700">{service}</td>
-                                    <td className="py-1.5 px-3 text-gray-500 text-[10px]">{label}</td>
-                                    <td colSpan={6} />
+                                  <tr className="bg-gray-50/50 border-b border-gray-100">
+                                    <td className="py-1.5 px-3 font-bold text-gray-700 text-[11px]">{service}</td>
+                                    <td className="py-1.5 px-3 text-gray-400 text-[10px] overflow-hidden">
+                                      <span className="block truncate" title={label}>{label}</span>
+                                    </td>
+                                    <td colSpan={7} />
                                   </tr>
                                 )}
+
+                                {/* Data rows */}
                                 {grpLines.map(line => {
                                   const timeBased = line.hourlyCost != null && line.hoursActual != null;
                                   const qtyBased  = !timeBased && line.quantity != null && line.unit !== 'flat';
@@ -2502,50 +2550,58 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                   const pctVal    = bMkOrPft(line.markupPercent);
                                   const chargeQty = line.chargeQty ?? line.quantity;
 
-                                  // Actual value display (system-calculated, read-only)
+                                  // Actual — system-calculated (read-only)
                                   const actualDisplay = timeBased
                                     ? `${Math.ceil((line.hoursActual ?? 0) * 60)} min`
                                     : qtyBased && line.quantity != null
-                                    ? line.quantity.toLocaleString()
-                                    : '—';
+                                      ? line.quantity.toLocaleString()
+                                      : '—';
 
-                                  // Unit display: for time show $/min, for qty show unit label
-                                  const unitDisplay = timeBased && line.hourlyCost
+                                  // Unit Cost — rate per unit
+                                  const unitCostDisplay = timeBased && line.hourlyCost
                                     ? `${fmt(line.hourlyCost / 60)}/min`
                                     : qtyBased && line.unitCost > 0
-                                    ? `${fmt(line.unitCost)}/${(line.unit ?? '').replace(/s$/, '') || 'unit'}`
-                                    : line.unit && line.unit !== 'flat' ? line.unit : 'flat';
+                                      ? `${fmt(line.unitCost)}/${(line.unit ?? '').replace(/s$/, '') || 'unit'}`
+                                      : '—';
+
+                                  // Shared cell padding — same for th AND td to guarantee alignment
+                                  const tdPx = 'px-3';
 
                                   return (
-                                    <tr key={line.id} className={`transition-colors ${isLocked ? 'bg-amber-50/20' : 'hover:bg-gray-50/50'}`}>
+                                    <tr key={line.id} className={`transition-colors ${isLocked ? 'bg-amber-50/25 hover:bg-amber-50/35' : 'hover:bg-gray-50/70'}`}>
 
                                       {/* SERVICE */}
-                                      <td className={`py-1.5 px-3 whitespace-nowrap ${isGrouped ? 'pl-7 text-gray-500 text-[10px]' : 'font-semibold text-gray-800'}`}>
-                                        <span className="flex items-center gap-1">
+                                      <td className={`py-2 ${tdPx} ${isGrouped ? 'pl-7 text-[10px] text-gray-500' : 'text-[11px] font-semibold text-gray-800'}`}>
+                                        <span className="flex items-center gap-1.5 whitespace-nowrap">
                                           {isGrouped ? bSubLabel(line) : service}
-                                          {manualOverrides[line.id] && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Edited" />}
+                                          {manualOverrides[line.id] && (
+                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Manually edited" />
+                                          )}
                                         </span>
                                       </td>
 
-                                      {/* DESCRIPTION — full line.description, truncated with tooltip */}
-                                      <td className="py-1.5 px-3 max-w-0">
-                                        <span className="text-[10px] text-gray-500 block truncate" title={line.description}>
+                                      {/* DESCRIPTION — truncated, full text on hover */}
+                                      <td className={`py-2 ${tdPx} overflow-hidden`}>
+                                        <span
+                                          className="block truncate text-[10px] text-gray-500 cursor-help"
+                                          title={line.description}
+                                        >
                                           {line.description}
                                         </span>
                                       </td>
 
-                                      {/* ACTUAL — system-calculated qty or time, read-only */}
-                                      <td className="py-1.5 px-2 text-right text-gray-400 num whitespace-nowrap border-l border-gray-100">
+                                      {/* ACTUAL — read-only, right-aligned, muted */}
+                                      <td className={`py-2 ${tdPx} text-right num text-[11px] text-gray-400 whitespace-nowrap border-l border-gray-150`}>
                                         {actualDisplay}
                                       </td>
 
-                                      {/* UNIT — rate per unit */}
-                                      <td className="py-1.5 px-2 text-right text-gray-400 num whitespace-nowrap text-[10px]">
-                                        {unitDisplay}
+                                      {/* UNIT COST — rate per unit, read-only */}
+                                      <td className={`py-2 ${tdPx} text-right num text-[10px] text-gray-400 whitespace-nowrap`}>
+                                        {unitCostDisplay}
                                       </td>
 
-                                      {/* CHARGE — editable override */}
-                                      <td className="py-1 px-2">
+                                      {/* CHARGE ✎ — editable override, coloured inputs */}
+                                      <td className={`py-1 ${tdPx}`}>
                                         {timeBased ? (
                                           <input
                                             type="text"
@@ -2554,7 +2610,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                             onBlur={() => bCommitTime(line.id)}
                                             onKeyDown={e => { if (e.key === 'Enter') bCommitTime(line.id); }}
                                             className={bInpSky(bTimeErrors[line.id] ?? false)}
-                                            title="Charge time in minutes"
+                                            title="Charge time in minutes — overrides actual"
                                           />
                                         ) : qtyBased ? (
                                           <input
@@ -2564,25 +2620,26 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                             onBlur={() => bCommitQty(line.id)}
                                             onKeyDown={e => { if (e.key === 'Enter') bCommitQty(line.id); }}
                                             className={bInpVio(bQtyErrors[line.id] ?? false)}
-                                            title="Billable quantity"
+                                            title="Billable quantity — overrides actual"
                                           />
                                         ) : (
-                                          <span className="text-gray-300 text-right block">—</span>
+                                          <span className="block text-center text-gray-300 text-[10px]">—</span>
                                         )}
                                       </td>
 
-                                      {/* COST $ — editable */}
-                                      <td className="py-1 px-3 border-l border-gray-100">
+                                      {/* COST — editable total cost */}
+                                      <td className={`py-1 ${tdPx}`}>
                                         <input
                                           type="number" step="0.01" min="0"
                                           value={parseFloat(line.totalCost.toFixed(2))}
                                           onChange={e => bUpdateField(line.id, 'totalCost', e.target.value)}
                                           className={bInp}
+                                          title="Total cost for this service"
                                         />
                                       </td>
 
-                                      {/* MARKUP / PROFIT % — editable */}
-                                      <td className="py-1 px-2 bg-emerald-50/30 border-l-2 border-emerald-200">
+                                      {/* MARKUP / PROFIT % — emerald zone */}
+                                      <td className={`py-1 ${tdPx} bg-emerald-50/40 border-l-2 border-emerald-200`}>
                                         <div className="relative">
                                           <input
                                             type="number" step="0.01"
@@ -2594,25 +2651,28 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                         </div>
                                       </td>
 
-                                      {/* SELL $ + lock */}
-                                      <td className="py-1 px-3 bg-emerald-50/30">
-                                        <div className="flex items-center gap-1">
-                                          <input
-                                            type="number" step="0.01" min="0"
-                                            value={parseFloat(line.sellPrice.toFixed(2))}
-                                            onChange={e => bUpdateField(line.id, 'sellPrice', e.target.value)}
-                                            readOnly={isLocked}
-                                            className={`${bInpG} font-bold ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
-                                          />
-                                          <button
-                                            type="button"
-                                            onClick={() => setBLockedIds(prev => { const s = new Set(prev); s.has(line.id) ? s.delete(line.id) : s.add(line.id); return s; })}
-                                            title={isLocked ? 'Locked — click to unlock' : 'Lock sell price'}
-                                            className={`flex-shrink-0 p-0.5 rounded transition-all ${isLocked ? 'text-amber-500' : 'text-gray-300 hover:text-gray-500'}`}
-                                          >
-                                            {isLocked ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
-                                          </button>
-                                        </div>
+                                      {/* SELL $ — emerald zone */}
+                                      <td className={`py-1 ${tdPx} bg-emerald-50/40`}>
+                                        <input
+                                          type="number" step="0.01" min="0"
+                                          value={parseFloat(line.sellPrice.toFixed(2))}
+                                          onChange={e => bUpdateField(line.id, 'sellPrice', e.target.value)}
+                                          readOnly={isLocked}
+                                          className={`${bInpG} font-bold w-full ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                          title={isLocked ? 'Locked — click 🔒 to unlock' : 'Sell price'}
+                                        />
+                                      </td>
+
+                                      {/* LOCK — own column, just the icon, no padding stealing space */}
+                                      <td className="py-1 px-1 bg-emerald-50/40 text-center">
+                                        <button
+                                          type="button"
+                                          onClick={() => setBLockedIds(prev => { const s = new Set(prev); s.has(line.id) ? s.delete(line.id) : s.add(line.id); return s; })}
+                                          title={isLocked ? 'Locked — click to unlock' : 'Lock sell price'}
+                                          className={`p-0.5 rounded transition-all ${isLocked ? 'text-amber-500 hover:text-amber-600' : 'text-gray-300 hover:text-gray-500'}`}
+                                        >
+                                          {isLocked ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
+                                        </button>
                                       </td>
                                     </tr>
                                   );
@@ -2621,10 +2681,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                             ))}
                           </tbody>
 
-                          {/* Totals row */}
-                          <tfoot className="border-t-2 border-gray-200 bg-gray-50/80">
+                          {/* ── Totals footer ── */}
+                          <tfoot className="border-t-2 border-gray-300 bg-gray-50/90">
                             <tr>
-                              {/* Service + Description + Actual + Unit + Charge = span 5 */}
+                              {/* Service + Description + Actual + Unit Cost + Charge = 5 cols */}
                               <td className="py-2 px-3 text-[10px] font-bold text-gray-600 uppercase tracking-wide" colSpan={5}>
                                 <span className="flex items-center gap-2">
                                   Total
@@ -2636,9 +2696,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                 </span>
                               </td>
                               {/* Total Cost — read-only */}
-                              <td className="py-2 px-3 text-right num font-bold text-gray-800 border-l border-gray-100">{fmt(bTotalCost)}</td>
-                              {/* Total Markup/Profit — click to scale all */}
-                              <td className="py-1 px-2 text-right bg-emerald-50/60 border-l-2 border-emerald-200">
+                              <td className="py-2 px-3 text-right text-[12px] num font-bold text-gray-800">{fmt(bTotalCost)}</td>
+                              {/* Total Markup/Profit — click to scale all unlocked */}
+                              <td className="py-1 px-3 bg-emerald-50/60 border-l-2 border-emerald-300">
                                 {bTotalMkInput !== null ? (
                                   <div className="relative inline-block">
                                     <input
@@ -2647,7 +2707,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                       onChange={e => { setBTotalMkInput(e.target.value); setBTotalMkErr(false); }}
                                       onBlur={e => bApplyTotalMarkup(e.target.value)}
                                       onKeyDown={e => { if (e.key === 'Enter') bApplyTotalMarkup((e.target as HTMLInputElement).value); if (e.key === 'Escape') { setBTotalMkInput(null); setBTotalMkErr(false); } }}
-                                      className={`w-[72px] px-1.5 py-0.5 text-[11px] text-right num font-bold border rounded focus:outline-none focus:ring-1 pr-4 ${bTotalMkErr ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300' : 'border-emerald-300 bg-emerald-50 text-emerald-800 focus:ring-emerald-300'}`}
+                                      className={`w-full px-1.5 py-0.5 text-[11px] text-right num font-bold border rounded focus:outline-none focus:ring-1 pr-4 ${bTotalMkErr ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300' : 'border-emerald-300 bg-emerald-50 text-emerald-800 focus:ring-emerald-300'}`}
                                     />
                                     <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] text-emerald-500 pointer-events-none">{bPctSuffix}</span>
                                   </div>
@@ -2655,14 +2715,14 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                   <button type="button"
                                     onClick={() => setBTotalMkInput(parseFloat(bMkOrPft(bMarkup).toFixed(2)).toString())}
                                     title={`Click to scale all ${bShowProfit ? 'profit' : 'markup'} %`}
-                                    className="w-[72px] px-1.5 py-0.5 text-right text-[11px] num font-bold rounded border border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-100/60 transition-colors text-emerald-700"
+                                    className="w-full px-1.5 py-0.5 text-right text-[11px] num font-bold rounded border border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-100/60 transition-colors text-emerald-700"
                                   >
                                     {bMkOrPft(bMarkup).toFixed(2)}{bPctSuffix}
                                   </button>
                                 )}
                               </td>
-                              {/* Total Sell — click to scale all */}
-                              <td className="py-1 px-4 bg-emerald-50/60">
+                              {/* Total Sell $ — click to scale all unlocked */}
+                              <td className="py-1 px-3 bg-emerald-50/60">
                                 {bTotalSellInput !== null ? (
                                   <input
                                     type="number" step="0.01" min="0" autoFocus
@@ -2670,18 +2730,20 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                     onChange={e => { setBTotalSellInput(e.target.value); setBTotalSellErr(false); }}
                                     onBlur={e => bApplyTotalSell(e.target.value)}
                                     onKeyDown={e => { if (e.key === 'Enter') bApplyTotalSell((e.target as HTMLInputElement).value); if (e.key === 'Escape') { setBTotalSellInput(null); setBTotalSellErr(false); } }}
-                                    className={`w-[72px] px-1.5 py-0.5 text-[11px] text-right num font-bold border rounded focus:outline-none focus:ring-1 ${bTotalSellErr ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300' : 'border-emerald-300 bg-emerald-50 text-emerald-800 focus:ring-emerald-300'}`}
+                                    className={`w-full px-1.5 py-0.5 text-[12px] text-right num font-bold border rounded focus:outline-none focus:ring-1 ${bTotalSellErr ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300' : 'border-emerald-300 bg-emerald-50 text-emerald-800 focus:ring-emerald-300'}`}
                                   />
                                 ) : (
                                   <button type="button"
                                     onClick={() => setBTotalSellInput(parseFloat(bTotalSell.toFixed(2)).toString())}
-                                    title="Click to scale all sell prices"
-                                    className="w-[72px] px-1.5 py-0.5 text-right text-[12px] num font-bold rounded border border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-100/60 transition-colors text-emerald-900"
+                                    title="Click to scale all unlocked sell prices to a new total"
+                                    className="w-full px-1.5 py-0.5 text-right text-[13px] num font-bold rounded border border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-100/60 transition-colors text-emerald-900"
                                   >
                                     {fmt(bTotalSell)}
                                   </button>
                                 )}
                               </td>
+                              {/* Lock column — empty in totals row */}
+                              <td className="bg-emerald-50/60" />
                             </tr>
                           </tfoot>
                         </table>
