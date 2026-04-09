@@ -2452,15 +2452,20 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           </button>
                         </div>
 
-                        {/* 5-column table — compact inputs, no stretching */}
+                        {/* Table: SERVICE | DESCRIPTION | ACTUAL | UNIT | CHARGE | COST $ | MARKUP % | SELL $ */}
                         <table className="w-full text-[11px]">
                           <thead className="border-b border-gray-200 bg-gray-50/80">
                             <tr>
-                              <th className="py-1.5 px-4 text-[9px] font-bold text-gray-400 uppercase tracking-wide text-left">Service</th>
-                              <th className="py-1.5 px-3 text-[9px] font-bold text-gray-400 uppercase tracking-wide text-left">Details</th>
-                              <th className="py-1.5 px-3 text-[9px] font-bold text-gray-400 uppercase tracking-wide text-right">Cost $</th>
-                              <th className="py-1.5 px-3 text-[9px] font-bold text-emerald-600 uppercase tracking-wide text-right bg-emerald-50/60">{bShowProfit ? 'Profit %' : 'Markup %'}</th>
-                              <th className="py-1.5 px-4 text-[9px] font-bold text-emerald-600 uppercase tracking-wide text-right bg-emerald-50/60">Sell $</th>
+                              <th className="py-1.5 px-3 text-[9px] font-bold text-gray-400 uppercase tracking-wide text-left">Service</th>
+                              <th className="py-1.5 px-3 text-[9px] font-bold text-gray-400 uppercase tracking-wide text-left">Description</th>
+                              {/* COST zone */}
+                              <th className="py-1.5 px-2 text-[9px] font-bold text-gray-400 uppercase tracking-wide text-right border-l border-gray-100">Actual</th>
+                              <th className="py-1.5 px-2 text-[9px] font-bold text-gray-400 uppercase tracking-wide text-right">Unit</th>
+                              <th className="py-1.5 px-2 text-[9px] font-bold text-violet-500 uppercase tracking-wide text-right">Charge ✎</th>
+                              <th className="py-1.5 px-3 text-[9px] font-bold text-gray-400 uppercase tracking-wide text-right border-l border-gray-100">Cost $</th>
+                              {/* SELL zone */}
+                              <th className="py-1.5 px-2 text-[9px] font-bold text-emerald-600 uppercase tracking-wide text-right bg-emerald-50/60 border-l-2 border-emerald-200">{bShowProfit ? 'Profit %' : 'Markup %'}</th>
+                              <th className="py-1.5 px-3 text-[9px] font-bold text-emerald-600 uppercase tracking-wide text-right bg-emerald-50/60">Sell $</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-50">
@@ -2468,9 +2473,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               <React.Fragment key={service + grpLines[0].id}>
                                 {isGrouped && (
                                   <tr className="bg-gray-50/40">
-                                    <td className="py-1.5 px-4 font-semibold text-gray-700">{service}</td>
-                                    <td className="py-1.5 px-3 text-gray-400">{label}</td>
-                                    <td colSpan={3} />
+                                    <td className="py-1.5 px-3 font-semibold text-gray-700">{service}</td>
+                                    <td className="py-1.5 px-3 text-gray-500 text-[10px]">{label}</td>
+                                    <td colSpan={6} />
                                   </tr>
                                 )}
                                 {grpLines.map(line => {
@@ -2479,49 +2484,78 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                   const isLocked  = bLockedIds.has(line.id);
                                   const pctVal    = bMkOrPft(line.markupPercent);
                                   const chargeQty = line.chargeQty ?? line.quantity;
+
+                                  // Actual value display (system-calculated, read-only)
+                                  const actualDisplay = timeBased
+                                    ? `${Math.ceil((line.hoursActual ?? 0) * 60)} min`
+                                    : qtyBased && line.quantity != null
+                                    ? line.quantity.toLocaleString()
+                                    : '—';
+
+                                  // Unit display: for time show $/min, for qty show unit label
+                                  const unitDisplay = timeBased && line.hourlyCost
+                                    ? `${fmt(line.hourlyCost / 60)}/min`
+                                    : qtyBased && line.unitCost > 0
+                                    ? `${fmt(line.unitCost)}/${(line.unit ?? '').replace(/s$/, '') || 'unit'}`
+                                    : line.unit && line.unit !== 'flat' ? line.unit : 'flat';
+
                                   return (
-                                    <tr key={line.id} className={`transition-colors ${isLocked ? 'bg-amber-50/20' : 'hover:bg-gray-50/60'}`}>
+                                    <tr key={line.id} className={`transition-colors ${isLocked ? 'bg-amber-50/20' : 'hover:bg-gray-50/50'}`}>
+
                                       {/* SERVICE */}
-                                      <td className={`py-1.5 ${isGrouped ? 'pl-8' : 'px-4'} ${isGrouped ? 'pr-4' : ''} text-gray-700 ${isGrouped ? 'text-gray-500 text-[10px]' : 'font-semibold'}`}>
-                                        {isGrouped ? bSubLabel(line) : service}
-                                        {manualOverrides[line.id] && <span className="ml-1 w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" title="Edited" />}
+                                      <td className={`py-1.5 px-3 whitespace-nowrap ${isGrouped ? 'pl-7 text-gray-500 text-[10px]' : 'font-semibold text-gray-800'}`}>
+                                        <span className="flex items-center gap-1">
+                                          {isGrouped ? bSubLabel(line) : service}
+                                          {manualOverrides[line.id] && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Edited" />}
+                                        </span>
                                       </td>
-                                      {/* DETAILS */}
-                                      <td className="py-1 px-3">
+
+                                      {/* DESCRIPTION — full line.description, truncated with tooltip */}
+                                      <td className="py-1.5 px-3 max-w-0">
+                                        <span className="text-[10px] text-gray-500 block truncate" title={line.description}>
+                                          {line.description}
+                                        </span>
+                                      </td>
+
+                                      {/* ACTUAL — system-calculated qty or time, read-only */}
+                                      <td className="py-1.5 px-2 text-right text-gray-400 num whitespace-nowrap border-l border-gray-100">
+                                        {actualDisplay}
+                                      </td>
+
+                                      {/* UNIT — rate per unit */}
+                                      <td className="py-1.5 px-2 text-right text-gray-400 num whitespace-nowrap text-[10px]">
+                                        {unitDisplay}
+                                      </td>
+
+                                      {/* CHARGE — editable override */}
+                                      <td className="py-1 px-2">
                                         {timeBased ? (
-                                          <div className="flex items-center gap-1.5">
-                                            <input
-                                              type="text"
-                                              value={bTimeInputs[line.id] ?? `${Math.ceil((line.hoursCharge ?? line.hoursActual ?? 0) * 60)} min`}
-                                              onChange={e => setBTimeInputs(t => ({ ...t, [line.id]: e.target.value }))}
-                                              onBlur={() => bCommitTime(line.id)}
-                                              onKeyDown={e => { if (e.key === 'Enter') bCommitTime(line.id); }}
-                                              className={bInpSky(bTimeErrors[line.id] ?? false)}
-                                              title="Charge time in minutes"
-                                            />
-                                            <span className="text-[10px] text-gray-400">@ {fmt(line.hourlyCost!)}/hr</span>
-                                          </div>
+                                          <input
+                                            type="text"
+                                            value={bTimeInputs[line.id] ?? `${Math.ceil((line.hoursCharge ?? line.hoursActual ?? 0) * 60)} min`}
+                                            onChange={e => setBTimeInputs(t => ({ ...t, [line.id]: e.target.value }))}
+                                            onBlur={() => bCommitTime(line.id)}
+                                            onKeyDown={e => { if (e.key === 'Enter') bCommitTime(line.id); }}
+                                            className={bInpSky(bTimeErrors[line.id] ?? false)}
+                                            title="Charge time in minutes"
+                                          />
                                         ) : qtyBased ? (
-                                          <div className="flex items-center gap-1.5">
-                                            <input
-                                              type="number" step="1" min="1"
-                                              value={bQtyInputs[line.id] ?? chargeQty}
-                                              onChange={e => { setBQtyInputs(q => ({ ...q, [line.id]: e.target.value })); setBQtyErrors(q => ({ ...q, [line.id]: false })); }}
-                                              onBlur={() => bCommitQty(line.id)}
-                                              onKeyDown={e => { if (e.key === 'Enter') bCommitQty(line.id); }}
-                                              className={bInpVio(bQtyErrors[line.id] ?? false)}
-                                              title="Billable quantity"
-                                            />
-                                            <span className="text-[10px] text-gray-400">{line.unit}{line.unitCost > 0 ? ` @ ${fmt(line.unitCost)}` : ''}</span>
-                                          </div>
+                                          <input
+                                            type="number" step="1" min="1"
+                                            value={bQtyInputs[line.id] ?? chargeQty}
+                                            onChange={e => { setBQtyInputs(q => ({ ...q, [line.id]: e.target.value })); setBQtyErrors(q => ({ ...q, [line.id]: false })); }}
+                                            onBlur={() => bCommitQty(line.id)}
+                                            onKeyDown={e => { if (e.key === 'Enter') bCommitQty(line.id); }}
+                                            className={bInpVio(bQtyErrors[line.id] ?? false)}
+                                            title="Billable quantity"
+                                          />
                                         ) : (
-                                          <span className="text-[10px] text-gray-400 truncate block max-w-[200px]" title={line.description}>
-                                            {line.description.includes(' — ') ? line.description.split(' — ').slice(1).join(' — ') : line.description}
-                                          </span>
+                                          <span className="text-gray-300 text-right block">—</span>
                                         )}
                                       </td>
-                                      {/* COST $ */}
-                                      <td className="py-1 px-3 text-right">
+
+                                      {/* COST $ — editable */}
+                                      <td className="py-1 px-3 border-l border-gray-100">
                                         <input
                                           type="number" step="0.01" min="0"
                                           value={parseFloat(line.totalCost.toFixed(2))}
@@ -2529,9 +2563,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                           className={bInp}
                                         />
                                       </td>
-                                      {/* MARKUP / PROFIT % */}
-                                      <td className="py-1 px-3 text-right bg-emerald-50/30">
-                                        <div className="relative inline-block">
+
+                                      {/* MARKUP / PROFIT % — editable */}
+                                      <td className="py-1 px-2 bg-emerald-50/30 border-l-2 border-emerald-200">
+                                        <div className="relative">
                                           <input
                                             type="number" step="0.01"
                                             value={parseFloat(pctVal.toFixed(2))}
@@ -2541,9 +2576,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                           <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] text-emerald-400 pointer-events-none">{bPctSuffix}</span>
                                         </div>
                                       </td>
+
                                       {/* SELL $ + lock */}
-                                      <td className="py-1 px-4 text-right bg-emerald-50/30">
-                                        <div className="flex items-center justify-end gap-1">
+                                      <td className="py-1 px-3 bg-emerald-50/30">
+                                        <div className="flex items-center gap-1">
                                           <input
                                             type="number" step="0.01" min="0"
                                             value={parseFloat(line.sellPrice.toFixed(2))}
@@ -2571,7 +2607,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           {/* Totals row */}
                           <tfoot className="border-t-2 border-gray-200 bg-gray-50/80">
                             <tr>
-                              <td className="py-2 px-4 text-[10px] font-bold text-gray-600 uppercase tracking-wide" colSpan={2}>
+                              {/* Service + Description + Actual + Unit + Charge = span 5 */}
+                              <td className="py-2 px-3 text-[10px] font-bold text-gray-600 uppercase tracking-wide" colSpan={5}>
                                 <span className="flex items-center gap-2">
                                   Total
                                   {bLockedIds.size > 0 && (
@@ -2582,9 +2619,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                 </span>
                               </td>
                               {/* Total Cost — read-only */}
-                              <td className="py-2 px-3 text-right num font-bold text-gray-800">{fmt(bTotalCost)}</td>
+                              <td className="py-2 px-3 text-right num font-bold text-gray-800 border-l border-gray-100">{fmt(bTotalCost)}</td>
                               {/* Total Markup/Profit — click to scale all */}
-                              <td className="py-1 px-3 text-right bg-emerald-50/60">
+                              <td className="py-1 px-2 text-right bg-emerald-50/60 border-l-2 border-emerald-200">
                                 {bTotalMkInput !== null ? (
                                   <div className="relative inline-block">
                                     <input
