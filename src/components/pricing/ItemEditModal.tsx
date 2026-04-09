@@ -31,6 +31,7 @@ export interface LineItemPricingState {
   materialId: string;
   equipmentId: string;
   colorMode: 'Color' | 'Black';
+  colorModeSide2?: 'Color' | 'Black'; // only relevant for Double-sided — side 2 color
   sides: 'Single' | 'Double';
   foldingType: string;
   drillingType: string;
@@ -197,12 +198,14 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     materialId: string;
     sides: 'Single' | 'Double';
     colorMode: 'Color' | 'Black';
+    colorModeSide2: 'Color' | 'Black'; // for double-sided mixed (e.g. Color/B&W)
     originals: number;
   }>>([{
     materialId: ps.materialId || '',
     sides: ps.sides,
     colorMode: ps.colorMode,
-    originals: 1,
+    colorModeSide2: ps.colorModeSide2 ?? ps.colorMode,
+    originals: ps.originals ?? 1,
   }]);
 
   // ── Services selection state ──────────────────────────────────────────
@@ -262,11 +265,18 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   useEffect(() => {
     if (materialEntries.length > 0) {
       const first = materialEntries[0];
-      if (first.materialId !== ps.materialId || first.sides !== ps.sides || first.colorMode !== ps.colorMode || (first.originals ?? 1) !== (ps.originals ?? 1)) {
+      if (
+        first.materialId !== ps.materialId ||
+        first.sides !== ps.sides ||
+        first.colorMode !== ps.colorMode ||
+        (first.colorModeSide2) !== (ps.colorModeSide2 ?? ps.colorMode) ||
+        (first.originals ?? 1) !== (ps.originals ?? 1)
+      ) {
         onUpdatePricing({
           materialId: first.materialId,
           sides: first.sides,
           colorMode: first.colorMode,
+          colorModeSide2: first.colorModeSide2,
           originals: first.originals ?? 1,
         });
       }
@@ -283,7 +293,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     setMaterialEntries(prev => {
       const updated = [...prev];
       if (updated.length > 0) {
-        updated[0] = { ...updated[0], materialId: ps.materialId || '', sides: ps.sides, colorMode: ps.colorMode };
+        updated[0] = { ...updated[0], materialId: ps.materialId || '', sides: ps.sides, colorMode: ps.colorMode, colorModeSide2: ps.colorModeSide2 ?? ps.colorMode };
       }
       return updated;
     });
@@ -482,16 +492,46 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     const effectiveSheetsNeeded = imposition.sheetsNeeded * originals;
     if (selectedEquipment) {
       if (selectedEquipment.costUnit === 'per_click') {
-        const totalClicks = effectiveSheetsNeeded * (ps.sides === 'Double' ? 2 : 1);
-        const costPerClick = selectedEquipment.unitCost;
-        const clickCost   = totalClicks * costPerClick;
-        const sellPerClick = lookupClickPrice(selectedEquipment.id, totalClicks, ps.colorMode);
-        const clickSell   = totalClicks * sellPerClick;
+        const isDouble = ps.sides === 'Double';
+        // Side 2 color — for mixed duplex (Color/B&W). Falls back to side 1 color if not set.
+        const side2Color: 'Color' | 'Black' = ps.colorModeSide2 ?? ps.colorMode;
 
-        // ── Cost + Time equipment (e.g. "Ricoh 9200 w/ Staff Support") ──────
-        // When costType === 'cost_plus_time', add operator/staff time on top of
-        // the per-click cost: time = totalClicks / unitsPerHour × timeCostPerHour.
-        // The time portion uses the same proportional markup as the click portion.
+        // Helper: lookup click price with fallback if equipment only has one tier type
+        const safeClickPrice = (color: 'Color' | 'Black', clicks: number): number => {
+          const eq = selectedEquipment;
+          const hasTiers = color === 'Black'
+            ? (eq.blackTiers?.length ?? 0) > 0
+            : (eq.colorTiers?.length ?? 0) > 0;
+          if (!hasTiers) {
+            // Equipment doesn't have this color's tiers — fall back to the other color's tiers
+            const fallbackColor: 'Color' | 'Black' = color === 'Black' ? 'Color' : 'Black';
+            return lookupClickPrice(eq.id, clicks, fallbackColor);
+          }
+          return lookupClickPrice(eq.id, clicks, color);
+        };
+
+        const clicksPerSheet = isDouble ? 2 : 1;
+        const totalClicks = effectiveSheetsNeeded * clicksPerSheet;
+        const costPerClick = selectedEquipment.unitCost;
+        const clickCost = totalClicks * costPerClick;
+
+        // For mixed duplex: side 1 and side 2 may have different sell rates
+        let clickSell: number;
+        let colorDesc: string;
+        if (isDouble && side2Color !== ps.colorMode) {
+          // Mixed: half clicks at side1 rate, half at side2 rate
+          const halfClicks = effectiveSheetsNeeded;
+          const side1Sell = safeClickPrice(ps.colorMode, halfClicks) * halfClicks;
+          const side2Sell = safeClickPrice(side2Color, halfClicks) * halfClicks;
+          clickSell = side1Sell + side2Sell;
+          colorDesc = `${ps.colorMode}/${side2Color}`;
+        } else {
+          const sellPerClick = safeClickPrice(ps.colorMode, totalClicks);
+          clickSell = totalClicks * sellPerClick;
+          colorDesc = isDouble ? `${ps.colorMode}/2-sided` : ps.colorMode;
+        }
+
+        // ── Cost + Time equipment ────────────────────────────────────────────
         const isCostPlusTime =
           selectedEquipment.costType === 'cost_plus_time' &&
           (selectedEquipment.unitsPerHour ?? 0) > 0 &&
@@ -505,16 +545,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
           const hours        = totalClicks / selectedEquipment.unitsPerHour!;
           const timeCostRate = selectedEquipment.timeCostPerHour!;
           const timeCost     = hours * timeCostRate;
-
-          // Apply the same markup ratio as the click tier to the time component
           const clickMarkupRatio = clickCost > 0 ? clickSell / clickCost : 1;
           const timeSell = timeCost * clickMarkupRatio;
-
           totalCost = clickCost + timeCost;
           totalSell = clickSell + timeSell;
           descSuffix = ` + ${hours.toFixed(2)}h staff @ ${fmt(timeCostRate)}/hr`;
-
-          // Also push a separate time service line so it's visible in the breakdown
           const timeMarkupPct = timeCost > 0 ? ((timeSell - timeCost) / timeCost) * 100 : 0;
           lines.push({
             id: slId('printing_time'), service: 'Printing',
@@ -526,9 +561,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         }
 
         const markupPct = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
+        const avgSellPerClick = totalClicks > 0 ? clickSell / totalClicks : 0;
         lines.push({
           id: slId('printing'), service: 'Printing',
-          description: `${selectedEquipment.name} — ${totalClicks} clicks (${ps.colorMode}, ${ps.sides === 'Double' ? '2-sided' : '1-sided'}) @ ${fmt(sellPerClick)}/click${descSuffix}`,
+          description: `${selectedEquipment.name} — ${totalClicks} clicks (${colorDesc}) @ ${fmt(avgSellPerClick)}/click${descSuffix}`,
           quantity: totalClicks, unit: 'clicks', unitCost: costPerClick,
           totalCost: clickCost, markupPercent: markupPct, sellPrice: clickSell, editable: true,
         });
@@ -721,7 +757,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // Depend only on the specific ps fields that actually affect calculations — NOT ps.serviceLines
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMaterial, selectedEquipment, imposition,
-      ps.quantity, ps.originals, ps.sides, ps.colorMode, ps.materialId, ps.equipmentId,
+      ps.quantity, ps.originals, ps.sides, ps.colorMode, ps.colorModeSide2, ps.materialId, ps.equipmentId,
       ps.cuttingEnabled, ps.sheetsPerStack, ps.foldingType, ps.drillingType,
       ps.finalWidth, ps.finalHeight,
       selectedLaborIds, selectedBrokeredIds,
@@ -873,10 +909,22 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     if (selectedEquipment) {
       const effectiveSheets = sheetsNeeded;
       if (selectedEquipment.costUnit === 'per_click') {
-        const totalClicks = effectiveSheets * (ps.sides === 'Double' ? 2 : 1);
+        const isDouble = ps.sides === 'Double';
+        const side2Color: 'Color' | 'Black' = ps.colorModeSide2 ?? ps.colorMode;
+        const safeClickPriceQ = (color: 'Color' | 'Black', clicks: number): number => {
+          const eq = selectedEquipment;
+          const hasTiers = color === 'Black' ? (eq.blackTiers?.length ?? 0) > 0 : (eq.colorTiers?.length ?? 0) > 0;
+          return hasTiers ? lookupClickPrice(eq.id, clicks, color) : lookupClickPrice(eq.id, clicks, color === 'Black' ? 'Color' : 'Black');
+        };
+        const totalClicks = effectiveSheets * (isDouble ? 2 : 1);
         const clickCost   = totalClicks * selectedEquipment.unitCost;
-        const sellPerClick = lookupClickPrice(selectedEquipment.id, totalClicks, ps.colorMode);
-        const clickSell   = totalClicks * sellPerClick;
+        let clickSell: number;
+        if (isDouble && side2Color !== ps.colorMode) {
+          const half = effectiveSheets;
+          clickSell = safeClickPriceQ(ps.colorMode, half) * half + safeClickPriceQ(side2Color, half) * half;
+        } else {
+          clickSell = totalClicks * safeClickPriceQ(ps.colorMode, totalClicks);
+        }
         tCost += clickCost;
         tSell += clickSell;
         // Cost+Time equipment: add staff time cost proportionally
@@ -1855,14 +1903,14 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   </label>
                 </div>
 
-                {/* ── Right: all 5 fields on ONE row — flex so they share space naturally ── */}
-                <div className="flex-1 min-w-0 flex flex-col justify-between">
+                {/* ── Right: Specs (all fields on one row, matching screenshot proportions) ── */}
+                <div className="flex-1 min-w-0 flex flex-col">
                   <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Specs</label>
                   <div className="flex items-start gap-2">
 
-                    {/* Quantity — widest (multi-qty strings like "1000, 2000, 5000") */}
-                    <div className="flex-[2] min-w-0">
-                      <label className="block text-[9px] text-gray-400 uppercase tracking-wide mb-1">Qty</label>
+                    {/* QTY — widest; holds multi-qty "1000, 2000" */}
+                    <div className="flex-[2.5] min-w-0">
+                      <label className="block text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">QTY</label>
                       <input
                         type="text" value={multiQtyInput}
                         onChange={e => {
@@ -1872,15 +1920,15 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           if (qParts.length > 0) onUpdatePricing({ quantity: qParts[0] });
                         }}
                         placeholder="1000"
-                        className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]"
+                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]"
                       />
                       {isMultiQty && <p className="text-[9px] text-purple-500 mt-0.5">{parsedQuantities.length} qtys</p>}
                     </div>
 
-                    {/* Originals — compact */}
+                    {/* ORIG. — narrow, usually 1 digit */}
                     <div className="flex-[1] min-w-0">
-                      <label className="block text-[9px] text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-0.5 whitespace-nowrap">
-                        Orig. <span className="cursor-help opacity-50" title="Number of unique designs — each is a separate press run.">ⓘ</span>
+                      <label className="block text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-0.5">
+                        ORIG. <span className="cursor-help text-gray-300 font-normal" title="Number of unique designs — each is a separate press run. 3 originals × 500 qty = 3 separate runs of 500.">ⓘ</span>
                       </label>
                       <input
                         type="number" min="1" step="1"
@@ -1892,14 +1940,14 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           updated[0] = { ...updated[0], originals: v };
                           setMaterialEntries(updated);
                         }}
-                        className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] text-center"
+                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] text-center"
                       />
                       {(materialEntries[0]?.originals ?? 1) > 1 && <p className="text-[9px] text-violet-500 mt-0.5 text-center">{materialEntries[0].originals}×</p>}
                     </div>
 
-                    {/* Size */}
-                    <div className="flex-[1.5] min-w-0">
-                      <label className="block text-[9px] text-gray-400 uppercase tracking-wide mb-1">Size (in)</label>
+                    {/* SIZE (IN) */}
+                    <div className="flex-[1.8] min-w-0">
+                      <label className="block text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">SIZE (IN)</label>
                       <input
                         type="text" value={sizeInput}
                         onChange={e => {
@@ -1910,38 +1958,56 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           else if (e.target.value && !e.target.value.match(/^[\d.]+\s*[xX×]?\s*[\d.]*$/)) { setSizeError('W×H'); }
                           else { setSizeError(''); }
                         }}
-                        placeholder="3.5×2"
-                        className={`w-full px-2 py-2 text-sm bg-white border ${sizeError ? 'border-red-400' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]`}
+                        placeholder="3.5 x 2"
+                        className={`w-full px-3 py-2 text-sm bg-white border ${sizeError ? 'border-red-400' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]`}
                       />
                       {sizeError && <p className="text-[9px] text-red-500 mt-0.5">{sizeError}</p>}
                     </div>
 
-                    {/* Sides — with tooltip explaining 1/2 */}
-                    <div className="flex-[1] min-w-0">
-                      <label className="block text-[9px] text-gray-400 uppercase tracking-wide mb-1">Sides</label>
-                      <select
-                        value={materialEntries[0]?.sides || ps.sides}
-                        onChange={e => { trackInteraction(); const updated = [...materialEntries]; updated[0] = { ...updated[0], sides: e.target.value as 'Single' | 'Double' }; setMaterialEntries(updated); }}
-                        title="1 = Single-sided printing · 2 = Double-sided (duplex) printing"
-                        className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none cursor-pointer"
-                      >
-                        <option value="Single" title="Single-sided — printed on one side only">1 — Single</option>
-                        <option value="Double" title="Double-sided — printed on both sides">2 — Double</option>
-                      </select>
-                    </div>
+                    {/* SIDES & COLOR — combined dropdown */}
+                    {(() => {
+                      // Derive current combined value from materialEntries
+                      const e0 = materialEntries[0];
+                      const curSides = e0?.sides ?? ps.sides;
+                      const curColor = e0?.colorMode ?? ps.colorMode;
+                      const curColor2 = e0?.colorModeSide2 ?? ps.colorModeSide2 ?? curColor;
+                      const combinedValue = curSides === 'Single'
+                        ? `1-${curColor}`
+                        : `2-${curColor}-${curColor2}`;
 
-                    {/* Color — full word */}
-                    <div className="flex-[1] min-w-0">
-                      <label className="block text-[9px] text-gray-400 uppercase tracking-wide mb-1">Color</label>
-                      <select
-                        value={materialEntries[0]?.colorMode || ps.colorMode}
-                        onChange={e => { trackInteraction(); const updated = [...materialEntries]; updated[0] = { ...updated[0], colorMode: e.target.value as 'Color' | 'Black' }; setMaterialEntries(updated); }}
-                        className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none cursor-pointer"
-                      >
-                        <option value="Color">Color</option>
-                        <option value="Black">B&W</option>
-                      </select>
-                    </div>
+                      const handleCombinedChange = (val: string) => {
+                        trackInteraction();
+                        const updated = [...materialEntries];
+                        if (val.startsWith('1-')) {
+                          const c = val.slice(2) as 'Color' | 'Black';
+                          updated[0] = { ...updated[0], sides: 'Single', colorMode: c, colorModeSide2: c };
+                        } else {
+                          // "2-Color-Color", "2-Color-Black", "2-Black-Black"
+                          const parts = val.split('-');
+                          const c1 = parts[1] as 'Color' | 'Black';
+                          const c2 = parts[2] as 'Color' | 'Black';
+                          updated[0] = { ...updated[0], sides: 'Double', colorMode: c1, colorModeSide2: c2 };
+                        }
+                        setMaterialEntries(updated);
+                      };
+
+                      return (
+                        <div className="flex-[2] min-w-0">
+                          <label className="block text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">SIDES &amp; COLOR</label>
+                          <select
+                            value={combinedValue}
+                            onChange={e => handleCombinedChange(e.target.value)}
+                            className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none cursor-pointer"
+                          >
+                            <option value="1-Color">1 Side: Color</option>
+                            <option value="1-Black">1 Side: Black</option>
+                            <option value="2-Color-Color">2 Sides: Color / Color</option>
+                            <option value="2-Color-Black">2 Sides: Color / B&amp;W</option>
+                            <option value="2-Black-Black">2 Sides: B&amp;W / B&amp;W</option>
+                          </select>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -2397,6 +2463,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               )}
 
               {/* ═══ PRICE BREAKDOWN — inline expandable ══════════════ */}
+              {/* mt-4 gives breathing room after the multi-qty table */}
               {ps.serviceLines.length > 0 && (() => {
                 const bLines = ps.serviceLines;
                 const bTotalCost = bLines.reduce((s, l) => s + l.totalCost, 0);
@@ -2433,7 +2500,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 const bInpVio = (err: boolean) => `w-[68px] px-1.5 py-0.5 text-[11px] text-right num rounded focus:outline-none focus:ring-1 transition-colors border ${err ? 'border-red-400 text-red-600 bg-red-50' : 'border-violet-200 text-violet-700 bg-violet-50 focus:ring-violet-300'}`;
 
                 return (
-                  <div className="rounded-xl border border-emerald-200 overflow-hidden">
+                  <div className="rounded-xl border border-emerald-200 overflow-hidden mt-4">
 
                     {/* ── Collapsed header — always visible, shows summary stats ── */}
                     <button
@@ -2495,15 +2562,15 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         {/* Column widths lock header↔cell alignment precisely */}
                         <table className="w-full border-collapse" style={{ tableLayout: 'fixed', fontSize: '11px' }}>
                           <colgroup>
-                            <col style={{ width: '110px' }} /> {/* Service */}
-                            <col />                             {/* Description — flexible, takes remainder */}
-                            <col style={{ width: '68px'  }} /> {/* Actual */}
+                            <col style={{ width: '100px' }} /> {/* Service */}
+                            <col style={{ width: '28%'   }} /> {/* Description — fixed % so it doesn't eat the number cols */}
+                            <col style={{ width: '62px'  }} /> {/* Actual */}
                             <col style={{ width: '82px'  }} /> {/* Unit Cost */}
-                            <col style={{ width: '72px'  }} /> {/* Charge ✎ */}
-                            <col style={{ width: '80px'  }} /> {/* Cost */}
-                            <col style={{ width: '80px'  }} /> {/* Markup/Profit % */}
-                            <col style={{ width: '82px'  }} /> {/* Sell $ */}
-                            <col style={{ width: '28px'  }} /> {/* 🔒 lock — dedicated narrow col */}
+                            <col style={{ width: '70px'  }} /> {/* Charge ✎ */}
+                            <col style={{ width: '84px'  }} /> {/* Cost — slightly wider */}
+                            <col style={{ width: '84px'  }} /> {/* Markup/Profit % — slightly wider */}
+                            <col style={{ width: '88px'  }} /> {/* Sell $ — slightly wider */}
+                            <col style={{ width: '26px'  }} /> {/* 🔒 lock */}
                           </colgroup>
 
                           {/* ── Column headers ── */}
