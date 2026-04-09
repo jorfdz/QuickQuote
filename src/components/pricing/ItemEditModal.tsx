@@ -812,45 +812,176 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   }, [computeServiceLines]);
 
   // ── Multi-quantity pricing computation ────────────────────────────────
+  // ── Full pricing computation for any quantity ─────────────────────────────
+  // Mirrors computeServiceLines exactly, parameterized by qty so multi-qty
+  // pricing uses the same logic as the main price breakdown.
+  const computeCostSellForQty = useCallback((qty: number): { cost: number; sell: number } => {
+    let tCost = 0;
+    let tSell = 0;
+    const originals = ps.originals ?? 1;
+
+    // Compute imposition for this specific qty
+    let sheetsNeeded = 0;
+    let cutsPerSheet = 0;
+    if (selectedMaterial && ps.finalWidth > 0 && ps.finalHeight > 0) {
+      const rawImp = calculateImposition(ps.finalWidth, ps.finalHeight, selectedMaterial.sizeWidth, selectedMaterial.sizeHeight);
+      const ups = rawImp.totalUps > 0 ? rawImp.totalUps : 1;
+      sheetsNeeded = Math.ceil((qty * originals) / ups);
+      cutsPerSheet = rawImp.upsAcross + rawImp.upsDown; // same formula as main imposition
+
+      // MATERIAL
+      const costPerSheet = selectedMaterial.pricePerM / 1000;
+      tCost += sheetsNeeded * costPerSheet;
+      tSell += sheetsNeeded * costPerSheet * (1 + selectedMaterial.markup / 100);
+    }
+
+    // PRINTING
+    if (selectedEquipment) {
+      const effectiveSheets = sheetsNeeded;
+      if (selectedEquipment.costUnit === 'per_click') {
+        const totalClicks = effectiveSheets * (ps.sides === 'Double' ? 2 : 1);
+        const clickCost   = totalClicks * selectedEquipment.unitCost;
+        const sellPerClick = lookupClickPrice(selectedEquipment.id, totalClicks, ps.colorMode);
+        const clickSell   = totalClicks * sellPerClick;
+        tCost += clickCost;
+        tSell += clickSell;
+        // Cost+Time equipment: add staff time cost proportionally
+        if (selectedEquipment.costType === 'cost_plus_time' &&
+            (selectedEquipment.unitsPerHour ?? 0) > 0 &&
+            (selectedEquipment.timeCostPerHour ?? 0) > 0) {
+          const hours    = totalClicks / selectedEquipment.unitsPerHour!;
+          const timeCost = hours * selectedEquipment.timeCostPerHour!;
+          const ratio    = clickCost > 0 ? clickSell / clickCost : 1;
+          tCost += timeCost;
+          tSell += timeCost * ratio;
+        }
+        if (selectedEquipment.initialSetupFee > 0) {
+          tCost += selectedEquipment.initialSetupFee;
+          tSell += selectedEquipment.initialSetupFee;
+        }
+      } else if (selectedEquipment.costUnit === 'per_sqft') {
+        const sqft = (ps.finalWidth * ps.finalHeight * qty) / 144;
+        const cost = sqft * selectedEquipment.unitCost;
+        const mult = selectedEquipment.markupMultiplier || 1;
+        tCost += cost;
+        tSell += sqft * selectedEquipment.unitCost * mult;
+      }
+    }
+
+    // CUTTING
+    if (ps.cuttingEnabled && sheetsNeeded > 0 && cutsPerSheet > 0) {
+      const cutSvc = finishing.find(f => f.name === 'Cut');
+      if (cutSvc) {
+        const totalStacks = Math.ceil(sheetsNeeded / ps.sheetsPerStack);
+        const totalCuts   = cutsPerSheet * totalStacks;
+        const hours       = totalCuts / cutSvc.outputPerHour;
+        const cost = cutSvc.pricingMode === 'fixed' ? (cutSvc.fixedChargeCost ?? 0) : hours * cutSvc.hourlyCost;
+        const rcRate = lookupServiceSellRate(cutSvc, totalCuts);
+        const sell = cutSvc.pricingMode === 'fixed'
+          ? (cutSvc.fixedChargeAmount ?? 0)
+          : rcRate !== null ? totalCuts * rcRate : cost * (1 + cutSvc.markupPercent / 100);
+        tCost += cost; tSell += sell;
+      }
+    }
+
+    // FOLDING
+    if (ps.foldingType) {
+      const fSvc = finishing.find(f => f.name.toLowerCase().replace('-', '') === ps.foldingType.toLowerCase().replace('-', ''));
+      if (fSvc) {
+        const hours = qty / fSvc.outputPerHour;
+        const cost = fSvc.pricingMode === 'fixed' ? (fSvc.fixedChargeCost ?? 0) : hours * fSvc.hourlyCost;
+        const rcRate = lookupServiceSellRate(fSvc, qty);
+        const sell = fSvc.pricingMode === 'fixed'
+          ? (fSvc.fixedChargeAmount ?? 0)
+          : rcRate !== null ? qty * rcRate : cost * (1 + fSvc.markupPercent / 100);
+        tCost += cost; tSell += sell;
+      }
+    }
+
+    // DRILLING
+    if (ps.drillingType) {
+      const dSvc = finishing.find(f => f.name === ps.drillingType);
+      if (dSvc) {
+        const hours = qty / dSvc.outputPerHour;
+        const cost = dSvc.pricingMode === 'fixed' ? (dSvc.fixedChargeCost ?? 0) : hours * dSvc.hourlyCost;
+        const rcRate = lookupServiceSellRate(dSvc, qty);
+        const sell = dSvc.pricingMode === 'fixed'
+          ? (dSvc.fixedChargeAmount ?? 0)
+          : rcRate !== null ? qty * rcRate : cost * (1 + dSvc.markupPercent / 100);
+        tCost += cost; tSell += sell;
+      }
+    }
+
+    // LABOR
+    selectedLaborIds.forEach(lid => {
+      const svc = pricing.labor.find(l => l.id === lid);
+      if (!svc) return;
+      const basis = svc.chargeBasis ?? 'per_hour';
+      if (svc.pricingMode === 'fixed') {
+        tCost += svc.fixedChargeCost ?? 0;
+        tSell += svc.fixedChargeAmount ?? 0;
+      } else {
+        let q = 1;
+        if (basis === 'per_hour')   q = qty > 0 && svc.outputPerHour > 0 ? qty / svc.outputPerHour : 1;
+        else if (basis === 'per_sqft')   q = ps.finalWidth > 0 && ps.finalHeight > 0 ? (ps.finalWidth * ps.finalHeight * qty) / 144 : qty;
+        else if (basis === 'per_unit')   q = qty;
+        else if (basis === 'per_1000')   q = qty / 1000;
+        const cost = svc.hourlyCost * q;
+        const rcRate = lookupServiceSellRate(svc, q);
+        const sell = rcRate !== null ? q * rcRate : Math.max(cost * (1 + svc.markupPercent / 100), svc.minimumCharge ?? 0);
+        tCost += cost; tSell += sell;
+      }
+    });
+
+    // BROKERED
+    selectedBrokeredIds.forEach(bid => {
+      const svc = pricing.brokered.find(b => b.id === bid);
+      if (!svc) return;
+      if (svc.pricingMode === 'fixed') {
+        tCost += svc.unitCost;
+        tSell += svc.initialSetupFee;
+      } else {
+        let q = 1;
+        if (svc.costBasis === 'per_unit')       q = qty;
+        else if (svc.costBasis === 'per_sqft')  q = ps.finalWidth > 0 && ps.finalHeight > 0 ? (ps.finalWidth * ps.finalHeight * qty) / 144 : qty;
+        else if (svc.costBasis === 'per_linear_ft') q = ps.finalWidth > 0 ? ps.finalWidth * qty : qty;
+        const cost = svc.unitCost * q + svc.initialSetupFee;
+        const rcRate = lookupServiceSellRate(svc, q);
+        const sell = rcRate !== null ? q * rcRate + svc.initialSetupFee : cost * (1 + svc.markupPercent / 100);
+        tCost += cost; tSell += sell;
+      }
+    });
+
+    return { cost: tCost, sell: tSell };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMaterial, selectedEquipment, imposition,
+      ps.quantity, ps.originals, ps.sides, ps.colorMode,
+      ps.cuttingEnabled, ps.sheetsPerStack, ps.foldingType, ps.drillingType,
+      ps.finalWidth, ps.finalHeight,
+      selectedLaborIds, selectedBrokeredIds,
+      finishing, lookupClickPrice, pricing.labor, pricing.brokered]);
+
   const multiQtyPricing = useMemo(() => {
     if (!isMultiQty) return [];
+
+    // Compute the "natural" (no-manual-override) sell for the primary quantity
+    const primaryNatural = computeCostSellForQty(ps.quantity);
+
+    // Override ratio: if user manually adjusted the primary qty's sell price,
+    // apply that same proportional premium to all other quantities.
+    // itemTotalSell = ps.serviceLines.reduce(...) which reflects manual overrides.
+    const primaryActualSell = ps.serviceLines.length > 0
+      ? ps.serviceLines.reduce((s, l) => s + l.sellPrice, 0)
+      : primaryNatural.sell;
+    const overrideRatio = primaryNatural.sell > 0 ? primaryActualSell / primaryNatural.sell : 1;
+
     return parsedQuantities.map(qty => {
-      // Recompute cost/sell for this qty
-      let tCost = 0;
-      let tSell = 0;
-
-      if (selectedMaterial && ps.finalWidth > 0 && ps.finalHeight > 0) {
-        const imp = calculateImposition(ps.finalWidth, ps.finalHeight, selectedMaterial.sizeWidth, selectedMaterial.sizeHeight);
-        const sheets = imp.totalUps > 0 ? Math.ceil(qty / imp.totalUps) : 0;
-        const costPerSheet = selectedMaterial.pricePerM / 1000;
-        const matCost = sheets * costPerSheet;
-        tCost += matCost;
-        tSell += matCost * (1 + selectedMaterial.markup / 100);
-
-        if (selectedEquipment) {
-          if (selectedEquipment.costUnit === 'per_click') {
-            const clicks = sheets * (ps.sides === 'Double' ? 2 : 1);
-            const clickCost = clicks * selectedEquipment.unitCost;
-            const sellPerClick = lookupClickPrice(selectedEquipment.id, clicks, ps.colorMode);
-            tCost += clickCost;
-            tSell += clicks * sellPerClick;
-            if (selectedEquipment.initialSetupFee > 0) {
-              tCost += selectedEquipment.initialSetupFee;
-              tSell += selectedEquipment.initialSetupFee;
-            }
-          } else if (selectedEquipment.costUnit === 'per_sqft') {
-            const sqft = (ps.finalWidth * ps.finalHeight * qty) / 144;
-            const cost = sqft * selectedEquipment.unitCost;
-            const mult = selectedEquipment.markupMultiplier || 1;
-            tCost += cost;
-            tSell += sqft * selectedEquipment.unitCost * mult;
-          }
-        }
-      }
-
-      return { qty, cost: tCost, sell: tSell };
+      const { cost, sell: naturalSell } = computeCostSellForQty(qty);
+      // Apply the same proportional override the user made on the primary quantity
+      const sell = naturalSell * overrideRatio;
+      return { qty, cost, sell };
     });
-  }, [isMultiQty, parsedQuantities, selectedMaterial, selectedEquipment, ps, calculateImposition, lookupClickPrice]);
+  }, [isMultiQty, parsedQuantities, computeCostSellForQty, ps.quantity, ps.serviceLines]);
 
   // ── Select product from search ────────────────────────────────────────
   const selectProduct = (product: PricingProduct) => {
@@ -2282,16 +2413,16 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       </span>
                       <div className="flex items-center gap-3">
                         {/* Summary stats — always visible even when collapsed */}
-                        <div className="flex items-center gap-2 text-[11px] num">
-                          <span className="text-gray-500">Cost <span className="font-medium text-gray-700">{fmt(bTotalCost)}</span></span>
+                        <div className="flex items-center gap-2.5 text-[11px] num">
+                          <span className="text-gray-500 text-[10px] uppercase tracking-wide">Cost <span className="font-semibold text-gray-800 text-[12px]">{fmt(bTotalCost)}</span></span>
                           <span className="text-gray-300">·</span>
-                          <span className="text-gray-500">Markup <span className={`font-medium ${bMarkup > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>{bMarkup.toFixed(1)}%</span></span>
+                          <span className="text-gray-500 text-[10px] uppercase tracking-wide">Markup <span className={`font-semibold text-[12px] ${bMarkup > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>{bMarkup.toFixed(1)}%</span></span>
                           <span className="text-gray-300">·</span>
-                          <span className="text-gray-500">Margin <span className={`font-medium ${bMargin >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{bMargin.toFixed(1)}%</span></span>
+                          <span className="text-gray-500 text-[10px] uppercase tracking-wide">Margin <span className={`font-semibold text-[12px] ${bMargin >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{bMargin.toFixed(1)}%</span></span>
                           <span className="text-gray-300">·</span>
-                          <span className="text-gray-500">Profit <span className="font-medium text-emerald-700">{fmt(bProfit)}</span></span>
+                          <span className="text-gray-500 text-[10px] uppercase tracking-wide">Profit <span className="font-semibold text-[12px] text-emerald-700">{fmt(bProfit)}</span></span>
                           <span className="text-gray-300">·</span>
-                          <span className="font-bold text-gray-900">{fmt(bTotalSell)}</span>
+                          <span className="text-[10px] uppercase tracking-wide text-gray-500">Sell <span className="font-bold text-[13px] text-gray-900">{fmt(bTotalSell)}</span></span>
                         </div>
                         {breakdownExpanded
                           ? <ChevronUp className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
