@@ -1855,13 +1855,14 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   </label>
                 </div>
 
-                {/* ── Right: Qty / Originals / Size / Sides / Color ── */}
-                <div className="flex-1 min-w-0">
-                  <div className="grid grid-cols-5 gap-2">
+                {/* ── Right: all 5 fields on ONE row — flex so they share space naturally ── */}
+                <div className="flex-1 min-w-0 flex flex-col justify-between">
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Specs</label>
+                  <div className="flex items-start gap-2">
 
-                    {/* Quantity — wider, supports multi-qty "1000, 2000, 5000" */}
-                    <div className="col-span-2">
-                      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Quantity</label>
+                    {/* Quantity — widest (multi-qty strings like "1000, 2000, 5000") */}
+                    <div className="flex-[2] min-w-0">
+                      <label className="block text-[9px] text-gray-400 uppercase tracking-wide mb-1">Qty</label>
                       <input
                         type="text" value={multiQtyInput}
                         onChange={e => {
@@ -1870,17 +1871,16 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           const qParts = e.target.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
                           if (qParts.length > 0) onUpdatePricing({ quantity: qParts[0] });
                         }}
-                        placeholder="e.g. 1000"
-                        className="w-full px-2.5 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]"
+                        placeholder="1000"
+                        className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]"
                       />
                       {isMultiQty && <p className="text-[9px] text-purple-500 mt-0.5">{parsedQuantities.length} qtys</p>}
                     </div>
 
-                    {/* Originals — narrow, usually 1–2 digits */}
-                    <div className="col-span-1">
-                      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5 flex items-center gap-0.5 whitespace-nowrap">
-                        Orig.
-                        <span className="text-gray-300 cursor-help" title="Number of unique designs. Each original is a separate press run.">ⓘ</span>
+                    {/* Originals — compact */}
+                    <div className="flex-[1] min-w-0">
+                      <label className="block text-[9px] text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-0.5 whitespace-nowrap">
+                        Orig. <span className="cursor-help opacity-50" title="Number of unique designs — each is a separate press run.">ⓘ</span>
                       </label>
                       <input
                         type="number" min="1" step="1"
@@ -1897,9 +1897,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       {(materialEntries[0]?.originals ?? 1) > 1 && <p className="text-[9px] text-violet-500 mt-0.5 text-center">{materialEntries[0].originals}×</p>}
                     </div>
 
-                    {/* Size — medium width */}
-                    <div className="col-span-2">
-                      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Size (in)</label>
+                    {/* Size */}
+                    <div className="flex-[1.5] min-w-0">
+                      <label className="block text-[9px] text-gray-400 uppercase tracking-wide mb-1">Size (in)</label>
                       <input
                         type="text" value={sizeInput}
                         onChange={e => {
@@ -1907,39 +1907,41 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           setSizeInput(e.target.value);
                           const match = e.target.value.match(/^(\d+\.?\d*)\s*[xX×]\s*(\d+\.?\d*)$/);
                           if (match) { onUpdatePricing({ finalWidth: parseFloat(match[1]), finalHeight: parseFloat(match[2]) }); setSizeError(''); }
-                          else if (e.target.value && !e.target.value.match(/^[\d.]+\s*[xX×]?\s*[\d.]*$/)) { setSizeError('L×H'); }
+                          else if (e.target.value && !e.target.value.match(/^[\d.]+\s*[xX×]?\s*[\d.]*$/)) { setSizeError('W×H'); }
                           else { setSizeError(''); }
                         }}
                         placeholder="3.5×2"
-                        className={`w-full px-2.5 py-2 text-sm bg-white border ${sizeError ? 'border-red-400' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]`}
+                        className={`w-full px-2 py-2 text-sm bg-white border ${sizeError ? 'border-red-400' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]`}
                       />
                       {sizeError && <p className="text-[9px] text-red-500 mt-0.5">{sizeError}</p>}
                     </div>
 
-                    {/* Sides — narrow select */}
-                    <div className="col-span-1">
-                      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Sides</label>
-                      <select value={materialEntries[0]?.sides || ps.sides}
+                    {/* Sides — with tooltip explaining 1/2 */}
+                    <div className="flex-[1] min-w-0">
+                      <label className="block text-[9px] text-gray-400 uppercase tracking-wide mb-1">Sides</label>
+                      <select
+                        value={materialEntries[0]?.sides || ps.sides}
                         onChange={e => { trackInteraction(); const updated = [...materialEntries]; updated[0] = { ...updated[0], sides: e.target.value as 'Single' | 'Double' }; setMaterialEntries(updated); }}
-                        className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
-                        <option value="Single">1</option>
-                        <option value="Double">2</option>
+                        title="1 = Single-sided printing · 2 = Double-sided (duplex) printing"
+                        className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none cursor-pointer"
+                      >
+                        <option value="Single" title="Single-sided — printed on one side only">1 — Single</option>
+                        <option value="Double" title="Double-sided — printed on both sides">2 — Double</option>
                       </select>
                     </div>
 
-                    {/* Color — narrow select */}
-                    <div className="col-span-1">
-                      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Color</label>
-                      <select value={materialEntries[0]?.colorMode || ps.colorMode}
+                    {/* Color — full word */}
+                    <div className="flex-[1] min-w-0">
+                      <label className="block text-[9px] text-gray-400 uppercase tracking-wide mb-1">Color</label>
+                      <select
+                        value={materialEntries[0]?.colorMode || ps.colorMode}
                         onChange={e => { trackInteraction(); const updated = [...materialEntries]; updated[0] = { ...updated[0], colorMode: e.target.value as 'Color' | 'Black' }; setMaterialEntries(updated); }}
-                        className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
-                        <option value="Color">CLR</option>
-                        <option value="Black">B/W</option>
+                        className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none cursor-pointer"
+                      >
+                        <option value="Color">Color</option>
+                        <option value="Black">B&W</option>
                       </select>
                     </div>
-
-                    {/* Placeholder to keep grid balanced (row 2 pad) */}
-                    <div className="col-span-3" />
                   </div>
                 </div>
               </div>
@@ -1973,7 +1975,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
               {/* ═══ IMPOSITION (collapsible) ═════════════════════════ */}
               {selectedMaterial && imposition.totalUps > 0 && (
-                <div className="rounded-xl border border-blue-200 overflow-hidden mt-1">
+                <div className="rounded-xl border border-blue-200 overflow-hidden mt-3">
                   <button
                     onClick={() => setShowImpositionCalc(prev => !prev)}
                     className="w-full flex items-center justify-between px-4 py-2.5 bg-blue-50/60 hover:bg-blue-50 transition-colors"
