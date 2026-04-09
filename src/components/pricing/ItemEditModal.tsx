@@ -334,14 +334,19 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoDescribe, buildDescription, isMultiPart]);
 
-  // Auto-collapse template panel as soon as the user fills any field outside the product search.
-  // Only applies to new items — existing items start collapsed and re-open manually.
+  // Auto-collapse: hide the template panel when the user clicks anywhere outside it.
+  // Applies whenever the panel is expanded (new or existing items).
   useEffect(() => {
-    if (isNew && userInteracted && !templatePanelCollapsed) {
-      setTemplatePanelCollapsed(true);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userInteracted]);
+    if (templatePanelCollapsed || matchingTemplates.length === 0) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (templatePanelRef.current && !templatePanelRef.current.contains(e.target as Node)) {
+        setTemplatePanelCollapsed(true);
+      }
+    };
+    // Use capture phase so we get the event before any React handlers consume it
+    document.addEventListener('mousedown', handleMouseDown, true);
+    return () => document.removeEventListener('mousedown', handleMouseDown, true);
+  }, [templatePanelCollapsed, matchingTemplates.length]);
 
   // ── Derived data ──────────────────────────────────────────────────────
   const selectedMaterial = useMemo(() => materials.find(m => m.id === ps.materialId), [materials, ps.materialId]);
