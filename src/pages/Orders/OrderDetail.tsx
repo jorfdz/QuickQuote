@@ -224,10 +224,11 @@ export const OrderDetail: React.FC = () => {
   const matchingTemplatesForItem = useMemo(() => {
     if (!editingItemModal) return [];
     const ps = pricingStatesRef.current[editingItemModal];
-    return pricingTemplates.filter(t =>
-      (ps?.productId && t.productId === ps.productId) ||
-      (ps?.categoryName && t.categoryName === ps.categoryName)
-    );
+    return pricingTemplates.filter(t => {
+      if (ps?.productId && t.productId) return t.productId === ps.productId;
+      if (ps?.productName && t.productName) return t.productName.toLowerCase() === ps.productName.toLowerCase();
+      return false;
+    });
   }, [editingItemModal, pricingTemplates, pricingStates]);
 
   const handleApplyTemplate = useCallback((tmplId: string) => {

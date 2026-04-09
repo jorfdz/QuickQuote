@@ -1507,7 +1507,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         <div className="overflow-y-auto flex-1 px-6 py-4">
           <div className="flex gap-4">
             {/* ── Main Form Column ──────────────────────────────────────── */}
-            <div className={`flex-1 space-y-4 min-w-0 ${matchingTemplates.length > 0 && !templatePanelCollapsed ? '' : ''}`}>
+            <div className="flex-1 space-y-4 min-w-0">
 
               {/* ── Multi-Part Banner ─────────────────────────────────── */}
               {isMultiPart && (
@@ -1759,7 +1759,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 return (
                   <div>
                     <div className="flex items-center gap-2 mb-2">
-                      <label className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Product</label>
+                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Product</label>
                       {/* Only show the prompt badge on brand-new items with no product yet */}
                       {needsProduct && (
                         <span className="text-[9px] font-semibold text-[var(--brand)] bg-[var(--brand-light)] px-2 py-0.5 rounded-full uppercase tracking-wide">
@@ -1816,118 +1816,120 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </div>
               )}
 
-              {/* ── Description + Auto-describe ──────────────────────── */}
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Description</label>
-                <input
-                  type="text"
-                  value={item.description}
-                  onChange={e => { setAutoDescribe(false); onUpdateItem({ description: e.target.value }); }}
-                  placeholder="Item description..."
-                  className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400"
-                />
-                <label className="flex items-center gap-1.5 text-[10px] text-gray-400 mt-1 cursor-pointer">
-                  <input type="checkbox" checked={autoDescribe} onChange={e => { setAutoDescribe(e.target.checked); if (e.target.checked) onUpdateItem({ description: buildDescription() }); }} className="w-3 h-3 rounded border-gray-300 text-[#F890E7] focus:ring-[#F890E7]" />
-                  Auto-describe
-                </label>
-              </div>
+              {/* ═══════════════════════════════════════════════════════ */}
+              {/* Description (left half) + Specs grid (right half)      */}
+              {/* ═══════════════════════════════════════════════════════ */}
+              <div className="flex gap-4">
 
-
-              {/* ── Quantity / Size / Originals / Sides / Color (5-col row) ────── */}
-              <div className="grid grid-cols-5 gap-3">
-                <div>
-                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Quantity</label>
-                  <input type="text" value={multiQtyInput}
-                    onChange={e => {
-                      trackInteraction();
-                      setMultiQtyInput(e.target.value);
-                      const qParts = e.target.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
-                      if (qParts.length > 0) onUpdatePricing({ quantity: qParts[0] });
-                    }}
-                    placeholder="e.g. 1000"
-                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]" />
-                  {isMultiQty && <p className="text-[10px] text-purple-500 mt-0.5">{parsedQuantities.length} quantities</p>}
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1 flex items-center gap-1">
-                    Originals
-                    <span className="ml-0.5 text-gray-300 cursor-help" title="Number of unique designs. Each original is a separate run. 3 originals × 500 qty = 3 separate runs of 500.">ⓘ</span>
+                {/* ── Left: Description textarea ───────────────────── */}
+                <div className="flex-1 min-w-0">
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Description</label>
+                  <textarea
+                    rows={2}
+                    value={item.description}
+                    onChange={e => { setAutoDescribe(false); onUpdateItem({ description: e.target.value }); }}
+                    placeholder="Item description..."
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400 resize-none leading-snug"
+                  />
+                  <label className="flex items-center gap-1.5 text-[10px] text-gray-400 mt-1 cursor-pointer">
+                    <input type="checkbox" checked={autoDescribe} onChange={e => { setAutoDescribe(e.target.checked); if (e.target.checked) onUpdateItem({ description: buildDescription() }); }} className="w-3 h-3 rounded border-gray-300 text-[#F890E7] focus:ring-[#F890E7]" />
+                    Auto-describe
                   </label>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={materialEntries[0]?.originals ?? 1}
-                    onChange={e => {
-                      trackInteraction();
-                      const v = Math.max(1, parseInt(e.target.value) || 1);
-                      const updated = [...materialEntries];
-                      updated[0] = { ...updated[0], originals: v };
-                      setMaterialEntries(updated);
-                    }}
-                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]"
-                  />
-                  {(materialEntries[0]?.originals ?? 1) > 1 && (
-                    <p className="text-[9px] text-violet-500 mt-0.5">{materialEntries[0].originals} runs</p>
-                  )}
                 </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Size (L x H, in)</label>
-                  <input
-                    type="text"
-                    value={sizeInput}
-                    onChange={e => {
-                      trackInteraction();
-                      setSizeInput(e.target.value);
-                      const match = e.target.value.match(/^(\d+\.?\d*)\s*[xX×]\s*(\d+\.?\d*)$/);
-                      if (match) {
-                        onUpdatePricing({ finalWidth: parseFloat(match[1]), finalHeight: parseFloat(match[2]) });
-                        setSizeError('');
-                      } else if (e.target.value && !e.target.value.match(/^[\d.]+\s*[xX×]?\s*[\d.]*$/)) {
-                        setSizeError('Use format: LxH (e.g., 3.5x2)');
-                      } else {
-                        setSizeError('');
-                      }
-                    }}
-                    placeholder="e.g., 3.5x2"
-                    className={`w-full px-3 py-2 text-sm bg-white border ${sizeError ? 'border-red-400' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]`}
-                  />
-                  {sizeError && <p className="text-[9px] text-red-500 mt-0.5">{sizeError}</p>}
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Sides</label>
-                  <select value={materialEntries[0]?.sides || ps.sides}
-                    onChange={e => {
-                      trackInteraction();
-                      const updated = [...materialEntries];
-                      updated[0] = { ...updated[0], sides: e.target.value as 'Single' | 'Double' };
-                      setMaterialEntries(updated);
-                    }}
-                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
-                    <option value="Single">Single</option>
-                    <option value="Double">Double</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Color</label>
-                  <select value={materialEntries[0]?.colorMode || ps.colorMode}
-                    onChange={e => {
-                      trackInteraction();
-                      const updated = [...materialEntries];
-                      updated[0] = { ...updated[0], colorMode: e.target.value as 'Color' | 'Black' };
-                      setMaterialEntries(updated);
-                    }}
-                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
-                    <option value="Color">Color</option>
-                    <option value="Black">B&W</option>
-                  </select>
+
+                {/* ── Right: Qty / Originals / Size / Sides / Color ── */}
+                <div className="flex-1 min-w-0">
+                  <div className="grid grid-cols-5 gap-2">
+
+                    {/* Quantity — wider, supports multi-qty "1000, 2000, 5000" */}
+                    <div className="col-span-2">
+                      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Quantity</label>
+                      <input
+                        type="text" value={multiQtyInput}
+                        onChange={e => {
+                          trackInteraction();
+                          setMultiQtyInput(e.target.value);
+                          const qParts = e.target.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
+                          if (qParts.length > 0) onUpdatePricing({ quantity: qParts[0] });
+                        }}
+                        placeholder="e.g. 1000"
+                        className="w-full px-2.5 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]"
+                      />
+                      {isMultiQty && <p className="text-[9px] text-purple-500 mt-0.5">{parsedQuantities.length} qtys</p>}
+                    </div>
+
+                    {/* Originals — narrow, usually 1–2 digits */}
+                    <div className="col-span-1">
+                      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5 flex items-center gap-0.5 whitespace-nowrap">
+                        Orig.
+                        <span className="text-gray-300 cursor-help" title="Number of unique designs. Each original is a separate press run.">ⓘ</span>
+                      </label>
+                      <input
+                        type="number" min="1" step="1"
+                        value={materialEntries[0]?.originals ?? 1}
+                        onChange={e => {
+                          trackInteraction();
+                          const v = Math.max(1, parseInt(e.target.value) || 1);
+                          const updated = [...materialEntries];
+                          updated[0] = { ...updated[0], originals: v };
+                          setMaterialEntries(updated);
+                        }}
+                        className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] text-center"
+                      />
+                      {(materialEntries[0]?.originals ?? 1) > 1 && <p className="text-[9px] text-violet-500 mt-0.5 text-center">{materialEntries[0].originals}×</p>}
+                    </div>
+
+                    {/* Size — medium width */}
+                    <div className="col-span-2">
+                      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Size (in)</label>
+                      <input
+                        type="text" value={sizeInput}
+                        onChange={e => {
+                          trackInteraction();
+                          setSizeInput(e.target.value);
+                          const match = e.target.value.match(/^(\d+\.?\d*)\s*[xX×]\s*(\d+\.?\d*)$/);
+                          if (match) { onUpdatePricing({ finalWidth: parseFloat(match[1]), finalHeight: parseFloat(match[2]) }); setSizeError(''); }
+                          else if (e.target.value && !e.target.value.match(/^[\d.]+\s*[xX×]?\s*[\d.]*$/)) { setSizeError('L×H'); }
+                          else { setSizeError(''); }
+                        }}
+                        placeholder="3.5×2"
+                        className={`w-full px-2.5 py-2 text-sm bg-white border ${sizeError ? 'border-red-400' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]`}
+                      />
+                      {sizeError && <p className="text-[9px] text-red-500 mt-0.5">{sizeError}</p>}
+                    </div>
+
+                    {/* Sides — narrow select */}
+                    <div className="col-span-1">
+                      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Sides</label>
+                      <select value={materialEntries[0]?.sides || ps.sides}
+                        onChange={e => { trackInteraction(); const updated = [...materialEntries]; updated[0] = { ...updated[0], sides: e.target.value as 'Single' | 'Double' }; setMaterialEntries(updated); }}
+                        className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
+                        <option value="Single">1</option>
+                        <option value="Double">2</option>
+                      </select>
+                    </div>
+
+                    {/* Color — narrow select */}
+                    <div className="col-span-1">
+                      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Color</label>
+                      <select value={materialEntries[0]?.colorMode || ps.colorMode}
+                        onChange={e => { trackInteraction(); const updated = [...materialEntries]; updated[0] = { ...updated[0], colorMode: e.target.value as 'Color' | 'Black' }; setMaterialEntries(updated); }}
+                        className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
+                        <option value="Color">CLR</option>
+                        <option value="Black">B/W</option>
+                      </select>
+                    </div>
+
+                    {/* Placeholder to keep grid balanced (row 2 pad) */}
+                    <div className="col-span-3" />
+                  </div>
                 </div>
               </div>
 
-              {/* ── Material / Equipment (2-col equal width) ──────── */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* ── Material / Equipment ─────────────────────────────── */}
+              <div className="pt-3 border-t border-gray-100 grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Material</label>
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Material</label>
                   <select value={materialEntries[0]?.materialId || ps.materialId}
                     onChange={e => {
                       trackInteraction();
@@ -1941,7 +1943,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Equipment</label>
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Equipment</label>
                   <select value={ps.equipmentId}
                     onChange={e => { trackInteraction(); onUpdatePricing({ equipmentId: e.target.value }); }}
                     className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
@@ -1953,7 +1955,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
               {/* ═══ IMPOSITION (collapsible) ═════════════════════════ */}
               {selectedMaterial && imposition.totalUps > 0 && (
-                <div className="rounded-xl border border-blue-200 overflow-hidden">
+                <div className="rounded-xl border border-blue-200 overflow-hidden mt-1">
                   <button
                     onClick={() => setShowImpositionCalc(prev => !prev)}
                     className="w-full flex items-center justify-between px-4 py-2.5 bg-blue-50/60 hover:bg-blue-50 transition-colors"
@@ -2092,7 +2094,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               )}
 
               {/* ═══ SERVICES ═════════════════════════════════════════ */}
-              <div className="space-y-3 pt-1">
+              <div className="space-y-3 pt-3 border-t border-gray-100">
                 {/* Section label */}
                 <div className="flex items-center gap-1.5">
                   <Layers className="w-3 h-3 text-gray-400" />

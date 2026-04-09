@@ -330,10 +330,14 @@ export const QuoteDetail: React.FC = () => {
   const matchingTemplatesForItem = useMemo(() => {
     if (!editingItemId) return [];
     const ps = pricingStatesRef.current[editingItemId];
-    return pricingTemplates.filter(t =>
-      (ps?.productId && t.productId === ps.productId) ||
-      (ps?.categoryName && t.categoryName === ps.categoryName)
-    );
+    // Only show templates for the exact same product — match by productId first,
+    // then fall back to productName match. Never show templates for other products
+    // just because they share a category.
+    return pricingTemplates.filter(t => {
+      if (ps?.productId && t.productId) return t.productId === ps.productId;
+      if (ps?.productName && t.productName) return t.productName.toLowerCase() === ps.productName.toLowerCase();
+      return false;
+    });
   }, [editingItemId, pricingTemplates, pricingStates]);
 
   const handleApplyTemplate = useCallback((tmplId: string) => {
