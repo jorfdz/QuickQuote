@@ -2544,12 +2544,6 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
   const [totalMarkupError, setTotalMarkupError] = useState(false);
   const [totalSellError, setTotalSellError]     = useState(false);
 
-  // Derived totals — always computed from live localLines
-  const totalCost   = localLines.reduce((s, l) => s + l.totalCost, 0);
-  const totalSell   = localLines.reduce((s, l) => s + l.sellPrice, 0);
-  const totalMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
-  const marginPct   = totalSell > 0 ? ((totalSell - totalCost) / totalSell) * 100 : 0;
-
   // ── Helpers ───────────────────────────────────────────────────────────
   // markupPct ↔ profitPct conversions (purely for display toggle)
   const markupToProfit = (mk: number) => {
@@ -2662,49 +2656,183 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
     setTotalSellInput(null);
   };
 
-  const fmtNum = (n: number, dp = 2) => {
-    if (n === 0) return '0';
-    return parseFloat(n.toFixed(dp)).toString();
-  };
+  const fmtNum = (n: number, dp = 2) => (n === 0 ? '0' : parseFloat(n.toFixed(dp)).toString());
 
-  // ── Shared padding — every header and every cell uses the same px so columns line up ──
-  const COL_PX = 'px-2';   // 8px left+right — applies to th AND td uniformly
+  // ── Derived totals — computed from live localLines ───────────────────
+  const totalCost   = localLines.reduce((s, l) => s + l.totalCost, 0);
+  const totalSell   = localLines.reduce((s, l) => s + l.sellPrice, 0);
+  const totalMarkup = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
+  const marginPct   = totalSell > 0 ? ((totalSell - totalCost) / totalSell) * 100 : 0;
 
-  // Inputs: no outer cell padding needed since the cell already has COL_PX;
-  // inputs themselves get minimal inner padding so they fill the column cleanly.
-  const inp = (extra = '') =>
-    `w-full px-1.5 py-1 text-[11px] text-right num bg-white border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent transition-colors ${extra}`;
-  const inpSky = (err = false) =>
-    `w-full px-1.5 py-1 text-[11px] text-right num bg-sky-50/60 border rounded focus:outline-none focus:ring-1 transition-colors ${err ? 'border-red-400 focus:ring-red-300 text-red-700' : 'border-sky-300 focus:ring-sky-300 text-sky-800'}`;
-  const inpViolet = (err = false) =>
-    `w-full px-1.5 py-1 text-[11px] text-right num bg-violet-50/40 border rounded focus:outline-none focus:ring-1 transition-colors ${err ? 'border-red-400 focus:ring-red-300 text-red-700' : 'border-violet-200 focus:ring-violet-300 text-violet-800'}`;
-  const inpEmerald = (bold = false) =>
-    `w-full px-1.5 py-1 text-[11px] text-right num bg-emerald-50/80 border border-emerald-200 rounded focus:outline-none focus:ring-1 focus:ring-emerald-300 transition-colors text-emerald-900 ${bold ? 'font-bold' : ''}`;
-  const totInp = (hasError: boolean, extra = '') =>
-    `w-full px-1.5 py-1 text-[11px] text-right num border rounded focus:outline-none focus:ring-1 transition-colors font-bold ${
-      hasError
-        ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300'
-        : 'border-emerald-300 bg-emerald-50 text-emerald-800 focus:ring-emerald-300'
-    } ${extra}`;
-
-  // Headers — all right-aligned, same px as cells, no extra padding
-  const thBase  = `py-1.5 ${COL_PX} text-[8px] font-bold uppercase tracking-wider text-right whitespace-nowrap`;
-  const thTime  = `${thBase} text-sky-600 bg-sky-50`;
-  const thVio   = `${thBase} text-violet-600 bg-violet-50`;
-  const thSell  = `${thBase} text-emerald-600 bg-emerald-50`;
-
-  // Cells — same px as headers; content (span or input) fills to edge
-  const tdCls   = `py-1.5 ${COL_PX}`;
-  const tdTime  = `py-1.5 ${COL_PX} bg-sky-50/40`;
-  const tdVio   = `py-1.5 ${COL_PX} bg-violet-50/30`;
-  const tdSell  = `py-1.5 ${COL_PX} bg-emerald-50/60`;
-  const numCls  = 'text-[11px] num';
-  // Dash placeholder: right-aligned, same width as an input so the column doesn't shift
-  const dimCls  = 'text-gray-300 text-right block text-[11px] w-full';
+  // ── Shared input styles ──────────────────────────────────────────────
+  const inpBase  = 'w-full px-1.5 py-1 text-[11px] text-right num border rounded focus:outline-none focus:ring-1 transition-colors';
+  const inpGray  = `${inpBase} bg-white border-gray-200 text-gray-700 focus:ring-[#F890E7]`;
+  const inpSky   = (err = false) => `${inpBase} bg-sky-50/60 ${err ? 'border-red-400 text-red-700 focus:ring-red-300' : 'border-sky-200 text-sky-800 focus:ring-sky-300'}`;
+  const inpVio   = (err = false) => `${inpBase} bg-violet-50/40 ${err ? 'border-red-400 text-red-700 focus:ring-red-300' : 'border-violet-200 text-violet-800 focus:ring-violet-300'}`;
+  const inpGreen = (bold = false) => `${inpBase} bg-emerald-50/80 border-emerald-200 text-emerald-900 focus:ring-emerald-300${bold ? ' font-bold' : ''}`;
+  const totInp   = (err: boolean) => `${inpBase} font-bold ${err ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300' : 'border-emerald-300 bg-emerald-50 text-emerald-800 focus:ring-emerald-300'}`;
 
   const mkOrProfit = (mk: number) => showProfit ? markupToProfit(mk) : mk;
-  const pctLabel = showProfit ? 'Profit %' : 'Markup %';
-  const pctSuffix = showProfit ? 'p' : '%';       // visual hint in cell
+  const pctLabel  = showProfit ? 'Profit %' : 'Markup %';
+  const pctSuffix = showProfit ? 'p' : '%';
+
+  // ── Group consecutive same-service lines so "Printing" time + clicks show as parent+children ──
+  const serviceGroups: Array<{
+    service: string;
+    lines: PricingServiceLine[];
+    isGrouped: boolean;
+    groupLabel: string; // header text for grouped parent (equipment/service name)
+  }> = React.useMemo(() => {
+    const out: Array<{ service: string; lines: PricingServiceLine[]; isGrouped: boolean; groupLabel: string }> = [];
+    let i = 0;
+    while (i < localLines.length) {
+      const svc = localLines[i].service;
+      let j = i + 1;
+      while (j < localLines.length && localLines[j].service === svc) j++;
+      const grpLines = localLines.slice(i, j);
+      const isGrouped = grpLines.length > 1;
+      // Extract equipment/service name from first line description (text before " — ")
+      const groupLabel = grpLines[0].description.split(' — ')[0] ?? svc;
+      out.push({ service: svc, lines: grpLines, isGrouped, groupLabel });
+      i = j;
+    }
+    return out;
+  }, [localLines]);
+
+  // ── Sub-row labels for grouped children ─────────────────────────────
+  const subLabel = (line: PricingServiceLine) => {
+    if (line.hourlyCost != null && line.hoursActual != null) return '↳ Time';
+    if (line.unit === 'clicks') return '↳ Click Charges';
+    if (line.unit === 'sqft')   return '↳ Area Charges';
+    return '↳ Usage';
+  };
+
+  // ── DETAILS cell — editable charge qty/time or description text ──────
+  const renderDetails = (line: PricingServiceLine, isChild = false) => {
+    const timeBased = isTimeBased(line);
+    const qtyBased  = isQtyBased(line);
+    const chargeQty = line.chargeQty ?? line.quantity;
+
+    if (timeBased) {
+      const actual = line.hoursActual ?? 0;
+      const charge = line.hoursCharge ?? actual;
+      const changed = Math.abs(charge - actual) > 0.01;
+      return (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <input
+            type="text"
+            value={timeInputs[line.id] ?? fmtHours(charge)}
+            onChange={e => setTimeInputs(t => ({ ...t, [line.id]: e.target.value }))}
+            onBlur={() => commitTimeInput(line.id)}
+            onKeyDown={e => { if (e.key === 'Enter') commitTimeInput(line.id); }}
+            placeholder="e.g. 30"
+            title="Charge time in minutes"
+            className={`w-20 ${inpSky(timeErrors[line.id])}`}
+          />
+          <span className="text-[10px] text-gray-500">@ {formatCurrency(line.hourlyCost!)}/hr</span>
+          {changed && (
+            <span className="text-[9px] text-amber-500 num">actual: {fmtHours(actual)}</span>
+          )}
+        </div>
+      );
+    }
+
+    if (qtyBased && line.quantity != null) {
+      const changed = chargeQty != null && chargeQty !== line.quantity;
+      return (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <input
+            type="number" step="1" min="1"
+            value={qtyInputs[line.id] ?? chargeQty}
+            onChange={e => { setQtyInputs(q => ({ ...q, [line.id]: e.target.value })); setQtyErrors(q => ({ ...q, [line.id]: false })); }}
+            onBlur={() => commitChargeQty(line.id)}
+            onKeyDown={e => { if (e.key === 'Enter') commitChargeQty(line.id); }}
+            title="Billable quantity"
+            className={`w-20 ${inpVio(qtyErrors[line.id])}`}
+          />
+          <span className="text-[10px] text-gray-500">{line.unit}</span>
+          {line.unitCost > 0 && (
+            <span className="text-[10px] text-gray-400">@ {formatCurrency(line.unitCost)}/{(line.unit ?? '').replace(/s$/, '') || 'unit'}</span>
+          )}
+          {changed && (
+            <span className="text-[9px] text-amber-500 num">actual: {line.quantity.toLocaleString()}</span>
+          )}
+        </div>
+      );
+    }
+
+    // Flat / fixed: description text (truncated, tooltip shows full)
+    const shortDesc = line.description.includes(' — ')
+      ? line.description.split(' — ').slice(1).join(' — ')
+      : line.description;
+    return (
+      <span className="text-[11px] text-gray-500 truncate block" title={line.description}>
+        {shortDesc || line.description}
+      </span>
+    );
+  };
+
+  // ── Editable Cost $ cell ─────────────────────────────────────────────
+  const renderCost = (line: PricingServiceLine) => (
+    <input
+      type="number" step="0.01" min="0"
+      value={fmtNum(line.totalCost)}
+      onChange={e => updateField(line.id, 'totalCost', e.target.value)}
+      className={inpGray}
+    />
+  );
+
+  // ── Editable Markup/Profit % cell ────────────────────────────────────
+  const renderPct = (line: PricingServiceLine) => {
+    const pctVal = mkOrProfit(line.markupPercent);
+    return (
+      <div className="relative">
+        <input
+          type="number" step="0.01"
+          value={fmtNum(pctVal, 2)}
+          onChange={e => updateField(line.id, showProfit ? 'profitPercent' : 'markupPercent', e.target.value)}
+          className={`${inpGreen(false)} pr-4 ${pctVal > 0 ? 'font-semibold' : 'text-gray-400'}`}
+        />
+        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] text-emerald-400 pointer-events-none">{pctSuffix}</span>
+      </div>
+    );
+  };
+
+  // ── Editable Sell $ cell with lock ───────────────────────────────────
+  const renderSell = (line: PricingServiceLine) => {
+    const isLocked = lockedIds.has(line.id);
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          type="number" step="0.01" min="0"
+          value={fmtNum(line.sellPrice)}
+          onChange={e => updateField(line.id, 'sellPrice', e.target.value)}
+          readOnly={isLocked}
+          className={`${inpGreen(true)} flex-1 ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
+          title={isLocked ? 'Locked — click 🔒 to unlock' : undefined}
+        />
+        <button
+          type="button"
+          onClick={() => toggleLock(line.id)}
+          title={isLocked ? 'Sell locked — click to unlock' : 'Lock this sell price'}
+          className={`flex-shrink-0 p-0.5 rounded transition-all ${isLocked ? 'text-amber-500 hover:text-amber-600' : 'text-gray-300 hover:text-gray-500'}`}
+        >
+          {isLocked ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
+        </button>
+      </div>
+    );
+  };
+
+  // ── Icon per service ─────────────────────────────────────────────────
+  const svcIcon = (svc: string) => {
+    const a = SERVICE_ACCENT[svc];
+    return a ? <span className={`w-2 h-2 rounded-sm flex-shrink-0 ${a.dot}`} /> : null;
+  };
+
+  // Shared cell padding
+  const px = 'px-4';
+  const th = `py-2 ${px} text-[9px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap`;
+  const td = `py-2 ${px}`;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-3">
@@ -2748,255 +2876,110 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
           </div>
         </div>
 
-        {/* ── Table ── */}
-        <div className="overflow-x-auto overflow-y-auto flex-1">
-          <table className="w-full border-collapse" style={{ minWidth: '1100px', fontSize: '11px' }}>
-
-            {/* ── Column widths ── */}
-            {/* COST zone: Service | Description | $/hr | Actual Time | Charge Time | Time $ | Actual Qty | Charge Qty | Unit $ | Cost $ */}
-            {/* SELL zone: Markup/Profit % | Sell $ */}
+        {/* ── 5-column table ── */}
+        <div className="overflow-y-auto flex-1">
+          <table className="w-full border-collapse text-[12px]" style={{ minWidth: '680px' }}>
             <colgroup>
-              <col style={{ width: '90px'  }} /> {/* Service */}
-              <col />                             {/* Description — flexible */}
-              {/* TIME */}
-              <col style={{ width: '64px'  }} /> {/* $/hr */}
-              <col style={{ width: '64px'  }} /> {/* Actual Time */}
-              <col style={{ width: '76px'  }} /> {/* Charge Time — editable */}
-              <col style={{ width: '70px'  }} /> {/* Time $ */}
-              {/* QTY */}
-              <col style={{ width: '76px'  }} /> {/* Actual Qty */}
-              <col style={{ width: '76px'  }} /> {/* Charge Qty — editable */}
-              <col style={{ width: '66px'  }} /> {/* Unit $ */}
-              <col style={{ width: '84px'  }} /> {/* Cost $ */}
-              {/* SELL */}
-              <col style={{ width: '96px'  }} /> {/* Markup/Profit % */}
-              <col style={{ width: '100px' }} /> {/* Sell $ */}
+              <col style={{ width: '160px' }} /> {/* SERVICE */}
+              <col />                             {/* DETAILS — flexible */}
+              <col style={{ width: '110px' }} /> {/* COST $ */}
+              <col style={{ width: '110px' }} /> {/* MARKUP/PROFIT % */}
+              <col style={{ width: '120px' }} /> {/* SELL $ + lock */}
             </colgroup>
 
-            <thead className="sticky top-0 z-10 bg-white">
-              {/* ── Top band: COST (spans both time and qty) | SELL ── */}
-              <tr className="border-b border-gray-100">
-                <th className="px-2 pt-2 pb-0" colSpan={2} />
-                {/* COST band — covers time cols + qty cols */}
-                <th className="px-1 pt-2 pb-0 text-center text-[8px] font-bold uppercase tracking-widest text-gray-600 bg-gray-50 border-l border-gray-200" colSpan={8}>
-                  Cost
+            <thead className="sticky top-0 z-10 bg-white border-b-2 border-gray-200">
+              <tr>
+                <th className={`${th} text-left`}>Service</th>
+                <th className={`${th} text-left`}>Details</th>
+                <th className={`${th} text-right`}>Cost $</th>
+                <th className={`${th} text-right bg-emerald-50 border-l-2 border-emerald-300`}>
+                  <button
+                    type="button"
+                    onClick={() => setShowProfit(p => !p)}
+                    title="Toggle between Markup % and Profit %"
+                    className="flex items-center justify-end gap-1 w-full hover:text-emerald-700 transition-colors"
+                  >
+                    {pctLabel}
+                    <span className="text-[7px] opacity-50">↕</span>
+                  </button>
                 </th>
-                {/* SELL band */}
-                <th className="px-1 pt-2 pb-0 text-center text-[8px] font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50 border-l-2 border-emerald-400" colSpan={2}>
-                  Sell
+                <th className={`${th} text-right bg-emerald-50 border-l border-emerald-200`}>
+                  <span className="flex items-center justify-end gap-1">
+                    Sell $
+                    {lockedIds.size > 0 && (
+                      <span className="inline-flex items-center gap-0.5 text-amber-500">
+                        <Lock className="w-2.5 h-2.5" />{lockedIds.size}
+                      </span>
+                    )}
+                  </span>
                 </th>
-              </tr>
-              {/* ── Sub-band: TIME | QTY within cost ── */}
-              <tr className="border-b border-gray-100">
-                <th className="pb-0 pt-1" colSpan={2} />
-                {/* TIME sub-band */}
-                <th className="pb-0 pt-1 text-center text-[7px] font-bold uppercase tracking-widest text-sky-500 bg-sky-50/80 border-l border-sky-200" colSpan={4}>
-                  Time
-                </th>
-                {/* USAGE sub-band */}
-                <th className="pb-0 pt-1 text-center text-[7px] font-bold uppercase tracking-widest text-violet-500 bg-violet-50/80 border-l border-violet-200" colSpan={4}>
-                  Usage
-                </th>
-                <th className="pb-0 pt-1 bg-emerald-50 border-l-2 border-emerald-400" colSpan={2} />
-              </tr>
-              {/* ── Column labels ── all use same px as cells for alignment ── */}
-              <tr className="border-b-2 border-gray-200">
-                <th className={`py-1.5 pl-3 pr-2 text-[8px] font-bold text-gray-400 uppercase tracking-wider text-left whitespace-nowrap`}>Service</th>
-                <th className={`py-1.5 pl-2 pr-2 text-[8px] font-bold text-gray-400 uppercase tracking-wider text-left whitespace-nowrap`}>Description</th>
-                {/* TIME — right-aligned to match number content */}
-                <th className={`${thTime} border-l border-sky-200`}>$/hr</th>
-                <th className={thTime}>Actual</th>
-                <th className={`${thTime} text-sky-700`}>Charge ✎</th>
-                <th className={thTime}>Cost $</th>
-                {/* USAGE */}
-                <th className={`${thVio} border-l border-violet-200`}>Actual</th>
-                <th className={`${thVio} text-violet-700`}>Charge ✎</th>
-                <th className={thVio}>Unit $</th>
-                <th className={thVio}>Cost $</th>
-                {/* SELL */}
-                <th className={`${thSell} border-l-2 border-emerald-400`}>{pctLabel}</th>
-                <th className={`${thSell}`}>Sell $</th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-gray-50">
-              {localLines.map(line => {
-                const accent    = SERVICE_ACCENT[line.service] ?? { dot: 'bg-gray-300' };
-                const timeBased = isTimeBased(line);
-                const qtyBased  = isQtyBased(line);
-                const timeErr   = timeErrors[line.id];
-                const qtyErr    = qtyErrors[line.id];
-                const chargeQty = line.chargeQty ?? line.quantity;
-                const pctVal    = mkOrProfit(line.markupPercent);
-                const isLocked  = lockedIds.has(line.id);
-
-                return (
-                  <tr key={line.id} className={`transition-colors ${isLocked ? 'bg-amber-50/20 hover:bg-amber-50/30' : 'hover:bg-gray-50/60'}`}>
-                    {/* Service — left-aligned, same pl as header */}
-                    <td className={`${tdCls} pl-3`}>
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className={`w-1.5 h-1.5 rounded-sm flex-shrink-0 ${accent.dot}`} />
-                        <span className={`font-semibold text-gray-800 truncate ${numCls}`}>{line.service}</span>
-                      </div>
-                    </td>
-                    {/* Description — left-aligned, same pl as header */}
-                    <td className={`${tdCls} pl-2`} style={{ maxWidth: 0 }}>
-                      <span className="text-gray-500 block truncate" title={line.description}>{line.description}</span>
-                    </td>
-
-                    {/* ── TIME zone ── */}
-                    {/* $/hr — read-only, right-aligned span */}
-                    <td className={`${tdTime} border-l border-sky-200`}>
-                      {timeBased
-                        ? <span className={`text-sky-700 font-medium ${numCls} block text-right`}>{formatCurrency(line.hourlyCost!)}</span>
-                        : <span className={dimCls}>—</span>}
-                    </td>
-                    {/* Actual time — read-only, right-aligned */}
-                    <td className={tdTime}>
-                      {timeBased
-                        ? <span className={`text-gray-400 ${numCls} block text-right`}>{fmtHours(line.hoursActual!)}</span>
-                        : <span className={dimCls}>—</span>}
-                    </td>
-                    {/* Charge time — editable input fills full column */}
-                    <td className={tdTime}>
-                      {timeBased ? (
-                        <input
-                          type="text"
-                          value={timeInputs[line.id] ?? fmtHours(line.hoursCharge ?? line.hoursActual ?? 0)}
-                          onChange={e => setTimeInputs(t => ({ ...t, [line.id]: e.target.value }))}
-                          onBlur={() => commitTimeInput(line.id)}
-                          onKeyDown={e => { if (e.key === 'Enter') commitTimeInput(line.id); }}
-                          placeholder="e.g. 30"
-                          className={inpSky(timeErr)}
-                          title="Enter minutes (e.g. 30 or 90)"
-                        />
-                      ) : <span className={dimCls}>—</span>}
-                    </td>
-                    {/* Time cost — read-only, right-aligned */}
-                    <td className={tdTime}>
-                      {timeBased
-                        ? <span className={`text-sky-800 font-semibold ${numCls} block text-right`}>{formatCurrency(line.totalCost)}</span>
-                        : <span className={dimCls}>—</span>}
-                    </td>
-
-                    {/* ── USAGE zone ── */}
-                    {/* Actual qty — read-only, right-aligned */}
-                    <td className={`${tdVio} border-l border-violet-200`}>
-                      {qtyBased && line.quantity != null
-                        ? <span className={`text-gray-400 ${numCls} block text-right`}>{line.quantity.toLocaleString()}<span className="text-[9px] ml-0.5">{line.unit}</span></span>
-                        : <span className={dimCls}>—</span>}
-                    </td>
-                    {/* Charge qty — editable input */}
-                    <td className={tdVio}>
-                      {qtyBased && line.quantity != null ? (
-                        <input
-                          type="number" step="1" min="1"
-                          value={qtyInputs[line.id] ?? chargeQty}
-                          onChange={e => { setQtyInputs(q => ({ ...q, [line.id]: e.target.value })); setQtyErrors(q => ({ ...q, [line.id]: false })); }}
-                          onBlur={() => commitChargeQty(line.id)}
-                          onKeyDown={e => { if (e.key === 'Enter') commitChargeQty(line.id); }}
-                          className={inpViolet(qtyErr)}
-                          title="Billable quantity"
-                        />
-                      ) : <span className={dimCls}>—</span>}
-                    </td>
-                    {/* Unit $ — editable, 3 dp */}
-                    <td className={tdVio}>
-                      {(qtyBased || line.service === 'Setup') && line.unitCost > 0 ? (
-                        <input
-                          type="number" step="0.001" min="0"
-                          value={parseFloat(line.unitCost.toFixed(3))}
-                          onChange={e => updateField(line.id, 'unitCost', e.target.value)}
-                          className={inpViolet(false)}
-                          title="Unit cost"
-                        />
-                      ) : <span className={dimCls}>—</span>}
-                    </td>
-                    {/* Cost $ — editable */}
-                    <td className={tdVio}>
-                      <input
-                        type="number" step="0.01" min="0"
-                        value={fmtNum(line.totalCost)}
-                        onChange={e => updateField(line.id, 'totalCost', e.target.value)}
-                        className={inp('text-gray-700')}
-                      />
-                    </td>
-
-                    {/* ── SELL zone ── */}
-                    {/* Markup / Profit % */}
-                    <td className={`${tdSell} border-l-2 border-emerald-400`}>
-                      <div className="relative">
-                        <input
-                          type="number" step="0.01"
-                          value={fmtNum(pctVal, 2)}
-                          onChange={e => updateField(line.id, showProfit ? 'profitPercent' : 'markupPercent', e.target.value)}
-                          className={`${inpEmerald(true)} pr-5 ${pctVal > 0 ? 'font-semibold' : 'text-gray-400'}`}
-                        />
-                        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] text-emerald-400 pointer-events-none">{pctSuffix}</span>
-                      </div>
-                    </td>
-                    {/* Sell $ — with lock button */}
-                    <td className={`${tdSell} pr-2`}>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number" step="0.01" min="0"
-                          value={fmtNum(line.sellPrice)}
-                          onChange={e => updateField(line.id, 'sellPrice', e.target.value)}
-                          className={`${inpEmerald(true)} font-bold flex-1 ${isLocked ? 'opacity-70 cursor-not-allowed' : ''}`}
-                          readOnly={isLocked}
-                          title={isLocked ? 'Locked — unlock to edit' : undefined}
-                        />
-                        {/* Lock toggle — sits right of the sell price input */}
-                        <button
-                          type="button"
-                          onClick={() => toggleLock(line.id)}
-                          title={isLocked
-                            ? 'Sell price locked — click to unlock'
-                            : 'Lock this sell price to exclude from global scaling'}
-                          className={`flex-shrink-0 p-0.5 rounded transition-all ${
-                            isLocked
-                              ? 'text-amber-500 hover:text-amber-600'
-                              : 'text-gray-300 hover:text-gray-500'
-                          }`}
-                        >
-                          {isLocked ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+            <tbody className="divide-y divide-gray-100">
+              {serviceGroups.map(({ service, lines, isGrouped, groupLabel }) => (
+                <React.Fragment key={service + lines[0].id}>
+                  {isGrouped ? (
+                    <>
+                      {/* ── Grouped parent row — service name + equipment label ── */}
+                      <tr className="bg-gray-50/60">
+                        <td className={`${td} font-bold text-gray-800 flex items-center gap-1.5`}>
+                          {svcIcon(service)}
+                          {service}
+                        </td>
+                        <td className={`${td} text-gray-500`}>{groupLabel}</td>
+                        {/* No cost/markup/sell on the parent — children carry the values */}
+                        <td className={td} />
+                        <td className={`${td} bg-emerald-50/40 border-l-2 border-emerald-200`} />
+                        <td className={`${td} bg-emerald-50/40 border-l border-emerald-100`} />
+                      </tr>
+                      {/* ── Grouped child rows — indented ── */}
+                      {lines.map(line => (
+                        <tr key={line.id} className={`transition-colors ${lockedIds.has(line.id) ? 'bg-amber-50/20' : 'hover:bg-gray-50/70'}`}>
+                          <td className={`${td} pl-8 text-gray-500 text-[11px]`}>{subLabel(line)}</td>
+                          <td className={`${td} pr-2`}>{renderDetails(line, true)}</td>
+                          <td className={td}>{renderCost(line)}</td>
+                          <td className={`${td} bg-emerald-50/40 border-l-2 border-emerald-200`}>{renderPct(line)}</td>
+                          <td className={`${td} bg-emerald-50/40 border-l border-emerald-100`}>{renderSell(line)}</td>
+                        </tr>
+                      ))}
+                    </>
+                  ) : (
+                    /* ── Simple single-row service ── */
+                    <tr className={`transition-colors ${lockedIds.has(lines[0].id) ? 'bg-amber-50/20' : 'hover:bg-gray-50/70'}`}>
+                      <td className={`${td} font-bold text-gray-800`}>
+                        <div className="flex items-center gap-1.5">{svcIcon(service)}{service}</div>
+                      </td>
+                      <td className={`${td} pr-2`}>{renderDetails(lines[0])}</td>
+                      <td className={td}>{renderCost(lines[0])}</td>
+                      <td className={`${td} bg-emerald-50/40 border-l-2 border-emerald-200`}>{renderPct(lines[0])}</td>
+                      <td className={`${td} bg-emerald-50/40 border-l border-emerald-100`}>{renderSell(lines[0])}</td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
             </tbody>
 
             {/* ── Totals row ── */}
-            <tfoot>
-              <tr className="border-t-2 border-gray-300 bg-gray-50/90">
-                <td className="py-1.5 pl-3 pr-1 text-[9px] font-bold text-gray-600 uppercase tracking-wider" colSpan={2}>
-                  <span className="flex items-center gap-1.5">
+            <tfoot className="border-t-2 border-gray-300">
+              <tr className="bg-gray-50/90 font-semibold">
+                <td className={`${td} text-[11px] text-gray-600 uppercase tracking-wide`} colSpan={2}>
+                  <span className="flex items-center gap-2">
                     Total
-                    <span className="text-[8px] font-normal text-gray-400 normal-case">— click % or $ to scale unlocked rows</span>
+                    <span className="text-[9px] font-normal text-gray-400 normal-case">— click % or $ to scale unlocked rows</span>
                     {lockedIds.size > 0 && (
-                      <span className="inline-flex items-center gap-0.5 text-[8px] font-semibold text-amber-500">
+                      <span className="text-[9px] font-semibold text-amber-500 flex items-center gap-0.5">
                         <Lock className="w-2.5 h-2.5" />{lockedIds.size} locked
                       </span>
                     )}
                   </span>
                 </td>
-                {/* TIME total cells — same padding as body */}
-                <td className={`${tdTime} border-l border-sky-200`} colSpan={2} />
-                <td className={`${tdTime} ${numCls} text-right text-sky-600 font-medium`}>
-                  {fmtHours(localLines.reduce((s, l) => s + (l.hoursCharge ?? l.hoursActual ?? 0), 0))}
-                </td>
-                <td className={`${tdTime} ${numCls} text-right text-sky-700 font-semibold`}>
-                  {formatCurrency(localLines.filter(isTimeBased).reduce((s, l) => s + l.totalCost, 0))}
-                </td>
-                {/* USAGE total cells */}
-                <td className={`${tdVio} border-l border-violet-200`} colSpan={3} />
-                <td className={`${tdVio} ${numCls} text-right font-bold text-gray-800`}>
+                {/* Total Cost — read-only */}
+                <td className={`${td} text-right num text-gray-800 font-bold`}>
                   {formatCurrency(totalCost)}
                 </td>
-                {/* Markup/Profit % total — same px, editable */}
-                <td className={`py-1 ${COL_PX} bg-emerald-50/80 border-l-2 border-emerald-400`}>
+                {/* Total Markup/Profit % — click to scale all */}
+                <td className={`py-1 px-4 bg-emerald-50/80 border-l-2 border-emerald-300`}>
                   {totalMarkupInput !== null ? (
                     <div className="relative">
                       <input
@@ -3016,15 +2999,15 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                   ) : (
                     <button type="button"
                       onClick={() => setTotalMarkupInput(fmtNum(mkOrProfit(totalMarkup)))}
-                      title={`Click to set all lines to this ${pctLabel}`}
-                      className={`w-full px-1.5 py-1 text-right ${numCls} font-bold rounded border border-dashed border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100/60 transition-colors text-emerald-700`}
+                      title={`Click to set all unlocked lines to this ${pctLabel}`}
+                      className="w-full px-1.5 py-1 text-right text-[11px] num font-bold rounded border border-dashed border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100/60 transition-colors text-emerald-700"
                     >
                       {mkOrProfit(totalMarkup).toFixed(2)}{pctSuffix}
                     </button>
                   )}
                 </td>
-                {/* Sell $ total — same px */}
-                <td className={`py-1 ${COL_PX} bg-emerald-50/80`}>
+                {/* Total Sell $ — click to scale all */}
+                <td className={`py-1 px-4 bg-emerald-50/80 border-l border-emerald-200`}>
                   {totalSellInput !== null ? (
                     <input
                       type="number" step="0.01" min="0" autoFocus
@@ -3041,8 +3024,8 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
                   ) : (
                     <button type="button"
                       onClick={() => setTotalSellInput(fmtNum(totalSell))}
-                      title="Click to scale all sell prices to this total"
-                      className={`w-full px-1.5 py-1 text-right ${numCls} text-[12px] font-bold rounded border border-dashed border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100/60 transition-colors text-emerald-900`}
+                      title="Click to scale all unlocked sell prices to this total"
+                      className="w-full px-1.5 py-1 text-right text-[13px] num font-bold rounded border border-dashed border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100/60 transition-colors text-emerald-900"
                     >
                       {formatCurrency(totalSell)}
                     </button>
@@ -3060,9 +3043,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
             <span className="text-gray-300">·</span>
             <span className="text-gray-500">Profit: <span className="font-semibold text-emerald-700 num">{formatCurrency(totalSell - totalCost)}</span></span>
             <span className="text-gray-300">·</span>
-            <span className="text-gray-500">
-              Margin: <span className={`font-bold num ${marginPct >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{marginPct.toFixed(1)}%</span>
-            </span>
+            <span className="text-gray-500">Margin: <span className={`font-bold num ${marginPct >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{marginPct.toFixed(1)}%</span></span>
             <span className="text-gray-300">·</span>
             <span className="text-gray-500">Sell: <span className="font-bold text-gray-900 num text-[13px]">{formatCurrency(totalSell)}</span></span>
           </div>
@@ -3072,17 +3053,11 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
         {/* ── Footer ── */}
         <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-white rounded-b-2xl">
           <button type="button" onClick={() => {
-            // Get fresh computed lines from parent, reset local state in-place — dialog stays open
             const fresh = onRecalculate();
             setLocalLines(fresh.map(l => ({ ...l, chargeQty: l.chargeQty ?? l.quantity })));
             setTimeInputs(() => {
               const init: Record<string, string> = {};
-              fresh.forEach(l => {
-                if (l.hourlyCost != null) {
-                  const h = l.hoursCharge ?? l.hoursActual ?? 0;
-                  init[l.id] = h > 0 ? `${Math.ceil(h * 60)} min` : '0 min';
-                }
-              });
+              fresh.forEach(l => { if (l.hourlyCost != null) { const h = l.hoursCharge ?? l.hoursActual ?? 0; init[l.id] = h > 0 ? `${Math.ceil(h * 60)} min` : '0 min'; } });
               return init;
             });
             setQtyInputs(() => {
@@ -3090,8 +3065,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
               fresh.forEach(l => { if (l.quantity != null && l.unit !== 'flat') init[l.id] = String(l.quantity); });
               return init;
             });
-            setTimeErrors({});
-            setQtyErrors({});
+            setTimeErrors({}); setQtyErrors({});
           }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-gray-500 hover:text-[#F890E7] hover:bg-pink-50 rounded-lg transition-colors"
           >
