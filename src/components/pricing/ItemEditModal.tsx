@@ -1922,7 +1922,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         placeholder="1000"
                         className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]"
                       />
-                      {isMultiQty && <p className="text-[9px] text-purple-500 mt-0.5">{parsedQuantities.length} qtys</p>}
                     </div>
 
                     {/* ORIG. — narrow, usually 1 digit */}
@@ -2495,7 +2494,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                 // Input style — compact, fixed width so they don't stretch
                 const bInp = 'w-[72px] px-1.5 py-0.5 text-[11px] text-right num bg-white border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-[#F890E7] transition-colors';
-                const bInpG = 'w-[72px] px-1.5 py-0.5 text-[11px] text-right num bg-emerald-50 border border-emerald-200 rounded focus:outline-none focus:ring-1 focus:ring-emerald-300 text-emerald-900 transition-colors';
+                const bInpG = 'w-[76px] px-1.5 py-0.5 text-[11px] text-right num bg-emerald-50 border border-emerald-200 rounded focus:outline-none focus:ring-1 focus:ring-emerald-300 text-emerald-900 transition-colors';
                 const bInpSky = (err: boolean) => `w-[68px] px-1.5 py-0.5 text-[11px] text-right num rounded focus:outline-none focus:ring-1 transition-colors border ${err ? 'border-red-400 text-red-600 bg-red-50' : 'border-sky-200 text-sky-700 bg-sky-50 focus:ring-sky-300'}`;
                 const bInpVio = (err: boolean) => `w-[68px] px-1.5 py-0.5 text-[11px] text-right num rounded focus:outline-none focus:ring-1 transition-colors border ${err ? 'border-red-400 text-red-600 bg-red-50' : 'border-violet-200 text-violet-700 bg-violet-50 focus:ring-violet-300'}`;
 
@@ -2559,18 +2558,19 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         </div>
 
                         {/* ── Price breakdown table ─────────────────────────────────────────── */}
-                        {/* Column widths lock header↔cell alignment precisely */}
-                        <table className="w-full border-collapse" style={{ tableLayout: 'fixed', fontSize: '11px' }}>
+                        {/* tableLayout:auto lets the browser distribute remaining space to Description
+                            while keeping fixed columns at their minimum; avoids clipping on any screen. */}
+                        <table className="w-full border-collapse" style={{ tableLayout: 'auto', fontSize: '11px' }}>
                           <colgroup>
-                            <col style={{ width: '100px' }} /> {/* Service */}
-                            <col style={{ width: '28%'   }} /> {/* Description — fixed % so it doesn't eat the number cols */}
-                            <col style={{ width: '62px'  }} /> {/* Actual */}
-                            <col style={{ width: '82px'  }} /> {/* Unit Cost */}
-                            <col style={{ width: '70px'  }} /> {/* Charge ✎ */}
-                            <col style={{ width: '84px'  }} /> {/* Cost — slightly wider */}
-                            <col style={{ width: '84px'  }} /> {/* Markup/Profit % — slightly wider */}
-                            <col style={{ width: '88px'  }} /> {/* Sell $ — slightly wider */}
-                            <col style={{ width: '26px'  }} /> {/* 🔒 lock */}
+                            <col style={{ width: '90px',  minWidth: '80px'  }} /> {/* Service */}
+                            <col />                                                  {/* Description — flex, takes all leftover */}
+                            <col style={{ width: '58px',  minWidth: '52px'  }} /> {/* Actual */}
+                            <col style={{ width: '78px',  minWidth: '72px'  }} /> {/* Unit Cost */}
+                            <col style={{ width: '66px',  minWidth: '60px'  }} /> {/* Charge ✎ */}
+                            <col style={{ width: '80px',  minWidth: '76px'  }} /> {/* Cost */}
+                            <col style={{ width: '82px',  minWidth: '78px'  }} /> {/* Markup/Profit % */}
+                            <col style={{ width: '86px',  minWidth: '82px'  }} /> {/* Sell $ */}
+                            <col style={{ width: '24px',  minWidth: '22px'  }} /> {/* 🔒 lock */}
                           </colgroup>
 
                           {/* ── Column headers ── */}
@@ -2669,14 +2669,24 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                         </span>
                                       </td>
 
-                                      {/* DESCRIPTION — truncated, full text on hover */}
+                                      {/* DESCRIPTION — for sub-rows strip the parent's equipment prefix to avoid repetition */}
                                       <td className={`py-2 ${tdPx} overflow-hidden`}>
-                                        <span
-                                          className="block truncate text-[10px] text-gray-500 cursor-help"
-                                          title={line.description}
-                                        >
-                                          {line.description}
-                                        </span>
+                                        {(() => {
+                                          // For grouped sub-rows (e.g. ↳ Time under Printing), the description
+                                          // repeats the equipment name — strip it so we only show the detail.
+                                          const raw = line.description;
+                                          const displayText = isGrouped && raw.includes(' — ')
+                                            ? raw.split(' — ').slice(1).join(' — ')
+                                            : raw;
+                                          return (
+                                            <span
+                                              className="block truncate text-[10px] text-gray-500"
+                                              title={raw}
+                                            >
+                                              {displayText}
+                                            </span>
+                                          );
+                                        })()}
                                       </td>
 
                                       {/* ACTUAL — read-only, right-aligned, muted */}
@@ -2734,9 +2744,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                             type="number" step="0.01"
                                             value={parseFloat(pctVal.toFixed(2))}
                                             onChange={e => bUpdateField(line.id, bShowProfit ? 'profitPercent' : 'markupPercent', e.target.value)}
-                                            className={`${bInpG} pr-4 font-semibold`}
+                                            className={`${bInpG} pr-5 font-semibold`}
                                           />
-                                          <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] text-emerald-400 pointer-events-none">{bPctSuffix}</span>
+                                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-emerald-500 pointer-events-none select-none">{bPctSuffix}</span>
                                         </div>
                                       </td>
 
@@ -2796,9 +2806,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                       onChange={e => { setBTotalMkInput(e.target.value); setBTotalMkErr(false); }}
                                       onBlur={e => bApplyTotalMarkup(e.target.value)}
                                       onKeyDown={e => { if (e.key === 'Enter') bApplyTotalMarkup((e.target as HTMLInputElement).value); if (e.key === 'Escape') { setBTotalMkInput(null); setBTotalMkErr(false); } }}
-                                      className={`w-full px-1.5 py-0.5 text-[11px] text-right num font-bold border rounded focus:outline-none focus:ring-1 pr-4 ${bTotalMkErr ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300' : 'border-emerald-300 bg-emerald-50 text-emerald-800 focus:ring-emerald-300'}`}
+                                      className={`w-full px-1.5 py-0.5 text-[11px] text-right num font-bold border rounded focus:outline-none focus:ring-1 pr-5 ${bTotalMkErr ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300' : 'border-emerald-300 bg-emerald-50 text-emerald-800 focus:ring-emerald-300'}`}
                                     />
-                                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[8px] text-emerald-500 pointer-events-none">{bPctSuffix}</span>
+                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-emerald-500 pointer-events-none select-none">{bPctSuffix}</span>
                                   </div>
                                 ) : (
                                   <button type="button"
