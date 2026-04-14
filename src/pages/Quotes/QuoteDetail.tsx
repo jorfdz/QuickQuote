@@ -225,6 +225,7 @@ export const QuoteDetail: React.FC = () => {
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const convertRef = useRef<HTMLDivElement>(null);
+  const [showAddressDialog, setShowAddressDialog] = useState(false);
 
   // ── No-account guard ──────────────────────────────────────────────────────
   const [showNoAccountGuard, setShowNoAccountGuard] = useState(false);
@@ -549,6 +550,15 @@ export const QuoteDetail: React.FC = () => {
           <div className="px-5 pb-5 pt-0 border-t border-gray-100">
             <div className="flex items-center justify-between mt-3 mb-3">
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Click any field to edit</p>
+              {/* Ship/Bill To address shortcut */}
+              <button
+                onClick={() => setShowAddressDialog(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold text-gray-500 hover:text-gray-800 border border-gray-200 hover:border-gray-300 rounded-lg transition-colors"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                Ship / Bill To
+                {(quote.billToAddress || quote.shipToAddress) && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />}
+              </button>
             </div>
             <div className="grid grid-cols-3 gap-x-6 gap-y-3 items-start">
               <InlineField
@@ -564,6 +574,8 @@ export const QuoteDetail: React.FC = () => {
                 searchable options={contactOptions}
                 onAddNew={() => {}}
                 onSave={v => { const c = contacts.find(x => x.id === v); saveField({ contactId: v || undefined, contactName: c ? `${c.firstName} ${c.lastName}` : undefined }); }} />
+              <InlineField label="Quote Date" value={quote.quoteDate || quote.createdAt?.slice(0,10) || ''} type="date"
+                onSave={v => saveField({ quoteDate: v || undefined })} />
               <InlineField label="Valid Until" value={quote.validUntil || ''} type="date"
                 onSave={v => saveField({ validUntil: v || undefined })} />
               <InlineField label="CSR" value={csr?.name || ''} placeholder="Search CSR..."
@@ -811,6 +823,51 @@ export const QuoteDetail: React.FC = () => {
         }
         confirmLabel="Remove Item"
       />
+
+      {/* ── Ship To / Bill To address dialog ────────────────────────────── */}
+      {showAddressDialog && (() => {
+        const customer = customers.find(c => c.id === quote.customerId);
+        // Default Bill To from customer if not yet set
+        const defaultBillTo = {
+          name: quote.billToName ?? quote.customerName ?? '',
+          address: quote.billToAddress ?? (customer?.address ?? ''),
+          city: quote.billToCity ?? (customer?.city ?? ''),
+          state: quote.billToState ?? (customer?.state ?? ''),
+          zip: quote.billToZip ?? (customer?.zip ?? ''),
+          country: quote.billToCountry ?? (customer?.country ?? 'US'),
+        };
+        const shipSame = quote.shipToSameAsBillTo ?? true;
+        return (
+          <AddressDialog
+            title={`Addresses — ${quote.number}`}
+            billTo={defaultBillTo}
+            shipTo={{
+              same: shipSame,
+              name: quote.shipToName ?? '',
+              address: quote.shipToAddress ?? '',
+              city: quote.shipToCity ?? '',
+              state: quote.shipToState ?? '',
+              zip: quote.shipToZip ?? '',
+              country: quote.shipToCountry ?? 'US',
+            }}
+            onSave={(bill, ship) => {
+              updateQuote(id!, {
+                billToName: bill.name, billToAddress: bill.address, billToCity: bill.city,
+                billToState: bill.state, billToZip: bill.zip, billToCountry: bill.country,
+                shipToSameAsBillTo: ship.same,
+                shipToName: ship.same ? bill.name : ship.name,
+                shipToAddress: ship.same ? bill.address : ship.address,
+                shipToCity: ship.same ? bill.city : ship.city,
+                shipToState: ship.same ? bill.state : ship.state,
+                shipToZip: ship.same ? bill.zip : ship.zip,
+                shipToCountry: ship.same ? bill.country : ship.country,
+              });
+              setShowAddressDialog(false);
+            }}
+            onClose={() => setShowAddressDialog(false)}
+          />
+        );
+      })()}
 
       {/* No-account guard modal */}
       {showNoAccountGuard && (

@@ -260,6 +260,7 @@ export interface Quote {
   taxRate?: number;
   taxAmount?: number;
   total: number;
+  quoteDate?: string;         // ISO date the quote was issued (separate from createdAt)
   validUntil?: string;
   csrId?: string;
   salesId?: string;
@@ -270,6 +271,20 @@ export interface Quote {
   source?: 'scratch' | 'template' | 'ai' | 'clone';
   aiPrompt?: string;
   statusChangedAt?: string;   // ISO timestamp of last status change
+  // Billing & shipping addresses (default to customer address; shipTo defaults same as billTo)
+  billToName?: string;
+  billToAddress?: string;
+  billToCity?: string;
+  billToState?: string;
+  billToZip?: string;
+  billToCountry?: string;
+  shipToSameAsBillTo?: boolean;
+  shipToName?: string;
+  shipToAddress?: string;
+  shipToCity?: string;
+  shipToState?: string;
+  shipToZip?: string;
+  shipToCountry?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -349,6 +364,20 @@ export interface Order {
   poNumber?: string; // customer's PO#
   invoiceId?: string;
   purchaseOrderIds?: string[];
+  // Billing & shipping addresses (default to customer address; shipTo defaults same as billTo)
+  billToName?: string;
+  billToAddress?: string;
+  billToCity?: string;
+  billToState?: string;
+  billToZip?: string;
+  billToCountry?: string;
+  shipToSameAsBillTo?: boolean;
+  shipToName?: string;
+  shipToAddress?: string;
+  shipToCity?: string;
+  shipToState?: string;
+  shipToZip?: string;
+  shipToCountry?: string;
   createdAt: string;
   updatedAt: string;
 }
