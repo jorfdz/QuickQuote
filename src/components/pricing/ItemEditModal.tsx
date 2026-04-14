@@ -85,6 +85,9 @@ interface ProductEditModalProps {
   item: QuoteLineItem;
   pricingState: LineItemPricingState;
   isNew: boolean;
+  /** When true (Catalog "New Product" flow): shows a free-text name input instead of the
+   *  product-search dropdown, and never locks the form behind a product selection. */
+  isProductCreation?: boolean;
   onUpdateItem: (u: Partial<QuoteLineItem>) => void;
   onUpdatePricing: (u: Partial<LineItemPricingState>) => void;
   onClose: () => void;
@@ -94,7 +97,7 @@ interface ProductEditModalProps {
 }
 
 export const ProductEditModal: React.FC<ProductEditModalProps> = ({
-  item, pricingState: ps, isNew,
+  item, pricingState: ps, isNew, isProductCreation = false,
   onUpdateItem, onUpdatePricing, onClose, onRemove,
   matchingTemplates, onApplyTemplate,
 }) => {
@@ -1848,66 +1851,88 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               {/* Hide the full pricing form when the Main overview tab is active */}
               {(!isMultiPart || !showMainTab) && (<>
 
-              {/* ── Product Search Row ────────────────────────────────── */}
-              {/* Lock-and-prompt logic: only for brand-new items that haven't had a product chosen yet.
-                  Existing items being re-edited are NEVER locked — isNew=false means skip all gating. */}
-              {(() => {
-                const needsProduct = isNew && !ps.productId && !ps.productName;
-                return (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Product</label>
-                      {/* Only show the prompt badge on brand-new items with no product yet */}
-                      {needsProduct && (
-                        <span className="text-[9px] font-semibold text-[var(--brand)] bg-[var(--brand-light)] px-2 py-0.5 rounded-full uppercase tracking-wide">
-                          Select a product to begin
-                        </span>
-                      )}
+              {/* ── Product Name Row ──────────────────────────────────── */}
+              {isProductCreation ? (
+                /* ── CATALOG "New Product" mode: free-text name input ── */
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-2">
+                    Product Name
+                  </label>
+                  <input
+                    type="text"
+                    value={productQuery}
+                    onChange={e => {
+                      setProductQuery(e.target.value);
+                      // Immediately sync the typed name as productName (no id — it's brand new)
+                      onUpdatePricing({ productId: '', productName: e.target.value });
+                      onUpdateItem({ description: e.target.value });
+                    }}
+                    placeholder="e.g. Business Cards, Trifold Brochure, Poster…"
+                    autoFocus
+                    className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400"
+                  />
+                  <p className="text-[9px] text-gray-400 mt-1">Enter a name for this new product — it won't be looked up from the existing catalog.</p>
+                </div>
+              ) : (
+                /* ── QUOTE / ORDER mode: search existing products ── */
+                (() => {
+                  const needsProduct = isNew && !ps.productId && !ps.productName;
+                  return (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Product</label>
+                        {needsProduct && (
+                          <span className="text-[9px] font-semibold text-[var(--brand)] bg-[var(--brand-light)] px-2 py-0.5 rounded-full uppercase tracking-wide">
+                            Select a product to begin
+                          </span>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text" value={productQuery}
+                          onChange={e => { setProductQuery(e.target.value); setShowSuggestions(true); if (!e.target.value.trim()) onUpdatePricing({ productId: '', productName: '' }); }}
+                          onFocus={() => { setShowSuggestions(true); }}
+                          placeholder="Type product name (Business Cards, Postcards, Trifold, Brochures...)"
+                          className={`w-full pl-9 pr-8 py-2.5 text-sm rounded-lg focus:outline-none placeholder-gray-400 transition-all ${
+                            needsProduct
+                              ? 'bg-[var(--brand-light)] border-2 border-[var(--brand)]/40 focus:ring-2 focus:ring-[var(--brand)] focus:border-[var(--brand)]'
+                              : 'bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-[#F890E7]'
+                          }`}
+                        />
+                        {productQuery && (
+                          <button onClick={() => { setProductQuery(''); onUpdatePricing({ productId: '', productName: '', categoryName: '' }); }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 rounded-full">
+                            <X className="w-3.5 h-3.5 text-gray-400" />
+                          </button>
+                        )}
+                        {showSuggestions && suggestions.length > 0 && (
+                          <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+                            {suggestions.map(p => {
+                              const cat = categories.find(c => p.categoryIds.includes(c.id));
+                              return (
+                                <button key={p.id} onClick={() => selectProduct(p)}
+                                  className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0">
+                                  <div>
+                                    <span className="text-sm font-medium text-gray-900">{p.name}</span>
+                                    {p.aliases.length > 0 && <span className="text-xs text-gray-400 ml-2">aka {p.aliases.slice(0, 3).join(', ')}</span>}
+                                  </div>
+                                  <Badge color="gray">{cat?.name}</Badge>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="text" value={productQuery}
-                        onChange={e => { setProductQuery(e.target.value); setShowSuggestions(true); if (!e.target.value.trim()) onUpdatePricing({ productId: '', productName: '' }); }}
-                        onFocus={() => { setShowSuggestions(true); }}
-                        placeholder="Type product name (Business Cards, Postcards, Trifold, Brochures...)"
-                        className={`w-full pl-9 pr-8 py-2.5 text-sm rounded-lg focus:outline-none placeholder-gray-400 transition-all ${
-                          needsProduct
-                            ? 'bg-[var(--brand-light)] border-2 border-[var(--brand)]/40 focus:ring-2 focus:ring-[var(--brand)] focus:border-[var(--brand)]'
-                            : 'bg-gray-50 border border-gray-200 focus:ring-2 focus:ring-[#F890E7]'
-                        }`}
-                      />
-                      {productQuery && (
-                        <button onClick={() => { setProductQuery(''); onUpdatePricing({ productId: '', productName: '', categoryName: '' }); }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 rounded-full">
-                          <X className="w-3.5 h-3.5 text-gray-400" />
-                        </button>
-                      )}
-                      {showSuggestions && suggestions.length > 0 && (
-                        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
-                          {suggestions.map(p => {
-                            const cat = categories.find(c => p.categoryIds.includes(c.id));
-                            return (
-                              <button key={p.id} onClick={() => selectProduct(p)}
-                                className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0">
-                                <div>
-                                  <span className="text-sm font-medium text-gray-900">{p.name}</span>
-                                  {p.aliases.length > 0 && <span className="text-xs text-gray-400 ml-2">aka {p.aliases.slice(0, 3).join(', ')}</span>}
-                                </div>
-                                <Badge color="gray">{cat?.name}</Badge>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
+                  );
+                })()
+              )}
 
-              {/* Lock the form only for brand-new items before a product is chosen */}
-              <div className={(isNew && !ps.productId && !ps.productName) ? 'opacity-40 pointer-events-none select-none' : ''}>
-              {(isNew && !ps.productId && !ps.productName) && (
+              {/* Lock the form only for brand-new quote/order items before a product is chosen.
+                  Never lock when isProductCreation — user is always free to configure specs. */}
+              <div className={(!isProductCreation && isNew && !ps.productId && !ps.productName) ? 'opacity-40 pointer-events-none select-none' : ''}>
+              {(!isProductCreation && isNew && !ps.productId && !ps.productName) && (
                 <div className="text-center py-4 text-sm text-gray-400">
                   Search and select a product above to configure specs and pricing
                 </div>

@@ -538,6 +538,7 @@ export const Catalog: React.FC = () => {
           item={prodItem}
           pricingState={prodPricingState}
           isNew={!prodItemEditId}
+          isProductCreation={!prodItemEditId}
           onUpdateItem={updates => {
             setProdItem(prev => prev ? { ...prev, ...updates } : prev);
           }}
