@@ -511,7 +511,16 @@ export const OrderDetail: React.FC = () => {
                 searchable
                 options={customers.map(c => ({ value: c.id, label: c.name }))}
                 placeholder="Search customers..."
-                onSave={v => { const c = customers.find(x => x.id === v); updateOrder(id!, { customerId: v || undefined, customerName: c?.name, contactId: undefined, contactName: undefined }); }}
+                onSave={v => {
+                  const c = customers.find(x => x.id === v);
+                  const primary = v ? (contacts.find(ct => ct.customerId === v && ct.isPrimary) || contacts.find(ct => ct.customerId === v)) : undefined;
+                  updateOrder(id!, {
+                    customerId: v || undefined,
+                    customerName: c?.name,
+                    contactId: primary?.id,
+                    contactName: primary ? `${primary.firstName} ${primary.lastName}` : undefined,
+                  });
+                }}
               />
               <OrderInlineField label="Contact"
                 value={order.contactName || ''}

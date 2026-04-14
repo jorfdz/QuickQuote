@@ -12,7 +12,7 @@ import {
 import { nanoid } from '../../utils/nanoid';
 import { formatDate, formatCurrency } from '../../data/mockData';
 
-const TABS = ['Overview', 'Quotes', 'Orders', 'Invoices', 'Contacts', 'Activity'];
+const TABS = ['Overview', 'Contacts', 'Quotes', 'Orders', 'Invoices', 'Activity'];
 
 export const CustomerDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
