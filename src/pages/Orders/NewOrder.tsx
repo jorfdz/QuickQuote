@@ -73,20 +73,21 @@ export const NewOrder: React.FC = () => {
     const savedContactId = (effectiveBase as any)?.contactId || initialContactId;
     const defaultContactId = savedContactId || (custId ? (getPrimaryContact(custId)?.id || '') : '');
     return {
-    title: cloneBase ? `Copy of ${cloneBase.title || ''}` : (sourceQuote?.title || ''),
-    customerId: custId,
-    contactId: defaultContactId,
-    status: 'in_progress' as Order['status'],
-    taxRate: (effectiveBase as any)?.taxRate ?? 7,
-    dueDate: '',
-    workflowId: workflows[0]?.id || '',
-    trackingMode: ((cloneBase as Order | null)?.trackingMode || 'order') as OrderTrackingMode,
-    poNumber: '',
-    csrId: (effectiveBase as any)?.csrId || currentUser.id,
-    salesId: (effectiveBase as any)?.salesId || '',
-    notes: (effectiveBase as any)?.notes || '',
-    internalNotes: (effectiveBase as any)?.internalNotes || '',
-    shipToAddress: '',
+      title: cloneBase ? `Copy of ${cloneBase.title || ''}` : (sourceQuote?.title || ''),
+      customerId: custId,
+      contactId: defaultContactId,
+      status: 'in_progress' as Order['status'],
+      taxRate: (effectiveBase as any)?.taxRate ?? 7,
+      dueDate: '',
+      workflowId: workflows[0]?.id || '',
+      trackingMode: ((cloneBase as Order | null)?.trackingMode || 'order') as OrderTrackingMode,
+      poNumber: '',
+      csrId: (effectiveBase as any)?.csrId || currentUser.id,
+      salesId: (effectiveBase as any)?.salesId || '',
+      notes: (effectiveBase as any)?.notes || '',
+      internalNotes: (effectiveBase as any)?.internalNotes || '',
+      shipToAddress: '',
+    };
   });
 
   // Build initial line items: from clone source, quote source, or empty

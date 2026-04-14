@@ -677,7 +677,16 @@ export const QuoteDetail: React.FC = () => {
                 searchable options={customerOptions}
                 forwardRef={accountFieldRef}
                 onAddNew={() => {}}
-                onSave={v => { const c = customers.find(x => x.id === v); saveField({ customerId: v || undefined, customerName: c?.name }); }}
+                onSave={v => {
+                  const c = customers.find(x => x.id === v);
+                  const primary = v ? (contacts.find(ct => ct.customerId === v && ct.isPrimary) || contacts.find(ct => ct.customerId === v)) : undefined;
+                  saveField({
+                    customerId: v || undefined,
+                    customerName: c?.name,
+                    contactId: primary?.id,
+                    contactName: primary ? `${primary.firstName} ${primary.lastName}` : undefined,
+                  });
+                }}
               />
               <InlineField label="Contact" value={quote.contactName || ''} placeholder="Search contacts..."
                 searchable options={contactOptions}
