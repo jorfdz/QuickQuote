@@ -1016,9 +1016,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         else if (basis === 'per_sqft')   q = ps.finalWidth > 0 && ps.finalHeight > 0 ? (ps.finalWidth * ps.finalHeight * qty) / 144 : qty;
         else if (basis === 'per_unit')   q = qty;
         else if (basis === 'per_1000')   q = qty / 1000;
-        const cost = svc.hourlyCost * q;
+        const setupFeeL = svc.initialSetupFee ?? 0;
+        const varCostL  = svc.hourlyCost * q;
+        const cost = varCostL + setupFeeL;
         const rcRate = lookupServiceSellRate(svc, q);
-        const sell = rcRate !== null ? q * rcRate : Math.max(cost * (1 + svc.markupPercent / 100), svc.minimumCharge ?? 0);
+        const baseSellL = rcRate !== null ? q * rcRate : Math.max(varCostL * (1 + svc.markupPercent / 100), svc.minimumCharge ?? 0);
+        const sell = baseSellL + setupFeeL;  // setup fee added flat
         tCost += cost; tSell += sell;
       }
     });
@@ -1035,9 +1038,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         if (svc.costBasis === 'per_unit')       q = qty;
         else if (svc.costBasis === 'per_sqft')  q = ps.finalWidth > 0 && ps.finalHeight > 0 ? (ps.finalWidth * ps.finalHeight * qty) / 144 : qty;
         else if (svc.costBasis === 'per_linear_ft') q = ps.finalWidth > 0 ? ps.finalWidth * qty : qty;
-        const cost = svc.unitCost * q + svc.initialSetupFee;
+        const setupFeeB = svc.initialSetupFee ?? 0;
+        const varCostB  = svc.unitCost * q;
+        const cost = varCostB + setupFeeB;
         const rcRate = lookupServiceSellRate(svc, q);
-        const sell = rcRate !== null ? q * rcRate + svc.initialSetupFee : cost * (1 + svc.markupPercent / 100);
+        const baseSellB = rcRate !== null ? q * rcRate : varCostB * (1 + svc.markupPercent / 100);
+        const sell = baseSellB + setupFeeB;  // setup fee added flat
         tCost += cost; tSell += sell;
       }
     });
