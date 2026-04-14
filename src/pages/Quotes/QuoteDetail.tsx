@@ -586,7 +586,7 @@ export const QuoteDetail: React.FC = () => {
           <Card>
             <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
               <h2 className="font-semibold text-gray-900">Line Items
-                <span className="text-[10px] font-normal text-gray-400 ml-2">Click any item to edit</span>
+                
               </h2>
               <button onClick={addItem}
                 className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-[var(--brand)] hover:bg-gray-50 rounded-md transition-colors border border-gray-200">
@@ -618,7 +618,7 @@ export const QuoteDetail: React.FC = () => {
                           <Edit3 className="w-3 h-3 text-gray-300 opacity-0 group-hover:opacity-100 flex-shrink-0 transition-opacity" />
                         </div>
                         {!isMP && (
-                          <p className="text-xs text-gray-400 mt-0.5 ml-5">
+                          <p className="text-xs text-gray-500 mt-0.5 ml-5 font-medium">
                             {item.quantity} {item.unit}
                             {item.width && item.height ? ` · ${item.width}" × ${item.height}"` : ''}
                           </p>
@@ -638,7 +638,7 @@ export const QuoteDetail: React.FC = () => {
                         <div className="text-right">
                           <p className="text-sm font-bold text-gray-900 num">{formatCurrency(item.sellPrice)}</p>
                           {item.totalCost > 0 && (
-                            <p className="text-[10px] text-gray-400">Cost: {formatCurrency(item.totalCost)}</p>
+                            <p className="text-[10px] text-gray-600 font-medium">Cost: {formatCurrency(item.totalCost)}</p>
                           )}
                         </div>
                         {/* Inline delete button — visible on hover */}

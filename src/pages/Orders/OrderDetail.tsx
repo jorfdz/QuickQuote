@@ -613,7 +613,7 @@ export const OrderDetail: React.FC = () => {
             <Card>
               <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">Line Items
-                  <span className="text-[10px] font-normal text-gray-400 ml-2">Click any item to edit</span>
+                  
                 </h2>
                 <Button variant="secondary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={addLineItem}>
                   Add Item
@@ -637,7 +637,7 @@ export const OrderDetail: React.FC = () => {
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
                             {itemPs.categoryName && <Badge color="blue" className="text-[10px]">{itemPs.categoryName}</Badge>}
-                            {itemPs.quantity > 0 && <span className="text-xs text-gray-400">{itemPs.quantity.toLocaleString()} pcs</span>}
+                            {itemPs.quantity > 0 && <span className="text-xs text-gray-600 font-medium">{itemPs.quantity.toLocaleString()} pcs</span>}
                           </div>
                         </div>
                         <div className="flex items-center gap-3 flex-shrink-0">
