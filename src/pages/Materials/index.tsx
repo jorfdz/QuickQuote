@@ -1533,9 +1533,25 @@ export const Materials: React.FC = () => {
             {(form.materialType === 'paper' || form.materialType === 'rigid_substrate') && (
               <div className="w-24">
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                  <Tip label="Size" tip="The sheet dimensions in Width×Height format (e.g. 8.5x11). Used for cost calculations based on area." />
+                  <Tip label="Size (in)" tip="Sheet dimensions in Width×Height inches (e.g. 8.5x11 or 48x96). Both values are required to save." />
                 </label>
-                <Input type="text" value={form.size || ''} placeholder="8.5x11" onChange={e => setForm(f => ({ ...f, size: e.target.value }))} />
+                <Input
+                  type="text"
+                  value={form.size || ''}
+                  placeholder="e.g. 48x96"
+                  onChange={e => {
+                    const raw = e.target.value;
+                    // Parse "WxH", "W×H", "W X H" → update sizeWidth and sizeHeight too
+                    const match = raw.match(/^(\d+\.?\d*)\s*[xX×]\s*(\d+\.?\d*)$/);
+                    if (match) {
+                      const w = parseFloat(match[1]);
+                      const h = parseFloat(match[2]);
+                      setForm(f => ({ ...f, size: raw, sizeWidth: w, sizeHeight: h }));
+                    } else {
+                      setForm(f => ({ ...f, size: raw }));
+                    }
+                  }}
+                />
               </div>
             )}
 
@@ -2092,17 +2108,38 @@ export const Materials: React.FC = () => {
           </div>
         )}
 
-        {/* Save / Cancel buttons (visible on all tabs) */}
-        <div className="flex gap-3 justify-end pt-4 border-t border-gray-100 mt-4">
-          <Button variant="secondary" onClick={() => { setShowNew(false); setEditingId(null); }}>Cancel</Button>
-          <Button variant="primary" onClick={editingId ? handleSaveEdit : handleAdd} disabled={
-            !form.name ||
-            ((form.materialType === 'paper' || form.materialType === 'rigid_substrate') && (form.sizeWidth <= 0 || form.sizeHeight <= 0)) ||
-            (form.materialType === 'roll_media' && form.sizeWidth <= 0)
-          }>
-            {editingId ? 'Save Changes' : 'Add Material'}
-          </Button>
-        </div>
+        {/* Save / Cancel buttons — with inline validation errors so user knows exactly what to fix */}
+        {(() => {
+          const errors: string[] = [];
+          if (!form.name?.trim()) errors.push('Material name is required');
+          if ((form.materialType === 'paper' || form.materialType === 'rigid_substrate') && form.sizeWidth <= 0)
+            errors.push(`Width is required (enter as "W×H", e.g. 48x96)`);
+          if ((form.materialType === 'paper' || form.materialType === 'rigid_substrate') && form.sizeHeight <= 0)
+            errors.push(`Height is required (enter as "W×H", e.g. 48x96)`);
+          if (form.materialType === 'roll_media' && form.sizeWidth <= 0)
+            errors.push('Roll width is required');
+          const isDisabled = errors.length > 0;
+          return (
+            <div className="pt-4 border-t border-gray-100 mt-4 space-y-2">
+              {isDisabled && (
+                <div className="flex flex-col gap-1">
+                  {errors.map((err, i) => (
+                    <div key={i} className="flex items-center gap-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                      <span className="flex-shrink-0">⚠</span>
+                      <span>{err}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-3 justify-end">
+                <Button variant="secondary" onClick={() => { setShowNew(false); setEditingId(null); }}>Cancel</Button>
+                <Button variant="primary" onClick={editingId ? handleSaveEdit : handleAdd} disabled={isDisabled}>
+                  {editingId ? 'Save Changes' : 'Add Material'}
+                </Button>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
 
       {/* Material Groups Manager Modal */}

@@ -3507,22 +3507,42 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </div>
               )}
 
-              {!addMaterialForm.name.trim() && (
-                <p className="text-[10px] text-gray-400">* Name is required. The material will be saved to your catalog under Services → Materials.</p>
-              )}
             </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-white rounded-b-2xl">
-              <Button variant="secondary" onClick={() => setShowAddMaterial(false)}>Cancel</Button>
-              <Button
-                variant="primary"
-                onClick={handleSave}
-                disabled={!addMaterialForm.name.trim() || addMaterialForm.price <= 0}
-              >
-                Add &amp; Select Material
-              </Button>
-            </div>
+            {/* Footer with inline validation messages */}
+            {(() => {
+              const qErrors: string[] = [];
+              if (!addMaterialForm.name.trim())
+                qErrors.push('Material name is required');
+              if (addMaterialForm.price <= 0)
+                qErrors.push('Cost must be greater than zero');
+              if (isRigid && addMaterialForm.materialType !== 'blanks' && (addMaterialForm.sizeWidth <= 0 || addMaterialForm.sizeHeight <= 0))
+                qErrors.push('Enter sheet dimensions (Width × Height in inches)');
+              return (
+                <div className="px-5 pb-4 space-y-2">
+                  {qErrors.length > 0 && (
+                    <div className="space-y-1">
+                      {qErrors.map((err, i) => (
+                        <div key={i} className="flex items-center gap-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                          <span className="flex-shrink-0">⚠</span>
+                          <span>{err}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-end gap-2 border-t border-gray-100 pt-3">
+                    <Button variant="secondary" onClick={() => setShowAddMaterial(false)}>Cancel</Button>
+                    <Button
+                      variant="primary"
+                      onClick={handleSave}
+                      disabled={qErrors.length > 0}
+                    >
+                      Add &amp; Select Material
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       );
