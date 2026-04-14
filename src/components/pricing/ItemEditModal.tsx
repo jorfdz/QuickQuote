@@ -38,7 +38,8 @@ export interface LineItemPricingState {
   cuttingEnabled: boolean;
   sheetsPerStack: number;
   serviceLines: PricingServiceLine[];
-  // Persisted service selections — so Labor and Brokered survive navigation
+  // Persisted service selections — so Finishing, Labor and Brokered survive navigation
+  selectedFinishingIds: string[];
   selectedLaborIds: string[];
   selectedBrokeredIds: string[];
   // Per-service custom notes (keyed by service selection ID)
@@ -53,8 +54,9 @@ export const DEFAULT_PRICING_STATE = (): LineItemPricingState => ({
   materialId: '', equipmentId: '',
   colorMode: 'Color', sides: 'Double',
   foldingType: '', drillingType: '',
-  cuttingEnabled: true, sheetsPerStack: 500,
+  cuttingEnabled: false, sheetsPerStack: 500,
   serviceLines: [],
+  selectedFinishingIds: [],
   selectedLaborIds: [],
   selectedBrokeredIds: [],
   serviceNotes: {},
@@ -230,7 +232,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   }]);
 
   // ── Services selection state ──────────────────────────────────────────
+  // Restore finishing selections from pricingContext if available (survives navigation like labor/brokered).
+  // Fall back to deriving from the legacy cuttingEnabled/foldingType/drillingType fields for backward compat.
   const [selectedFinishingIds, setSelectedFinishingIds] = useState<string[]>(() => {
+    if (ps.selectedFinishingIds && ps.selectedFinishingIds.length > 0) return ps.selectedFinishingIds;
     const ids: string[] = [];
     if (ps.cuttingEnabled) {
       const cutSvc = finishing.find(f => f.name === 'Cut');
@@ -273,6 +278,14 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serviceNotes]);
+
+  // Sync finishing selections → pricingContext so custom services survive navigation
+  useEffect(() => {
+    if (JSON.stringify(selectedFinishingIds) !== JSON.stringify(ps.selectedFinishingIds ?? [])) {
+      onUpdatePricing({ selectedFinishingIds });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFinishingIds]);
 
   // Sync multiQtyString → pricingContext so it survives modal close/reopen
   useEffect(() => {
