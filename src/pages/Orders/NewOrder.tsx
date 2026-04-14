@@ -48,6 +48,11 @@ export const NewOrder: React.FC = () => {
   const initialCustomerId = searchParams.get('customerId') || '';
   const initialContactId = searchParams.get('contactId') || '';
 
+  // Helper: find primary contact for a customer
+  const getPrimaryContact = (custId: string) =>
+    contacts.find(c => c.customerId === custId && c.isPrimary) ||
+    contacts.find(c => c.customerId === custId);
+
   // ── Clone handling ────────────────────────────────────────────────────
   const cloneOrderId = searchParams.get('cloneOrderId');
   const cloneId = searchParams.get('cloneId');
@@ -63,10 +68,14 @@ export const NewOrder: React.FC = () => {
 
   // ── Order-level state ────────────────────────────────────────────────
   const effectiveBase = cloneBase || sourceQuote;
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(() => {
+    const custId = (effectiveBase as any)?.customerId || initialCustomerId;
+    const savedContactId = (effectiveBase as any)?.contactId || initialContactId;
+    const defaultContactId = savedContactId || (custId ? (getPrimaryContact(custId)?.id || '') : '');
+    return {
     title: cloneBase ? `Copy of ${cloneBase.title || ''}` : (sourceQuote?.title || ''),
-    customerId: (effectiveBase as any)?.customerId || initialCustomerId,
-    contactId: (effectiveBase as any)?.contactId || initialContactId,
+    customerId: custId,
+    contactId: defaultContactId,
     status: 'in_progress' as Order['status'],
     taxRate: (effectiveBase as any)?.taxRate ?? 7,
     dueDate: '',

@@ -48,6 +48,11 @@ export const QuoteBuilder: React.FC = () => {
   const pricing = usePricingStore();
   const initialCustomerId = searchParams.get('customerId') || '';
   const initialContactId = searchParams.get('contactId') || '';
+
+  // Helper: find primary contact for a customer (falls back to first contact if none marked primary)
+  const getPrimaryContact = (custId: string) =>
+    contacts.find(c => c.customerId === custId && c.isPrimary) ||
+    contacts.find(c => c.customerId === custId);
   const cloneId = searchParams.get('cloneId');
   const cloneSource = searchParams.get('source'); // 'order' or undefined
 
@@ -65,23 +70,29 @@ export const QuoteBuilder: React.FC = () => {
   // ── Seed from existing quote (edit) or clone source or defaults ────────
   const seed = existingQuote || (sourceClone as any) || null;
 
-  const [form, setForm] = useState({
-    title: isEditMode ? (seed?.title || '') : (sourceClone ? `Copy of ${(sourceClone as any).title}` : ''),
-    customerId: seed?.customerId || initialCustomerId,
-    contactId: seed?.contactId || initialContactId,
-    status: (isEditMode ? seed?.status : 'pending') as Quote['status'],
-    taxRate: seed?.taxRate ?? 7,
-    validUntil: isEditMode ? (seed?.validUntil || daysFromNow(45)) : daysFromNow(45),
-    notes: seed?.notes || '',
-    internalNotes: seed?.internalNotes || '',
-    csrId: seed?.csrId || currentUser.id,
-    salesId: (seed as any)?.salesId || currentUser.id,
-    dueDate: (seed as any)?.dueDate || '',
-    shipping: 0,
-    discount: 0,
-    discountType: 'fixed' as 'fixed' | 'percent',
-    postage: 0,
-    shipToAddress: '',
+  const [form, setForm] = useState(() => {
+    const custId = seed?.customerId || initialCustomerId;
+    // Default contactId: use saved/cloned contact, then URL param, then primary contact for customer
+    const savedContactId = seed?.contactId || initialContactId;
+    const defaultContactId = savedContactId || (custId ? (getPrimaryContact(custId)?.id || '') : '');
+    return {
+      title: isEditMode ? (seed?.title || '') : (sourceClone ? `Copy of ${(sourceClone as any).title}` : ''),
+      customerId: custId,
+      contactId: defaultContactId,
+      status: (isEditMode ? seed?.status : 'pending') as Quote['status'],
+      taxRate: seed?.taxRate ?? 7,
+      validUntil: isEditMode ? (seed?.validUntil || daysFromNow(45)) : daysFromNow(45),
+      notes: seed?.notes || '',
+      internalNotes: seed?.internalNotes || '',
+      csrId: seed?.csrId || currentUser.id,
+      salesId: (seed as any)?.salesId || currentUser.id,
+      dueDate: (seed as any)?.dueDate || '',
+      shipping: 0,
+      discount: 0,
+      discountType: 'fixed' as 'fixed' | 'percent',
+      postage: 0,
+      shipToAddress: '',
+    };
   });
   const [lineItems, setLineItems] = useState<QuoteLineItem[]>(() => {
     // Edit mode: load existing items as-is (same IDs so edits are in-place)
@@ -445,7 +456,7 @@ export const QuoteBuilder: React.FC = () => {
                             <div className="px-4 py-3 text-sm text-gray-400">No customers found</div>
                           ) : filteredCustomers.map(c => (
                             <button key={c.id}
-                              onClick={() => { const u = { customerId: c.id, contactId: '' }; setForm(f => ({ ...f, ...u })); autoSave(u); setCustomerSearch(''); setShowCustomerDropdown(false); }}
+                              onClick={() => { const primary = getPrimaryContact(c.id); const u = { customerId: c.id, contactId: primary?.id || '' }; setForm(f => ({ ...f, ...u })); autoSave(u); setCustomerSearch(''); setShowCustomerDropdown(false); }}
                               className="w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors text-sm border-b border-gray-50 last:border-0">
                               <span className="font-medium text-gray-900">{c.name}</span>
                               {c.email && <span className="text-xs text-gray-400 ml-2">{c.email}</span>}
