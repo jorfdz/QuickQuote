@@ -3251,32 +3251,52 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
         {/* ══ Quick-Add New Material Dialog ══════════════════════════════ */}
     {showAddMaterial && (() => {
-      // Determine the current category ID to auto-assign the new material
       const catId = categories.find(c => c.name === ps.categoryName)?.id;
+      const isRigid = addMaterialForm.materialType === 'rigid_substrate';
+
+      // Sq footage helpers for rigid substrates
+      const sqFt = isRigid && addMaterialForm.sizeWidth > 0 && addMaterialForm.sizeHeight > 0
+        ? (addMaterialForm.sizeWidth * addMaterialForm.sizeHeight) / 144
+        : 0;
+      // Derived cost per sq ft when user enters per-unit price for rigid
+      const derivedCostPerSqft = isRigid && addMaterialForm.pricingModel === 'cost_per_unit' && sqFt > 0 && addMaterialForm.price > 0
+        ? addMaterialForm.price / sqFt
+        : 0;
 
       const TYPE_LABELS: Record<string, string> = {
-        paper: 'Paper', roll_media: 'Roll Media',
-        rigid_substrate: 'Rigid', blanks: 'Blanks',
+        paper: 'Paper', roll_media: 'Roll Media', rigid_substrate: 'Rigid Substrate', blanks: 'Blanks',
       };
-      const sizeLabel = addMaterialForm.materialType === 'roll_media'
-        ? 'Width (in)' : 'Width × Height (in)';
 
-      // Price field label based on pricing model
+      // Pricing methods available per type
+      const pricingMethods = isRigid
+        ? ['cost_per_sqft', 'cost_per_unit'] // sqft first for rigid
+        : addMaterialForm.materialType === 'roll_media'
+          ? ['cost_per_sqft']
+          : addMaterialForm.materialType === 'blanks'
+            ? ['cost_per_unit']
+            : ['cost_per_m', 'cost_per_unit'];
+
       const priceLabel =
-        addMaterialForm.pricingModel === 'cost_per_m'   ? 'Cost per 1,000 sheets ($)' :
-        addMaterialForm.pricingModel === 'cost_per_unit' ? 'Cost per Unit ($)' :
-                                                           'Cost per Sq Ft ($)';
+        addMaterialForm.pricingModel === 'cost_per_m'    ? 'Cost per 1,000 sheets ($)' :
+        addMaterialForm.pricingModel === 'cost_per_unit'  ? (isRigid ? 'Cost per Sheet ($)' : 'Cost per Unit ($)') :
+                                                            'Cost per Sq Ft ($)';
 
       const handleSave = () => {
         const { name, materialType, sizeWidth, sizeHeight, pricingModel, price, markup } = addMaterialForm;
         if (!name.trim() || price <= 0) return;
 
-        // Build size string
         const size = materialType === 'roll_media'
           ? `${sizeWidth}"W roll`
           : materialType === 'blanks'
             ? 'Various'
             : `${sizeWidth}x${sizeHeight}`;
+
+        // For rigid substrates with per-unit pricing, also store derived costPerSqft
+        // so that area-based calculations work correctly elsewhere.
+        const effectiveCostPerSqft =
+          materialType === 'rigid_substrate' && pricingModel === 'cost_per_unit' && sqFt > 0
+            ? price / sqFt
+            : pricingModel === 'cost_per_sqft' ? price : 0;
 
         const newMaterial = pricing.addMaterial({
           name: name.trim(),
@@ -3287,7 +3307,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
           pricingModel,
           pricePerM:   pricingModel === 'cost_per_m'    ? price : 0,
           costPerUnit: pricingModel === 'cost_per_unit'  ? price : 0,
-          costPerSqft: pricingModel === 'cost_per_sqft'  ? price : 0,
+          costPerSqft: effectiveCostPerSqft,
           pricingTiers: [],
           minimumCharge: 0,
           markupType: 'percent',
@@ -3303,7 +3323,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
           vendorContactName: '', vendorContactTitle: '', vendorSalesRep: '',
         });
 
-        // Select the new material immediately
         trackInteraction();
         const updated = [...materialEntries];
         updated[0] = { ...updated[0], materialId: newMaterial.id };
@@ -3311,9 +3330,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         setShowAddMaterial(false);
       };
 
-      const F: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+      const F: React.FC<{ label: string; hint?: string; children: React.ReactNode }> = ({ label, hint, children }) => (
         <div>
-          <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">{label}</label>
+          <div className="flex items-baseline gap-2 mb-1">
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">{label}</label>
+            {hint && <span className="text-[9px] text-gray-400 normal-case">{hint}</span>}
+          </div>
           {children}
         </div>
       );
@@ -3332,9 +3354,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       return (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowAddMaterial(false)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-y-auto max-h-[92vh]" onClick={e => e.stopPropagation()}>
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white">
               <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                 <Package className="w-4 h-4 text-[#F890E7]" />
                 Add New Material
@@ -3349,7 +3371,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               <F label="Material Name *">
                 <input autoFocus type="text" value={addMaterialForm.name}
                   onChange={e => setAddMaterialForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. 100lb Gloss Cover"
+                  placeholder={isRigid ? 'e.g. 48×96 Foam Board' : 'e.g. 100lb Gloss Cover'}
                   className={inp} />
               </F>
 
@@ -3357,44 +3379,70 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 {toggleGroup(
                   ['paper', 'roll_media', 'rigid_substrate', 'blanks'],
                   addMaterialForm.materialType,
-                  v => setAddMaterialForm(f => ({ ...f, materialType: v as typeof f.materialType })),
+                  v => {
+                    const newType = v as typeof addMaterialForm.materialType;
+                    // Default pricing model when switching type
+                    const defaultModel =
+                      newType === 'rigid_substrate' ? 'cost_per_sqft' :
+                      newType === 'roll_media'       ? 'cost_per_sqft' :
+                      newType === 'blanks'            ? 'cost_per_unit' : 'cost_per_m';
+                    setAddMaterialForm(f => ({ ...f, materialType: newType, pricingModel: defaultModel }));
+                  },
                   TYPE_LABELS,
                 )}
               </F>
 
+              {/* Dimensions — always in inches */}
               {addMaterialForm.materialType !== 'blanks' && (
-                <div className="grid grid-cols-2 gap-3">
-                  <F label="Width (inches)">
-                    <input type="number" min="0" step="0.125" value={addMaterialForm.sizeWidth || ''}
-                      onChange={e => setAddMaterialForm(f => ({ ...f, sizeWidth: parseFloat(e.target.value) || 0 }))}
-                      placeholder="e.g. 13"
-                      className={inp} />
-                  </F>
-                  {addMaterialForm.materialType !== 'roll_media' && (
-                    <F label="Height (inches)">
-                      <input type="number" min="0" step="0.125" value={addMaterialForm.sizeHeight || ''}
-                        onChange={e => setAddMaterialForm(f => ({ ...f, sizeHeight: parseFloat(e.target.value) || 0 }))}
-                        placeholder="e.g. 19"
+                <div className="space-y-1">
+                  <div className="grid grid-cols-2 gap-3">
+                    <F label="Width" hint="inches">
+                      <input type="number" min="0" step="0.125" value={addMaterialForm.sizeWidth || ''}
+                        onChange={e => setAddMaterialForm(f => ({ ...f, sizeWidth: parseFloat(e.target.value) || 0 }))}
+                        placeholder='e.g. 48"'
                         className={inp} />
                     </F>
+                    {addMaterialForm.materialType !== 'roll_media' && (
+                      <F label="Height" hint="inches">
+                        <input type="number" min="0" step="0.125" value={addMaterialForm.sizeHeight || ''}
+                          onChange={e => setAddMaterialForm(f => ({ ...f, sizeHeight: parseFloat(e.target.value) || 0 }))}
+                          placeholder='e.g. 96"'
+                          className={inp} />
+                      </F>
+                    )}
+                  </div>
+                  {/* Sq footage callout for rigid substrates */}
+                  {isRigid && sqFt > 0 && (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-[11px] text-blue-700">
+                      <Info className="w-3 h-3 flex-shrink-0" />
+                      <span>
+                        <span className="font-semibold">{addMaterialForm.sizeWidth}" × {addMaterialForm.sizeHeight}"</span>
+                        {' = '}<span className="font-bold">{sqFt.toFixed(2)} sq ft</span> per sheet
+                      </span>
+                    </div>
                   )}
                 </div>
               )}
 
-              <F label="Pricing Method">
+              {/* Pricing method — sqft is the default / recommended for rigid */}
+              <F
+                label="Pricing Method"
+                hint={isRigid ? '— sq ft recommended for rigid substrates' : undefined}
+              >
                 {toggleGroup(
-                  ['cost_per_m', 'cost_per_unit', 'cost_per_sqft'],
+                  pricingMethods,
                   addMaterialForm.pricingModel,
                   v => setAddMaterialForm(f => ({ ...f, pricingModel: v as typeof f.pricingModel })),
-                  { cost_per_m: '/M sheets', cost_per_unit: '/unit', cost_per_sqft: '/sq ft' },
+                  { cost_per_m: '/M sheets', cost_per_unit: isRigid ? '/sheet' : '/unit', cost_per_sqft: '/sq ft' },
                 )}
               </F>
 
+              {/* Cost + Markup */}
               <div className="grid grid-cols-2 gap-3">
                 <F label={priceLabel}>
                   <div className="relative">
                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                    <input type="number" min="0" step="0.01" value={addMaterialForm.price || ''}
+                    <input type="number" min="0" step="0.001" value={addMaterialForm.price || ''}
                       onChange={e => setAddMaterialForm(f => ({ ...f, price: parseFloat(e.target.value) || 0 }))}
                       placeholder="0.00"
                       className={`${inp} pl-6`} />
@@ -3410,22 +3458,57 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </F>
               </div>
 
+              {/* ── Rigid substrate sq ft conversion callout ── */}
+              {isRigid && addMaterialForm.pricingModel === 'cost_per_unit' && addMaterialForm.price > 0 && (
+                <div className={`rounded-lg border px-3 py-2.5 text-[11px] space-y-1 ${sqFt > 0 ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
+                  {sqFt > 0 ? (
+                    <>
+                      <p className="font-semibold text-amber-800">📐 Sq Ft Breakdown</p>
+                      <p>Sheet: <span className="font-bold">{addMaterialForm.sizeWidth}" × {addMaterialForm.sizeHeight}" = {sqFt.toFixed(2)} sq ft</span></p>
+                      <p>Cost per sheet: <span className="font-bold">{fmt(addMaterialForm.price)}</span></p>
+                      <p className="font-bold text-amber-700 text-[12px]">
+                        → Actual cost per sq ft: {fmt(derivedCostPerSqft)}/sq ft
+                      </p>
+                      <p className="text-amber-600 text-[10px]">This sq ft cost will be stored for area-based calculations.</p>
+                    </>
+                  ) : (
+                    <p>Enter sheet dimensions above to see the cost per sq ft equivalent.</p>
+                  )}
+                </div>
+              )}
+
+              {/* ── Rigid substrate: sq ft note even when /sqft is selected ── */}
+              {isRigid && addMaterialForm.pricingModel === 'cost_per_sqft' && sqFt > 0 && addMaterialForm.price > 0 && (
+                <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-[11px] text-blue-800 space-y-0.5">
+                  <p className="font-semibold">Sheet cost at this rate:</p>
+                  <p>{sqFt.toFixed(2)} sq ft × <span className="font-bold">{fmt(addMaterialForm.price)}/sq ft = {fmt(addMaterialForm.price * sqFt)}/sheet</span></p>
+                </div>
+              )}
+
               {/* Live sell preview */}
               {addMaterialForm.price > 0 && (
                 <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-[11px] text-emerald-800">
-                  Sell: <span className="font-bold">
-                    {fmt(addMaterialForm.price * (1 + addMaterialForm.markup / 100))}
-                  </span>
-                  <span className="text-emerald-600 ml-1">
-                    ({addMaterialForm.pricingModel === 'cost_per_m' ? '/M' :
-                      addMaterialForm.pricingModel === 'cost_per_unit' ? '/unit' : '/sq ft'})
-                  </span>
-                  {catId && <span className="ml-2 text-emerald-500">· will be added to {ps.categoryName}</span>}
+                  <span className="font-semibold">Sell price: </span>
+                  {isRigid && addMaterialForm.pricingModel === 'cost_per_unit' && sqFt > 0 ? (
+                    <>
+                      <span className="font-bold">{fmt(addMaterialForm.price * (1 + addMaterialForm.markup / 100))}/sheet</span>
+                      <span className="text-emerald-600 ml-1">({fmt(derivedCostPerSqft * (1 + addMaterialForm.markup / 100))}/sq ft)</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-bold">{fmt(addMaterialForm.price * (1 + addMaterialForm.markup / 100))}</span>
+                      <span className="text-emerald-600 ml-1">
+                        ({addMaterialForm.pricingModel === 'cost_per_m' ? '/M' :
+                          addMaterialForm.pricingModel === 'cost_per_unit' ? '/unit' : '/sq ft'})
+                      </span>
+                    </>
+                  )}
+                  {catId && <span className="ml-2 text-emerald-500">· added to {ps.categoryName}</span>}
                 </div>
               )}
 
               {!addMaterialForm.name.trim() && (
-                <p className="text-[10px] text-gray-400">* Name is required. The material will also be saved to your catalog under Services → Materials.</p>
+                <p className="text-[10px] text-gray-400">* Name is required. The material will be saved to your catalog under Services → Materials.</p>
               )}
             </div>
 
