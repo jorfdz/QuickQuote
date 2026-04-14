@@ -149,6 +149,19 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [materialDropdownOpen, setMaterialDropdownOpen] = useState(false);
   const materialDropdownRef = React.useRef<HTMLDivElement>(null);
 
+  // ── Quick-add new material state ─────────────────────────────────────
+  const [showAddMaterial, setShowAddMaterial] = useState(false);
+  const blankAddMaterialForm = () => ({
+    name: '',
+    materialType: 'paper' as 'paper' | 'roll_media' | 'rigid_substrate' | 'blanks',
+    sizeWidth: 0,
+    sizeHeight: 0,
+    pricingModel: 'cost_per_m' as 'cost_per_m' | 'cost_per_unit' | 'cost_per_sqft',
+    price: 0,
+    markup: 70,
+  });
+  const [addMaterialForm, setAddMaterialForm] = useState(blankAddMaterialForm);
+
   // ── Template panel state ─────────────────────────────────────────────
   // • New items: panel starts OPEN — collapses automatically the moment the user
   //   clicks anything outside the product field (trackInteraction fires).
@@ -2000,9 +2013,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       {(materialEntries[0]?.originals ?? 1) > 1 && <p className="text-[9px] text-violet-500 mt-0.5 text-center">{materialEntries[0].originals}×</p>}
                     </div>
 
-                    {/* SIZE (IN) */}
+                    {/* SIZE — width × height in inches */}
                     <div className="flex-[1.8] min-w-0">
-                      <label className="block text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">SIZE (IN)</label>
+                      <label className="block text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                        Size <span className="normal-case font-normal text-gray-400">(inches)</span>
+                      </label>
                       <input
                         type="text" value={sizeInput}
                         onChange={e => {
@@ -2010,13 +2025,17 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           setSizeInput(e.target.value);
                           const match = e.target.value.match(/^(\d+\.?\d*)\s*[xX×]\s*(\d+\.?\d*)$/);
                           if (match) { onUpdatePricing({ finalWidth: parseFloat(match[1]), finalHeight: parseFloat(match[2]) }); setSizeError(''); }
-                          else if (e.target.value && !e.target.value.match(/^[\d.]+\s*[xX×]?\s*[\d.]*$/)) { setSizeError('W×H'); }
+                          else if (e.target.value && !e.target.value.match(/^[\d.]+\s*[xX×]?\s*[\d.]*$/)) { setSizeError('W×H in inches'); }
                           else { setSizeError(''); }
                         }}
-                        placeholder="3.5 x 2"
+                        placeholder='e.g. 3.5 x 2"'
+                        title="Enter width × height in inches (e.g. 3.5 x 2)"
                         className={`w-full px-3 py-2 text-sm bg-white border ${sizeError ? 'border-red-400' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]`}
                       />
-                      {sizeError && <p className="text-[9px] text-red-500 mt-0.5">{sizeError}</p>}
+                      {sizeError
+                        ? <p className="text-[9px] text-red-500 mt-0.5">{sizeError}</p>
+                        : <p className="text-[9px] text-gray-400 mt-0.5">Width × Height in inches</p>
+                      }
                     </div>
 
                     {/* SIDES & COLOR — combined dropdown */}
@@ -2137,7 +2156,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     };
 
                     return (
-                      <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden flex flex-col" style={{ maxHeight: '280px' }}>
+                      <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden flex flex-col" style={{ maxHeight: '300px' }}>
                         {/* Search input */}
                         <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 flex-shrink-0">
                           <Search className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
@@ -2184,6 +2203,22 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               {others.map(m => <MatRow key={m.id} m={m} />)}
                             </>
                           )}
+                        </div>
+
+                        {/* ── Add New Material footer ── */}
+                        <div className="flex-shrink-0 border-t border-gray-100 bg-gray-50/60">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAddMaterialForm(blankAddMaterialForm());
+                              setShowAddMaterial(true);
+                              setMaterialDropdownOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-[#F890E7] hover:bg-[#F890E7]/8 hover:text-[#c060b8] font-semibold transition-colors"
+                          >
+                            <Plus className="w-4 h-4 flex-shrink-0" />
+                            Add New Material to Catalog
+                          </button>
                         </div>
                       </div>
                     );
@@ -3213,6 +3248,202 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
           message="This part has content configured. Are you sure you want to delete it? This cannot be undone."
           confirmLabel="Delete Part"
         />
+
+        {/* ══ Quick-Add New Material Dialog ══════════════════════════════ */}
+    {showAddMaterial && (() => {
+      // Determine the current category ID to auto-assign the new material
+      const catId = categories.find(c => c.name === ps.categoryName)?.id;
+
+      const TYPE_LABELS: Record<string, string> = {
+        paper: 'Paper', roll_media: 'Roll Media',
+        rigid_substrate: 'Rigid', blanks: 'Blanks',
+      };
+      const sizeLabel = addMaterialForm.materialType === 'roll_media'
+        ? 'Width (in)' : 'Width × Height (in)';
+
+      // Price field label based on pricing model
+      const priceLabel =
+        addMaterialForm.pricingModel === 'cost_per_m'   ? 'Cost per 1,000 sheets ($)' :
+        addMaterialForm.pricingModel === 'cost_per_unit' ? 'Cost per Unit ($)' :
+                                                           'Cost per Sq Ft ($)';
+
+      const handleSave = () => {
+        const { name, materialType, sizeWidth, sizeHeight, pricingModel, price, markup } = addMaterialForm;
+        if (!name.trim() || price <= 0) return;
+
+        // Build size string
+        const size = materialType === 'roll_media'
+          ? `${sizeWidth}"W roll`
+          : materialType === 'blanks'
+            ? 'Various'
+            : `${sizeWidth}x${sizeHeight}`;
+
+        const newMaterial = pricing.addMaterial({
+          name: name.trim(),
+          materialType,
+          size,
+          sizeWidth,
+          sizeHeight: materialType === 'roll_media' ? 0 : sizeHeight,
+          pricingModel,
+          pricePerM:   pricingModel === 'cost_per_m'    ? price : 0,
+          costPerUnit: pricingModel === 'cost_per_unit'  ? price : 0,
+          costPerSqft: pricingModel === 'cost_per_sqft'  ? price : 0,
+          pricingTiers: [],
+          minimumCharge: 0,
+          markupType: 'percent',
+          markup,
+          materialGroupIds: [],
+          categoryIds: catId ? [catId] : [],
+          productIds: ps.productId ? [ps.productId] : [],
+          favoriteProductIds: ps.productId ? [ps.productId] : [],
+          favoriteCategoryIds: catId ? [catId] : [],
+          isFavorite: false,
+          description: '',
+          vendorName: '', vendorId: '', vendorMaterialId: '',
+          vendorContactName: '', vendorContactTitle: '', vendorSalesRep: '',
+        });
+
+        // Select the new material immediately
+        trackInteraction();
+        const updated = [...materialEntries];
+        updated[0] = { ...updated[0], materialId: newMaterial.id };
+        setMaterialEntries(updated);
+        setShowAddMaterial(false);
+      };
+
+      const F: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+        <div>
+          <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">{label}</label>
+          {children}
+        </div>
+      );
+      const inp = 'w-full px-2.5 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400';
+      const toggleGroup = (options: string[], val: string, onSelect: (v: string) => void, labels?: Record<string, string>) => (
+        <div className="flex gap-1 flex-wrap">
+          {options.map(o => (
+            <button key={o} type="button" onClick={() => onSelect(o)}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md border transition-all ${val === o ? 'bg-[#F890E7] text-white border-[#F890E7]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
+              {labels?.[o] ?? o}
+            </button>
+          ))}
+        </div>
+      );
+
+      return (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowAddMaterial(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <Package className="w-4 h-4 text-[#F890E7]" />
+                Add New Material
+              </h3>
+              <button onClick={() => setShowAddMaterial(false)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <div className="px-5 py-4 space-y-3.5">
+              <F label="Material Name *">
+                <input autoFocus type="text" value={addMaterialForm.name}
+                  onChange={e => setAddMaterialForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. 100lb Gloss Cover"
+                  className={inp} />
+              </F>
+
+              <F label="Type">
+                {toggleGroup(
+                  ['paper', 'roll_media', 'rigid_substrate', 'blanks'],
+                  addMaterialForm.materialType,
+                  v => setAddMaterialForm(f => ({ ...f, materialType: v as typeof f.materialType })),
+                  TYPE_LABELS,
+                )}
+              </F>
+
+              {addMaterialForm.materialType !== 'blanks' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <F label="Width (inches)">
+                    <input type="number" min="0" step="0.125" value={addMaterialForm.sizeWidth || ''}
+                      onChange={e => setAddMaterialForm(f => ({ ...f, sizeWidth: parseFloat(e.target.value) || 0 }))}
+                      placeholder="e.g. 13"
+                      className={inp} />
+                  </F>
+                  {addMaterialForm.materialType !== 'roll_media' && (
+                    <F label="Height (inches)">
+                      <input type="number" min="0" step="0.125" value={addMaterialForm.sizeHeight || ''}
+                        onChange={e => setAddMaterialForm(f => ({ ...f, sizeHeight: parseFloat(e.target.value) || 0 }))}
+                        placeholder="e.g. 19"
+                        className={inp} />
+                    </F>
+                  )}
+                </div>
+              )}
+
+              <F label="Pricing Method">
+                {toggleGroup(
+                  ['cost_per_m', 'cost_per_unit', 'cost_per_sqft'],
+                  addMaterialForm.pricingModel,
+                  v => setAddMaterialForm(f => ({ ...f, pricingModel: v as typeof f.pricingModel })),
+                  { cost_per_m: '/M sheets', cost_per_unit: '/unit', cost_per_sqft: '/sq ft' },
+                )}
+              </F>
+
+              <div className="grid grid-cols-2 gap-3">
+                <F label={priceLabel}>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                    <input type="number" min="0" step="0.01" value={addMaterialForm.price || ''}
+                      onChange={e => setAddMaterialForm(f => ({ ...f, price: parseFloat(e.target.value) || 0 }))}
+                      placeholder="0.00"
+                      className={`${inp} pl-6`} />
+                  </div>
+                </F>
+                <F label="Markup %">
+                  <div className="relative">
+                    <input type="number" min="0" step="1" value={addMaterialForm.markup || ''}
+                      onChange={e => setAddMaterialForm(f => ({ ...f, markup: parseFloat(e.target.value) || 0 }))}
+                      className={`${inp} pr-6`} />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+                  </div>
+                </F>
+              </div>
+
+              {/* Live sell preview */}
+              {addMaterialForm.price > 0 && (
+                <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-[11px] text-emerald-800">
+                  Sell: <span className="font-bold">
+                    {fmt(addMaterialForm.price * (1 + addMaterialForm.markup / 100))}
+                  </span>
+                  <span className="text-emerald-600 ml-1">
+                    ({addMaterialForm.pricingModel === 'cost_per_m' ? '/M' :
+                      addMaterialForm.pricingModel === 'cost_per_unit' ? '/unit' : '/sq ft'})
+                  </span>
+                  {catId && <span className="ml-2 text-emerald-500">· will be added to {ps.categoryName}</span>}
+                </div>
+              )}
+
+              {!addMaterialForm.name.trim() && (
+                <p className="text-[10px] text-gray-400">* Name is required. The material will also be saved to your catalog under Services → Materials.</p>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-white rounded-b-2xl">
+              <Button variant="secondary" onClick={() => setShowAddMaterial(false)}>Cancel</Button>
+              <Button
+                variant="primary"
+                onClick={handleSave}
+                disabled={!addMaterialForm.name.trim() || addMaterialForm.price <= 0}
+              >
+                Add &amp; Select Material
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    })()}
       </div>
     </div>
   );
