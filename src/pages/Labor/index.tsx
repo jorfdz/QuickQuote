@@ -667,8 +667,6 @@ export const Labor: React.FC = () => {
                     <div className="grid grid-cols-3 gap-4">
                       <Input label="Markup %" type="number" value={form.markupPercent || ''}
                         onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))} suffix="%" />
-                      <Input label="Setup Fee ($)" type="number" value={form.initialSetupFee || ''}
-                        onChange={e => setForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
                       <div>
                         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                           <Tooltip label="Minimum Charge ($)" tip="Minimum amount to charge regardless of calculated hours" />
@@ -681,15 +679,15 @@ export const Labor: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  /* Non-hourly: flat 3-col + minimum */
+                  /* Non-hourly: Unit Cost → Markup → Setup Fee → Minimum */
                   <div className="space-y-3">
                     <div className="grid grid-cols-3 gap-4">
                       <Input label={basisOpt.costLabel} type="number" value={form.hourlyCost || ''}
                         onChange={e => setForm(f => ({ ...f, hourlyCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
-                      <Input label="Initial Setup Fee ($)" type="number" value={form.initialSetupFee || ''}
-                        onChange={e => setForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
                       <Input label="Markup %" type="number" value={form.markupPercent || ''}
                         onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))} suffix="%" />
+                      <Input label="Setup Fee ($)" type="number" value={form.initialSetupFee || ''}
+                        onChange={e => setForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
