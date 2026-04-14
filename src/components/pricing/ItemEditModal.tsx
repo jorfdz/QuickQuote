@@ -742,11 +742,15 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         else if (svc.costBasis === 'flat') { qty = 1; unit = 'flat'; }
 
         const costPer = svc.unitCost;
-        const totalCost = costPer * qty + svc.initialSetupFee;
+        const setupFee = svc.initialSetupFee ?? 0;
+        const variableCost = costPer * qty;
+        const totalCost = variableCost + setupFee;
         const rcRate = lookupServiceSellRate(svc, qty);
-        const sellPrice = rcRate !== null
-          ? qty * rcRate + svc.initialSetupFee
-          : totalCost * (1 + svc.markupPercent / 100);
+        // Setup fee is added flat (not marked up) on top of the marked-up variable cost
+        const baseSell = rcRate !== null
+          ? qty * rcRate
+          : variableCost * (1 + svc.markupPercent / 100);
+        const sellPrice = baseSell + setupFee;
         const markupPct = totalCost > 0 ? ((sellPrice - totalCost) / totalCost) * 100 : 0;
         lines.push({
           id: slId(`brokered_${bid}`, idx), service: 'Brokered',
