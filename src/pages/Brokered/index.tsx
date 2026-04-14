@@ -509,14 +509,22 @@ export const Brokered: React.FC = () => {
                   <div className="grid grid-cols-3 gap-4">
                     <Input label={`Unit Cost (${unitCostLabel(form.costBasis)})`} type="number" value={form.unitCost || ''}
                       onChange={e => setForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))} prefix="$" />
-                    <Input label="Setup Fee ($)" type="number" value={form.initialSetupFee || ''}
-                      onChange={e => setForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
                     <Input label="Markup %" type="number" value={form.markupPercent || ''}
                       onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))} suffix="%" />
+                    <Input label="Setup Fee ($)" type="number" value={form.initialSetupFee || ''}
+                      onChange={e => setForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
                   </div>
                   {form.unitCost > 0 && (
                     <div className="text-[11px] text-gray-500 bg-gray-50 rounded-md px-3 py-2">
-                      Sell: <span className="font-semibold text-blue-700">{fmt(form.unitCost * (1 + form.markupPercent / 100))}</span>
+                      {/* Sell = unit cost × (1 + markup) + setup fee (setup fee added flat, not marked up) */}
+                      Sell: <span className="font-semibold text-blue-700">
+                        {fmt(form.unitCost * (1 + form.markupPercent / 100) + (form.initialSetupFee || 0))}
+                      </span>
+                      {form.initialSetupFee > 0 && (
+                        <span className="ml-1 text-gray-400">
+                          ({fmt(form.unitCost * (1 + form.markupPercent / 100))} + {fmt(form.initialSetupFee)} setup)
+                        </span>
+                      )}
                       {' · '}Margin: <span className="font-semibold">{pct((form.markupPercent / (100 + form.markupPercent)) * 100)}</span>
                     </div>
                   )}
