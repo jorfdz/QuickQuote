@@ -716,6 +716,42 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       }
     }
 
+    // CUSTOM FINISHING — any selected finishing service NOT already handled above
+    // (e.g. "ESKO cut", specialty sign finishing, custom operations not in Cut/Fold/Drill groups)
+    // Identified by: in selectedFinishingIds but NOT the service named 'Cut', NOT the foldingType, NOT the drillingType.
+    const handledFinishingIds = new Set<string>();
+    if (ps.cuttingEnabled) { const s = finishing.find(f => f.name === 'Cut'); if (s) handledFinishingIds.add(s.id); }
+    if (ps.foldingType)    { const s = finishing.find(f => f.name.toLowerCase().replace('-','') === ps.foldingType.toLowerCase().replace('-','')); if (s) handledFinishingIds.add(s.id); }
+    if (ps.drillingType)   { const s = finishing.find(f => f.name === ps.drillingType); if (s) handledFinishingIds.add(s.id); }
+
+    selectedFinishingIds.forEach((fid, idx) => {
+      if (handledFinishingIds.has(fid)) return; // already computed above
+      const svc = finishing.find(f => f.id === fid);
+      if (!svc) return;
+
+      // Determine quantity — use effective sheets for cut-type ops, otherwise pieces
+      const qty = ps.quantity;
+      const hours = svc.outputPerHour > 0 ? qty / svc.outputPerHour : 0;
+      const setupFee = svc.initialSetupFee ?? 0;
+      const varCost = svc.pricingMode === 'fixed'
+        ? (svc.fixedChargeCost ?? 0)
+        : hours * svc.hourlyCost;
+      const totalCost = varCost + setupFee;
+      const rcRate = lookupServiceSellRate(svc, qty);
+      const baseSell = svc.pricingMode === 'fixed'
+        ? (svc.fixedChargeAmount ?? 0)
+        : rcRate !== null ? qty * rcRate : Math.max(varCost * (1 + svc.markupPercent / 100), svc.minimumCharge ?? 0);
+      const sellPrice = baseSell + setupFee;
+      const markupPct = totalCost > 0 ? ((sellPrice - totalCost) / totalCost) * 100 : 0;
+      lines.push({
+        id: slId(`finishing_${fid}`, idx), service: 'Finishing',
+        description: `${svc.name}${svc.description ? ' — ' + svc.description : ''} — ${qty.toLocaleString()} pcs`,
+        quantity: qty, unit: 'pcs', unitCost: svc.hourlyCost > 0 ? svc.hourlyCost / svc.outputPerHour : (svc.fixedChargeCost ?? 0),
+        totalCost, markupPercent: markupPct, sellPrice, editable: true,
+        ...(svc.pricingMode !== 'fixed' && svc.hourlyCost > 0 ? { hourlyCost: svc.hourlyCost, hoursActual: hours, hoursCharge: hours } : {}),
+      });
+    });
+
     // LABOR — one line per selected labor service
     selectedLaborIds.forEach((lid, idx) => {
       const svc = pricing.labor.find(l => l.id === lid);
@@ -814,7 +850,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       ps.quantity, ps.originals, ps.sides, ps.colorMode, ps.colorModeSide2, ps.materialId, ps.equipmentId,
       ps.cuttingEnabled, ps.sheetsPerStack, ps.foldingType, ps.drillingType,
       ps.finalWidth, ps.finalHeight,
-      selectedLaborIds, selectedBrokeredIds,
+      selectedFinishingIds, selectedLaborIds, selectedBrokeredIds,
       finishing, lookupClickPrice, pricing.labor, pricing.brokered]);
 
   // Recompute and sync to parent
@@ -1048,6 +1084,26 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       }
     }
 
+    // CUSTOM FINISHING (same logic as computeServiceLines)
+    {
+      const handledFIds = new Set<string>();
+      if (ps.cuttingEnabled) { const s = finishing.find(f => f.name === 'Cut'); if (s) handledFIds.add(s.id); }
+      if (ps.foldingType)    { const s = finishing.find(f => f.name.toLowerCase().replace('-','') === ps.foldingType.toLowerCase().replace('-','')); if (s) handledFIds.add(s.id); }
+      if (ps.drillingType)   { const s = finishing.find(f => f.name === ps.drillingType); if (s) handledFIds.add(s.id); }
+      selectedFinishingIds.forEach(fid => {
+        if (handledFIds.has(fid)) return;
+        const svc = finishing.find(f => f.id === fid);
+        if (!svc) return;
+        const hours = svc.outputPerHour > 0 ? qty / svc.outputPerHour : 0;
+        const setupFee = svc.initialSetupFee ?? 0;
+        const varCost = svc.pricingMode === 'fixed' ? (svc.fixedChargeCost ?? 0) : hours * svc.hourlyCost;
+        const totalCost = varCost + setupFee;
+        const rcRate = lookupServiceSellRate(svc, qty);
+        const baseSell = svc.pricingMode === 'fixed' ? (svc.fixedChargeAmount ?? 0) : rcRate !== null ? qty * rcRate : Math.max(varCost * (1 + svc.markupPercent / 100), svc.minimumCharge ?? 0);
+        tCost += totalCost; tSell += baseSell + setupFee;
+      });
+    }
+
     // LABOR
     selectedLaborIds.forEach(lid => {
       const svc = pricing.labor.find(l => l.id === lid);
@@ -1100,7 +1156,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       ps.quantity, ps.originals, ps.sides, ps.colorMode,
       ps.cuttingEnabled, ps.sheetsPerStack, ps.foldingType, ps.drillingType,
       ps.finalWidth, ps.finalHeight,
-      selectedLaborIds, selectedBrokeredIds,
+      selectedFinishingIds, selectedLaborIds, selectedBrokeredIds,
       finishing, lookupClickPrice, pricing.labor, pricing.brokered]);
 
   const multiQtyPricing = useMemo(() => {
@@ -1180,7 +1236,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         sides: product.defaultSides,
         foldingType: product.defaultFolding || '',
         drillingType: '',
-        cuttingEnabled: true,
+        cuttingEnabled: false,   // never force-enable cutting — user must explicitly select it
+        selectedFinishingIds: [], // start with no finishing services selected
         sheetsPerStack: 500,
       });
       onUpdateItem({ description: product.name, quantity: product.defaultQuantity });
