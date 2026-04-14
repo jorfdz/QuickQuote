@@ -141,6 +141,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [customRunWidth, setCustomRunWidth] = useState(0);
   const [customRunHeight, setCustomRunHeight] = useState(0);
 
+  // ── Material search dropdown state ───────────────────────────────────
+  const [materialSearch, setMaterialSearch] = useState('');
+  const [materialDropdownOpen, setMaterialDropdownOpen] = useState(false);
+  const materialDropdownRef = React.useRef<HTMLDivElement>(null);
+
   // ── Template panel state ─────────────────────────────────────────────
   // • New items: panel starts OPEN — collapses automatically the moment the user
   //   clicks anything outside the product field (trackInteraction fires).
@@ -357,6 +362,18 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     document.addEventListener('mousedown', handleMouseDown, true);
     return () => document.removeEventListener('mousedown', handleMouseDown, true);
   }, [templatePanelCollapsed, matchingTemplates.length]);
+
+  // Close material dropdown when clicking outside
+  useEffect(() => {
+    if (!materialDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (materialDropdownRef.current && !materialDropdownRef.current.contains(e.target as Node)) {
+        setMaterialDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler, true);
+    return () => document.removeEventListener('mousedown', handler, true);
+  }, [materialDropdownOpen]);
 
   // ── Derived data ──────────────────────────────────────────────────────
   const selectedMaterial = useMemo(() => materials.find(m => m.id === ps.materialId), [materials, ps.materialId]);
@@ -2027,19 +2044,125 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
               {/* ── Material / Equipment ─────────────────────────────── */}
               <div className="pt-3 border-t border-gray-100 grid grid-cols-2 gap-3">
-                <div>
+                {/* ── Searchable material picker with favorites ────────── */}
+                <div ref={materialDropdownRef} className="relative">
                   <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Material</label>
-                  <select value={materialEntries[0]?.materialId || ps.materialId}
-                    onChange={e => {
+
+                  {/* Trigger button — shows selected material or placeholder */}
+                  <button
+                    type="button"
+                    onClick={() => { setMaterialDropdownOpen(o => !o); setMaterialSearch(''); }}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#F890E7] transition-colors text-left"
+                  >
+                    <span className={`flex-1 truncate ${!materialEntries[0]?.materialId && !ps.materialId ? 'text-gray-400' : 'text-gray-800'}`}>
+                      {(() => {
+                        const mid = materialEntries[0]?.materialId || ps.materialId;
+                        const m = materials.find(x => x.id === mid);
+                        return m ? `${m.name} (${m.size})` : 'Select material…';
+                      })()}
+                    </span>
+                    <ChevronDown className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform ${materialDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Dropdown panel */}
+                  {materialDropdownOpen && (() => {
+                    // Determine which materials are "favorites" for this product/category
+                    const catId = categories.find(c => c.name === ps.categoryName)?.id;
+                    const isFav = (m: typeof materials[0]) =>
+                      (ps.productId && m.favoriteProductIds?.includes(ps.productId)) ||
+                      (catId && m.favoriteCategoryIds?.includes(catId));
+
+                    // Filter by search query (name, size, description)
+                    const q = materialSearch.toLowerCase();
+                    const filtered = availableMaterials.filter(m =>
+                      !q ||
+                      m.name.toLowerCase().includes(q) ||
+                      m.size.toLowerCase().includes(q) ||
+                      (m.description || '').toLowerCase().includes(q)
+                    );
+
+                    const favs    = filtered.filter(m => isFav(m));
+                    const others  = filtered.filter(m => !isFav(m));
+
+                    const selectMaterial = (id: string) => {
                       trackInteraction();
                       const updated = [...materialEntries];
-                      updated[0] = { ...updated[0], materialId: e.target.value };
+                      updated[0] = { ...updated[0], materialId: id };
                       setMaterialEntries(updated);
-                    }}
-                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
-                    <option value="">-- Select material --</option>
-                    {availableMaterials.map(m => <option key={m.id} value={m.id}>{m.name} ({m.size}) -- {fmt(m.pricePerM)}/M</option>)}
-                  </select>
+                      setMaterialDropdownOpen(false);
+                      setMaterialSearch('');
+                    };
+
+                    const MatRow = ({ m }: { m: typeof materials[0] }) => {
+                      const isSel = (materialEntries[0]?.materialId || ps.materialId) === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => selectMaterial(m.id)}
+                          className={`w-full flex items-start justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-[#F890E7]/8 ${isSel ? 'bg-[#F890E7]/10' : ''}`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm truncate ${isSel ? 'font-semibold text-[#c060b8]' : 'text-gray-800'}`}>{m.name}</p>
+                            <p className="text-[10px] text-gray-400 truncate">{m.size} · {fmt(m.pricePerM)}/M</p>
+                          </div>
+                          {isSel && <Check className="w-3.5 h-3.5 text-[#F890E7] flex-shrink-0 mt-0.5" />}
+                        </button>
+                      );
+                    };
+
+                    return (
+                      <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden flex flex-col" style={{ maxHeight: '280px' }}>
+                        {/* Search input */}
+                        <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 flex-shrink-0">
+                          <Search className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          <input
+                            autoFocus
+                            type="text"
+                            value={materialSearch}
+                            onChange={e => setMaterialSearch(e.target.value)}
+                            placeholder="Search by name, size…"
+                            className="flex-1 text-sm focus:outline-none placeholder-gray-400 bg-transparent"
+                          />
+                          {materialSearch && (
+                            <button type="button" onClick={() => setMaterialSearch('')} className="p-0.5 hover:bg-gray-100 rounded">
+                              <X className="w-3 h-3 text-gray-400" />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Results */}
+                        <div className="overflow-y-auto flex-1">
+                          {filtered.length === 0 ? (
+                            <p className="px-3 py-4 text-sm text-gray-400 text-center">No materials match "{materialSearch}"</p>
+                          ) : (
+                            <>
+                              {/* Favorites section */}
+                              {favs.length > 0 && (
+                                <>
+                                  <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50/60">
+                                    <Star className="w-3 h-3 text-amber-400 fill-amber-400 flex-shrink-0" />
+                                    <span className="text-[9px] font-bold text-amber-600 uppercase tracking-wider">Favorites for {ps.productName || 'this product'}</span>
+                                  </div>
+                                  {favs.map(m => <MatRow key={m.id} m={m} />)}
+                                  {/* Divider */}
+                                  {others.length > 0 && (
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border-t border-b border-gray-100">
+                                      <div className="flex-1 h-px bg-gray-200" />
+                                      <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">All Materials</span>
+                                      <div className="flex-1 h-px bg-gray-200" />
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                              {/* All other materials */}
+                              {others.map(m => <MatRow key={m.id} m={m} />)}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div>
                   <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Equipment</label>
