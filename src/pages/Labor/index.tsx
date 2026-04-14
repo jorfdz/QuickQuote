@@ -667,15 +667,17 @@ export const Labor: React.FC = () => {
                     <div className="grid grid-cols-3 gap-4">
                       <Input label="Markup %" type="number" value={form.markupPercent || ''}
                         onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))} suffix="%" />
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                          <Tooltip label="Minimum Charge ($)" tip="Minimum amount to charge regardless of calculated hours" />
-                        </label>
-                        <input type="number" value={form.minimumCharge || ''}
-                          onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))}
-                          placeholder="0 = no minimum"
-                          className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                      </div>
+                      <Input label="Setup Fee ($)" type="number" value={form.initialSetupFee || ''}
+                        onChange={e => setForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                        <Tooltip label="Minimum Charge ($)" tip="Minimum amount to charge regardless of calculated hours" />
+                      </label>
+                      <input type="number" value={form.minimumCharge || ''}
+                        onChange={e => setForm(f => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))}
+                        placeholder="0 = no minimum"
+                        className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     </div>
                   </div>
                 ) : (
