@@ -697,15 +697,19 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         else if (basis === 'flat') { qty = 1; unit = 'flat'; }
 
         const costPer = svc.hourlyCost;
-        const totalCost = costPer * qty;
+        const setupFee = svc.initialSetupFee ?? 0;
+        const variableCost = costPer * qty;
+        const totalCost = variableCost + setupFee;
         const rcRate = lookupServiceSellRate(svc, qty);
-        const sellPrice = rcRate !== null
+        // Setup fee is added flat (not marked up) on top of the marked-up variable cost
+        const baseSell = rcRate !== null
           ? qty * rcRate
-          : Math.max(totalCost * (1 + svc.markupPercent / 100), svc.minimumCharge ?? 0);
+          : Math.max(variableCost * (1 + svc.markupPercent / 100), svc.minimumCharge ?? 0);
+        const sellPrice = baseSell + setupFee;
         const markupPct = totalCost > 0 ? ((sellPrice - totalCost) / totalCost) * 100 : 0;
         lines.push({
           id: slId(`labor_${lid}`, idx), service: 'Labor',
-          description: `${svc.name} — ${qty.toFixed(basis === 'per_hour' ? 2 : 0)} ${unit}`,
+          description: `${svc.name} — ${qty.toFixed(basis === 'per_hour' ? 2 : 0)} ${unit}${setupFee > 0 ? ` + $${setupFee.toFixed(2)} setup` : ''}`,
           quantity: qty, unit, unitCost: costPer,
           totalCost, markupPercent: markupPct, sellPrice, editable: true,
           ...(basis === 'per_hour' ? { hourlyCost: svc.hourlyCost, hoursActual: qty, hoursCharge: qty } : {}),
