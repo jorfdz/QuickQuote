@@ -1435,12 +1435,37 @@ export const Materials: React.FC = () => {
                                 <input
                                   type="checkbox"
                                   checked={isChecked}
-                                  onChange={() => setForm(f => ({
-                                    ...f,
-                                    materialGroupIds: isChecked
-                                      ? f.materialGroupIds.filter(id => id !== g.id)
-                                      : [...f.materialGroupIds, g.id],
-                                  }))}
+                                  onChange={() => setForm(f => {
+                                    const adding = !isChecked;
+                                    const newGroupIds = adding
+                                      ? [...f.materialGroupIds, g.id]
+                                      : f.materialGroupIds.filter(id => id !== g.id);
+
+                                    if (adding) {
+                                      // Auto-select the categories this group belongs to
+                                      const groupCatIds = g.categoryIds ?? [];
+                                      const newCatIds = Array.from(new Set([...f.categoryIds, ...groupCatIds]));
+                                      return { ...f, materialGroupIds: newGroupIds, categoryIds: newCatIds };
+                                    } else {
+                                      // When removing a group, drop its categories only if
+                                      // no other currently-selected group still covers them.
+                                      const coveredByRemainingGroups = new Set(
+                                        newGroupIds.flatMap(gid => {
+                                          const grp = materialGroups.find(mg => mg.id === gid);
+                                          return grp?.categoryIds ?? [];
+                                        })
+                                      );
+                                      // Keep a category if another selected group covers it,
+                                      // OR if it was added independently (not from any group at all)
+                                      const anyGroupCatIds = new Set(
+                                        materialGroups.flatMap(mg => mg.categoryIds)
+                                      );
+                                      const newCatIds = f.categoryIds.filter(cid =>
+                                        coveredByRemainingGroups.has(cid) || !anyGroupCatIds.has(cid)
+                                      );
+                                      return { ...f, materialGroupIds: newGroupIds, categoryIds: newCatIds };
+                                    }
+                                  })}
                                   className="sr-only"
                                 />
                                 <span className={`text-sm ${isChecked ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
