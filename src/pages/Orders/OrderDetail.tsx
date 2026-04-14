@@ -113,6 +113,7 @@ export const OrderDetail: React.FC = () => {
   const [showCloneOrderConfirm, setShowCloneOrderConfirm] = useState(false);
   const [showInvoiceConfirm, setShowInvoiceConfirm] = useState(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  const [showAddressDialog, setShowAddressDialog] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const convertRef = useRef<HTMLDivElement>(null);
