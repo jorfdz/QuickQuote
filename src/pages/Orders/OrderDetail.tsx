@@ -493,7 +493,17 @@ export const OrderDetail: React.FC = () => {
         </div>
         {!headerCollapsed && (
           <div className="px-5 pb-4 pt-0 border-t border-gray-100">
-            <p className="text-[9px] text-gray-400 mt-3 mb-3 uppercase tracking-widest font-semibold">Click any field to edit · saves automatically</p>
+            <div className="flex items-center justify-between mt-3 mb-3">
+              <p className="text-[9px] text-gray-400 uppercase tracking-widest font-semibold">Click any field to edit · saves automatically</p>
+              <button
+                onClick={() => setShowAddressDialog(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold text-gray-500 hover:text-gray-800 border border-gray-200 hover:border-gray-300 rounded-lg transition-colors"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                Ship / Bill To
+                {(order.billToAddress || order.shipToAddress) && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />}
+              </button>
+            </div>
             <div className="grid grid-cols-3 gap-x-6 gap-y-3 items-start">
               <OrderInlineField label="Account"
                 value={order.customerName || ''}
