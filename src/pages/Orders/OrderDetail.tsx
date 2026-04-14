@@ -1,4 +1,5 @@
 import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
+import { AddressDialog } from '../Quotes/QuoteDetail';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Printer, Receipt, KanbanSquare, Edit3, Trash2, CheckCircle, ChevronDown, ChevronUp, Copy, ArrowRight, ShoppingCart, Plus, Search } from 'lucide-react';
 import { useStore } from '../../store';
@@ -1065,6 +1066,50 @@ export const OrderDetail: React.FC = () => {
             onRemove={() => { removeLineItem(editingItemModal); setEditingItemModal(null); }}
             matchingTemplates={matchingTemplatesForItem}
             onApplyTemplate={handleApplyTemplate}
+          />
+        );
+      })()}
+
+      {/* ── Ship To / Bill To address dialog ────────────────────────────── */}
+      {showAddressDialog && (() => {
+        const customer = customers.find(c => c.id === order.customerId);
+        const defaultBillTo = {
+          name: order.billToName ?? order.customerName ?? '',
+          address: order.billToAddress ?? (customer?.address ?? ''),
+          city: order.billToCity ?? (customer?.city ?? ''),
+          state: order.billToState ?? (customer?.state ?? ''),
+          zip: order.billToZip ?? (customer?.zip ?? ''),
+          country: order.billToCountry ?? (customer?.country ?? 'US'),
+        };
+        const shipSame = order.shipToSameAsBillTo ?? true;
+        return (
+          <AddressDialog
+            title={`Addresses — ${order.number}`}
+            billTo={defaultBillTo}
+            shipTo={{
+              same: shipSame,
+              name: order.shipToName ?? '',
+              address: order.shipToAddress ?? '',
+              city: order.shipToCity ?? '',
+              state: order.shipToState ?? '',
+              zip: order.shipToZip ?? '',
+              country: order.shipToCountry ?? 'US',
+            }}
+            onSave={(bill, ship) => {
+              updateOrder(id!, {
+                billToName: bill.name, billToAddress: bill.address, billToCity: bill.city,
+                billToState: bill.state, billToZip: bill.zip, billToCountry: bill.country,
+                shipToSameAsBillTo: ship.same,
+                shipToName: ship.same ? bill.name : ship.name,
+                shipToAddress: ship.same ? bill.address : ship.address,
+                shipToCity: ship.same ? bill.city : ship.city,
+                shipToState: ship.same ? bill.state : ship.state,
+                shipToZip: ship.same ? bill.zip : ship.zip,
+                shipToCountry: ship.same ? bill.country : ship.country,
+              });
+              setShowAddressDialog(false);
+            }}
+            onClose={() => setShowAddressDialog(false)}
           />
         );
       })()}
