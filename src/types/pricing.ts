@@ -99,6 +99,10 @@ export interface PricingEquipment {
   timeCostMarkup?: number;
   imageUrl?: string;               // equipment photo URL
   markupType: 'multiplier' | 'percent';  // how markup is applied
+  // Split unit costs for Color and Black capability
+  colorUnitCost?: number;          // cost per click/sqft for Color jobs
+  blackUnitCost?: number;          // cost per click/sqft for Black jobs
+  usePricingTiers?: boolean;       // when true, tier tables set sell price; markup fields disabled
   // Maintenance
   maintenanceVendorId?: string;    // FK to Vendor catalog
   maintenanceHistory: MaintenanceRecord[];
