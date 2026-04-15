@@ -72,37 +72,95 @@ const TierEditor: React.FC<{
   qtyLabel?: string;
   priceLabel?: string;
 }> = ({ label, tiers, onChange, qtyLabel = 'Min Qty', priceLabel = '$/unit' }) => {
-  const addTier = () => onChange([...tiers, { minQty: 0, pricePerUnit: 0 }]);
-  const removeTier = (i: number) => onChange(tiers.filter((_, idx) => idx !== i));
-  const updateTier = (i: number, field: keyof EquipmentPricingTier, val: number) =>
-    onChange(tiers.map((t, idx) => idx === i ? { ...t, [field]: val } : t));
+  // String buffers — lets users freely clear "0" and type any decimal like 0.0350
+  const [qtyStrs,   setQtyStrs]   = React.useState<string[]>(() => tiers.map(t => t.minQty      === 0 ? '' : String(t.minQty)));
+  const [priceStrs, setPriceStrs] = React.useState<string[]>(() => tiers.map(t => t.pricePerUnit === 0 ? '' : String(t.pricePerUnit)));
+
+  const addTier = () => {
+    setQtyStrs(s => [...s, '']);
+    setPriceStrs(s => [...s, '']);
+    onChange([...tiers, { minQty: 0, pricePerUnit: 0 }]);
+  };
+
+  const removeTier = (i: number) => {
+    setQtyStrs(s => s.filter((_, idx) => idx !== i));
+    setPriceStrs(s => s.filter((_, idx) => idx !== i));
+    onChange(tiers.filter((_, idx) => idx !== i));
+  };
+
+  const updateQtyStr = (i: number, raw: string) => {
+    setQtyStrs(s => { const a = [...s]; a[i] = raw; return a; });
+    const n = parseInt(raw);
+    if (!isNaN(n) && n >= 0) onChange(tiers.map((t, idx) => idx === i ? { ...t, minQty: n } : t));
+  };
+
+  const blurQty = (i: number) => {
+    const n = parseInt(qtyStrs[i] ?? '');
+    const val = isNaN(n) || n < 0 ? 0 : n;
+    setQtyStrs(s => { const a = [...s]; a[i] = val === 0 ? '' : String(val); return a; });
+    onChange(tiers.map((t, idx) => idx === i ? { ...t, minQty: val } : t));
+  };
+
+  const updatePriceStr = (i: number, raw: string) => {
+    setPriceStrs(s => { const a = [...s]; a[i] = raw; return a; });
+    const n = parseFloat(raw);
+    if (!isNaN(n) && n >= 0) onChange(tiers.map((t, idx) => idx === i ? { ...t, pricePerUnit: n } : t));
+  };
+
+  const blurPrice = (i: number) => {
+    const n = parseFloat(priceStrs[i] ?? '');
+    const val = isNaN(n) || n < 0 ? 0 : n;
+    setPriceStrs(s => { const a = [...s]; a[i] = val === 0 ? '' : n.toFixed(4); return a; });
+    onChange(tiers.map((t, idx) => idx === i ? { ...t, pricePerUnit: val } : t));
+  };
+
+  const inp = 'w-24 px-2 py-1.5 text-[12px] border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent text-right num bg-white placeholder-gray-300';
 
   return (
     <div className="border border-gray-200 rounded-lg p-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-semibold text-gray-600 uppercase">{label}</span>
-        <button onClick={addTier} className="text-xs text-blue-600 hover:text-blue-700 font-medium">+ Add Tier</button>
+        <button type="button" onClick={addTier} className="text-xs text-[#F890E7] hover:text-[#c060b8] font-semibold transition-colors">+ Add Tier</button>
       </div>
-      {tiers.length === 0 && <p className="text-xs text-gray-400 italic">No tiers defined</p>}
-      {tiers.length > 0 && (
-        <div className="flex gap-2 items-center mb-1 px-0.5">
-          <span className="w-24 text-[10px] font-medium text-gray-400 uppercase">{qtyLabel}</span>
-          <span className="w-4" />
-          <span className="w-24 text-[10px] font-medium text-gray-400 uppercase">{priceLabel}</span>
-        </div>
+      {tiers.length === 0 && (
+        <p className="text-xs text-gray-400 italic py-1">No tiers — click + Add Tier to begin.</p>
       )}
-      <div className="space-y-1">
-        {tiers.map((t, i) => (
-          <div key={i} className="flex gap-2 items-center">
-            <input type="number" value={t.minQty} onChange={e => updateTier(i, 'minQty', parseInt(e.target.value) || 0)}
-              className="w-24 px-2 py-1 text-xs border rounded" placeholder={qtyLabel} />
-            <span className="text-xs text-gray-400">@</span>
-            <input type="number" value={t.pricePerUnit} onChange={e => updateTier(i, 'pricePerUnit', parseFloat(e.target.value) || 0)}
-              className="w-24 px-2 py-1 text-xs border rounded" placeholder={priceLabel} step="0.001" />
-            <button onClick={() => removeTier(i)} className="p-0.5 text-red-400 hover:text-red-600"><X className="w-3 h-3" /></button>
+      {tiers.length > 0 && (
+        <>
+          <div className="flex gap-2 items-center mb-1.5 px-0.5">
+            <span className="w-24 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{qtyLabel}</span>
+            <span className="w-4" />
+            <span className="w-24 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{priceLabel}</span>
           </div>
-        ))}
-      </div>
+          <div className="space-y-1.5">
+            {tiers.map((t, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <input
+                  type="text" inputMode="numeric"
+                  value={qtyStrs[i] ?? ''}
+                  onChange={e => updateQtyStr(i, e.target.value)}
+                  onBlur={() => blurQty(i)}
+                  placeholder="0"
+                  className={inp}
+                />
+                <span className="text-xs text-gray-400 flex-shrink-0">@</span>
+                <input
+                  type="text" inputMode="decimal"
+                  value={priceStrs[i] ?? ''}
+                  onChange={e => updatePriceStr(i, e.target.value)}
+                  onBlur={() => blurPrice(i)}
+                  placeholder="0.0000"
+                  className={inp}
+                />
+                <button type="button" onClick={() => removeTier(i)}
+                  className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors flex-shrink-0">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -454,17 +512,18 @@ export const Equipment: React.FC = () => {
     const clickSell = sellPerUnit * qty;
 
     // Time cost (for cost_plus_time)
-    const timeCost = f.costType === 'cost_plus_time' && f.unitsPerHour && f.timeCostPerHour
-      ? (qty / f.unitsPerHour) * f.timeCostPerHour
-      : 0;
+    const hasTime = f.costType === 'cost_plus_time' && (f.unitsPerHour ?? 0) > 0 && (f.timeCostPerHour ?? 0) > 0;
+    const hours    = hasTime ? qty / f.unitsPerHour! : 0;
+    const timeCost = hasTime ? hours * f.timeCostPerHour! : 0;
     const timeSell = timeCost * (1 + (f.timeCostMarkup ?? 0) / 100);
 
     const setupFee = f.initialSetupFee || 0;
     const totalCost = clickCost + timeCost + setupFee;
     const totalSell = clickSell + timeSell + setupFee;
     const margin = totalSell > 0 ? ((totalSell - totalCost) / totalSell) * 100 : 0;
+    const profit = totalSell - totalCost;
 
-    return { unitCostForMode, sellPerUnit, clickCost, clickSell, timeCost, timeSell, setupFee, totalCost, totalSell, margin };
+    return { unitCostForMode, sellPerUnit, clickCost, clickSell, hours, timeCost, timeSell, hasTime, setupFee, totalCost, totalSell, margin, profit };
   };
 
   // Next scheduled maintenance for list view
@@ -1105,52 +1164,67 @@ export const Equipment: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* Results row — single clean line matching the requested format */}
-                  <div className="px-3 py-2.5">
+                  {/* Results */}
+                  <div className="px-3 py-2.5 space-y-1.5">
                     {!hasSell ? (
                       <p className="text-[11px] text-amber-600 italic">Set a markup or enable Table Pricing to see sell price.</p>
                     ) : (
                       <>
-                        {/* Primary summary line */}
-                        <div className="flex items-baseline gap-2 flex-wrap text-sm">
-                          {/* Label: "1,000 Clicks" or "1,000 Sq Ft" */}
-                          <span className="font-bold text-gray-800 num">{testClicks.toLocaleString()}</span>
-                          <span className="text-gray-500 font-medium capitalize">{unitPlural}</span>
-                          {isColorAndBlack && <span className="text-[11px] text-gray-400">({testColorMode})</span>}
-                          <span className="text-gray-300 mx-0.5">·</span>
-                          {/* Unit cost */}
-                          <span className="text-[12px] text-gray-500">${res.unitCostForMode.toFixed(4)}/{unitSingular}</span>
-                          <span className="text-gray-300 mx-0.5">·</span>
-                          {/* Total cost */}
-                          <span className="text-[12px] text-gray-600">Cost <span className="font-semibold text-gray-800 num">{formatCurrency(res.totalCost)}</span></span>
-                          <span className="text-gray-300 mx-0.5">·</span>
-                          {/* Sell */}
-                          <span className="text-[12px] text-gray-600">Sell <span className="font-semibold text-emerald-700 num">{formatCurrency(res.totalSell)}</span></span>
-                          <span className="text-gray-300 mx-0.5">·</span>
-                          {/* Profit */}
-                          <span className="text-[12px] text-gray-600">Profit <span className="font-semibold text-emerald-700 num">{formatCurrency(profit)}</span></span>
-                          <span className="text-gray-300 mx-0.5">·</span>
-                          {/* Margin */}
-                          <span className={`text-[12px] font-bold num ${res.margin >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{res.margin.toFixed(1)}% Margin</span>
+                        {/* ── Row: Click / Sq Ft cost ── */}
+                        <div className="flex items-baseline gap-1.5 flex-wrap">
+                          <span className="w-16 text-[10px] font-semibold text-gray-400 uppercase tracking-wide flex-shrink-0">
+                            {isClick ? 'Clicks' : 'Sq Ft'}
+                          </span>
+                          <span className="num font-semibold text-gray-700">{testClicks.toLocaleString()}</span>
+                          {isColorAndBlack && <span className="text-[10px] text-gray-400">({testColorMode})</span>}
+                          <span className="text-gray-300">·</span>
+                          <span className="text-[11px] text-gray-500 num">${res.unitCostForMode.toFixed(4)}/{unitSingular} ea</span>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-[11px] text-gray-500">Cost <span className="font-semibold text-gray-700 num">{formatCurrency(res.clickCost)}</span></span>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-[11px] text-gray-500">Sell <span className="font-semibold text-emerald-700 num">{formatCurrency(res.clickSell)}</span></span>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-[11px] text-gray-500">Profit <span className="font-semibold text-emerald-700 num">{formatCurrency(res.clickSell - res.clickCost)}</span></span>
                         </div>
 
-                        {/* Secondary detail — only when there are extra components */}
-                        {(res.timeCost > 0 || res.setupFee > 0) && (
-                          <div className="flex items-center gap-2 mt-1.5 flex-wrap text-[10px] text-gray-400">
-                            <span>Breakdown:</span>
-                            <span className="num">Clicks {formatCurrency(res.clickCost)}</span>
-                            {res.timeCost > 0 && <><span>+</span><span className="num">Staff {formatCurrency(res.timeCost)}</span></>}
-                            {res.setupFee > 0 && <><span>+</span><span className="num">Setup {formatCurrency(res.setupFee)}</span></>}
-                            <span>=</span>
-                            <span className="font-semibold text-gray-600 num">{formatCurrency(res.totalCost)} total cost</span>
+                        {/* ── Row: Time cost (only for cost_plus_time) ── */}
+                        {res.hasTime && (
+                          <div className="flex items-baseline gap-1.5 flex-wrap">
+                            <span className="w-16 text-[10px] font-semibold text-gray-400 uppercase tracking-wide flex-shrink-0">Time</span>
+                            <span className="num font-semibold text-gray-700">{res.hours.toFixed(2)} hrs</span>
+                            <span className="text-[10px] text-gray-400">({testClicks.toLocaleString()} ÷ {(equipForm.unitsPerHour ?? 0).toLocaleString()} /hr)</span>
+                            <span className="text-gray-300">·</span>
+                            <span className="text-[11px] text-gray-500">{formatCurrency(equipForm.timeCostPerHour ?? 0)}/hr</span>
+                            <span className="text-gray-300">·</span>
+                            <span className="text-[11px] text-gray-500">Cost <span className="font-semibold text-gray-700 num">{formatCurrency(res.timeCost)}</span></span>
+                            <span className="text-gray-300">·</span>
+                            <span className="text-[11px] text-gray-500">Sell <span className="font-semibold text-emerald-700 num">{formatCurrency(res.timeSell)}</span></span>
+                            <span className="text-gray-300">·</span>
+                            <span className="text-[11px] text-gray-500">Profit <span className="font-semibold text-emerald-700 num">{formatCurrency(res.timeSell - res.timeCost)}</span></span>
                           </div>
                         )}
 
-                        {/* Sell rate info */}
-                        <p className="text-[10px] text-gray-400 mt-1">
-                          Sell rate: <span className="num font-medium text-gray-500">${res.sellPerUnit.toFixed(4)}/{unitSingular}</span>
-                          {equipForm.usePricingTiers ? ' (from table)' : equipForm.markupMultiplier ? ` (${equipForm.markupType === 'percent' ? `${equipForm.markupMultiplier}% markup` : `${equipForm.markupMultiplier}× multiplier`})` : ''}
-                        </p>
+                        {/* ── Setup fee row (if any) ── */}
+                        {res.setupFee > 0 && (
+                          <div className="flex items-baseline gap-1.5 flex-wrap">
+                            <span className="w-16 text-[10px] font-semibold text-gray-400 uppercase tracking-wide flex-shrink-0">Setup</span>
+                            <span className="text-[11px] text-gray-500">Flat fee <span className="font-semibold text-gray-700 num">{formatCurrency(res.setupFee)}</span></span>
+                          </div>
+                        )}
+
+                        {/* ── Totals bar ── */}
+                        <div className={`flex items-center gap-3 pt-2 mt-1 border-t border-amber-200 flex-wrap ${res.hasTime ? 'border-t-2' : ''}`}>
+                          <span className="w-16 text-[10px] font-bold text-gray-600 uppercase tracking-wide flex-shrink-0">Total</span>
+                          <span className="text-[12px] text-gray-600">Cost <span className="font-bold text-gray-900 num">{formatCurrency(res.totalCost)}</span></span>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-[12px] text-gray-600">Sell <span className="font-bold text-emerald-700 num">{formatCurrency(res.totalSell)}</span></span>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-[12px] text-gray-600">Profit <span className="font-bold text-emerald-700 num">{formatCurrency(res.profit)}</span></span>
+                          <span className="text-gray-300">·</span>
+                          <span className={`text-[13px] font-bold num ${res.margin >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {res.margin.toFixed(1)}% Margin
+                          </span>
+                        </div>
                       </>
                     )}
                   </div>
