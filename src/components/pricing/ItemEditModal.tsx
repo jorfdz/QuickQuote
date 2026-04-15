@@ -3164,11 +3164,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           </tfoot>
                         </table>
 
-                        {/* Margin footer */}
-                        <div className="px-4 py-2 flex items-center gap-4 bg-gray-50 border-t border-gray-200 text-[11px] text-gray-700">
-                          <span>Margin: <span className={`font-bold ${bMargin >= 30 ? 'text-emerald-700' : 'text-amber-700'}`}>{bMargin.toFixed(1)}%</span></span>
-                          <span>Profit: <span className="font-bold text-emerald-700">{fmt(bProfit)}</span></span>
-                        </div>
                       </div>
                     )}
                   </div>
