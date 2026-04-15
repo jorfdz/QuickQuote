@@ -94,6 +94,7 @@ interface PricingStore {
   addEquipment: (e: Omit<PricingEquipment, 'id' | 'createdAt' | 'maintenanceHistory'>) => PricingEquipment;
   updateEquipment: (id: string, e: Partial<PricingEquipment>) => void;
   deleteEquipment: (id: string) => void;
+  reorderEquipment: (fromIndex: number, toIndex: number) => void;
 
   // Equipment Maintenance
   addMaintenanceRecord: (equipmentId: string, record: Omit<MaintenanceRecord, 'id' | 'createdAt' | 'equipmentId'>) => MaintenanceRecord;
@@ -230,6 +231,12 @@ export const usePricingStore = create<PricingStore>()(
       deleteEquipment: (id) => set((s) => ({
         equipment: s.equipment.filter((x) => x.id !== id),
       })),
+      reorderEquipment: (fromIndex, toIndex) => set((s) => {
+        const arr = [...s.equipment];
+        const [moved] = arr.splice(fromIndex, 1);
+        arr.splice(toIndex, 0, moved);
+        return { equipment: arr };
+      }),
 
       // ── Equipment Maintenance ─────────────────────────────────────────
       addMaintenanceRecord: (equipmentId, record) => {

@@ -171,9 +171,10 @@ export const Equipment: React.FC = () => {
   const {
     equipment, addEquipment, updateEquipment, deleteEquipment,
     addMaintenanceRecord, updateMaintenanceRecord, deleteMaintenanceRecord,
+    reorderEquipment,
     categories,
   } = usePricingStore();
-  const { vendors } = useStore();
+  const { vendors, orders } = useStore();
 
   const [search, setSearch] = useState(() => searchParams.get('search') || '');
 
@@ -193,6 +194,25 @@ export const Equipment: React.FC = () => {
     setBlackUnitCostStr(form.blackUnitCost ? String(form.blackUnitCost) : '');
   };
   const [deleteEquipConfirm, setDeleteEquipConfirm] = useState<string | null>(null);
+
+  // ── Drag-and-drop reordering ──
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const dragFromIndex = React.useRef<number | null>(null);
+
+  // ── Revenue (trailing 12 months) ──
+  const rev12mCutoff = useMemo(() => Date.now() - 365 * 24 * 60 * 60 * 1000, []);
+  const calcRev12m = useMemo(() => {
+    const qualifyingOrders = orders.filter(o =>
+      (o.status === 'in_progress' || o.status === 'completed') &&
+      new Date(o.updatedAt).getTime() >= rev12mCutoff
+    );
+    return (eqId: string) =>
+      qualifyingOrders.reduce((sum, o) =>
+        sum + o.lineItems
+          .filter(li => li.equipmentId === eqId)
+          .reduce((s, li) => s + (li.sellPrice || 0), 0),
+      0);
+  }, [orders, rev12mCutoff]);
 
   // ── Modal tabs ──
   const [modalTab, setModalTab] = useState<ModalTab>('details');
@@ -578,30 +598,52 @@ export const Equipment: React.FC = () => {
 
       {/* Equipment Table */}
       <Card>
-        <Table headers={['Equipment', 'Category', 'Cost Model', 'Unit Cost', 'Setup Fee', 'Markup / Sell', 'Maintenance', 'Tiers', 'Actions']}>
-          {filteredEquipment.map(eq => {
+        <Table headers={['', 'Equipment', 'Category', 'Cost Model', 'Unit Cost', 'Setup Fee', 'Markup / Sell', 'Rev. (12m)', 'Tiers', 'Actions']}>
+          {filteredEquipment.map((eq, rowIdx) => {
             const isExpanded = expandedEquipId === eq.id;
             const colorTierCount = showColorTiers(eq) ? (eq.colorTiers || []).length : 0;
             const blackTierCount = showBlackTiers(eq) ? (eq.blackTiers || []).length : 0;
             const totalTiers = colorTierCount + blackTierCount;
-            const nextMaint = getNextMaintenance(eq);
+            const rev = calcRev12m(eq.id);
+            // Index in the master array (used for drag-to-reorder when search is active)
+            const realIndex = equipment.findIndex(e => e.id === eq.id);
 
             return (
               <React.Fragment key={eq.id}>
                 <tr
-                  className="hover:bg-gray-50 transition-colors cursor-pointer"
+                  className={`hover:bg-gray-50 transition-colors cursor-pointer ${dragOverIndex === rowIdx ? 'border-t-2 border-blue-400' : ''}`}
+                  draggable
+                  onDragStart={() => { dragFromIndex.current = realIndex; }}
+                  onDragOver={e => { e.preventDefault(); setDragOverIndex(rowIdx); }}
+                  onDragLeave={() => setDragOverIndex(null)}
+                  onDrop={e => {
+                    e.preventDefault();
+                    setDragOverIndex(null);
+                    if (dragFromIndex.current !== null && dragFromIndex.current !== realIndex) {
+                      reorderEquipment(dragFromIndex.current, realIndex);
+                    }
+                    dragFromIndex.current = null;
+                  }}
                   onClick={() => handleStartEditEquip(eq)}
                 >
+                  {/* Drag handle */}
+                  <td className="py-3 pl-3 pr-1 w-6" onClick={e => e.stopPropagation()}>
+                    <div className="flex flex-col gap-0.5 items-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors">
+                      <div className="w-3 h-0.5 bg-current rounded" />
+                      <div className="w-3 h-0.5 bg-current rounded" />
+                      <div className="w-3 h-0.5 bg-current rounded" />
+                    </div>
+                  </td>
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-3">
                       {eq.imageUrl ? (
                         <img src={eq.imageUrl} alt={eq.name}
-                          className="w-8 h-8 rounded-lg object-cover border border-gray-200 flex-shrink-0"
+                          className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0"
                           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
-                          <Camera className="w-3.5 h-3.5 text-gray-400" />
+                        <div className="w-10 h-10 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                          <Camera className="w-5 h-5 text-gray-400" />
                         </div>
                       )}
                       <div>
@@ -613,23 +655,17 @@ export const Equipment: React.FC = () => {
                   <td className="py-3 px-4">
                     <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{eq.categoryApplies}</span>
                   </td>
-                  {/* Cost Model — unit + cost type */}
+                  {/* Cost Model — single-line inline */}
                   <td className="py-3 px-4">
-                    <div className="flex flex-col gap-1">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium w-fit ${eq.costUnit === 'per_click' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
-                        {eq.costUnit === 'per_click' ? 'Per Click' : 'Per Sq Ft'}
-                      </span>
-                      {eq.costType === 'cost_plus_time' && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold w-fit bg-violet-50 text-violet-600 border border-violet-200">
-                          + Time
-                        </span>
-                      )}
-                      {eq.costType === 'time_only' && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold w-fit bg-sky-50 text-sky-600 border border-sky-200">
-                          Time Only
-                        </span>
-                      )}
-                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${eq.costUnit === 'per_click' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {eq.costUnit === 'per_click' ? 'Per Click' : 'Per Sq Ft'}
+                    </span>
+                    {eq.costType === 'cost_plus_time' && (
+                      <span className="ml-1 text-[11px] font-semibold text-violet-600">+ Time</span>
+                    )}
+                    {eq.costType === 'time_only' && (
+                      <span className="ml-1 text-[11px] font-semibold text-sky-600">· Time Only</span>
+                    )}
                   </td>
                   {/* Unit Cost — show split Color/Black when applicable */}
                   <td className="py-3 px-4">
@@ -657,19 +693,12 @@ export const Equipment: React.FC = () => {
                       <span className="text-sm text-gray-400">—</span>
                     )}
                   </td>
-                  <td className="py-3 px-4">
-                    {nextMaint ? (
-                      <div className="flex items-center gap-1.5">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
-                          nextMaint.status === 'requested' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                          nextMaint.status === 'scheduled' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                          'bg-gray-50 text-gray-600 border-gray-200'
-                        }`}>
-                          {formatDate(nextMaint.date)}
-                        </span>
-                      </div>
+                  {/* Revenue trailing 12 months — orders in_progress or completed only */}
+                  <td className="py-3 px-4 text-sm num">
+                    {rev > 0 ? (
+                      <span className="font-medium text-emerald-700">{formatCurrency(rev)}</span>
                     ) : (
-                      <span className="text-xs text-gray-400">—</span>
+                      <span className="text-gray-400">—</span>
                     )}
                   </td>
                   <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
@@ -707,7 +736,7 @@ export const Equipment: React.FC = () => {
                 {/* Expanded tiers row */}
                 {isExpanded && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+                    <td colSpan={10} className="px-4 py-3 bg-gray-50 border-t border-gray-100">
                       <div className="grid grid-cols-2 gap-4 max-w-2xl">
                         {showColorTiers(eq) && colorTierCount > 0 && (
                           <div>
