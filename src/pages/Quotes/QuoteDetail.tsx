@@ -844,7 +844,7 @@ export const QuoteDetail: React.FC = () => {
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-3">Click any field to edit</p>
             <div className="grid grid-cols-3 gap-x-6 gap-y-4 items-start">
 
-              {/* ── Row 1: Account | Title | Ship/Bill To ── */}
+              {/* ── Row 1: Account | Title | [Addresses | Status] ── */}
               <InlineField
                 label="Account"
                 value={quote.customerName || ''}
@@ -865,20 +865,39 @@ export const QuoteDetail: React.FC = () => {
               />
               <InlineField label="Title" value={quote.title} placeholder="Quote title..."
                 onSave={v => saveField({ title: v })} />
-              {/* Ship/Bill To — lives in col 3, row 1 */}
-              <div>
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Addresses</p>
-                <button
-                  onClick={() => setShowAddressDialog(true)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-900 border border-gray-300 hover:border-gray-400 hover:bg-gray-50 rounded-lg transition-colors shadow-sm w-full justify-center"
-                >
-                  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                  Ship / Bill To
-                  {(quote.billToAddress || quote.shipToAddress) && <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />}
-                </button>
+              {/* Col 3 Row 1: Addresses button | Status selector — 2-col sub-grid */}
+              <div className="grid grid-cols-2 gap-x-4">
+                {/* Addresses */}
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Addresses</p>
+                  <button
+                    onClick={() => setShowAddressDialog(true)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-900 border border-gray-300 hover:border-gray-400 hover:bg-gray-50 rounded-lg transition-colors shadow-sm w-full justify-center"
+                  >
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    Ship / Bill To
+                    {(quote.billToAddress || quote.shipToAddress) && <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />}
+                  </button>
+                </div>
+                {/* Status */}
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Status</p>
+                  <div className="relative">
+                    <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full flex-shrink-0 pointer-events-none ${dotColors[quote.status] ?? 'bg-gray-300'}`} />
+                    <select
+                      value={quote.status}
+                      onChange={e => saveField({ status: e.target.value as QuoteStatus })}
+                      className="w-full pl-7 pr-2 py-1.5 text-xs font-semibold border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none bg-white text-gray-700 cursor-pointer hover:border-gray-300 transition-colors"
+                    >
+                      {STATUS_OPTIONS.map(s => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
 
-              {/* ── Row 2: Contact | Quote Date + Valid Until | CSR + Sales Rep ── */}
+              {/* ── Row 2: Contact | Quote Date + Valid Until | [CSR | Sales Rep] ── */}
               <InlineField label="Contact" value={quote.contactName || ''} placeholder="Search contacts..."
                 searchable options={contactOptions}
                 onAddNew={() => {}}
@@ -894,7 +913,7 @@ export const QuoteDetail: React.FC = () => {
                   rawValue={quote.validUntil || ''}
                   type="date" onSave={v => saveField({ validUntil: v || undefined })} />
               </div>
-              {/* CSR + Sales Rep — both under col 3 (Ship/Bill To above) */}
+              {/* CSR + Sales Rep — under col 3, aligned with Addresses | Status above */}
               <div className="grid grid-cols-2 gap-x-4">
                 <InlineField label="CSR" value={csr?.name || ''} placeholder="Search CSR..."
                   searchable options={csrOptions}

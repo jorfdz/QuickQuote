@@ -124,6 +124,16 @@ export const Equipment: React.FC = () => {
   const [editingEquipId, setEditingEquipId] = useState<string | null>(null);
   const [expandedEquipId, setExpandedEquipId] = useState<string | null>(null);
   const [equipForm, setEquipForm] = useState(emptyEquipmentForm);
+  // String buffers for unit cost inputs — prevents "0.00x" being wiped while typing
+  const [unitCostStr,       setUnitCostStr]       = useState('');
+  const [colorUnitCostStr,  setColorUnitCostStr]  = useState('');
+  const [blackUnitCostStr,  setBlackUnitCostStr]  = useState('');
+  // Sync string buffers when form is loaded (edit/new)
+  const syncCostBuffers = (form: typeof emptyEquipmentForm) => {
+    setUnitCostStr(form.unitCost       ? String(form.unitCost)       : '');
+    setColorUnitCostStr(form.colorUnitCost ? String(form.colorUnitCost) : '');
+    setBlackUnitCostStr(form.blackUnitCost ? String(form.blackUnitCost) : '');
+  };
   const [deleteEquipConfirm, setDeleteEquipConfirm] = useState<string | null>(null);
 
   // ── Modal tabs ──
@@ -209,6 +219,12 @@ export const Equipment: React.FC = () => {
       timeCostMarkup: e.timeCostMarkup,
       imageUrl: e.imageUrl || '',
       maintenanceVendorId: e.maintenanceVendorId || '',
+    });
+    syncCostBuffers({
+      ...emptyEquipmentForm,
+      unitCost: e.unitCost,
+      colorUnitCost: (e as any).colorUnitCost ?? e.unitCost ?? 0,
+      blackUnitCost: (e as any).blackUnitCost ?? e.unitCost ?? 0,
     });
     setModalTab('details');
     setShowServiceForm(false);
@@ -431,7 +447,7 @@ export const Equipment: React.FC = () => {
         title="Equipment"
         subtitle={`${equipment.length} equipment item${equipment.length !== 1 ? 's' : ''}`}
         actions={
-          <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEquipForm(emptyEquipmentForm); setModalTab('details'); setShowNewEquip(true); }}>
+          <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEquipForm(emptyEquipmentForm); syncCostBuffers(emptyEquipmentForm); setModalTab('details'); setShowNewEquip(true); }}>
             Add Equipment
           </Button>
         }
@@ -615,7 +631,7 @@ export const Equipment: React.FC = () => {
         isOpen={showNewEquip || editingEquipId !== null}
         onClose={handleCloseModal}
         title={editingEquipId ? equipForm.name || 'Edit Equipment' : 'Add Equipment'}
-        size="full"
+        size="2xl"
       >
         {/* Tab Navigation */}
         {editingEquipId && (
@@ -655,211 +671,280 @@ export const Equipment: React.FC = () => {
 
         {/* ═══════════ DETAILS TAB ═══════════ */}
         {(modalTab === 'details' || !editingEquipId) && (
-          <div className="space-y-5">
+          <div className="space-y-4">
 
-            {/* ── Section: Identity ───────────────────────────────────────────── */}
-            <div className="rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-                <h4 className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Equipment Identity</h4>
+            {/* ── Row 1: Photo + Name + Category + Color ── */}
+            <div className="flex items-end gap-3">
+              <div className="flex-shrink-0">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Photo</label>
+                <ImageUploadCropper value={equipForm.imageUrl || ''} onChange={(url) => setEquipForm(f => ({ ...f, imageUrl: url }))} size={64} />
               </div>
-              <div className="p-4 flex items-start gap-5">
-                <div className="flex-shrink-0">
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Photo</label>
-                  <ImageUploadCropper
-                    value={equipForm.imageUrl || ''}
-                    onChange={(url) => setEquipForm(f => ({ ...f, imageUrl: url }))}
-                    size={80}
-                  />
-                </div>
-                <div className="flex-1 grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Equipment Name <span className="text-red-500">*</span></label>
-                    <input
-                      value={equipForm.name}
-                      onChange={e => setEquipForm(f => ({ ...f, name: e.target.value }))}
-                      placeholder="e.g. Ricoh 9200"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Category</label>
-                    <select value={equipForm.categoryApplies} onChange={e => setEquipForm(f => ({ ...f, categoryApplies: e.target.value }))}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
-                      {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Color Capability</label>
-                    <select value={equipForm.colorCapability} onChange={e => setEquipForm(f => ({ ...f, colorCapability: e.target.value as any }))}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
-                      <option value="Color and Black">Color and Black</option>
-                      <option value="Color">Color Only</option>
-                      <option value="Black">Black Only</option>
-                    </select>
-                  </div>
-                </div>
+              <div className="flex-[2] min-w-0">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Name <span className="text-red-500">*</span></label>
+                <input value={equipForm.name} onChange={e => setEquipForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Ricoh 9200"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Category</label>
+                <select value={equipForm.categoryApplies} onChange={e => setEquipForm(f => ({ ...f, categoryApplies: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
+                  {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="flex-1 min-w-0">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Color</label>
+                <select value={equipForm.colorCapability} onChange={e => setEquipForm(f => ({ ...f, colorCapability: e.target.value as any }))}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
+                  <option value="Color and Black">Color + B&W</option>
+                  <option value="Color">Color Only</option>
+                  <option value="Black">B&W Only</option>
+                </select>
               </div>
             </div>
 
-            {/* ── Section: Cost Model ─────────────────────────────────────────── */}
-            <div className="rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-                <h4 className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Cost Model</h4>
-              </div>
-              <div className="p-4 space-y-4">
+            {/* ── Divider ── */}
+            <div className="border-t border-gray-100" />
 
-                {/* Cost Unit + Cost Type + Setup Fee */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost Unit</label>
-                    <select value={equipForm.costUnit} onChange={e => {
-                        const newUnit = e.target.value as EquipmentCostUnit;
-                        setEquipForm(f => {
-                          const updates: Partial<typeof f> = { costUnit: newUnit };
-                          const defaultSqftTiers: EquipmentPricingTier[] = [
-                            { minQty: 1, pricePerUnit: 0 }, { minQty: 10, pricePerUnit: 0 }, { minQty: 50, pricePerUnit: 0 },
-                          ];
-                          const defaultClickTiers: EquipmentPricingTier[] = [
-                            { minQty: 1, pricePerUnit: 0 }, { minQty: 25, pricePerUnit: 0 }, { minQty: 50, pricePerUnit: 0 },
-                            { minQty: 250, pricePerUnit: 0 }, { minQty: 500, pricePerUnit: 0 }, { minQty: 1750, pricePerUnit: 0 },
-                            { minQty: 3000, pricePerUnit: 0 }, { minQty: 7500, pricePerUnit: 0 }, { minQty: 10000, pricePerUnit: 0 },
-                          ];
-                          const savedUnit = editingEquipment?.costUnit;
-                          if (newUnit === 'per_sqft') {
-                            updates.colorTiers = (savedUnit === 'per_sqft' && editingEquipment) ? editingEquipment.colorTiers?.map(t => ({ ...t })) || defaultSqftTiers.map(t => ({ ...t })) : defaultSqftTiers.map(t => ({ ...t }));
-                            updates.blackTiers = (savedUnit === 'per_sqft' && editingEquipment) ? editingEquipment.blackTiers?.map(t => ({ ...t })) || defaultSqftTiers.map(t => ({ ...t })) : defaultSqftTiers.map(t => ({ ...t }));
-                          } else {
-                            updates.colorTiers = (savedUnit === 'per_click' && editingEquipment) ? editingEquipment.colorTiers?.map(t => ({ ...t })) || defaultClickTiers.map(t => ({ ...t })) : defaultClickTiers.map(t => ({ ...t }));
-                            updates.blackTiers = (savedUnit === 'per_click' && editingEquipment) ? editingEquipment.blackTiers?.map(t => ({ ...t })) || defaultClickTiers.map(t => ({ ...t })) : defaultClickTiers.map(t => ({ ...t }));
-                          }
-                          return { ...f, ...updates };
-                        });
-                      }}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
-                      <option value="per_click">Per Click</option>
-                      <option value="per_sqft">Per Sq Ft</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cost Type</label>
-                    <select value={equipForm.costType} onChange={e => setEquipForm(f => ({ ...f, costType: e.target.value as PricingEquipment['costType'] }))}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
-                      <option value="cost_only">Cost Only</option>
-                      <option value="cost_plus_time">Cost + Time</option>
-                      <option value="time_only">Time Only</option>
-                    </select>
-                  </div>
-                  <Input label="Setup Fee ($)" type="number" value={equipForm.initialSetupFee || ''}
-                    onChange={e => setEquipForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} prefix="$" />
+            {/* ── Row 2: Cost Unit · Cost Type · Setup Fee · [Unit Cost(s)] ── */}
+            {/* All cost fields on ONE row — unit costs inline with model selectors */}
+            <div>
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Cost Model</p>
+              <div className="flex items-end gap-3 flex-wrap">
+                {/* Cost Unit */}
+                <div className="w-28">
+                  <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Unit</label>
+                  <select value={equipForm.costUnit} onChange={e => {
+                      const newUnit = e.target.value as EquipmentCostUnit;
+                      setEquipForm(f => {
+                        const updates: Partial<typeof f> = { costUnit: newUnit };
+                        const defSqft: EquipmentPricingTier[] = [{ minQty: 1, pricePerUnit: 0 }, { minQty: 10, pricePerUnit: 0 }, { minQty: 50, pricePerUnit: 0 }];
+                        const defClick: EquipmentPricingTier[] = [
+                          { minQty: 1, pricePerUnit: 0 }, { minQty: 25, pricePerUnit: 0 }, { minQty: 50, pricePerUnit: 0 },
+                          { minQty: 250, pricePerUnit: 0 }, { minQty: 500, pricePerUnit: 0 }, { minQty: 1750, pricePerUnit: 0 },
+                          { minQty: 3000, pricePerUnit: 0 }, { minQty: 7500, pricePerUnit: 0 }, { minQty: 10000, pricePerUnit: 0 },
+                        ];
+                        const saved = editingEquipment?.costUnit;
+                        if (newUnit === 'per_sqft') {
+                          updates.colorTiers = (saved === 'per_sqft' && editingEquipment) ? editingEquipment.colorTiers?.map(t => ({ ...t })) || defSqft.map(t => ({ ...t })) : defSqft.map(t => ({ ...t }));
+                          updates.blackTiers = (saved === 'per_sqft' && editingEquipment) ? editingEquipment.blackTiers?.map(t => ({ ...t })) || defSqft.map(t => ({ ...t })) : defSqft.map(t => ({ ...t }));
+                        } else {
+                          updates.colorTiers = (saved === 'per_click' && editingEquipment) ? editingEquipment.colorTiers?.map(t => ({ ...t })) || defClick.map(t => ({ ...t })) : defClick.map(t => ({ ...t }));
+                          updates.blackTiers = (saved === 'per_click' && editingEquipment) ? editingEquipment.blackTiers?.map(t => ({ ...t })) || defClick.map(t => ({ ...t })) : defClick.map(t => ({ ...t }));
+                        }
+                        return { ...f, ...updates };
+                      });
+                    }}
+                    className="w-full px-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
+                    <option value="per_click">Per Click</option>
+                    <option value="per_sqft">Per Sq Ft</option>
+                  </select>
                 </div>
 
-                {/* Unit Cost — split by color if Color and Black */}
+                {/* Cost Type */}
+                <div className="w-36">
+                  <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Cost Type</label>
+                  <select value={equipForm.costType} onChange={e => setEquipForm(f => ({ ...f, costType: e.target.value as PricingEquipment['costType'] }))}
+                    className="w-full px-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
+                    <option value="cost_only">Cost Only</option>
+                    <option value="cost_plus_time">Cost + Time</option>
+                    <option value="time_only">Time Only</option>
+                  </select>
+                </div>
+
+                {/* Setup Fee */}
+                <div className="w-28">
+                  <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Setup Fee</label>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">$</span>
+                    <input type="number" step="0.01" min="0" value={equipForm.initialSetupFee || ''}
+                      onChange={e => setEquipForm(f => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))}
+                      className="w-full pl-6 pr-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] text-right num" />
+                  </div>
+                </div>
+
+                {/* Unit costs — inline on same row */}
                 {showUnitCost && (
-                  <div>
-                    <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                      Unit Cost {equipForm.costUnit === 'per_click' ? '(per click)' : '(per sq ft)'}
-                    </label>
+                  <>
+                    <div className="w-px h-8 bg-gray-200 self-center flex-shrink-0" />
                     {equipForm.colorCapability === 'Color and Black' ? (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-blue-500 pointer-events-none">Color</span>
-                          <input type="number" step="0.001" min="0"
-                            value={equipForm.colorUnitCost || ''}
-                            onChange={e => setEquipForm(f => ({ ...f, colorUnitCost: parseFloat(e.target.value) || 0 }))}
-                            placeholder="0.000"
-                            className="w-full pl-12 pr-3 py-2 text-sm border border-blue-200 bg-blue-50/40 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-right num"
-                          />
+                      <>
+                        <div className="w-28">
+                          <label className="block text-[10px] font-semibold text-blue-500 uppercase tracking-wide mb-1">Color Cost</label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">$</span>
+                            <input
+                              type="text" inputMode="decimal"
+                              value={colorUnitCostStr}
+                              onChange={e => {
+                                const v = e.target.value;
+                                setColorUnitCostStr(v);
+                                const n = parseFloat(v);
+                                if (!isNaN(n)) setEquipForm(f => ({ ...f, colorUnitCost: n }));
+                              }}
+                              onBlur={e => {
+                                const n = parseFloat(e.target.value);
+                                if (isNaN(n)) { setColorUnitCostStr(''); setEquipForm(f => ({ ...f, colorUnitCost: 0 })); }
+                                else setColorUnitCostStr(n.toFixed(4));
+                              }}
+                              placeholder="0.0000"
+                              className="w-full pl-6 pr-2 py-2 text-sm border border-blue-200 bg-blue-50/40 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-right num" />
+                          </div>
                         </div>
+                        <div className="w-28">
+                          <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">B&W Cost</label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">$</span>
+                            <input
+                              type="text" inputMode="decimal"
+                              value={blackUnitCostStr}
+                              onChange={e => {
+                                const v = e.target.value;
+                                setBlackUnitCostStr(v);
+                                const n = parseFloat(v);
+                                if (!isNaN(n)) setEquipForm(f => ({ ...f, blackUnitCost: n }));
+                              }}
+                              onBlur={e => {
+                                const n = parseFloat(e.target.value);
+                                if (isNaN(n)) { setBlackUnitCostStr(''); setEquipForm(f => ({ ...f, blackUnitCost: 0 })); }
+                                else setBlackUnitCostStr(n.toFixed(4));
+                              }}
+                              placeholder="0.0000"
+                              className="w-full pl-6 pr-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] text-right num" />
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="w-28">
+                        <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Unit Cost</label>
                         <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-gray-500 pointer-events-none">B&W</span>
-                          <input type="number" step="0.001" min="0"
-                            value={equipForm.blackUnitCost || ''}
-                            onChange={e => setEquipForm(f => ({ ...f, blackUnitCost: parseFloat(e.target.value) || 0 }))}
-                            placeholder="0.000"
-                            className="w-full pl-10 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] text-right num"
-                          />
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">$</span>
+                          <input
+                            type="text" inputMode="decimal"
+                            value={unitCostStr}
+                            onChange={e => {
+                              const v = e.target.value;
+                              setUnitCostStr(v);
+                              const n = parseFloat(v);
+                              if (!isNaN(n)) setEquipForm(f => ({ ...f, unitCost: n }));
+                            }}
+                            onBlur={e => {
+                              const n = parseFloat(e.target.value);
+                              if (isNaN(n)) { setUnitCostStr(''); setEquipForm(f => ({ ...f, unitCost: 0 })); }
+                              else setUnitCostStr(n.toFixed(4));
+                            }}
+                            placeholder="0.0000"
+                            className="w-full pl-6 pr-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] text-right num" />
                         </div>
                       </div>
-                    ) : (
-                      <input type="number" step="0.001" min="0"
-                        value={equipForm.unitCost || ''}
-                        onChange={e => setEquipForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))}
-                        placeholder="0.000"
-                        className="w-full max-w-xs px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] text-right num"
-                      />
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* ── Row 3: Time fields (Cost + Time / Time Only) ── */}
+            {showTimeFields && (
+              <div className="flex items-end gap-3 flex-wrap pt-1 border-t border-gray-100">
+                <p className="w-full text-[10px] font-bold text-gray-500 uppercase tracking-wider -mb-1">Staff / Time Cost</p>
+                <div className="w-28">
+                  <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                    Units/hr <span className="cursor-help text-gray-300" title="Sheets or pieces per hour">ⓘ</span>
+                  </label>
+                  <input type="number" value={equipForm.unitsPerHour || ''}
+                    onChange={e => setEquipForm(f => ({ ...f, unitsPerHour: parseInt(e.target.value) || undefined }))}
+                    placeholder="e.g. 1000"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]" />
+                </div>
+                <div className="w-36">
+                  <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Staff $/hr</label>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">$</span>
+                    <input type="number" step="0.01" value={equipForm.timeCostPerHour || ''}
+                      onChange={e => setEquipForm(f => ({ ...f, timeCostPerHour: parseFloat(e.target.value) || undefined }))}
+                      className="w-full pl-6 pr-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]" />
+                  </div>
+                </div>
+                <div className="w-28">
+                  <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Time Markup</label>
+                  <div className="relative">
+                    <input type="number" step="1" value={equipForm.timeCostMarkup || ''}
+                      onChange={e => setEquipForm(f => ({ ...f, timeCostMarkup: parseFloat(e.target.value) || undefined }))}
+                      className="w-full pl-2 pr-7 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]" />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">%</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Row 4: Markup (only when not using pricing tiers) ── */}
+            {showUnitCost && (
+              <div className="pt-1 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Markup</p>
+                  {equipForm.usePricingTiers && (
+                    <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Overridden by Table Pricing</span>
+                  )}
+                </div>
+                {equipForm.usePricingTiers ? (
+                  <p className="text-xs text-gray-400 italic">Table Pricing is active — tier tables define sell prices.</p>
+                ) : (
+                  <div className="flex items-end gap-3 flex-wrap">
+                    <div className="w-44">
+                      <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Markup Type</label>
+                      <select value={equipForm.markupType}
+                        onChange={e => setEquipForm(f => ({ ...f, markupType: e.target.value as PricingEquipment['markupType'] }))}
+                        className="w-full px-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
+                        <option value="multiplier">Multiplier (7×)</option>
+                        <option value="percent">Markup % (70%)</option>
+                      </select>
+                    </div>
+                    <div className="w-28">
+                      <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                        {equipForm.markupType === 'percent' ? 'Markup %' : 'Multiplier'}
+                      </label>
+                      <div className="relative">
+                        <input type="number" step={equipForm.markupType === 'percent' ? '1' : '0.1'}
+                          value={equipForm.markupMultiplier || ''}
+                          onChange={e => setEquipForm(f => ({ ...f, markupMultiplier: parseFloat(e.target.value) || undefined }))}
+                          placeholder={equipForm.markupType === 'percent' ? '70' : '7'}
+                          className="w-full pl-2 pr-7 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]" />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">
+                          {equipForm.markupType === 'percent' ? '%' : '×'}
+                        </span>
+                      </div>
+                    </div>
+                    {/* Live sell preview */}
+                    {equipForm.markupMultiplier && (equipForm.colorUnitCost || equipForm.unitCost) > 0 && (
+                      <div className="text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 self-end mb-0.5">
+                        {equipForm.colorCapability === 'Color and Black' ? (
+                          <>
+                            <span className="text-blue-600 font-medium">Color</span>{' '}
+                            <span className="font-bold text-emerald-700">
+                              ${equipForm.markupType === 'percent'
+                                ? ((equipForm.colorUnitCost||0) * (1 + equipForm.markupMultiplier/100)).toFixed(3)
+                                : ((equipForm.colorUnitCost||0) * equipForm.markupMultiplier).toFixed(3)}
+                            </span>{' · '}
+                            <span className="text-gray-500">B&W</span>{' '}
+                            <span className="font-bold text-emerald-700">
+                              ${equipForm.markupType === 'percent'
+                                ? ((equipForm.blackUnitCost||0) * (1 + equipForm.markupMultiplier/100)).toFixed(3)
+                                : ((equipForm.blackUnitCost||0) * equipForm.markupMultiplier).toFixed(3)}
+                            </span>
+                            <span className="text-gray-400 ml-1">/{equipForm.costUnit === 'per_click' ? 'click' : 'sqft'}</span>
+                          </>
+                        ) : (
+                          <>Sell: <span className="font-bold text-emerald-700">
+                            ${equipForm.markupType === 'percent'
+                              ? (equipForm.unitCost * (1 + equipForm.markupMultiplier/100)).toFixed(3)
+                              : (equipForm.unitCost * equipForm.markupMultiplier).toFixed(3)}
+                          </span><span className="text-gray-400 ml-1">/{equipForm.costUnit === 'per_click' ? 'click' : 'sqft'}</span></>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
-
-                {/* Time-based cost fields */}
-                {showTimeFields && (
-                  <div className="grid grid-cols-3 gap-4 pt-2 border-t border-gray-100">
-                    <div>
-                      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5 flex items-center gap-1">
-                        Units / Hour
-                        <span className="text-gray-400 font-normal cursor-help" title="Sheets or pieces processed per hour">ⓘ</span>
-                      </label>
-                      <input type="number" value={equipForm.unitsPerHour || ''}
-                        onChange={e => setEquipForm(f => ({ ...f, unitsPerHour: parseInt(e.target.value) || undefined }))}
-                        placeholder="e.g. 1000"
-                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]" />
-                    </div>
-                    <Input label="Staff Cost / Hour ($)" type="number" value={equipForm.timeCostPerHour || ''}
-                      onChange={e => setEquipForm(f => ({ ...f, timeCostPerHour: parseFloat(e.target.value) || undefined }))} prefix="$" />
-                    <Input label="Time Cost Markup %" type="number" value={equipForm.timeCostMarkup || ''}
-                      onChange={e => setEquipForm(f => ({ ...f, timeCostMarkup: parseFloat(e.target.value) || undefined }))} suffix="%" />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* ── Section: Markup / Sell Price ────────────────────────────────── */}
-            {showUnitCost && (
-              <div className="rounded-xl border border-gray-200 overflow-hidden">
-                <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-                  <h4 className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Markup &amp; Sell Price</h4>
-                  {equipForm.usePricingTiers && (
-                    <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Sell price set by Table Pricing below</span>
-                  )}
-                </div>
-                <div className="p-4">
-                  {equipForm.usePricingTiers ? (
-                    <p className="text-sm text-gray-400 italic">Markup fields are disabled when Table Pricing is active — the tier table defines the sell price per click.</p>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Markup Type</label>
-                        <select value={equipForm.markupType}
-                          onChange={e => setEquipForm(f => ({ ...f, markupType: e.target.value as PricingEquipment['markupType'] }))}
-                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
-                          <option value="multiplier">Multiplier (e.g. 7×)</option>
-                          <option value="percent">Markup % (e.g. 70%)</option>
-                        </select>
-                      </div>
-                      <Input
-                        label={equipForm.markupType === 'percent' ? 'Markup %' : 'Markup Multiplier'}
-                        type="number"
-                        value={equipForm.markupMultiplier || ''}
-                        onChange={e => setEquipForm(f => ({ ...f, markupMultiplier: parseFloat(e.target.value) || undefined }))}
-                        placeholder={equipForm.markupType === 'percent' ? 'e.g. 70' : 'e.g. 7'}
-                        suffix={equipForm.markupType === 'percent' ? '%' : '×'}
-                      />
-                      {equipForm.markupMultiplier && equipForm.unitCost > 0 && (
-                        <div className="flex items-end pb-1">
-                          <div className="text-[11px] text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100 w-full">
-                            Sell: <span className="font-bold text-emerald-700">
-                              {equipForm.markupType === 'percent'
-                                ? `$${(equipForm.unitCost * (1 + equipForm.markupMultiplier / 100)).toFixed(3)}`
-                                : `$${(equipForm.unitCost * equipForm.markupMultiplier).toFixed(3)}`}
-                            </span>
-                            <span className="text-gray-400 ml-1">/{equipForm.costUnit === 'per_click' ? 'click' : 'sq ft'}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
               </div>
             )}
 
@@ -920,13 +1005,38 @@ export const Equipment: React.FC = () => {
               </div>
             )}
 
-            {/* ── Save / Cancel ───────────────────────────────────────────────── */}
-            <div className="flex gap-3 justify-end pt-3 border-t border-gray-100">
-              <Button variant="secondary" onClick={handleCloseModal}>Cancel</Button>
-              <Button variant="primary" onClick={editingEquipId ? handleSaveEditEquip : handleAddEquip} disabled={!equipForm.name}>
-                {editingEquipId ? 'Save Changes' : 'Add Equipment'}
-              </Button>
-            </div>
+            {/* ── Save / Cancel — with inline validation ──────────────────── */}
+            {(() => {
+              const errors: string[] = [];
+              if (!equipForm.name.trim()) errors.push('Equipment name is required.');
+              if (showUnitCost) {
+                const hasMarkup   = (equipForm.markupMultiplier ?? 0) > 0;
+                const hasTiers    = equipForm.usePricingTiers;
+                if (!hasMarkup && !hasTiers)
+                  errors.push('Choose a pricing method: set a Markup value, or enable Table Pricing.');
+              }
+              const canSave = errors.length === 0;
+              return (
+                <div className="pt-3 border-t border-gray-100 space-y-2">
+                  {errors.length > 0 && (
+                    <div className="space-y-1">
+                      {errors.map((err, i) => (
+                        <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-800">
+                          <span className="flex-shrink-0">⚠</span>
+                          <span>{err}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-3 justify-end">
+                    <Button variant="secondary" onClick={handleCloseModal}>Cancel</Button>
+                    <Button variant="primary" onClick={editingEquipId ? handleSaveEditEquip : handleAddEquip} disabled={!canSave}>
+                      {editingEquipId ? 'Save Changes' : 'Add Equipment'}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 
