@@ -700,27 +700,24 @@ export const QuoteDetail: React.FC = () => {
               <InlineField label="Title" value={quote.title} placeholder="Quote title..."
                 onSave={v => saveField({ title: v })} />
 
-              {/* Row 2: Quote Date + Valid Until (col-span-2) | empty */}
-              <div className="col-span-2 grid grid-cols-2 gap-x-6">
-                <InlineField label="Quote Date"
-                  value={quote.quoteDate ? formatDate(quote.quoteDate) : (quote.createdAt ? formatDate(quote.createdAt) : '')}
-                  rawValue={quote.quoteDate || quote.createdAt?.slice(0,10) || ''}
-                  type="date" onSave={v => saveField({ quoteDate: v || undefined })} />
-                <InlineField label="Valid Until"
-                  value={quote.validUntil ? formatDate(quote.validUntil) : ''}
-                  rawValue={quote.validUntil || ''}
-                  type="date" onSave={v => saveField({ validUntil: v || undefined })} />
+              {/* Row 2: Quote Date | Valid Until | CSR + Sales Rep */}
+              <InlineField label="Quote Date"
+                value={quote.quoteDate ? formatDate(quote.quoteDate) : (quote.createdAt ? formatDate(quote.createdAt) : '')}
+                rawValue={quote.quoteDate || quote.createdAt?.slice(0,10) || ''}
+                type="date" onSave={v => saveField({ quoteDate: v || undefined })} />
+              <InlineField label="Valid Until"
+                value={quote.validUntil ? formatDate(quote.validUntil) : ''}
+                rawValue={quote.validUntil || ''}
+                type="date" onSave={v => saveField({ validUntil: v || undefined })} />
+              {/* CSR + Sales Rep share the third column as a 2-col sub-grid */}
+              <div className="grid grid-cols-2 gap-x-4">
+                <InlineField label="CSR" value={csr?.name || ''} placeholder="Search CSR..."
+                  searchable options={csrOptions}
+                  onSave={v => saveField({ csrId: v || undefined })} />
+                <InlineField label="Sales Rep" value={salesRep?.name || ''} placeholder="Search Sales Rep..."
+                  searchable options={salesOptions}
+                  onSave={v => saveField({ salesId: v || undefined })} />
               </div>
-              <div />
-
-              {/* Row 3: CSR | Sales Rep */}
-              <InlineField label="CSR" value={csr?.name || ''} placeholder="Search CSR..."
-                searchable options={csrOptions}
-                onSave={v => saveField({ csrId: v || undefined })} />
-              <InlineField label="Sales Rep" value={salesRep?.name || ''} placeholder="Search Sales Rep..."
-                searchable options={salesOptions}
-                onSave={v => saveField({ salesId: v || undefined })} />
-              <div />
             </div>
           </div>
         )}

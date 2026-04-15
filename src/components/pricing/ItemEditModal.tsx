@@ -2228,8 +2228,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wide mb-1.5">Specs</label>
                   <div className="flex items-start gap-2">
 
-                    {/* QTY — slightly narrower to give room to Sides & Color */}
-                    <div className="flex-[2] min-w-0">
+                    {/* QTY — expanded slightly for multi-qty strings like "1000, 2000" */}
+                    <div className="flex-[2.3] min-w-0">
                       <label className="block text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">QTY</label>
                       <input
                         type="text" value={multiQtyInput}
@@ -2240,12 +2240,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           if (qParts.length > 0) onUpdatePricing({ quantity: qParts[0] });
                         }}
                         placeholder="1000"
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]"
+                        className="w-full px-2 py-2 text-[13px] bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]"
                       />
                     </div>
 
-                    {/* ORIG. — narrow, 1–2 digits */}
-                    <div className="flex-[0.8] min-w-0">
+                    {/* ORIG. — compact, 1–3 chars */}
+                    <div className="flex-[0.65] min-w-0">
                       <label className="block text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-0.5">
                         ORIG. <span className="cursor-help text-gray-300 font-normal" title="Number of unique designs — each is a separate press run. 3 originals × 500 qty = 3 separate runs of 500.">ⓘ</span>
                       </label>
@@ -2259,15 +2259,15 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           updated[0] = { ...updated[0], originals: v };
                           setMaterialEntries(updated);
                         }}
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] text-center"
+                        className="w-full px-1.5 py-2 text-[13px] bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] text-center"
                       />
                       {(materialEntries[0]?.originals ?? 1) > 1 && <p className="text-[9px] text-violet-500 mt-0.5 text-center">{materialEntries[0].originals}×</p>}
                     </div>
 
-                    {/* SIZE — narrowed to give room to Sides & Color */}
-                    <div className="flex-[1.4] min-w-0">
+                    {/* SIZE — slightly narrower; "48x96" or "3.5x2" fits well */}
+                    <div className="flex-[1.2] min-w-0">
                       <label className="block text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
-                        Size <span className="normal-case font-normal text-gray-400">(inches)</span>
+                        Size <span className="normal-case font-normal text-gray-400">(in)</span>
                       </label>
                       <input
                         type="text" value={sizeInput}
@@ -2276,22 +2276,21 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           setSizeInput(e.target.value);
                           const match = e.target.value.match(/^(\d+\.?\d*)\s*[xX×]\s*(\d+\.?\d*)$/);
                           if (match) { onUpdatePricing({ finalWidth: parseFloat(match[1]), finalHeight: parseFloat(match[2]) }); setSizeError(''); }
-                          else if (e.target.value && !e.target.value.match(/^[\d.]+\s*[xX×]?\s*[\d.]*$/)) { setSizeError('W×H in inches'); }
+                          else if (e.target.value && !e.target.value.match(/^[\d.]+\s*[xX×]?\s*[\d.]*$/)) { setSizeError('W×H'); }
                           else { setSizeError(''); }
                         }}
-                        placeholder='e.g. 3.5 x 2"'
-                        title="Enter width × height in inches (e.g. 3.5 x 2)"
-                        className={`w-full px-3 py-2 text-sm bg-white border ${sizeError ? 'border-red-400' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]`}
+                        placeholder='e.g. 3.5x2'
+                        title="Width × Height in inches (e.g. 3.5 x 2)"
+                        className={`w-full px-2 py-2 text-[13px] bg-white border ${sizeError ? 'border-red-400' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]`}
                       />
                       {sizeError
                         ? <p className="text-[9px] text-red-500 mt-0.5">{sizeError}</p>
-                        : <p className="text-[9px] text-gray-400 mt-0.5">Width × Height in inches</p>
+                        : <p className="text-[9px] text-gray-400 mt-0.5">W × H inches</p>
                       }
                     </div>
 
-                    {/* SIDES & COLOR — combined dropdown */}
+                    {/* SIDES & COLOR — combined dropdown, needs the most room */}
                     {(() => {
-                      // Derive current combined value from materialEntries
                       const e0 = materialEntries[0];
                       const curSides = e0?.sides ?? ps.sides;
                       const curColor = e0?.colorMode ?? ps.colorMode;
@@ -2307,7 +2306,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           const c = val.slice(2) as 'Color' | 'Black';
                           updated[0] = { ...updated[0], sides: 'Single', colorMode: c, colorModeSide2: c };
                         } else {
-                          // "2-Color-Color", "2-Color-Black", "2-Black-Black"
                           const parts = val.split('-');
                           const c1 = parts[1] as 'Color' | 'Black';
                           const c2 = parts[2] as 'Color' | 'Black';
@@ -2317,18 +2315,18 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       };
 
                       return (
-                        <div className="flex-[2.8] min-w-0">
+                        <div className="flex-[2.6] min-w-0">
                           <label className="block text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">SIDES &amp; COLOR</label>
                           <select
                             value={combinedValue}
                             onChange={e => handleCombinedChange(e.target.value)}
-                            className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] cursor-pointer"
+                            className="w-full px-2 py-2 text-[13px] bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] cursor-pointer"
                           >
                             <option value="1-Color">1 Side: Color</option>
                             <option value="1-Black">1 Side: Black</option>
-                            <option value="2-Color-Color">2 Sides: Color / Color</option>
-                            <option value="2-Color-Black">2 Sides: Color / B&amp;W</option>
-                            <option value="2-Black-Black">2 Sides: B&amp;W / B&amp;W</option>
+                            <option value="2-Color-Color">2 Sides: Color/Color</option>
+                            <option value="2-Color-Black">2 Sides: Color/B&amp;W</option>
+                            <option value="2-Black-Black">2 Sides: B&amp;W/B&amp;W</option>
                           </select>
                         </div>
                       );
