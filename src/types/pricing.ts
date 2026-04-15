@@ -155,7 +155,15 @@ export interface PricingFinishing {
 
   // Pricing model
   costType: 'cost_only' | 'cost_plus_time' | 'time_only';
-  chargeBasis: 'per_unit' | 'per_sqft' | 'per_hour' | 'per_stack' | 'flat';
+  chargeBasis: 'per_unit' | 'per_sqft' | 'per_hour' | 'per_stack' | 'flat' | 'per_perimeter';
+
+  // Perimeter-based charging (grommets, hemming, edge-binding, etc.)
+  // Only relevant when chargeBasis === 'per_perimeter'
+  perimeterMode?: 'full' | 'interval';
+  // 'full'     → charge covers entire perimeter (e.g. hemming): cost = perimeter × unitCost
+  // 'interval' → items placed every N inches around the perimeter (e.g. grommets every 12"):
+  //               count = ceil(perimeter / intervalInches), cost = count × unitCost
+  perimeterIntervalInches?: number;  // spacing between items (interval mode only)
 
   // Cost fields
   unitCost: number;                // cost per unit/sqft/pass/flat (used for cost_only or cost_plus_time)

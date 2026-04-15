@@ -743,10 +743,50 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       const svc = finishing.find(f => f.id === fid);
       if (!svc) return;
 
-      // Determine quantity — use effective sheets for cut-type ops, otherwise pieces
+      const setupFee = svc.initialSetupFee ?? 0;
+
+      // ── Perimeter-based finishing (grommets, hemming, edge-binding, etc.) ──
+      if (svc.chargeBasis === 'per_perimeter') {
+        // Perimeter needs item dimensions; skip if not set
+        if (ps.finalWidth <= 0 || ps.finalHeight <= 0) return;
+        const perimeterInches = 2 * (ps.finalWidth + ps.finalHeight);
+        const perimeterMode = svc.perimeterMode ?? 'full';
+        let chargeQty: number;
+        let unitLabel: string;
+        let description: string;
+
+        if (perimeterMode === 'interval') {
+          const interval = svc.perimeterIntervalInches ?? 12;
+          chargeQty = Math.ceil(perimeterInches / interval);
+          unitLabel = 'items';
+          description = `${svc.name} — ${chargeQty} items (${perimeterInches}" perimeter ÷ ${interval}" spacing)`;
+        } else {
+          chargeQty = perimeterInches;
+          unitLabel = 'in';
+          description = `${svc.name} — ${perimeterInches}" perimeter (${ps.finalWidth}"×${ps.finalHeight}")`;
+        }
+
+        const costPerUnit = svc.unitCost;
+        const varCost = chargeQty * costPerUnit;
+        const totalCost = varCost + setupFee;
+        const rcRate = lookupServiceSellRate(svc, chargeQty);
+        const baseSell = rcRate !== null
+          ? chargeQty * rcRate
+          : Math.max(varCost * (1 + svc.markupPercent / 100), svc.minimumCharge ?? 0);
+        const sellPrice = baseSell + setupFee;
+        const markupPct = totalCost > 0 ? ((sellPrice - totalCost) / totalCost) * 100 : 0;
+        lines.push({
+          id: slId(`finishing_${fid}`, idx), service: 'Finishing',
+          description,
+          quantity: chargeQty, unit: unitLabel, unitCost: costPerUnit,
+          totalCost, markupPercent: markupPct, sellPrice, editable: true,
+        });
+        return;
+      }
+
+      // ── Standard finishing service ────────────────────────────────────────
       const qty = ps.quantity;
       const hours = svc.outputPerHour > 0 ? qty / svc.outputPerHour : 0;
-      const setupFee = svc.initialSetupFee ?? 0;
       const varCost = svc.pricingMode === 'fixed'
         ? (svc.fixedChargeCost ?? 0)
         : hours * svc.hourlyCost;
@@ -1108,8 +1148,25 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         if (handledFIds.has(fid)) return;
         const svc = finishing.find(f => f.id === fid);
         if (!svc) return;
-        const hours = svc.outputPerHour > 0 ? qty / svc.outputPerHour : 0;
         const setupFee = svc.initialSetupFee ?? 0;
+
+        // Perimeter-based
+        if (svc.chargeBasis === 'per_perimeter') {
+          if (ps.finalWidth <= 0 || ps.finalHeight <= 0) return;
+          const perimeterInches = 2 * (ps.finalWidth + ps.finalHeight);
+          const mode = svc.perimeterMode ?? 'full';
+          const chargeQty = mode === 'interval'
+            ? Math.ceil(perimeterInches / (svc.perimeterIntervalInches ?? 12))
+            : perimeterInches;
+          const varCost = chargeQty * svc.unitCost;
+          const totalCost = varCost + setupFee;
+          const rcRate = lookupServiceSellRate(svc, chargeQty);
+          const baseSell = rcRate !== null ? chargeQty * rcRate : Math.max(varCost * (1 + svc.markupPercent / 100), svc.minimumCharge ?? 0);
+          tCost += totalCost; tSell += baseSell + setupFee;
+          return;
+        }
+
+        const hours = svc.outputPerHour > 0 ? qty / svc.outputPerHour : 0;
         const varCost = svc.pricingMode === 'fixed' ? (svc.fixedChargeCost ?? 0) : hours * svc.hourlyCost;
         const totalCost = varCost + setupFee;
         const rcRate = lookupServiceSellRate(svc, qty);

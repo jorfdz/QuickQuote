@@ -13,12 +13,13 @@ import { nanoid } from '../../utils/nanoid';
 const fmt = (n: number) => `$${n.toFixed(n < 1 && n > 0 ? 3 : 2)}`;
 const pct = (n: number) => `${n.toFixed(1)}%`;
 
-const CHARGE_BASIS_OPTIONS: { value: PricingFinishing['chargeBasis']; label: string }[] = [
-  { value: 'per_unit', label: 'Per Unit' },
-  { value: 'per_sqft', label: 'Per Sq Ft' },
-  { value: 'per_hour', label: 'Per Hour' },
-  { value: 'per_stack', label: 'Per Stack' },
-  { value: 'flat', label: 'Flat Rate' },
+const CHARGE_BASIS_OPTIONS: { value: PricingFinishing['chargeBasis']; label: string; tip?: string }[] = [
+  { value: 'per_unit',      label: 'Per Unit' },
+  { value: 'per_sqft',      label: 'Per Sq Ft' },
+  { value: 'per_hour',      label: 'Per Hour' },
+  { value: 'per_stack',     label: 'Per Stack' },
+  { value: 'flat',          label: 'Flat Rate' },
+  { value: 'per_perimeter', label: 'Per Perimeter', tip: 'Charge based on the perimeter of the finished piece. Use "Full" for hemming (entire perimeter × rate) or "Interval" for grommets/eyelets (items placed every N inches around the perimeter).' },
 ];
 
 const COST_TYPE_OPTIONS: { value: PricingFinishing['costType']; label: string }[] = [
@@ -62,6 +63,9 @@ const emptyForm = {
   sheetsPerStack: 500,
   stacksPerHour: 150,
   notes: '',
+  // ── Perimeter-specific ──
+  perimeterMode: 'full' as 'full' | 'interval',
+  perimeterIntervalInches: 12,
   // ── Sell-side pricing ──
   pricingMode: 'cost_markup' as ServicePricingMode,
   sellRate: 0,
@@ -256,6 +260,8 @@ export const Finishing: React.FC = () => {
       pricingMode: mode,
       sellRate: f.sellRate ?? 0,
       sellRateTiers: f.sellRateTiers ? [...f.sellRateTiers] : [],
+      perimeterMode: f.perimeterMode ?? 'full',
+      perimeterIntervalInches: f.perimeterIntervalInches ?? 12,
     });
     setShowTestPanel(false);
     setShowModal(true);
@@ -290,6 +296,9 @@ export const Finishing: React.FC = () => {
       sheetsPerStack: form.chargeBasis === 'per_stack' ? form.sheetsPerStack : undefined,
       stacksPerHour: form.chargeBasis === 'per_stack' ? form.stacksPerHour : undefined,
       notes: form.notes || undefined,
+      // Perimeter-specific
+      perimeterMode: form.chargeBasis === 'per_perimeter' ? form.perimeterMode : undefined,
+      perimeterIntervalInches: form.chargeBasis === 'per_perimeter' && form.perimeterMode === 'interval' ? form.perimeterIntervalInches : undefined,
       // Sell-side pricing
       pricingMode: form.pricingMode,
       sellRate: form.pricingMode === 'rate_card' ? form.sellRate : undefined,
@@ -335,6 +344,8 @@ export const Finishing: React.FC = () => {
       pricingMode: mode,
       sellRate: f.sellRate ?? 0,
       sellRateTiers: f.sellRateTiers ? [...f.sellRateTiers] : [],
+      perimeterMode: f.perimeterMode ?? 'full',
+      perimeterIntervalInches: f.perimeterIntervalInches ?? 12,
     });
     setShowTestPanel(false);
     setShowModal(true);
@@ -926,6 +937,101 @@ export const Finishing: React.FC = () => {
                     {form.hourlyCost > 0 && (form.stacksPerHour || 0) > 0 && (form.sheetsPerStack || 0) > 0 && (
                       <div className="text-[11px] text-gray-500 bg-gray-50 rounded-md px-3 py-1.5">
                         Cost per sheet: <span className="font-semibold text-gray-900">{fmt(form.hourlyCost / (form.stacksPerHour || 150) / (form.sheetsPerStack || 500))}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Perimeter Basis Fields ─────────────────────────────────── */}
+                {form.chargeBasis === 'per_perimeter' && (
+                  <div className="space-y-3">
+                    {/* Mode selector */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                        <Tip label="Perimeter Mode" tip="Full: charge covers the entire perimeter (e.g. hemming). Interval: items are placed every N inches around the perimeter (e.g. grommets every 12&quot;)." />
+                      </label>
+                      <div className="flex gap-2">
+                        {(['full', 'interval'] as const).map(mode => (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setForm(f => ({ ...f, perimeterMode: mode }))}
+                            className={`flex-1 py-2 px-3 text-sm rounded-lg border font-medium transition-all ${
+                              form.perimeterMode === mode
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                            }`}
+                          >
+                            {mode === 'full' ? '⬤ Full Perimeter' : '◎ Interval'}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        {form.perimeterMode === 'full'
+                          ? 'Cost = perimeter (inches) × unit cost. Used for hemming, edge-binding, vinyl borders, etc.'
+                          : 'Items placed every N inches around the perimeter. Count = ⌈perimeter ÷ interval⌉. Used for grommets, eyelets, snaps, etc.'}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                      {/* Unit cost (cost per linear inch for full, cost per item for interval) */}
+                      <Input
+                        label={form.perimeterMode === 'full' ? 'Cost per Linear Inch ($)' : 'Cost per Item ($)'}
+                        type="number"
+                        value={form.unitCost || ''}
+                        onChange={e => setForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))}
+                        prefix="$"
+                      />
+
+                      {/* Interval spacing — only for interval mode */}
+                      {form.perimeterMode === 'interval' && (
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                            <Tip label="Spacing (inches)" tip="Distance between each item around the perimeter. e.g. 12 = one grommet every 12 inches." />
+                          </label>
+                          <input
+                            type="number" min="1" step="0.5"
+                            value={form.perimeterIntervalInches || ''}
+                            onChange={e => setForm(f => ({ ...f, perimeterIntervalInches: parseFloat(e.target.value) || 12 }))}
+                            placeholder="e.g. 12"
+                            className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          <p className="text-[9px] text-gray-400 mt-0.5">inches between each item</p>
+                        </div>
+                      )}
+
+                      {/* Markup */}
+                      <Input label="Markup %" type="number" value={form.markupPercent || ''}
+                        onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))} suffix="%" />
+                    </div>
+
+                    {/* Live preview */}
+                    {form.unitCost > 0 && (
+                      <div className="text-[11px] text-gray-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 space-y-0.5">
+                        <p className="font-semibold text-blue-800">Example — 24" × 36" piece (2 ft × 3 ft)</p>
+                        {(() => {
+                          const w = 24, h = 36;
+                          const perimeter = 2 * (w + h); // 120"
+                          if (form.perimeterMode === 'full') {
+                            const cost = perimeter * form.unitCost;
+                            const sell = cost * (1 + form.markupPercent / 100);
+                            return <>
+                              <p>Perimeter: <span className="font-medium">{perimeter}" ({(perimeter / 12).toFixed(1)} ft)</span></p>
+                              <p>Cost: <span className="font-medium">{perimeter}" × {fmt(form.unitCost)}/in = <span className="text-blue-900">{fmt(cost)}</span></span></p>
+                              <p>Sell: <span className="font-bold text-emerald-700">{fmt(sell)}</span></p>
+                            </>;
+                          } else {
+                            const interval = form.perimeterIntervalInches || 12;
+                            const count = Math.ceil(perimeter / interval);
+                            const cost = count * form.unitCost;
+                            const sell = cost * (1 + form.markupPercent / 100);
+                            return <>
+                              <p>Perimeter: <span className="font-medium">{perimeter}" ÷ {interval}" = <span className="text-blue-900 font-bold">{count} items</span></span></p>
+                              <p>Cost: <span className="font-medium">{count} × {fmt(form.unitCost)} = <span className="text-blue-900">{fmt(cost)}</span></span></p>
+                              <p>Sell: <span className="font-bold text-emerald-700">{fmt(sell)}</span></p>
+                            </>;
+                          }
+                        })()}
                       </div>
                     )}
                   </div>
