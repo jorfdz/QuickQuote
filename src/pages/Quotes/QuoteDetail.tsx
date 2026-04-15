@@ -334,6 +334,7 @@ export const QuoteDetail: React.FC = () => {
   const [showDelete, setShowDelete] = useState(false);
   const [showConvertConfirm, setShowConvertConfirm] = useState(false);
   const [showCloneConfirm, setShowCloneConfirm] = useState(false);
+  const [showSendDialog, setShowSendDialog] = useState(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const convertRef = useRef<HTMLDivElement>(null);
