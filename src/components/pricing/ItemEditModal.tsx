@@ -2169,17 +2169,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                 {/* ── Left: Description ────────────────────────────── */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Description</label>
-                    <button
-                      type="button"
-                      onClick={() => setShowRichEditor(true)}
-                      title="Open rich-text editor"
-                      className="text-[10px] text-gray-400 hover:text-gray-700 transition-colors"
-                    >
-                      Rich text
-                    </button>
-                  </div>
+                  <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wide mb-1.5">Description</label>
 
                   {/* Show rich HTML preview when richDescription exists; plain textarea otherwise */}
                   {(item as any).richDescription ? (
@@ -2187,7 +2177,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       onClick={() => setShowRichEditor(true)}
                       title="Click to edit in rich-text editor"
                       className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg cursor-pointer hover:border-[#F890E7] transition-colors min-h-[60px] leading-snug overflow-hidden"
-                      // Render the saved HTML — inline styles (bold, italic, color) show directly
                       dangerouslySetInnerHTML={{ __html: (item as any).richDescription }}
                       style={{ maxHeight: '80px', overflowY: 'auto' }}
                     />
@@ -2201,20 +2190,32 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     />
                   )}
 
-                  <div className="flex items-center justify-between mt-1">
+                  {/* Bottom row: Auto-describe checkbox  ·  Rich text  ·  Clear rich text */}
+                  <div className="flex items-center gap-3 mt-1">
                     <label className="flex items-center gap-1.5 text-[10px] text-gray-400 cursor-pointer">
                       <input type="checkbox" checked={autoDescribe} onChange={e => { setAutoDescribe(e.target.checked); if (e.target.checked) onUpdateItem({ description: buildDescription(), richDescription: undefined } as any); }} className="w-3 h-3 rounded border-gray-300 text-[#F890E7] focus:ring-[#F890E7]" />
                       Auto-describe
                     </label>
-                    {/* Clear rich formatting link — only shown when richDescription is active */}
+                    <span className="text-gray-200 text-[10px]">·</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowRichEditor(true)}
+                      title="Open rich-text editor"
+                      className="text-[10px] text-gray-400 hover:text-gray-700 transition-colors"
+                    >
+                      Rich text
+                    </button>
                     {(item as any).richDescription && (
-                      <button
-                        type="button"
-                        onClick={() => onUpdateItem({ richDescription: undefined } as any)}
-                        className="text-[10px] text-gray-300 hover:text-gray-500 transition-colors"
-                      >
-                        Clear rich text
-                      </button>
+                      <>
+                        <span className="text-gray-200 text-[10px]">·</span>
+                        <button
+                          type="button"
+                          onClick={() => onUpdateItem({ richDescription: undefined } as any)}
+                          className="text-[10px] text-gray-300 hover:text-gray-500 transition-colors"
+                        >
+                          Clear
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
