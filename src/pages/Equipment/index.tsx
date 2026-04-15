@@ -746,9 +746,9 @@ export const Equipment: React.FC = () => {
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Color</label>
                 <select value={equipForm.colorCapability} onChange={e => setEquipForm(f => ({ ...f, colorCapability: e.target.value as any }))}
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
-                  <option value="Color and Black">Color + B&W</option>
+                  <option value="Color and Black">Color and Black</option>
                   <option value="Color">Color Only</option>
-                  <option value="Black">B&W Only</option>
+                  <option value="Black">Black Only</option>
                 </select>
               </div>
             </div>
@@ -820,7 +820,9 @@ export const Equipment: React.FC = () => {
                     {equipForm.colorCapability === 'Color and Black' ? (
                       <>
                         <div className="w-28">
-                          <label className="block text-[10px] font-semibold text-blue-500 uppercase tracking-wide mb-1">Color Cost</label>
+                          <label className="block text-[10px] font-semibold text-blue-500 uppercase tracking-wide mb-1">
+                            {equipForm.costUnit === 'per_click' ? 'Color Click Cost' : 'Color Cost/Sq.Ft.'}
+                          </label>
                           <div className="relative">
                             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">$</span>
                             <input
@@ -842,7 +844,9 @@ export const Equipment: React.FC = () => {
                           </div>
                         </div>
                         <div className="w-28">
-                          <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">B&W Cost</label>
+                          <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                            {equipForm.costUnit === 'per_click' ? 'Black Click Cost' : 'Black Cost/Sq.Ft.'}
+                          </label>
                           <div className="relative">
                             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">$</span>
                             <input
@@ -975,7 +979,7 @@ export const Equipment: React.FC = () => {
                                 ? ((equipForm.colorUnitCost||0) * (1 + equipForm.markupMultiplier/100)).toFixed(3)
                                 : ((equipForm.colorUnitCost||0) * equipForm.markupMultiplier).toFixed(3)}
                             </span>{' · '}
-                            <span className="text-gray-500">B&W</span>{' '}
+                            <span className="text-gray-500">Black</span>{' '}
                             <span className="font-bold text-emerald-700">
                               ${equipForm.markupType === 'percent'
                                 ? ((equipForm.blackUnitCost||0) * (1 + equipForm.markupMultiplier/100)).toFixed(3)
@@ -1088,7 +1092,7 @@ export const Equipment: React.FC = () => {
                           {(['Color', 'Black'] as const).map(m => (
                             <button key={m} type="button" onClick={() => setTestColorMode(m)}
                               className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${testColorMode === m ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-100'}`}>
-                              {m === 'Color' ? '🔵 Color' : '⚫ B&W'}
+                              {m === 'Color' ? '🔵 Color' : '⚫ Black'}
                             </button>
                           ))}
                         </div>
