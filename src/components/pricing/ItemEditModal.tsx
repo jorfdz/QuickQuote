@@ -2216,10 +2216,14 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                   {/* Dropdown panel */}
                   {materialDropdownOpen && (() => {
-                    // Determine which materials are "favorites" for this product/category
+                    // Determine which materials are "favorites" for this product/category.
+                    // When isProductCreation=true, ps.productId is '' (new product has no ID yet).
+                    // Fall back to matching by product name against the catalog, then by category.
                     const catId = categories.find(c => c.name === ps.categoryName)?.id;
+                    const resolvedProductId = ps.productId ||
+                      (ps.productName ? products.find(p => p.name.toLowerCase() === ps.productName.toLowerCase())?.id : undefined);
                     const isFav = (m: typeof materials[0]) =>
-                      (ps.productId && m.favoriteProductIds?.includes(ps.productId)) ||
+                      (resolvedProductId && m.favoriteProductIds?.includes(resolvedProductId)) ||
                       (catId && m.favoriteCategoryIds?.includes(catId));
 
                     // Filter by search query (name, size, description)
@@ -2292,7 +2296,13 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                 <>
                                   <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50/60">
                                     <Star className="w-3 h-3 text-amber-400 fill-amber-400 flex-shrink-0" />
-                                    <span className="text-[9px] font-bold text-amber-600 uppercase tracking-wider">Favorites for {ps.productName || 'this product'}</span>
+                                    <span className="text-[9px] font-bold text-amber-600 uppercase tracking-wider">
+                                      {resolvedProductId
+                                        ? `Favorites for ${ps.productName || 'this product'}`
+                                        : catId
+                                          ? `Favorites for ${ps.categoryName || 'this category'}`
+                                          : 'Favorite Materials'}
+                                    </span>
                                   </div>
                                   {favs.map(m => <MatRow key={m.id} m={m} />)}
                                   {/* Divider */}
