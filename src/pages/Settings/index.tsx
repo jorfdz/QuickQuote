@@ -960,6 +960,111 @@ export const Settings: React.FC = () => {
         </div>
       )}
 
+      {/* ── EMAIL TAB ──────────────────────────────────────────────────── */}
+      {activeTab === 'email' && (
+        <div className="space-y-6 max-w-2xl">
+          <Card className="p-6">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="p-2 bg-[#F890E7]/10 rounded-lg">
+                <Send className="w-5 h-5 text-[#F890E7]" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Outbound Email</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Configure the email account used to send quotes to clients. Supports SMTP, IMAP, and Exchange (Office 365).</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* Sender identity */}
+              <div className="pb-4 border-b border-gray-100">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-3">Sender Identity</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input label="From Name" value={emailCfg.fromName} onChange={e => setEmailCfg((c: typeof emailCfg) => ({ ...c, fromName: e.target.value }))} placeholder="Acme Print Shop" />
+                  <Input label="From Email" value={emailCfg.fromEmail} onChange={e => setEmailCfg((c: typeof emailCfg) => ({ ...c, fromEmail: e.target.value }))} placeholder="quotes@acmeprint.com" />
+                </div>
+              </div>
+
+              {/* Protocol */}
+              <div className="pb-4 border-b border-gray-100">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-3">Connection Protocol</p>
+                <div className="flex gap-2">
+                  {(['smtp', 'imap', 'exchange'] as const).map(p => (
+                    <button key={p} type="button"
+                      onClick={() => setEmailCfg((c: typeof emailCfg) => ({ ...c, protocol: p, port: p === 'exchange' ? 443 : p === 'imap' ? 993 : 587 }))}
+                      className={`px-3 py-1.5 text-sm rounded-lg border font-medium transition-all ${emailCfg.protocol === p ? 'bg-[#F890E7]/10 border-[#F890E7] text-[#c060b8]' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                      {p === 'smtp' ? 'SMTP' : p === 'imap' ? 'IMAP' : 'Exchange / O365'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Server details */}
+              <div className="pb-4 border-b border-gray-100">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-3">Server Details</p>
+                {emailCfg.protocol === 'exchange' ? (
+                  <div className="space-y-3">
+                    <div className="p-3 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-700">
+                      Exchange / Office 365 uses modern OAuth authentication. You'll need an Azure AD App Registration with Mail.Send permission. Your IT admin can provide the Tenant ID and Client ID.
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input label="Tenant ID (Azure AD)" value={emailCfg.exchangeTenantId || ''} onChange={e => setEmailCfg((c: typeof emailCfg) => ({ ...c, exchangeTenantId: e.target.value }))} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                      <Input label="Client ID (App Registration)" value={emailCfg.exchangeClientId || ''} onChange={e => setEmailCfg((c: typeof emailCfg) => ({ ...c, exchangeClientId: e.target.value }))} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                    </div>
+                    <Input label="Username (email address)" value={emailCfg.username} onChange={e => setEmailCfg((c: typeof emailCfg) => ({ ...c, username: e.target.value }))} placeholder="you@company.onmicrosoft.com" />
+                    <Input label="Password / App Password" type="password" value={emailCfg.password} onChange={e => setEmailCfg((c: typeof emailCfg) => ({ ...c, password: e.target.value }))} placeholder="••••••••••••" />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="col-span-2">
+                        <Input label={`${emailCfg.protocol.toUpperCase()} Host`} value={emailCfg.host} onChange={e => setEmailCfg((c: typeof emailCfg) => ({ ...c, host: e.target.value }))} placeholder={emailCfg.protocol === 'imap' ? 'imap.gmail.com' : 'smtp.gmail.com'} />
+                      </div>
+                      <Input label="Port" type="number" value={String(emailCfg.port)} onChange={e => setEmailCfg((c: typeof emailCfg) => ({ ...c, port: parseInt(e.target.value) || 587 }))} placeholder="587" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input label="Username" value={emailCfg.username} onChange={e => setEmailCfg((c: typeof emailCfg) => ({ ...c, username: e.target.value }))} placeholder="you@gmail.com" />
+                      <Input label="Password / App Password" type="password" value={emailCfg.password} onChange={e => setEmailCfg((c: typeof emailCfg) => ({ ...c, password: e.target.value }))} placeholder="••••••••••••" />
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={emailCfg.useSSL} onChange={e => setEmailCfg((c: typeof emailCfg) => ({ ...c, useSSL: e.target.checked }))} className="w-4 h-4 rounded border-gray-300 text-[#F890E7] focus:ring-[#F890E7]" />
+                      <span className="text-sm text-gray-700">Use SSL/TLS encryption</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* Test + Save */}
+              <div className="flex items-center justify-between pt-1">
+                <button type="button" onClick={handleTestEmail}
+                  disabled={emailTestStatus === 'testing' || !emailCfg.host}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-gray-200 text-gray-600 hover:text-gray-900 hover:border-gray-300 rounded-lg transition-colors disabled:opacity-40">
+                  {emailTestStatus === 'testing' ? (
+                    <><span className="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" /> Testing…</>
+                  ) : emailTestStatus === 'ok' ? (
+                    <><CheckCircle className="w-4 h-4 text-emerald-500" /> Connection OK</>
+                  ) : emailTestStatus === 'fail' ? (
+                    <><AlertCircle className="w-4 h-4 text-red-500" /> Test Failed — check settings</>
+                  ) : (
+                    <><Send className="w-3.5 h-3.5" /> Test Connection</>
+                  )}
+                </button>
+                <Button variant="primary" onClick={saveEmailSettings}>Save Email Settings</Button>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-5 bg-amber-50 border-amber-200">
+            <div className="flex gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-800">
+                <p className="font-semibold mb-1">Security note</p>
+                <p>Passwords are stored in your browser's local storage and are never sent to any external server. For production use, your IT team should configure a dedicated app password or service account with limited Mail.Send permissions only.</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* ── DOCUMENTS TAB ──────────────────────────────────────────────── */}
       {activeTab === 'documents' && (
         <div className="space-y-6 max-w-4xl">
