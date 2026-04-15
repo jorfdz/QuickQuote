@@ -52,6 +52,8 @@ export const Catalog: React.FC = () => {
   // Store the editing product id separately from the old modal
   const [prodItemEditId, setProdItemEditId] = useState<string | null>(null);
   const [prodItemAliasesStr, setProdItemAliasesStr] = useState('');
+  // User-selected category IDs for the current product being created/edited
+  const [prodSelectedCategoryIds, setProdSelectedCategoryIds] = useState<string[]>([]);
 
   // ── Template state ─────────────────────────────────────────────────────
   const [tplDeleteConfirm, setTplDeleteConfirm] = useState<string | null>(null);
@@ -206,6 +208,8 @@ export const Catalog: React.FC = () => {
     setProdPricingState(DEFAULT_PRICING_STATE());
     setProdItemEditId(null);
     setProdItemAliasesStr('');
+    // Pre-select the current category filter if one is active
+    setProdSelectedCategoryIds(prodCategoryFilter !== 'all' ? [prodCategoryFilter] : []);
     setProdItemModalOpen(true);
   };
 
@@ -267,6 +271,8 @@ export const Catalog: React.FC = () => {
     setProdPricingState(ps);
     setProdItemEditId(p.id);
     setProdItemAliasesStr(p.aliases.join(', '));
+    // Restore the product's existing category assignments for editing
+    setProdSelectedCategoryIds(p.categoryIds || []);
     setProdItemModalOpen(true);
   };
 
@@ -287,14 +293,12 @@ export const Catalog: React.FC = () => {
   const handleSaveProductFromModal = (finalItem: QuoteLineItem, finalPs: LineItemPricingState) => {
     const w = finalPs.finalWidth || finalItem.width || 0;
     const h = finalPs.finalHeight || finalItem.height || 0;
-    let categoryIds: string[] = [];
-    if (prodItemEditId) {
-      categoryIds = products.find(p => p.id === prodItemEditId)?.categoryIds || [];
-    } else if (prodCategoryFilter !== 'all') {
-      categoryIds = [prodCategoryFilter];
-    } else if (categories.length > 0) {
-      categoryIds = [categories[0].id];
-    }
+    // Use the category IDs the user explicitly selected in the modal
+    const categoryIds = prodSelectedCategoryIds.length > 0
+      ? prodSelectedCategoryIds
+      : prodItemEditId
+        ? (products.find(p => p.id === prodItemEditId)?.categoryIds || [])
+        : prodCategoryFilter !== 'all' ? [prodCategoryFilter] : (categories.length > 0 ? [categories[0].id] : []);
     const productDefaults = {
       categoryIds,
       name: finalItem.description || finalPs.productName || 'New Product',
@@ -539,6 +543,9 @@ export const Catalog: React.FC = () => {
           pricingState={prodPricingState}
           isNew={!prodItemEditId}
           isProductCreation={!prodItemEditId}
+          selectedCategoryIds={prodSelectedCategoryIds}
+          allCategories={categories}
+          onCategoryIdsChange={setProdSelectedCategoryIds}
           onUpdateItem={updates => {
             setProdItem(prev => prev ? { ...prev, ...updates } : prev);
           }}

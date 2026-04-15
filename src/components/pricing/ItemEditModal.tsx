@@ -99,12 +99,19 @@ interface ProductEditModalProps {
   onRemove: () => void;
   matchingTemplates: ProductPricingTemplate[];
   onApplyTemplate: (tmplId: string) => void;
+  /** Catalog-only: the currently selected category IDs for this product */
+  selectedCategoryIds?: string[];
+  /** Catalog-only: all available categories to choose from */
+  allCategories?: { id: string; name: string }[];
+  /** Catalog-only: called whenever the user changes the category selection */
+  onCategoryIdsChange?: (ids: string[]) => void;
 }
 
 export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   item, pricingState: ps, isNew, isProductCreation = false,
   onUpdateItem, onUpdatePricing, onClose, onRemove,
   matchingTemplates, onApplyTemplate,
+  selectedCategoryIds, allCategories, onCategoryIdsChange,
 }) => {
   const pricing = usePricingStore();
   const { categories, products, equipment, finishing, materials, finishingGroups,
@@ -1979,25 +1986,62 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
               {/* ── Product Name Row ──────────────────────────────────── */}
               {isProductCreation ? (
-                /* ── CATALOG "New Product" mode: free-text name input ── */
-                <div>
-                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-2">
-                    Product Name
-                  </label>
-                  <input
-                    type="text"
-                    value={productQuery}
-                    onChange={e => {
-                      setProductQuery(e.target.value);
-                      // Immediately sync the typed name as productName (no id — it's brand new)
-                      onUpdatePricing({ productId: '', productName: e.target.value });
-                      onUpdateItem({ description: e.target.value });
-                    }}
-                    placeholder="e.g. Business Cards, Trifold Brochure, Poster…"
-                    autoFocus
-                    className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400"
-                  />
-                  <p className="text-[9px] text-gray-400 mt-1">Enter a name for this new product — it won't be looked up from the existing catalog.</p>
+                /* ── CATALOG mode: free-text name + category assignment side-by-side ── */
+                <div className="flex gap-3 items-start">
+                  {/* Product name — takes most of the space */}
+                  <div className="flex-[2] min-w-0">
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
+                      Product Name
+                    </label>
+                    <input
+                      type="text"
+                      value={productQuery}
+                      onChange={e => {
+                        setProductQuery(e.target.value);
+                        onUpdatePricing({ productId: '', productName: e.target.value });
+                        onUpdateItem({ description: e.target.value });
+                      }}
+                      placeholder="e.g. Business Cards, Trifold Brochure…"
+                      autoFocus
+                      className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400"
+                    />
+                  </div>
+
+                  {/* Category assignment — compact, multi-select pill toggles */}
+                  {allCategories && allCategories.length > 0 && onCategoryIdsChange && (
+                    <div className="flex-[1.4] min-w-0">
+                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
+                        Categories
+                      </label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {allCategories.map(cat => {
+                          const selected = (selectedCategoryIds ?? []).includes(cat.id);
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => {
+                                const current = selectedCategoryIds ?? [];
+                                onCategoryIdsChange(
+                                  selected ? current.filter(id => id !== cat.id) : [...current, cat.id]
+                                );
+                              }}
+                              className={`px-2.5 py-1 text-[11px] font-semibold rounded-full border transition-all ${
+                                selected
+                                  ? 'bg-[#F890E7] text-white border-[#F890E7] shadow-sm'
+                                  : 'bg-white text-gray-500 border-gray-200 hover:border-[#F890E7]/50 hover:text-[#c060b8]'
+                              }`}
+                            >
+                              {cat.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {(selectedCategoryIds ?? []).length === 0 && (
+                        <p className="text-[9px] text-amber-500 mt-1">Select at least one category</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* ── QUOTE / ORDER mode: search existing products ── */
