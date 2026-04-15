@@ -542,7 +542,7 @@ export const Catalog: React.FC = () => {
           item={prodItem}
           pricingState={prodPricingState}
           isNew={!prodItemEditId}
-          isProductCreation={!prodItemEditId}
+          isProductCreation={true}
           selectedCategoryIds={prodSelectedCategoryIds}
           allCategories={categories}
           onCategoryIdsChange={setProdSelectedCategoryIds}

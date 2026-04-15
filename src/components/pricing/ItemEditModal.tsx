@@ -2007,13 +2007,20 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     />
                   </div>
 
-                  {/* Category assignment — compact, multi-select pill toggles */}
+                  {/* Category assignment — required, multi-select pill toggles */}
                   {allCategories && allCategories.length > 0 && onCategoryIdsChange && (
                     <div className="flex-[1.4] min-w-0">
-                      <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
-                        Categories
-                      </label>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex items-center gap-1 mb-1.5">
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                          Category
+                        </label>
+                        <span className="text-red-500 text-[10px] font-bold">*</span>
+                      </div>
+                      <div className={`flex flex-wrap gap-1.5 px-2 py-1.5 rounded-lg border transition-colors ${
+                        (selectedCategoryIds ?? []).length === 0
+                          ? 'border-amber-300 bg-amber-50/40'
+                          : 'border-transparent bg-transparent'
+                      }`}>
                         {allCategories.map(cat => {
                           const selected = (selectedCategoryIds ?? []).includes(cat.id);
                           return (
@@ -2029,7 +2036,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               className={`px-2.5 py-1 text-[11px] font-semibold rounded-full border transition-all ${
                                 selected
                                   ? 'bg-[#F890E7] text-white border-[#F890E7] shadow-sm'
-                                  : 'bg-white text-gray-500 border-gray-200 hover:border-[#F890E7]/50 hover:text-[#c060b8]'
+                                  : 'bg-white text-gray-500 border-gray-200 hover:border-[#F890E7]/60 hover:text-[#c060b8]'
                               }`}
                             >
                               {cat.name}
@@ -2038,7 +2045,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         })}
                       </div>
                       {(selectedCategoryIds ?? []).length === 0 && (
-                        <p className="text-[9px] text-amber-500 mt-1">Select at least one category</p>
+                        <p className="text-[9px] text-amber-600 font-medium mt-1 flex items-center gap-0.5">
+                          <span>⚠</span> Required — select at least one
+                        </p>
                       )}
                     </div>
                   )}
@@ -3550,7 +3559,22 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 Save All Parts ({parts.length})
               </Button>
             ) : (
-              <Button variant="primary" onClick={onClose}>Done</Button>
+              <div className="flex items-center gap-3">
+                {/* Catalog mode: require at least one category before saving */}
+                {isProductCreation && allCategories && (selectedCategoryIds ?? []).length === 0 && (
+                  <span className="text-[11px] text-amber-600 font-medium flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+                    Assign at least one category
+                  </span>
+                )}
+                <Button
+                  variant="primary"
+                  onClick={onClose}
+                  disabled={isProductCreation && allCategories && (selectedCategoryIds ?? []).length === 0}
+                >
+                  Done
+                </Button>
+              </div>
             )}
           </div>
         </div>
