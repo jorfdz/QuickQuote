@@ -1464,12 +1464,24 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const drillingOptions = finishing.filter(f => f.finishingGroupIds?.includes('fg3')).map(f => f.name);
 
   // Grouped finishing services for dynamic finishing UI
+  // ── Category-scoped service helpers ──────────────────────────────────
+  // A service is "relevant" to the current product category if:
+  //   • It has no category restrictions (categoryIds is empty — available everywhere), OR
+  //   • It explicitly lists the current category ID.
+  // A group is "relevant" if at least one of its services is relevant.
+  const currentCatId = useMemo(
+    () => categories.find(c => c.name === ps.categoryName)?.id,
+    [categories, ps.categoryName]
+  );
+
+  const isServiceRelevant = useCallback(
+    (svcCategoryIds: string[]) =>
+      !currentCatId || svcCategoryIds.length === 0 || svcCategoryIds.includes(currentCatId),
+    [currentCatId]
+  );
+
   const groupedFinishing = useMemo(() => {
-    // Filter finishing by current category if we have one
-    const catId = categories.find(c => c.name === ps.categoryName)?.id;
-    const relevantFinishing = catId
-      ? finishing.filter(f => f.categoryIds.length === 0 || f.categoryIds.includes(catId))
-      : finishing;
+    const relevantFinishing = finishing.filter(f => isServiceRelevant(f.categoryIds ?? []));
 
     const groups: Array<{ group: { id: string; name: string }; services: typeof finishing }> = [];
     const assignedIds = new Set<string>();
@@ -1489,7 +1501,31 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     }
 
     return groups;
-  }, [finishing, finishingGroups, categories, ps.categoryName]);
+  }, [finishing, finishingGroups, isServiceRelevant]);
+
+  // Category-filtered labor services and groups
+  const relevantLabor = useMemo(
+    () => pricing.labor.filter(l => isServiceRelevant(l.categoryIds ?? [])),
+    [pricing.labor, isServiceRelevant]
+  );
+  const relevantLaborGroups = useMemo(
+    () => pricing.laborGroups.filter(lg =>
+      relevantLabor.some(l => l.laborGroupIds?.includes(lg.id))
+    ),
+    [pricing.laborGroups, relevantLabor]
+  );
+
+  // Category-filtered brokered services and groups
+  const relevantBrokered = useMemo(
+    () => pricing.brokered.filter(b => isServiceRelevant(b.categoryIds ?? [])),
+    [pricing.brokered, isServiceRelevant]
+  );
+  const relevantBrokeredGroups = useMemo(
+    () => pricing.brokeredGroups.filter(bg =>
+      relevantBrokered.some(b => b.brokeredGroupIds?.includes(bg.id))
+    ),
+    [pricing.brokeredGroups, relevantBrokered]
+  );
 
   // ── Cost/Markup/Margin summary ────────────────────────────────────────
   // Always derive totals from ps.serviceLines (same source as the individual row display)
@@ -2467,7 +2503,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       if (!svc) return null;
                       return (
                         <span key={id} className="inline-flex flex-col gap-0.5">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold border transition-all ${
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border shadow-sm transition-all ${
                             note ? 'bg-purple-200 text-purple-800 border-purple-300' : 'bg-purple-100 text-purple-700 border-purple-200'
                           }`}>
                             <button
@@ -2478,7 +2514,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                             >
                               <Edit3 className="w-2 h-2 opacity-50" />
                               {svc.name}
-                              {note && <span className="w-1 h-1 rounded-full bg-purple-600 ml-0.5 flex-shrink-0" />}
+                              {note && <span className="w-1.5 h-1.5 rounded-full bg-purple-600 ml-0.5 flex-shrink-0" />}
                             </button>
                             <button
                               type="button"
@@ -2552,8 +2588,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   )}
                 </div>
 
-                {/* ── LABOR ─────────────────────────────────────────────── */}
-                {pricing.labor.length > 0 && (
+                {/* ── LABOR — only show if there are category-relevant labor services ── */}
+                {relevantLabor.length > 0 && (
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2 flex-wrap">
                       <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -2566,7 +2602,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         if (!svc) return null;
                         return (
                           <span key={id} className="inline-flex flex-col gap-0.5">
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold border transition-all ${
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border shadow-sm transition-all ${
                               note ? 'bg-blue-200 text-blue-800 border-blue-300' : 'bg-blue-100 text-blue-700 border-blue-200'
                             }`}>
                               <button
@@ -2577,7 +2613,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               >
                                 <Edit3 className="w-2 h-2 opacity-50" />
                                 {svc.name}
-                                {note && <span className="w-1 h-1 rounded-full bg-blue-600 ml-0.5 flex-shrink-0" />}
+                                {note && <span className="w-1.5 h-1.5 rounded-full bg-blue-600 ml-0.5 flex-shrink-0" />}
                               </button>
                               <button type="button" onClick={() => { setSelectedLaborIds(prev => prev.filter(x => x !== id)); setServiceNotes(prev => { const n = { ...prev }; delete n[id]; return n; }); }} className="hover:text-blue-900 ml-0.5">
                                 <X className="w-2.5 h-2.5" />
@@ -2600,11 +2636,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       })}
                     </div>
 
-                    {/* One dropdown per labor group */}
-                    {pricing.laborGroups.length > 0 && (
+                    {/* One dropdown per category-relevant labor group */}
+                    {relevantLaborGroups.length > 0 && (
                       <div className="flex flex-wrap gap-2">
-                        {pricing.laborGroups.map(lg => {
-                          const available = pricing.labor.filter(l => l.laborGroupIds?.includes(lg.id) && !selectedLaborIds.includes(l.id));
+                        {relevantLaborGroups.map(lg => {
+                          const available = relevantLabor.filter(l => l.laborGroupIds?.includes(lg.id) && !selectedLaborIds.includes(l.id));
                           return (
                             <div key={lg.id} className="relative min-w-[140px] max-w-[200px] flex-1">
                               <select
@@ -2625,8 +2661,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   </div>
                 )}
 
-                {/* ── BROKERED ──────────────────────────────────────────── */}
-                {pricing.brokered.length > 0 && (
+                {/* ── BROKERED — only show if there are category-relevant brokered services ── */}
+                {relevantBrokered.length > 0 && (
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2 flex-wrap">
                       <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -2639,7 +2675,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         if (!svc) return null;
                         return (
                           <span key={id} className="inline-flex flex-col gap-0.5">
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold border transition-all ${
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border shadow-sm transition-all ${
                               note ? 'bg-amber-200 text-amber-800 border-amber-300' : 'bg-amber-100 text-amber-700 border-amber-200'
                             }`}>
                               <button
@@ -2650,7 +2686,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               >
                                 <Edit3 className="w-2 h-2 opacity-50" />
                                 {svc.name}
-                                {note && <span className="w-1 h-1 rounded-full bg-amber-600 ml-0.5 flex-shrink-0" />}
+                                {note && <span className="w-1.5 h-1.5 rounded-full bg-amber-600 ml-0.5 flex-shrink-0" />}
                               </button>
                               <button type="button" onClick={() => { setSelectedBrokeredIds(prev => prev.filter(x => x !== id)); setServiceNotes(prev => { const n = { ...prev }; delete n[id]; return n; }); }} className="hover:text-amber-900 ml-0.5">
                                 <X className="w-2.5 h-2.5" />
@@ -2673,11 +2709,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       })}
                     </div>
 
-                    {/* One dropdown per brokered group */}
-                    {pricing.brokeredGroups.length > 0 && (
+                    {/* One dropdown per category-relevant brokered group */}
+                    {relevantBrokeredGroups.length > 0 && (
                       <div className="flex flex-wrap gap-2">
-                        {pricing.brokeredGroups.map(bg => {
-                          const available = pricing.brokered.filter(b => b.brokeredGroupIds?.includes(bg.id) && !selectedBrokeredIds.includes(b.id));
+                        {relevantBrokeredGroups.map(bg => {
+                          const available = relevantBrokered.filter(b => b.brokeredGroupIds?.includes(bg.id) && !selectedBrokeredIds.includes(b.id));
                           return (
                             <div key={bg.id} className="relative min-w-[140px] max-w-[200px] flex-1">
                               <select
