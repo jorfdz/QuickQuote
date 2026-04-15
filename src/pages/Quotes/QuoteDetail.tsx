@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Printer, ArrowRight, Trash2, ChevronDown, ChevronUp, CheckCircle, Copy, Clock, Edit3, Plus, Search, Building2, X } from 'lucide-react';
+import { Printer, ArrowRight, Trash2, ChevronDown, ChevronUp, CheckCircle, Copy, Clock, Edit3, Plus, Search, Building2, X, Send, FileDown, AlertCircle } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Badge, Card, PageHeader, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
@@ -577,7 +577,9 @@ export const QuoteDetail: React.FC = () => {
         back={() => guardedNavigate('/quotes')}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />} onClick={openPrintWindow}>Print PDF</Button>
+            <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />} onClick={openPrintWindow}>Print</Button>
+            <Button variant="secondary" size="sm" icon={<FileDown className="w-4 h-4" />} onClick={openPrintWindow}>PDF</Button>
+            <Button variant="secondary" size="sm" icon={<Send className="w-4 h-4" />} onClick={() => setShowSendDialog(true)}>Send</Button>
             <Button variant="secondary" size="sm" icon={<Copy className="w-4 h-4" />} onClick={() => setShowCloneConfirm(true)}>Clone</Button>
             {!quote.convertedToOrderId && (
               <Button variant="secondary" size="sm" icon={<ArrowRight className="w-4 h-4" />}
