@@ -2002,8 +2002,18 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   const needsProduct = isNew && !ps.productId && !ps.productName;
                   return (
                     <div>
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center justify-between mb-2">
                         <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Product</label>
+                        {/* Browse all products button */}
+                        <button
+                          type="button"
+                          onClick={() => { setBrowserCatId(categories[0]?.id ?? null); setShowProductBrowser(true); setShowSuggestions(false); }}
+                          title="Browse all products by category"
+                          className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-gray-500 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md transition-colors"
+                        >
+                          <Grid3X3 className="w-3 h-3" />
+                          Browse All
+                        </button>
                       </div>
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -2011,7 +2021,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           type="text" value={productQuery}
                           onChange={e => { setProductQuery(e.target.value); setShowSuggestions(true); if (!e.target.value.trim()) onUpdatePricing({ productId: '', productName: '' }); }}
                           onFocus={() => { setShowSuggestions(true); }}
-                          placeholder="Type product name (Business Cards, Postcards, Trifold, Brochures...)"
+                          placeholder="Search by name, or Browse All →"
                           className={`w-full pl-9 pr-8 py-2.5 text-sm rounded-lg focus:outline-none placeholder-gray-400 transition-all ${
                             needsProduct
                               ? 'bg-[var(--brand-light)] border-2 border-[var(--brand)]/40 focus:ring-2 focus:ring-[var(--brand)] focus:border-[var(--brand)]'
@@ -2042,6 +2052,102 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           </div>
                         )}
                       </div>
+
+                      {/* ── Two-pane product browser dialog ────────────── */}
+                      {showProductBrowser && (
+                        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
+                          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowProductBrowser(false)} />
+                          <div
+                            className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[80vh]"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {/* Dialog header */}
+                            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                                <Grid3X3 className="w-4 h-4 text-[#F890E7]" />
+                                Browse Products
+                              </h3>
+                              <button onClick={() => setShowProductBrowser(false)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+                                <X className="w-4 h-4 text-gray-400" />
+                              </button>
+                            </div>
+
+                            {/* Two-pane body */}
+                            <div className="flex flex-1 overflow-hidden">
+                              {/* Left: category list */}
+                              <div className="w-44 flex-shrink-0 border-r border-gray-100 overflow-y-auto py-2 bg-gray-50/60">
+                                {categories.map(cat => {
+                                  const count = products.filter(p => p.categoryIds.includes(cat.id)).length;
+                                  const isActive = browserCatId === cat.id;
+                                  return (
+                                    <button
+                                      key={cat.id}
+                                      type="button"
+                                      onClick={() => setBrowserCatId(cat.id)}
+                                      className={`w-full flex items-center justify-between px-3 py-2.5 text-left text-sm transition-colors ${
+                                        isActive
+                                          ? 'bg-[#F890E7]/12 text-[#c060b8] font-semibold border-r-2 border-[#F890E7]'
+                                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                                      }`}
+                                    >
+                                      <span className="truncate">{cat.name}</span>
+                                      <span className={`text-[10px] rounded-full px-1.5 py-0.5 font-medium flex-shrink-0 ml-1 ${isActive ? 'bg-[#F890E7]/20 text-[#c060b8]' : 'bg-gray-200 text-gray-500'}`}>
+                                        {count}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Right: products grid */}
+                              <div className="flex-1 overflow-y-auto p-3">
+                                {(() => {
+                                  const catProducts = browserCatId
+                                    ? products.filter(p => p.categoryIds.includes(browserCatId))
+                                    : products;
+                                  const activeCat = categories.find(c => c.id === browserCatId);
+                                  if (catProducts.length === 0) {
+                                    return (
+                                      <div className="flex flex-col items-center justify-center h-32 text-gray-400 text-sm">
+                                        <Package className="w-8 h-8 mb-2 opacity-30" />
+                                        No products in {activeCat?.name ?? 'this category'}
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {catProducts.map(p => (
+                                        <button
+                                          key={p.id}
+                                          type="button"
+                                          onClick={() => {
+                                            selectProduct(p);
+                                            setShowProductBrowser(false);
+                                          }}
+                                          className="flex flex-col items-start gap-0.5 p-3 rounded-xl border border-gray-100 hover:border-[#F890E7] hover:bg-[#F890E7]/5 text-left transition-all group"
+                                        >
+                                          <span className="text-sm font-semibold text-gray-800 group-hover:text-[#c060b8] leading-snug">{p.name}</span>
+                                          {p.aliases.length > 0 && (
+                                            <span className="text-[10px] text-gray-400 truncate w-full">aka {p.aliases.slice(0, 2).join(', ')}</span>
+                                          )}
+                                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                            {p.defaultSides && (
+                                              <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{p.defaultSides}-sided</span>
+                                            )}
+                                            {p.defaultQuantity > 0 && (
+                                              <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{p.defaultQuantity.toLocaleString()} default</span>
+                                            )}
+                                          </div>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })()
@@ -2061,32 +2167,56 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               {/* ═══════════════════════════════════════════════════════ */}
               <div className="flex gap-4">
 
-                {/* ── Left: Description textarea ───────────────────── */}
+                {/* ── Left: Description ────────────────────────────── */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Description</label>
-                    {/* Enhance button — opens rich-text editor without disturbing the plain textarea */}
                     <button
                       type="button"
                       onClick={() => setShowRichEditor(true)}
-                      title="Open rich-text editor — add images, colors, formatting"
-                      className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-md transition-colors"
+                      title="Open rich-text editor"
+                      className="text-[10px] text-gray-400 hover:text-gray-700 transition-colors"
                     >
-                      <Layers className="w-3 h-3" />
-                      Enhance ✨
+                      Rich text
                     </button>
                   </div>
-                  <textarea
-                    rows={2}
-                    value={item.description}
-                    onChange={e => { setAutoDescribe(false); onUpdateItem({ description: e.target.value }); }}
-                    placeholder="Item description..."
-                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400 resize-none leading-snug"
-                  />
-                  <label className="flex items-center gap-1.5 text-[10px] text-gray-400 mt-1 cursor-pointer">
-                    <input type="checkbox" checked={autoDescribe} onChange={e => { setAutoDescribe(e.target.checked); if (e.target.checked) onUpdateItem({ description: buildDescription() }); }} className="w-3 h-3 rounded border-gray-300 text-[#F890E7] focus:ring-[#F890E7]" />
-                    Auto-describe
-                  </label>
+
+                  {/* Show rich HTML preview when richDescription exists; plain textarea otherwise */}
+                  {(item as any).richDescription ? (
+                    <div
+                      onClick={() => setShowRichEditor(true)}
+                      title="Click to edit in rich-text editor"
+                      className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg cursor-pointer hover:border-[#F890E7] transition-colors min-h-[60px] leading-snug overflow-hidden"
+                      // Render the saved HTML — inline styles (bold, italic, color) show directly
+                      dangerouslySetInnerHTML={{ __html: (item as any).richDescription }}
+                      style={{ maxHeight: '80px', overflowY: 'auto' }}
+                    />
+                  ) : (
+                    <textarea
+                      rows={2}
+                      value={item.description}
+                      onChange={e => { setAutoDescribe(false); onUpdateItem({ description: e.target.value }); }}
+                      placeholder="Item description..."
+                      className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400 resize-none leading-snug"
+                    />
+                  )}
+
+                  <div className="flex items-center justify-between mt-1">
+                    <label className="flex items-center gap-1.5 text-[10px] text-gray-400 cursor-pointer">
+                      <input type="checkbox" checked={autoDescribe} onChange={e => { setAutoDescribe(e.target.checked); if (e.target.checked) onUpdateItem({ description: buildDescription(), richDescription: undefined } as any); }} className="w-3 h-3 rounded border-gray-300 text-[#F890E7] focus:ring-[#F890E7]" />
+                      Auto-describe
+                    </label>
+                    {/* Clear rich formatting link — only shown when richDescription is active */}
+                    {(item as any).richDescription && (
+                      <button
+                        type="button"
+                        onClick={() => onUpdateItem({ richDescription: undefined } as any)}
+                        className="text-[10px] text-gray-300 hover:text-gray-500 transition-colors"
+                      >
+                        Clear rich text
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* ── Right: Specs (all fields on one row, matching screenshot proportions) ── */}
@@ -2094,8 +2224,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wide mb-1.5">Specs</label>
                   <div className="flex items-start gap-2">
 
-                    {/* QTY — widest; holds multi-qty "1000, 2000" */}
-                    <div className="flex-[2.5] min-w-0">
+                    {/* QTY — slightly narrower to give room to Sides & Color */}
+                    <div className="flex-[2] min-w-0">
                       <label className="block text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">QTY</label>
                       <input
                         type="text" value={multiQtyInput}
@@ -2110,8 +2240,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       />
                     </div>
 
-                    {/* ORIG. — narrow, usually 1 digit */}
-                    <div className="flex-[1] min-w-0">
+                    {/* ORIG. — narrow, 1–2 digits */}
+                    <div className="flex-[0.8] min-w-0">
                       <label className="block text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-0.5">
                         ORIG. <span className="cursor-help text-gray-300 font-normal" title="Number of unique designs — each is a separate press run. 3 originals × 500 qty = 3 separate runs of 500.">ⓘ</span>
                       </label>
@@ -2130,8 +2260,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       {(materialEntries[0]?.originals ?? 1) > 1 && <p className="text-[9px] text-violet-500 mt-0.5 text-center">{materialEntries[0].originals}×</p>}
                     </div>
 
-                    {/* SIZE — width × height in inches */}
-                    <div className="flex-[1.8] min-w-0">
+                    {/* SIZE — narrowed to give room to Sides & Color */}
+                    <div className="flex-[1.4] min-w-0">
                       <label className="block text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">
                         Size <span className="normal-case font-normal text-gray-400">(inches)</span>
                       </label>
@@ -2183,12 +2313,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       };
 
                       return (
-                        <div className="flex-[2] min-w-0">
+                        <div className="flex-[2.8] min-w-0">
                           <label className="block text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">SIDES &amp; COLOR</label>
                           <select
                             value={combinedValue}
                             onChange={e => handleCombinedChange(e.target.value)}
-                            className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none cursor-pointer"
+                            className="w-full px-2 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] cursor-pointer"
                           >
                             <option value="1-Color">1 Side: Color</option>
                             <option value="1-Black">1 Side: Black</option>
@@ -4342,8 +4472,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
-// RICH DESCRIPTION EDITOR — full-featured formatting dialog
-// Uses contenteditable + execCommand (zero dependencies, universally supported)
+// RICH DESCRIPTION EDITOR
 // ═════════════════════════════════════════════════════════════════════════════
 
 const RichDescriptionEditor: React.FC<{
@@ -4352,215 +4481,163 @@ const RichDescriptionEditor: React.FC<{
   onClose: () => void;
 }> = ({ initialHtml, onSave, onClose }) => {
   const editorRef = React.useRef<HTMLDivElement>(null);
-  const [fontColor, setFontColor] = React.useState('#000000');
-  const [fontSize, setFontSize] = React.useState('3');
-  const [imageUrl, setImageUrl] = React.useState('');
+  const [fontColor, setFontColor] = React.useState('#111827');
   const [showImageInput, setShowImageInput] = React.useState(false);
+  const [imageUrl, setImageUrl] = React.useState('');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  // Seed the editor with existing content on mount
   React.useEffect(() => {
     if (editorRef.current) {
       editorRef.current.innerHTML = initialHtml;
+      // Place cursor at end
+      const range = document.createRange();
+      const sel = window.getSelection();
+      range.selectNodeContents(editorRef.current);
+      range.collapse(false);
+      sel?.removeAllRanges();
+      sel?.addRange(range);
       editorRef.current.focus();
     }
   }, []);
 
-  const exec = (cmd: string, value?: string) => {
+  const exec = (cmd: string, val?: string) => {
     editorRef.current?.focus();
-    document.execCommand(cmd, false, value);
+    document.execCommand(cmd, false, val);
   };
 
   const handleSave = () => {
     const html = editorRef.current?.innerHTML ?? '';
-    const plainText = editorRef.current?.innerText?.trim() ?? '';
-    onSave(html, plainText);
+    const plain = editorRef.current?.innerText?.trim() ?? '';
+    onSave(html, plain);
   };
 
-  const insertImage = (src: string) => {
+  const insertImg = (src: string) => {
     if (!src.trim()) return;
-    exec('insertHTML', `<img src="${src.trim()}" style="max-width:100%;height:auto;border-radius:4px;margin:4px 0;" alt=""/>`);
-    setImageUrl('');
-    setShowImageInput(false);
+    exec('insertHTML', `<img src="${src.trim()}" style="max-width:100%;height:auto;margin:4px 0;border-radius:3px;" />`);
+    setImageUrl(''); setShowImageInput(false);
   };
 
-  const handleFileImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const src = ev.target?.result as string;
-      if (src) insertImage(src);
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  };
-
-  const ToolBtn: React.FC<{ title: string; onClick: () => void; active?: boolean; children: React.ReactNode }> =
-    ({ title, onClick, active, children }) => (
-      <button
-        type="button"
-        title={title}
-        onMouseDown={e => { e.preventDefault(); onClick(); }}
-        className={`p-1.5 rounded transition-colors ${active ? 'bg-gray-200 text-gray-900' : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'}`}
-      >
+  // Toolbar button
+  const Btn: React.FC<{ title: string; onCmd: () => void; children: React.ReactNode }> =
+    ({ title, onCmd, children }) => (
+      <button type="button" title={title}
+        onMouseDown={e => { e.preventDefault(); onCmd(); }}
+        className="px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded transition-colors">
         {children}
       </button>
     );
 
-  const Divider = () => <div className="w-px h-5 bg-gray-200 mx-0.5 flex-shrink-0" />;
+  const Sep = () => <span className="w-px h-5 bg-gray-200 flex-shrink-0 mx-0.5 self-center" />;
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div
-        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[85vh]"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-              <Layers className="w-4 h-4 text-violet-500" />
-              Enhanced Description Editor
-            </h3>
-            <p className="text-[10px] text-gray-400 mt-0.5">Rich formatting — images, colors, lists. Plain description stays untouched.</p>
-          </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col" style={{ maxHeight: '80vh' }} onClick={e => e.stopPropagation()}>
+
+        {/* Header — minimal */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <span className="text-sm font-semibold text-gray-800">Rich Text Description</span>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded transition-colors">
             <X className="w-4 h-4 text-gray-400" />
           </button>
         </div>
 
-        {/* Toolbar */}
-        <div className="flex items-center flex-wrap gap-0.5 px-3 py-2 border-b border-gray-100 bg-gray-50/80">
-          {/* Text style */}
-          <ToolBtn title="Bold (Ctrl+B)" onClick={() => exec('bold')}><strong className="text-xs">B</strong></ToolBtn>
-          <ToolBtn title="Italic (Ctrl+I)" onClick={() => exec('italic')}><em className="text-xs">I</em></ToolBtn>
-          <ToolBtn title="Underline (Ctrl+U)" onClick={() => exec('underline')}><span className="text-xs underline">U</span></ToolBtn>
-          <ToolBtn title="Strikethrough" onClick={() => exec('strikeThrough')}><span className="text-xs line-through">S</span></ToolBtn>
-          <Divider />
+        {/* Compact toolbar */}
+        <div className="flex items-center flex-wrap gap-0 px-2 py-1.5 border-b border-gray-100 bg-gray-50">
+          {/* Style */}
+          <Btn title="Bold" onCmd={() => exec('bold')}><strong>B</strong></Btn>
+          <Btn title="Italic" onCmd={() => exec('italic')}><em>I</em></Btn>
+          <Btn title="Underline" onCmd={() => exec('underline')}><span className="underline">U</span></Btn>
+          <Btn title="Strikethrough" onCmd={() => exec('strikeThrough')}><span className="line-through">S</span></Btn>
+          <Sep />
 
-          {/* Font size */}
-          <select
-            value={fontSize}
-            onChange={e => { setFontSize(e.target.value); exec('fontSize', e.target.value); }}
-            className="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-violet-400 mx-0.5"
-            title="Font size"
-          >
-            <option value="1">Tiny</option>
-            <option value="2">Small</option>
-            <option value="3">Normal</option>
-            <option value="4">Medium</option>
-            <option value="5">Large</option>
-            <option value="6">X-Large</option>
-            <option value="7">Huge</option>
+          {/* Size */}
+          <select onChange={e => exec('fontSize', e.target.value)} defaultValue="3"
+            className="text-xs border-0 bg-transparent focus:outline-none px-1 py-1 text-gray-600 cursor-pointer">
+            <option value="1">XS</option>
+            <option value="2">S</option>
+            <option value="3">M</option>
+            <option value="4">L</option>
+            <option value="5">XL</option>
+            <option value="6">XXL</option>
           </select>
 
-          {/* Font color */}
-          <div className="flex items-center gap-0.5 mx-0.5" title="Text color">
-            <span className="text-[10px] text-gray-500">A</span>
-            <input
-              type="color"
-              value={fontColor}
+          {/* Color */}
+          <label title="Text color" className="flex items-center gap-0.5 px-1 cursor-pointer">
+            <span className="text-xs font-bold text-gray-600" style={{ borderBottom: `2px solid ${fontColor}` }}>A</span>
+            <input type="color" value={fontColor}
               onChange={e => { setFontColor(e.target.value); exec('foreColor', e.target.value); }}
-              className="w-6 h-6 rounded border border-gray-200 cursor-pointer p-0.5 bg-white"
-            />
-          </div>
-          <Divider />
+              className="w-4 h-4 opacity-0 absolute cursor-pointer" />
+          </label>
+          <Sep />
 
-          {/* Alignment */}
-          <ToolBtn title="Align left" onClick={() => exec('justifyLeft')}>
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 5h14a1 1 0 000-2H3a1 1 0 000 2zm0 4h10a1 1 0 000-2H3a1 1 0 000 2zm0 4h14a1 1 0 000-2H3a1 1 0 000 2zm0 4h10a1 1 0 000-2H3a1 1 0 000 2z"/></svg>
-          </ToolBtn>
-          <ToolBtn title="Center" onClick={() => exec('justifyCenter')}>
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 5h14a1 1 0 000-2H3a1 1 0 000 2zm2 4h10a1 1 0 000-2H5a1 1 0 000 2zm-2 4h14a1 1 0 000-2H3a1 1 0 000 2zm2 4h10a1 1 0 000-2H5a1 1 0 000 2z"/></svg>
-          </ToolBtn>
-          <ToolBtn title="Align right" onClick={() => exec('justifyRight')}>
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 5h14a1 1 0 000-2H3a1 1 0 000 2zm4 4h10a1 1 0 000-2H7a1 1 0 000 2zm-4 4h14a1 1 0 000-2H3a1 1 0 000 2zm4 4h10a1 1 0 000-2H7a1 1 0 000 2z"/></svg>
-          </ToolBtn>
-          <Divider />
+          {/* Align */}
+          <Btn title="Align left"   onCmd={() => exec('justifyLeft')}>   ≡ </Btn>
+          <Btn title="Align center" onCmd={() => exec('justifyCenter')}> ≡ </Btn>
+          <Btn title="Align right"  onCmd={() => exec('justifyRight')}>  ≡ </Btn>
+          <Sep />
 
           {/* Lists */}
-          <ToolBtn title="Bullet list" onClick={() => exec('insertUnorderedList')}>
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M4 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm4-14h8a1 1 0 010 2H8a1 1 0 010-2zm0 6h8a1 1 0 010 2H8a1 1 0 010-2zm0 6h8a1 1 0 010 2H8a1 1 0 010-2z"/></svg>
-          </ToolBtn>
-          <ToolBtn title="Numbered list" onClick={() => exec('insertOrderedList')}>
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4h1v1H3V4zm1 2H3V5h1v1zm-1 2h1V7H3v1zm1 2H3V9h1v1zM8 5h8a1 1 0 010 2H8a1 1 0 010-2zm0 4h8a1 1 0 010 2H8a1 1 0 010-2zm0 4h8a1 1 0 010 2H8a1 1 0 010-2z"/></svg>
-          </ToolBtn>
-          <Divider />
-
-          {/* Indent */}
-          <ToolBtn title="Indent" onClick={() => exec('indent')}>
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 5h14a1 1 0 000-2H3a1 1 0 000 2zm5 4h9a1 1 0 000-2H8a1 1 0 000 2zm0 4h9a1 1 0 000-2H8a1 1 0 000 2zm-5 4h14a1 1 0 000-2H3a1 1 0 000 2zM3 9.7l3 2-3 2V9.7z"/></svg>
-          </ToolBtn>
-          <ToolBtn title="Outdent" onClick={() => exec('outdent')}>
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 5h14a1 1 0 000-2H3a1 1 0 000 2zm5 4h9a1 1 0 000-2H8a1 1 0 000 2zm0 4h9a1 1 0 000-2H8a1 1 0 000 2zm-5 4h14a1 1 0 000-2H3a1 1 0 000 2zM6 9.7L3 11.7l3 2V9.7z"/></svg>
-          </ToolBtn>
-          <Divider />
+          <Btn title="Bullet list"   onCmd={() => exec('insertUnorderedList')}>• —</Btn>
+          <Btn title="Numbered list" onCmd={() => exec('insertOrderedList')}>1.</Btn>
+          <Sep />
 
           {/* Image */}
-          <ToolBtn title="Insert image from URL or file" onClick={() => setShowImageInput(s => !s)}>
-            <Eye className="w-3.5 h-3.5" />
-          </ToolBtn>
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileImage} />
-          <ToolBtn title="Upload image from device" onClick={() => fileInputRef.current?.click()}>
-            <Plus className="w-3.5 h-3.5" />
-          </ToolBtn>
-          <Divider />
+          <Btn title="Insert image from URL" onCmd={() => setShowImageInput(s => !s)}>🖼</Btn>
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+            onChange={e => {
+              const f = e.target.files?.[0]; if (!f) return;
+              const r = new FileReader();
+              r.onload = ev => { if (ev.target?.result) insertImg(ev.target.result as string); };
+              r.readAsDataURL(f); e.target.value = '';
+            }} />
+          <Btn title="Upload image from device" onCmd={() => fileInputRef.current?.click()}>📁</Btn>
+          <Sep />
 
           {/* Clear */}
-          <ToolBtn title="Clear all formatting" onClick={() => exec('removeFormat')}>
-            <X className="w-3 h-3" />
-          </ToolBtn>
+          <Btn title="Clear formatting" onCmd={() => exec('removeFormat')}>
+            <span className="text-xs text-gray-400">Tx</span>
+          </Btn>
         </div>
 
         {/* Image URL bar */}
         {showImageInput && (
-          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-100 bg-violet-50/60">
-            <Eye className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" />
-            <input
-              type="text"
-              value={imageUrl}
-              onChange={e => setImageUrl(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') insertImage(imageUrl); if (e.key === 'Escape') setShowImageInput(false); }}
-              placeholder="Paste image URL and press Enter…"
-              className="flex-1 text-xs bg-transparent focus:outline-none placeholder-violet-400 text-gray-700"
-              autoFocus
-            />
-            <button type="button" onClick={() => insertImage(imageUrl)}
-              className="text-[10px] font-semibold text-violet-600 hover:text-violet-800 px-2 py-0.5 bg-white border border-violet-200 rounded-md transition-colors">
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-100 bg-blue-50/60">
+            <input autoFocus type="text" value={imageUrl} onChange={e => setImageUrl(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') insertImg(imageUrl); if (e.key === 'Escape') setShowImageInput(false); }}
+              placeholder="Paste image URL…"
+              className="flex-1 text-xs bg-transparent focus:outline-none text-gray-700 placeholder-gray-400" />
+            <button type="button" onClick={() => insertImg(imageUrl)}
+              className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 px-2 py-0.5 bg-white border border-blue-200 rounded transition-colors">
               Insert
             </button>
-            <button type="button" onClick={() => setShowImageInput(false)} className="p-0.5 hover:bg-violet-100 rounded">
-              <X className="w-3 h-3 text-violet-400" />
+            <button type="button" onClick={() => setShowImageInput(false)}>
+              <X className="w-3 h-3 text-gray-400" />
             </button>
           </div>
         )}
 
-        {/* Editable canvas */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 min-h-[200px]">
+        {/* Editing area */}
+        <div className="flex-1 overflow-y-auto px-4 py-3">
           <div
             ref={editorRef}
             contentEditable
             suppressContentEditableWarning
-            className="min-h-[180px] text-sm text-gray-800 focus:outline-none leading-relaxed"
+            className="min-h-[160px] text-sm text-gray-800 focus:outline-none leading-relaxed"
             style={{ wordBreak: 'break-word' }}
           />
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100 bg-white rounded-b-2xl">
-          <p className="text-[10px] text-gray-400">The plain description field remains unchanged unless you save.</p>
-          <div className="flex gap-2">
-            <button onClick={onClose}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg transition-colors">
-              Cancel
-            </button>
-            <button onClick={handleSave}
-              className="px-5 py-2 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors">
-              Save Description
-            </button>
-          </div>
+        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-100 bg-white rounded-b-xl">
+          <button onClick={onClose}
+            className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleSave}
+            className="px-4 py-1.5 text-sm font-semibold text-white bg-gray-800 hover:bg-gray-900 rounded-lg transition-colors">
+            Save
+          </button>
         </div>
       </div>
     </div>
