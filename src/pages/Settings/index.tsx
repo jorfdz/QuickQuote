@@ -80,21 +80,6 @@ const blankTrackingDeviceForm = (): Omit<TrackingDevice, 'id' | 'createdAt'> => 
 export const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState('company');
 
-  // ─── Email settings state ─────────────────────────────────────────────────
-  const defaultEmail = { fromName: '', fromEmail: '', protocol: 'smtp' as const, host: '', port: 587, useSSL: true, username: '', password: '', connectionTested: false };
-  const [emailCfg, setEmailCfg] = useState(() => (companySettings as any).emailSettings || defaultEmail);
-  const [emailTestStatus, setEmailTestStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
-
-  const handleTestEmail = () => {
-    setEmailTestStatus('testing');
-    // UI only — real connection test would happen server-side
-    setTimeout(() => setEmailTestStatus(emailCfg.host && emailCfg.username ? 'ok' : 'fail'), 1200);
-  };
-
-  const saveEmailSettings = () => {
-    updateCompanySettings({ emailSettings: emailCfg } as any);
-  };
-
   // ─── Appearance / Color Scheme state ─────────────────────────────────────
   const [activeScheme, setActiveScheme] = useState<ColorScheme>(() => loadSavedScheme());
   const [customColor, setCustomColor] = useState('#F890E7');
@@ -128,6 +113,21 @@ export const Settings: React.FC = () => {
     updateCompanySettings,
     updateDocumentTemplates,
   } = useStore();
+
+  // ─── Email settings state (must be after useStore so companySettings is available) ──
+  const defaultEmail = { fromName: '', fromEmail: '', protocol: 'smtp' as const, host: '', port: 587, useSSL: true, username: '', password: '', connectionTested: false };
+  const [emailCfg, setEmailCfg] = useState(() => (companySettings as any).emailSettings || defaultEmail);
+  const [emailTestStatus, setEmailTestStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
+
+  const handleTestEmail = () => {
+    setEmailTestStatus('testing');
+    setTimeout(() => setEmailTestStatus(emailCfg.host && emailCfg.username ? 'ok' : 'fail'), 1200);
+  };
+
+  const saveEmailSettings = () => {
+    updateCompanySettings({ emailSettings: emailCfg } as any);
+  };
+
   const [company, setCompany] = useState<CompanySettings>(companySettings || DEFAULT_COMPANY_SETTINGS);
 
   // Default sizes by category state (Item 28)
