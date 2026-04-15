@@ -116,18 +116,21 @@ const InlineField: React.FC<{
   displayValue?: string;
   onSave: (v: string) => void;
   type?: 'text' | 'date';
+  /** For date fields: the ISO value used in the <input type="date"> when editing.
+   *  The `value` prop carries the formatted display string (e.g. "Apr 9, 2026"). */
+  rawValue?: string;
   searchable?: boolean;
   options?: { value: string; label: string }[];
   placeholder?: string;
   onAddNew?: () => void;
   forwardRef?: React.RefObject<HTMLDivElement | null>;
-}> = ({ label, value, onSave, type = 'text', searchable, options, placeholder, onAddNew, forwardRef }) => {
+}> = ({ label, value, rawValue, onSave, type = 'text', searchable, options, placeholder, onAddNew, forwardRef }) => {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
+  const [draft, setDraft] = useState(rawValue ?? value);
   const [search, setSearch] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const start = () => { setDraft(value); setSearch(value); setEditing(true); setTimeout(() => inputRef.current?.focus(), 0); };
+  const start = () => { setDraft(rawValue ?? value); setSearch(value); setEditing(true); setTimeout(() => inputRef.current?.focus(), 0); };
   const commit = (val?: string) => { onSave(val ?? draft); setEditing(false); };
   const cancel = () => { setEditing(false); };
 
@@ -147,7 +150,7 @@ const InlineField: React.FC<{
       >
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
         <div className="flex items-center gap-1.5 mt-0.5">
-          <p className="text-sm font-medium text-gray-800">{value || <span className="text-gray-300 font-normal">—</span>}</p>
+          <p className="text-sm font-semibold text-gray-800">{value || <span className="text-gray-300 font-normal">—</span>}</p>
           <Edit3 className="w-3 h-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
       </div>
@@ -670,6 +673,7 @@ export const QuoteDetail: React.FC = () => {
               </button>
             </div>
             <div className="grid grid-cols-3 gap-x-6 gap-y-3 items-start">
+              {/* Row 1: Account | Contact | Title */}
               <InlineField
                 label="Account"
                 value={quote.customerName || ''}
@@ -692,22 +696,31 @@ export const QuoteDetail: React.FC = () => {
                 searchable options={contactOptions}
                 onAddNew={() => {}}
                 onSave={v => { const c = contacts.find(x => x.id === v); saveField({ contactId: v || undefined, contactName: c ? `${c.firstName} ${c.lastName}` : undefined }); }} />
-              {/* Quote Date + Valid Until — adjacent in a shared col-span-1 sub-row */}
-              <div className="col-span-1" />
+              {/* Title — same row as Contact */}
+              <InlineField label="Title" value={quote.title} placeholder="Quote title..."
+                onSave={v => saveField({ title: v })} />
+
+              {/* Row 2: Quote Date + Valid Until (col-span-2) | empty */}
               <div className="col-span-2 grid grid-cols-2 gap-x-6">
-                <InlineField label="Quote Date" value={quote.quoteDate || quote.createdAt?.slice(0,10) || ''} type="date"
-                  onSave={v => saveField({ quoteDate: v || undefined })} />
-                <InlineField label="Valid Until" value={quote.validUntil || ''} type="date"
-                  onSave={v => saveField({ validUntil: v || undefined })} />
+                <InlineField label="Quote Date"
+                  value={quote.quoteDate ? formatDate(quote.quoteDate) : (quote.createdAt ? formatDate(quote.createdAt) : '')}
+                  rawValue={quote.quoteDate || quote.createdAt?.slice(0,10) || ''}
+                  type="date" onSave={v => saveField({ quoteDate: v || undefined })} />
+                <InlineField label="Valid Until"
+                  value={quote.validUntil ? formatDate(quote.validUntil) : ''}
+                  rawValue={quote.validUntil || ''}
+                  type="date" onSave={v => saveField({ validUntil: v || undefined })} />
               </div>
+              <div />
+
+              {/* Row 3: CSR | Sales Rep */}
               <InlineField label="CSR" value={csr?.name || ''} placeholder="Search CSR..."
                 searchable options={csrOptions}
                 onSave={v => saveField({ csrId: v || undefined })} />
               <InlineField label="Sales Rep" value={salesRep?.name || ''} placeholder="Search Sales Rep..."
                 searchable options={salesOptions}
                 onSave={v => saveField({ salesId: v || undefined })} />
-              <InlineField label="Title" value={quote.title} placeholder="Quote title..."
-                onSave={v => saveField({ title: v })} />
+              <div />
             </div>
           </div>
         )}
@@ -819,14 +832,6 @@ export const QuoteDetail: React.FC = () => {
                 <span>Total</span><span className="text-brand num">{formatCurrency(quote.total)}</span>
               </div>
             </div>
-          </Card>
-          <Card className="p-5">
-            <h3 className="font-semibold text-gray-900 mb-3 text-sm">Details</h3>
-            <dl className="space-y-2 text-sm">
-              <div className="flex justify-between"><dt className="text-gray-500">Customer</dt><dd className="font-medium text-gray-900">{quote.customerName || '—'}</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Created</dt><dd className="text-gray-900">{formatDate(quote.createdAt)}</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Valid Until</dt><dd className="text-gray-900">{quote.validUntil ? formatDate(quote.validUntil) : '—'}</dd></div>
-            </dl>
           </Card>
         </div>
       </div>

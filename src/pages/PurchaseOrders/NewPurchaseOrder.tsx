@@ -4,7 +4,7 @@ import { Plus, Trash2, Send } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Card, Input, PageHeader, Select, Textarea } from '../../components/ui';
 import type { PurchaseOrder, PurchaseOrderItem } from '../../types';
-import { formatCurrency } from '../../data/mockData';
+import { formatCurrency, formatDate } from '../../data/mockData';
 import { nanoid } from '../../utils/nanoid';
 import { buildPOItemsFromOrder, getVendorWorkflowStageId, linkPOToOrder, suggestVendorForOrder } from '../../utils/purchaseOrders';
 
@@ -282,7 +282,7 @@ export const NewPurchaseOrder: React.FC = () => {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-gray-500">Order</span><span>{selectedOrder.number}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Customer</span><span>{selectedOrder.customerName || '—'}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Due Date</span><span>{selectedOrder.dueDate || '—'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Due Date</span><span>{selectedOrder.dueDate ? formatDate(selectedOrder.dueDate) : '—'}</span></div>
               </div>
             </Card>
           )}
