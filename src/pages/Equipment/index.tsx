@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Plus, Trash2, Edit3, X, Search, Copy, Info,
   ChevronDown, ChevronUp, Camera, Wrench, Calendar,
-  Mail, Clock, CheckCircle2, XCircle, AlertCircle, ChevronRight
+  Mail, Clock, CheckCircle2, XCircle, AlertCircle, ChevronRight, FlaskConical
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { usePricingStore } from '../../store/pricingStore';
@@ -139,6 +139,11 @@ export const Equipment: React.FC = () => {
   // ── Modal tabs ──
   const [modalTab, setModalTab] = useState<ModalTab>('details');
 
+  // ── Test Price panel ──
+  const [showTestPanel, setShowTestPanel] = useState(false);
+  const [testClicks, setTestClicks] = useState(1000);
+  const [testColorMode, setTestColorMode] = useState<'Color' | 'Black'>('Color');
+
   // ── Maintenance state ──
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
@@ -227,6 +232,8 @@ export const Equipment: React.FC = () => {
       blackUnitCost: (e as any).blackUnitCost ?? e.unitCost ?? 0,
     });
     setModalTab('details');
+    setShowTestPanel(false);
+    setTestClicks(1000);
     setShowServiceForm(false);
     setEditingServiceId(null);
   };
@@ -417,6 +424,48 @@ export const Equipment: React.FC = () => {
     eq.colorCapability === 'Color' || eq.colorCapability === 'Color and Black';
   const showBlackTiers = (eq: PricingEquipment) =>
     eq.colorCapability === 'Black' || eq.colorCapability === 'Color and Black';
+
+  // ── Test Price computation ────────────────────────────────────────────────
+  const computeEquipTest = (qty: number, colorMode: 'Color' | 'Black') => {
+    const f = equipForm;
+    const isColorAndBlack = f.colorCapability === 'Color and Black';
+
+    // Unit cost — use split costs if available, else single unitCost
+    const unitCostForMode = isColorAndBlack
+      ? (colorMode === 'Color' ? (f.colorUnitCost || 0) : (f.blackUnitCost || 0))
+      : f.unitCost;
+
+    // Sell price per unit — from tier table or markup
+    let sellPerUnit = 0;
+    if (f.usePricingTiers) {
+      const tiers = colorMode === 'Color' ? f.colorTiers : f.blackTiers;
+      if (tiers && tiers.length > 0) {
+        let price = tiers[0].pricePerUnit;
+        for (const t of tiers) { if (qty >= t.minQty) price = t.pricePerUnit; }
+        sellPerUnit = price;
+      }
+    } else if (f.markupMultiplier) {
+      sellPerUnit = f.markupType === 'percent'
+        ? unitCostForMode * (1 + f.markupMultiplier / 100)
+        : unitCostForMode * f.markupMultiplier;
+    }
+
+    const clickCost = unitCostForMode * qty;
+    const clickSell = sellPerUnit * qty;
+
+    // Time cost (for cost_plus_time)
+    const timeCost = f.costType === 'cost_plus_time' && f.unitsPerHour && f.timeCostPerHour
+      ? (qty / f.unitsPerHour) * f.timeCostPerHour
+      : 0;
+    const timeSell = timeCost * (1 + (f.timeCostMarkup ?? 0) / 100);
+
+    const setupFee = f.initialSetupFee || 0;
+    const totalCost = clickCost + timeCost + setupFee;
+    const totalSell = clickSell + timeSell + setupFee;
+    const margin = totalSell > 0 ? ((totalSell - totalCost) / totalSell) * 100 : 0;
+
+    return { unitCostForMode, sellPerUnit, clickCost, clickSell, timeCost, timeSell, setupFee, totalCost, totalSell, margin };
+  };
 
   // Next scheduled maintenance for list view
   const getNextMaintenance = (eq: PricingEquipment) => {
@@ -1005,6 +1054,104 @@ export const Equipment: React.FC = () => {
               </div>
             )}
 
+            {/* ── Test Price Panel ─────────────────────────────────────────── */}
+            {showTestPanel && showUnitCost && (() => {
+              const isColorAndBlack = equipForm.colorCapability === 'Color and Black';
+              const res = computeEquipTest(testClicks, testColorMode);
+              const unitLabel = equipForm.costUnit === 'per_click' ? 'clicks' : 'sq ft';
+              return (
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <FlaskConical className="w-3.5 h-3.5 text-amber-600" />
+                      <span className="text-[11px] font-semibold text-amber-800">Test Price</span>
+                    </div>
+                    <button onClick={() => setShowTestPanel(false)} className="p-0.5 hover:bg-amber-100 rounded">
+                      <X className="w-3.5 h-3.5 text-amber-500" />
+                    </button>
+                  </div>
+
+                  {/* Inputs row */}
+                  <div className="flex items-end gap-3 flex-wrap">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-1">
+                        {equipForm.costUnit === 'per_click' ? 'Test Clicks' : 'Test Sq Ft'}
+                      </label>
+                      <input type="number" min="1" value={testClicks}
+                        onChange={e => setTestClicks(parseInt(e.target.value) || 1)}
+                        className="w-28 px-2 py-1.5 text-sm bg-white border border-amber-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 text-right num" />
+                    </div>
+                    {isColorAndBlack && (
+                      <div>
+                        <label className="block text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-1">Color Mode</label>
+                        <div className="flex gap-1">
+                          {(['Color', 'Black'] as const).map(m => (
+                            <button key={m} type="button" onClick={() => setTestColorMode(m)}
+                              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${testColorMode === m ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-100'}`}>
+                              {m === 'Color' ? '🔵 Color' : '⚫ B&W'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Results */}
+                  <div className="bg-white/70 rounded-lg px-3 py-2.5 space-y-1.5">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-gray-500">Unit cost ({isColorAndBlack ? testColorMode : ''}):</span>
+                      <span className="font-medium text-gray-700 num">${res.unitCostForMode.toFixed(4)}/{equipForm.costUnit === 'per_click' ? 'click' : 'sqft'}</span>
+                    </div>
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-gray-500">Cost ({testClicks.toLocaleString()} {unitLabel}):</span>
+                      <span className="font-medium text-gray-700 num">{formatCurrency(res.clickCost)}</span>
+                    </div>
+                    {res.timeCost > 0 && (
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-gray-500">Staff time cost:</span>
+                        <span className="font-medium text-gray-700 num">{formatCurrency(res.timeCost)}</span>
+                      </div>
+                    )}
+                    {res.setupFee > 0 && (
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-gray-500">Setup fee:</span>
+                        <span className="font-medium text-gray-700 num">{formatCurrency(res.setupFee)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-[11px] pt-1 border-t border-amber-200">
+                      <span className="text-gray-600 font-medium">Total Cost:</span>
+                      <span className="font-semibold text-gray-800 num">{formatCurrency(res.totalCost)}</span>
+                    </div>
+                    {res.sellPerUnit > 0 && (
+                      <>
+                        <div className="flex justify-between text-[11px]">
+                          <span className="text-gray-500">Sell price ({testClicks.toLocaleString()} {unitLabel}):</span>
+                          <span className="font-medium text-emerald-700 num">{formatCurrency(res.clickSell)}</span>
+                        </div>
+                        {res.timeSell > 0 && (
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-gray-500">Staff sell:</span>
+                            <span className="font-medium text-emerald-700 num">{formatCurrency(res.timeSell)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-[11px] pt-1 border-t border-amber-200">
+                          <span className="font-bold text-amber-800">= Total Sell:</span>
+                          <span className="font-bold text-emerald-700 num text-sm">{formatCurrency(res.totalSell)}</span>
+                        </div>
+                        <div className="flex justify-between text-[11px]">
+                          <span className="text-gray-400">Margin:</span>
+                          <span className={`font-semibold num ${res.margin >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{res.margin.toFixed(1)}%</span>
+                        </div>
+                      </>
+                    )}
+                    {res.sellPerUnit === 0 && (
+                      <p className="text-[10px] text-amber-600 italic">Set a markup or enable Table Pricing to see sell price.</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* ── Save / Cancel — with inline validation ──────────────────── */}
             {(() => {
               const errors: string[] = [];
@@ -1028,11 +1175,22 @@ export const Equipment: React.FC = () => {
                       ))}
                     </div>
                   )}
-                  <div className="flex gap-3 justify-end">
-                    <Button variant="secondary" onClick={handleCloseModal}>Cancel</Button>
-                    <Button variant="primary" onClick={editingEquipId ? handleSaveEditEquip : handleAddEquip} disabled={!canSave}>
-                      {editingEquipId ? 'Save Changes' : 'Add Equipment'}
-                    </Button>
+                  <div className="flex items-center justify-between">
+                    {/* Test Price button */}
+                    {showUnitCost && (
+                      <button type="button" onClick={() => setShowTestPanel(p => !p)}
+                        className="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-600 hover:text-amber-800 transition-colors">
+                        <FlaskConical className="w-3.5 h-3.5" />
+                        {showTestPanel ? 'Hide Test' : 'Test Price'}
+                      </button>
+                    )}
+                    {!showUnitCost && <span />}
+                    <div className="flex gap-3">
+                      <Button variant="secondary" onClick={handleCloseModal}>Cancel</Button>
+                      <Button variant="primary" onClick={editingEquipId ? handleSaveEditEquip : handleAddEquip} disabled={!canSave}>
+                        {editingEquipId ? 'Save Changes' : 'Add Equipment'}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               );
