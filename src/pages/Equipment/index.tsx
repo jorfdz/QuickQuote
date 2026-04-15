@@ -578,7 +578,7 @@ export const Equipment: React.FC = () => {
 
       {/* Equipment Table */}
       <Card>
-        <Table headers={['Equipment', 'Category', 'Cost Model', 'Unit Cost', 'Setup Fee', 'Markup', 'Maintenance', 'Tiers', 'Actions']}>
+        <Table headers={['Equipment', 'Category', 'Cost Model', 'Unit Cost', 'Setup Fee', 'Markup / Sell', 'Maintenance', 'Tiers', 'Actions']}>
           {filteredEquipment.map(eq => {
             const isExpanded = expandedEquipId === eq.id;
             const colorTierCount = showColorTiers(eq) ? (eq.colorTiers || []).length : 0;
@@ -613,17 +613,49 @@ export const Equipment: React.FC = () => {
                   <td className="py-3 px-4">
                     <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{eq.categoryApplies}</span>
                   </td>
+                  {/* Cost Model — unit + cost type */}
                   <td className="py-3 px-4">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${eq.costUnit === 'per_click' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
-                      {eq.costUnit === 'per_click' ? 'Per Click' : 'Per Sq Ft'}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium w-fit ${eq.costUnit === 'per_click' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+                        {eq.costUnit === 'per_click' ? 'Per Click' : 'Per Sq Ft'}
+                      </span>
+                      {eq.costType === 'cost_plus_time' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold w-fit bg-violet-50 text-violet-600 border border-violet-200">
+                          + Time
+                        </span>
+                      )}
+                      {eq.costType === 'time_only' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold w-fit bg-sky-50 text-sky-600 border border-sky-200">
+                          Time Only
+                        </span>
+                      )}
+                    </div>
                   </td>
-                  <td className="py-3 px-4 text-sm font-medium text-gray-700">{formatCurrency(eq.unitCost)}</td>
-                  <td className="py-3 px-4 text-sm text-gray-500">{formatCurrency(eq.initialSetupFee)}</td>
-                  <td className="py-3 px-4 text-sm text-gray-500">
-                    {eq.markupMultiplier
-                      ? (eq.markupType === 'percent' ? `${eq.markupMultiplier}%` : `${eq.markupMultiplier}x`)
-                      : '—'}
+                  {/* Unit Cost — show split Color/Black when applicable */}
+                  <td className="py-3 px-4">
+                    {eq.colorCapability === 'Color and Black' && ((eq as any).colorUnitCost || (eq as any).blackUnitCost) ? (
+                      <div className="text-sm">
+                        <div className="text-blue-600 font-medium num">{formatCurrency((eq as any).colorUnitCost ?? eq.unitCost)}<span className="text-[10px] text-gray-400 ml-1">Color</span></div>
+                        <div className="text-gray-600 font-medium num">{formatCurrency((eq as any).blackUnitCost ?? eq.unitCost)}<span className="text-[10px] text-gray-400 ml-1">Black</span></div>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-medium text-gray-700 num">{formatCurrency(eq.unitCost)}</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-gray-500 num">{formatCurrency(eq.initialSetupFee)}</td>
+                  {/* Markup / Sell — "Table" if using tier pricing, else markup value */}
+                  <td className="py-3 px-4">
+                    {(eq as any).usePricingTiers ? (
+                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Table
+                      </span>
+                    ) : eq.markupMultiplier ? (
+                      <span className="text-sm text-gray-700 font-medium num">
+                        {eq.markupType === 'percent' ? `${eq.markupMultiplier}%` : `${eq.markupMultiplier}×`}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-gray-400">—</span>
+                    )}
                   </td>
                   <td className="py-3 px-4">
                     {nextMaint ? (
