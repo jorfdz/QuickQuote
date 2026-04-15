@@ -23,6 +23,15 @@ export const slId = (service: string, index = 0) => `sl_${service.toLowerCase().
 
 // ─── PER-LINE-ITEM PRICING STATE ────────────────────────────────────────────
 
+/** Which sides of an item have a perimeter-based finishing service applied */
+export interface PerimeterSideSelection {
+  top: boolean;
+  bottom: boolean;
+  left: boolean;
+  right: boolean;
+  note?: string;
+}
+
 export interface LineItemPricingState {
   productId: string;
   productName: string;
@@ -47,6 +56,8 @@ export interface LineItemPricingState {
   selectedBrokeredIds: string[];
   // Per-service custom notes (keyed by service selection ID)
   serviceNotes: Record<string, string>;
+  // Per-perimeter-service side selection (keyed by finishing service ID)
+  perimeterSideData?: Record<string, PerimeterSideSelection>;
   // Multi-quantity string (e.g. "1000, 2000, 5000") — persists the full input across sessions
   multiQtyString?: string;
 }
@@ -63,6 +74,7 @@ export const DEFAULT_PRICING_STATE = (): LineItemPricingState => ({
   selectedLaborIds: [],
   selectedBrokeredIds: [],
   serviceNotes: {},
+  perimeterSideData: {},
   multiQtyString: '',
 });
 
@@ -85,6 +97,259 @@ interface PartSnapshot {
 // ═════════════════════════════════════════════════════════════════════════════
 // PRODUCT EDIT MODAL — full pricing engine in a modal dialog
 // ═════════════════════════════════════════════════════════════════════════════
+
+// ─── PERIMETER SIDE PICKER ───────────────────────────────────────────────────
+
+type PerimSide = 'top' | 'bottom' | 'left' | 'right';
+
+function perimSideLabel(sel: PerimeterSideSelection): string {
+  const parts: string[] = [];
+  if (sel.top)    parts.push('Top');
+  if (sel.bottom) parts.push('Bottom');
+  if (sel.left)   parts.push('Left');
+  if (sel.right)  parts.push('Right');
+  if (parts.length === 4) return 'All Sides';
+  if (parts.length === 0) return 'No Sides';
+  return parts.join(' + ');
+}
+
+const PERIM_PRESETS: Array<{ label: string; sel: Omit<PerimeterSideSelection, 'note'> }> = [
+  { label: 'All Sides',    sel: { top: true,  bottom: true,  left: true,  right: true  } },
+  { label: 'Top + Bottom', sel: { top: true,  bottom: true,  left: false, right: false } },
+  { label: 'Left + Right', sel: { top: false, bottom: false, left: true,  right: true  } },
+  { label: 'Top',          sel: { top: true,  bottom: false, left: false, right: false } },
+  { label: 'Bottom',       sel: { top: false, bottom: true,  left: false, right: false } },
+  { label: 'Left',         sel: { top: false, bottom: false, left: true,  right: false } },
+  { label: 'Right',        sel: { top: false, bottom: false, left: false, right: true  } },
+];
+
+const PerimeterSidePicker: React.FC<{
+  svcName: string;
+  perimeterMode: 'full' | 'interval';
+  intervalInches: number;
+  width: number;
+  height: number;
+  initial: PerimeterSideSelection;
+  onConfirm: (sel: PerimeterSideSelection) => void;
+  onClose: () => void;
+}> = ({ svcName, perimeterMode, intervalInches, width, height, initial, onConfirm, onClose }) => {
+  const [sel, setSel] = useState<PerimeterSideSelection>(initial);
+  const [note, setNote] = useState(initial.note ?? '');
+
+  const toggle = (side: PerimSide) => setSel(s => ({ ...s, [side]: !s[side] }));
+  const applyPreset = (p: Omit<PerimeterSideSelection, 'note'>) => setSel(s => ({ ...s, ...p }));
+
+  // SVG layout
+  const SVG_W = 260, SVG_H = 168;
+  const MARGIN = 30;
+  const maxRW = SVG_W - MARGIN * 2, maxRH = SVG_H - MARGIN * 2;
+  const aspect = (width > 0 && height > 0) ? width / height : 1.618;
+  let rW = maxRW, rH = rW / aspect;
+  if (rH > maxRH) { rH = maxRH; rW = rH * aspect; }
+  if (rW > maxRW) { rW = maxRW; rH = rW / aspect; }
+  const rx = (SVG_W - rW) / 2, ry = (SVG_H - rH) / 2;
+
+  const isInterval = perimeterMode === 'interval';
+  const interval = intervalInches > 0 ? intervalInches : 12;
+  const SIDE_PX = 6;
+  const DOT_R = 3.5;
+  const PURPLE = '#7c3aed';
+
+  // Compute grommet dot positions along a side
+  const dots = (side: PerimSide): { cx: number; cy: number }[] => {
+    const sideInches = (side === 'top' || side === 'bottom') ? width : height;
+    const visualLen  = (side === 'top' || side === 'bottom') ? rW : rH;
+    const count = sideInches > 0 ? Math.min(20, Math.max(2, Math.ceil(sideInches / interval) + 1)) : 4;
+    return Array.from({ length: count }, (_, i) => {
+      const t = count === 1 ? 0.5 : i / (count - 1);
+      const p = t * visualLen;
+      if (side === 'top')    return { cx: rx + p, cy: ry };
+      if (side === 'bottom') return { cx: rx + p, cy: ry + rH };
+      if (side === 'left')   return { cx: rx,     cy: ry + p };
+      return                        { cx: rx + rW, cy: ry + p };
+    });
+  };
+
+  // Effective perimeter inches and charge qty
+  const effectivePerim =
+    (sel.top    ? (width  || 0) : 0) + (sel.bottom ? (width  || 0) : 0) +
+    (sel.left   ? (height || 0) : 0) + (sel.right  ? (height || 0) : 0);
+  const chargeQty = isInterval ? Math.ceil(effectivePerim / interval) : effectivePerim;
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40"
+      onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+          <div>
+            <p className="text-sm font-bold text-gray-900">{svcName}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              {isInterval
+                ? `One item every ${interval}" — click sides to apply`
+                : 'Full perimeter charge — click sides to apply'}
+            </p>
+          </div>
+          <button type="button" onClick={onClose}
+            className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* SVG visual */}
+        <div className="px-4 pt-4 pb-1">
+          <svg width={SVG_W} height={SVG_H} viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+            className="w-full" style={{ userSelect: 'none' }}>
+            {/* Base rectangle */}
+            <rect x={rx} y={ry} width={rW} height={rH}
+              fill="#f5f3ff" stroke="#d1d5db" strokeWidth={1} rx={3} />
+            {/* Dimension label */}
+            {width > 0 && height > 0 && (
+              <text x={rx + rW / 2} y={ry + rH / 2}
+                textAnchor="middle" dominantBaseline="middle"
+                fontSize={9} fill="#9ca3af" fontFamily="system-ui, sans-serif">
+                {width}" × {height}"
+              </text>
+            )}
+
+            {/* Sides — click zone + visual */}
+            {(['top', 'bottom', 'left', 'right'] as PerimSide[]).map(side => {
+              const active = sel[side];
+              const HIT = 22;
+              const hitProps = {
+                top:    { x: rx - 4,       y: ry - HIT,       width: rW + 8,       height: HIT + SIDE_PX + 2 },
+                bottom: { x: rx - 4,       y: ry + rH - 2,    width: rW + 8,       height: HIT + SIDE_PX + 2 },
+                left:   { x: rx - HIT,     y: ry - 4,         width: HIT + SIDE_PX + 2, height: rH + 8 },
+                right:  { x: rx + rW - 2,  y: ry - 4,         width: HIT + SIDE_PX + 2, height: rH + 8 },
+              }[side];
+
+              const labelProps = {
+                top:    { x: rx + rW / 2, y: ry - 9, textAnchor: 'middle', dominantBaseline: 'auto' },
+                bottom: { x: rx + rW / 2, y: ry + rH + 16, textAnchor: 'middle', dominantBaseline: 'auto' },
+                left:   { x: rx - 5,      y: ry + rH / 2, textAnchor: 'end', dominantBaseline: 'middle' },
+                right:  { x: rx + rW + 5, y: ry + rH / 2, textAnchor: 'start', dominantBaseline: 'middle' },
+              }[side];
+
+              return (
+                <g key={side} onClick={() => toggle(side)} style={{ cursor: 'pointer' }}>
+                  {/* Invisible fat hit zone */}
+                  <rect {...hitProps} fill="transparent" />
+
+                  {/* Hemming — thick solid line */}
+                  {active && !isInterval && (
+                    <>
+                      {side === 'top'    && <line x1={rx}    y1={ry}      x2={rx+rW} y2={ry}      stroke={PURPLE} strokeWidth={SIDE_PX} strokeLinecap="round" />}
+                      {side === 'bottom' && <line x1={rx}    y1={ry+rH}   x2={rx+rW} y2={ry+rH}   stroke={PURPLE} strokeWidth={SIDE_PX} strokeLinecap="round" />}
+                      {side === 'left'   && <line x1={rx}    y1={ry}      x2={rx}    y2={ry+rH}   stroke={PURPLE} strokeWidth={SIDE_PX} strokeLinecap="round" />}
+                      {side === 'right'  && <line x1={rx+rW} y1={ry}      x2={rx+rW} y2={ry+rH}   stroke={PURPLE} strokeWidth={SIDE_PX} strokeLinecap="round" />}
+                    </>
+                  )}
+
+                  {/* Grommets — circles along the side */}
+                  {active && isInterval && dots(side).map((d, i) => (
+                    <circle key={i} cx={d.cx} cy={d.cy} r={DOT_R}
+                      fill="white" stroke={PURPLE} strokeWidth={2} />
+                  ))}
+
+                  {/* Not-selected: dashed highlight hint */}
+                  {!active && (
+                    <>
+                      {side === 'top'    && <line x1={rx}    y1={ry}    x2={rx+rW} y2={ry}    stroke="#c4b5fd" strokeWidth={2} strokeDasharray="4 4" />}
+                      {side === 'bottom' && <line x1={rx}    y1={ry+rH} x2={rx+rW} y2={ry+rH} stroke="#c4b5fd" strokeWidth={2} strokeDasharray="4 4" />}
+                      {side === 'left'   && <line x1={rx}    y1={ry}    x2={rx}    y2={ry+rH} stroke="#c4b5fd" strokeWidth={2} strokeDasharray="4 4" />}
+                      {side === 'right'  && <line x1={rx+rW} y1={ry}    x2={rx+rW} y2={ry+rH} stroke="#c4b5fd" strokeWidth={2} strokeDasharray="4 4" />}
+                    </>
+                  )}
+
+                  {/* Side label */}
+                  <text {...labelProps} fontSize={8.5}
+                    fill={active ? PURPLE : '#9ca3af'}
+                    fontWeight={active ? 700 : 400}
+                    fontFamily="system-ui, sans-serif">
+                    {side.toUpperCase()}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+
+          {/* Live summary */}
+          <p className="text-center text-[11px] pb-2 -mt-0.5 min-h-[18px]">
+            {effectivePerim > 0
+              ? isInterval
+                ? <><span className="font-semibold text-purple-700">{chargeQty} items</span>
+                    <span className="text-gray-400"> ({effectivePerim}" ÷ {interval}")</span></>
+                : <><span className="font-semibold text-purple-700">{effectivePerim}"</span>
+                    <span className="text-gray-400"> ({(effectivePerim / 12).toFixed(1)} ft) selected</span></>
+              : <span className="text-gray-400">Click sides above to select</span>
+            }
+          </p>
+        </div>
+
+        {/* Quick presets */}
+        <div className="px-4 pb-3">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Quick Select</p>
+          <div className="flex flex-wrap gap-1">
+            {PERIM_PRESETS.map(p => {
+              const active = p.sel.top === sel.top && p.sel.bottom === sel.bottom
+                && p.sel.left === sel.left && p.sel.right === sel.right;
+              return (
+                <button key={p.label} type="button" onClick={() => applyPreset(p.sel)}
+                  className={`px-2.5 py-1 text-[11px] rounded-full border font-medium transition-all ${
+                    active
+                      ? 'bg-purple-600 text-white border-purple-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300 hover:text-purple-700'
+                  }`}>
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div className="px-4 pb-3">
+          <textarea rows={2} value={note} onChange={e => setNote(e.target.value)}
+            placeholder="Optional notes (e.g. silver grommets, reinforce corners)..."
+            className="w-full text-[11px] px-2.5 py-1.5 border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-1 focus:ring-purple-400 text-gray-700 placeholder-gray-400" />
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
+          <span className="text-[11px] font-semibold text-gray-600">{perimSideLabel(sel)}</span>
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose}
+              className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 font-medium">
+              Cancel
+            </button>
+            <button type="button"
+              disabled={!sel.top && !sel.bottom && !sel.left && !sel.right}
+              onClick={() => onConfirm({ ...sel, note: note.trim() || undefined })}
+              className="px-4 py-1.5 text-xs font-semibold bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              Apply
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── SMALL HELPER: inline sides indicator for tag ────────────────────────────
+const SidesIndicator: React.FC<{ sel: PerimeterSideSelection }> = ({ sel }) => (
+  <svg width={12} height={10} viewBox="0 0 12 10" className="flex-shrink-0 ml-0.5">
+    {/* miniature rectangle — active sides filled purple */}
+    <rect x={1} y={1} width={10} height={8} fill="none" stroke="#c4b5fd" strokeWidth={0.8} />
+    {sel.top    && <line x1={1} y1={1}  x2={11} y2={1}  stroke="#7c3aed" strokeWidth={2} />}
+    {sel.bottom && <line x1={1} y1={9}  x2={11} y2={9}  stroke="#7c3aed" strokeWidth={2} />}
+    {sel.left   && <line x1={1} y1={1}  x2={1}  y2={9}  stroke="#7c3aed" strokeWidth={2} />}
+    {sel.right  && <line x1={11} y1={1} x2={11} y2={9}  stroke="#7c3aed" strokeWidth={2} />}
+  </svg>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface ProductEditModalProps {
   item: QuoteLineItem;
@@ -270,6 +535,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [selectedBrokeredIds, setSelectedBrokeredIds] = useState<string[]>(() => ps.selectedBrokeredIds ?? []);
   const [serviceNotes, setServiceNotes] = useState<Record<string, string>>(() => ps.serviceNotes ?? {});
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  // Perimeter side data — keyed by finishing service ID
+  const [perimeterSideData, setPerimeterSideData] = useState<Record<string, PerimeterSideSelection>>(
+    () => ps.perimeterSideData ?? {}
+  );
+  // Which per_perimeter service picker is currently open (null = closed)
+  const [perimPickerSvcId, setPerimPickerSvcId] = useState<string | null>(null);
 
   // Sync labor/brokered selections into pricing state so they persist in pricingContext
   useEffect(() => {
@@ -300,6 +571,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFinishingIds]);
+
+  // Sync perimeterSideData → pricingContext so side selections survive navigation
+  useEffect(() => {
+    onUpdatePricing({ perimeterSideData });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perimeterSideData]);
 
   // Sync multiQtyString → pricingContext so it survives modal close/reopen
   useEffect(() => {
@@ -749,7 +1026,22 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       if (svc.chargeBasis === 'per_perimeter') {
         // Perimeter needs item dimensions; skip if not set
         if (ps.finalWidth <= 0 || ps.finalHeight <= 0) return;
-        const perimeterInches = 2 * (ps.finalWidth + ps.finalHeight);
+
+        // If the user has selected specific sides, use only those; otherwise full perimeter
+        const sideData = perimeterSideData[fid];
+        const w = ps.finalWidth, h = ps.finalHeight;
+        let perimeterInches: number;
+        let sidesLabel: string;
+        if (sideData && (sideData.top || sideData.bottom || sideData.left || sideData.right)) {
+          perimeterInches =
+            (sideData.top    ? w : 0) + (sideData.bottom ? w : 0) +
+            (sideData.left   ? h : 0) + (sideData.right  ? h : 0);
+          sidesLabel = perimSideLabel(sideData);
+        } else {
+          perimeterInches = 2 * (w + h);
+          sidesLabel = 'All Sides';
+        }
+
         const perimeterMode = svc.perimeterMode ?? 'full';
         let chargeQty: number;
         let unitLabel: string;
@@ -759,11 +1051,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
           const interval = svc.perimeterIntervalInches ?? 12;
           chargeQty = Math.ceil(perimeterInches / interval);
           unitLabel = 'items';
-          description = `${svc.name} — ${chargeQty} items (${perimeterInches}" perimeter ÷ ${interval}" spacing)`;
+          description = `${svc.name} (${sidesLabel}) — ${chargeQty} items (${perimeterInches}" ÷ ${interval}" spacing)`;
         } else {
           chargeQty = perimeterInches;
           unitLabel = 'in';
-          description = `${svc.name} — ${perimeterInches}" perimeter (${ps.finalWidth}"×${ps.finalHeight}")`;
+          description = `${svc.name} (${sidesLabel}) — ${perimeterInches}" (${w}"×${h}")`;
         }
 
         const costPerUnit = svc.unitCost;
@@ -904,7 +1196,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       ps.quantity, ps.originals, ps.sides, ps.colorMode, ps.colorModeSide2, ps.materialId, ps.equipmentId,
       ps.cuttingEnabled, ps.sheetsPerStack, ps.foldingType, ps.drillingType,
       ps.finalWidth, ps.finalHeight,
-      selectedFinishingIds, selectedLaborIds, selectedBrokeredIds,
+      selectedFinishingIds, selectedLaborIds, selectedBrokeredIds, perimeterSideData,
       finishing, lookupClickPrice, pricing.labor, pricing.brokered]);
 
   // Recompute and sync to parent
@@ -2774,20 +3066,45 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       const svc = finishing.find(f => f.id === id);
                       const note = serviceNotes[id] || '';
                       if (!svc) return null;
+                      const isPerim = svc.chargeBasis === 'per_perimeter';
+                      const perimSel = isPerim ? perimeterSideData[id] : undefined;
+                      const hasConfig = isPerim
+                        ? !!perimSel && (perimSel.top || perimSel.bottom || perimSel.left || perimSel.right)
+                        : !!note;
+
                       return (
                         <span key={id} className="relative inline-flex items-center">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border shadow-sm transition-all ${
-                            note ? 'bg-purple-200 text-purple-800 border-purple-300' : 'bg-purple-100 text-purple-700 border-purple-200'
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border shadow-sm transition-all ${
+                            hasConfig ? 'bg-purple-200 text-purple-800 border-purple-300' : 'bg-purple-100 text-purple-700 border-purple-200'
                           }`}>
                             <button
                               type="button"
-                              onClick={() => setEditingNoteId(editingNoteId === id ? null : id)}
-                              title={note ? `Notes: ${note}\nClick to edit` : 'Click to add a note'}
-                              className="flex items-center gap-0.5 hover:opacity-70 transition-opacity"
+                              onClick={() => {
+                                if (isPerim) {
+                                  setPerimPickerSvcId(id);
+                                } else {
+                                  setEditingNoteId(editingNoteId === id ? null : id);
+                                }
+                              }}
+                              title={isPerim
+                                ? (perimSel ? `Sides: ${perimSideLabel(perimSel)} — click to change` : 'Click to choose sides')
+                                : (note ? `Notes: ${note}\nClick to edit` : 'Click to add a note')}
+                              className="flex items-center gap-1 hover:opacity-70 transition-opacity"
                             >
                               <Edit3 className="w-2 h-2 opacity-50" />
                               {svc.name}
-                              {note && <span className="w-1.5 h-1.5 rounded-full bg-purple-600 ml-0.5 flex-shrink-0" />}
+                              {/* Perimeter: mini side indicator */}
+                              {isPerim && perimSel && hasConfig && (
+                                <SidesIndicator sel={perimSel} />
+                              )}
+                              {/* Perimeter: "awaiting" dot when no sides chosen */}
+                              {isPerim && !hasConfig && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ml-0.5 flex-shrink-0" title="No sides selected" />
+                              )}
+                              {/* Regular: note dot */}
+                              {!isPerim && note && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-600 ml-0.5 flex-shrink-0" />
+                              )}
                             </button>
                             <button
                               type="button"
@@ -2801,14 +3118,17 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                   drillingType: sel.find(f => f.finishingGroupIds?.includes('fg3'))?.name || '',
                                 });
                                 setServiceNotes(prev => { const n = { ...prev }; delete n[id]; return n; });
+                                if (isPerim) {
+                                  setPerimeterSideData(prev => { const n = { ...prev }; delete n[id]; return n; });
+                                }
                               }}
                               className="hover:text-purple-900 ml-0.5"
                             >
                               <X className="w-2.5 h-2.5" />
                             </button>
                           </span>
-                          {/* Note popup — absolute so it never shifts surrounding tags */}
-                          {editingNoteId === id && (
+                          {/* Regular note popup (not shown for perimeter services — those use the picker) */}
+                          {!isPerim && editingNoteId === id && (
                             <div className="absolute bottom-full left-0 mb-1.5 z-20 shadow-lg">
                               <textarea
                                 autoFocus
@@ -2839,7 +3159,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               onChange={e => {
                                 if (!e.target.value) return;
                                 trackInteraction();
-                                const nextIds = [...selectedFinishingIds, e.target.value];
+                                const svcId = e.target.value;
+                                const nextIds = [...selectedFinishingIds, svcId];
                                 setSelectedFinishingIds(nextIds);
                                 const sel = finishing.filter(f => nextIds.includes(f.id));
                                 onUpdatePricing({
@@ -2847,6 +3168,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                   foldingType: sel.find(f => f.finishingGroupIds?.includes('fg2'))?.name || '',
                                   drillingType: sel.find(f => f.finishingGroupIds?.includes('fg3'))?.name || '',
                                 });
+                                // Auto-open the side picker for perimeter-based services
+                                const addedSvc = finishing.find(f => f.id === svcId);
+                                if (addedSvc?.chargeBasis === 'per_perimeter') {
+                                  setPerimPickerSvcId(svcId);
+                                }
                               }}
                               disabled={available.length === 0}
                               className="w-full pl-2 pr-7 py-1.5 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-purple-300 appearance-none text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:border-purple-300 transition-colors cursor-pointer"
@@ -4759,6 +5085,32 @@ const RichDescriptionEditor: React.FC<{
           </button>
         </div>
       </div>
+
+      {/* ── Perimeter Side Picker (renders above the modal backdrop) ── */}
+      {perimPickerSvcId !== null && (() => {
+        const pickerSvc = finishing.find(f => f.id === perimPickerSvcId);
+        if (!pickerSvc) return null;
+        const existing = perimeterSideData[perimPickerSvcId] ?? { top: true, bottom: true, left: true, right: true };
+        return (
+          <PerimeterSidePicker
+            svcName={pickerSvc.name}
+            perimeterMode={pickerSvc.perimeterMode ?? 'full'}
+            intervalInches={pickerSvc.perimeterIntervalInches ?? 12}
+            width={ps.finalWidth}
+            height={ps.finalHeight}
+            initial={existing}
+            onConfirm={sel => {
+              setPerimeterSideData(prev => ({ ...prev, [perimPickerSvcId]: sel }));
+              if (sel.note) {
+                setServiceNotes(prev => ({ ...prev, [perimPickerSvcId]: sel.note! }));
+              }
+              setPerimPickerSvcId(null);
+              userChangedPricing.current = true;
+            }}
+            onClose={() => setPerimPickerSvcId(null)}
+          />
+        );
+      })()}
     </div>
   );
 };
