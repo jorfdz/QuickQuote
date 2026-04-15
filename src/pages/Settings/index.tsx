@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { PRESET_SCHEMES, buildSchemeFromColor, applyColorScheme, saveScheme, loadSavedScheme, ColorScheme, applyDarkMode, isDarkModeEnabled } from '../../store/colorScheme';
-import { Building, CreditCard, Globe, Bell, Palette, Plus, Pencil, Trash2, Package, Layers, FileText, RotateCcw, Eye, Ruler, Workflow as WorkflowIcon, Moon, Sun } from 'lucide-react';
+import { Building, CreditCard, Globe, Bell, Palette, Plus, Pencil, Trash2, Package, Layers, FileText, RotateCcw, Eye, Ruler, Workflow as WorkflowIcon, Moon, Sun, Send, CheckCircle, AlertCircle } from 'lucide-react';
 import { Card, PageHeader, Button, Input, Textarea, Tabs, Select, Table, Modal, ConfirmDialog } from '../../components/ui';
 import { DEFAULT_COMPANY_SETTINGS, DEFAULT_INVOICE_TEMPLATE, DEFAULT_ORDER_TEMPLATE, DEFAULT_PURCHASE_ORDER_TEMPLATE, DEFAULT_QUOTE_TEMPLATE, DEFAULT_WORK_ORDER_TEMPLATE } from '../../data/documentSettings';
 import { useStore } from '../../store';
@@ -79,6 +79,21 @@ const blankTrackingDeviceForm = (): Omit<TrackingDevice, 'id' | 'createdAt'> => 
 
 export const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState('company');
+
+  // ─── Email settings state ─────────────────────────────────────────────────
+  const defaultEmail = { fromName: '', fromEmail: '', protocol: 'smtp' as const, host: '', port: 587, useSSL: true, username: '', password: '', connectionTested: false };
+  const [emailCfg, setEmailCfg] = useState(() => (companySettings as any).emailSettings || defaultEmail);
+  const [emailTestStatus, setEmailTestStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
+
+  const handleTestEmail = () => {
+    setEmailTestStatus('testing');
+    // UI only — real connection test would happen server-side
+    setTimeout(() => setEmailTestStatus(emailCfg.host && emailCfg.username ? 'ok' : 'fail'), 1200);
+  };
+
+  const saveEmailSettings = () => {
+    updateCompanySettings({ emailSettings: emailCfg } as any);
+  };
 
   // ─── Appearance / Color Scheme state ─────────────────────────────────────
   const [activeScheme, setActiveScheme] = useState<ColorScheme>(() => loadSavedScheme());
