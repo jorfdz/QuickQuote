@@ -12,6 +12,7 @@ import type { PricingCategory, PricingProduct } from '../../types/pricing';
 const TABS = [
   { id: 'company', label: 'Company' }, { id: 'branding', label: 'Branding' },
   { id: 'appearance', label: 'Appearance' },
+  { id: 'email', label: 'Email' },
   { id: 'documents', label: 'Documents' },
   { id: 'defaults', label: 'Quote Defaults' }, { id: 'catalog', label: 'Catalog' },
   { id: 'order-tracker', label: 'Order Tracker' },

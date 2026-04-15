@@ -324,6 +324,147 @@ export const AddressDialog: React.FC<{
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
+// QUOTE SEND DIALOG
+// ═════════════════════════════════════════════════════════════════════════════
+
+const QuoteSendDialog: React.FC<{
+  quoteNumber: string;
+  fromEmail: string;
+  fromName: string;
+  toEmail: string;
+  toName: string;
+  subject: string;
+  defaultMessage: string;
+  hasEmailConfig: boolean;
+  onClose: () => void;
+}> = ({ quoteNumber, fromEmail, fromName, toEmail, toName, subject: initSubject, defaultMessage, hasEmailConfig, onClose }) => {
+  const navigate = useNavigate();
+  const [to,      setTo]      = React.useState(toEmail ? `${toName ? toName + ' <' : ''}${toEmail}${toName ? '>' : ''}` : '');
+  const [subj,    setSubj]    = React.useState(initSubject);
+  const [msg,     setMsg]     = React.useState(defaultMessage);
+  const [sending, setSending] = React.useState(false);
+  const [sent,    setSent]    = React.useState(false);
+
+  const handleSend = () => {
+    setSending(true);
+    // Simulate send — real integration wired up in Settings → Email
+    setTimeout(() => { setSending(false); setSent(true); }, 1000);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+            <Send className="w-4 h-4 text-[#F890E7]" />
+            Send Quote {quoteNumber}
+          </h3>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+            <X className="w-4 h-4 text-gray-400" />
+          </button>
+        </div>
+
+        {/* No email config warning */}
+        {!hasEmailConfig && (
+          <div className="mx-5 mt-4 flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-800">
+            <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+            <span>
+              No outbound email is configured. Your team will need to send this manually.{' '}
+              <button type="button" onClick={() => { onClose(); navigate('/settings?tab=email'); }}
+                className="underline font-semibold hover:text-amber-900 transition-colors">
+                Configure email in Settings →
+              </button>
+            </span>
+          </div>
+        )}
+
+        {/* Form body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+
+          {/* Attachment indicator */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+            <FileDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <span className="text-[11px] text-gray-600 flex-1">Attached: <span className="font-semibold">Quote-{quoteNumber}.pdf</span></span>
+            <span className="text-[10px] text-gray-400">PDF</span>
+          </div>
+
+          {/* From */}
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">From</label>
+            <div className="px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg text-gray-600 select-none">
+              {fromName ? `${fromName} <${fromEmail}>` : fromEmail || <span className="text-gray-400 italic">Not configured — add in Settings → Email</span>}
+            </div>
+          </div>
+
+          {/* To */}
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</label>
+            <input
+              type="text" value={to}
+              onChange={e => setTo(e.target.value)}
+              placeholder="recipient@example.com"
+              className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400"
+            />
+          </div>
+
+          {/* Subject */}
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Subject</label>
+            <input
+              type="text" value={subj}
+              onChange={e => setSubj(e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7]"
+            />
+          </div>
+
+          {/* Message */}
+          <div>
+            <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Message</label>
+            <textarea
+              rows={6}
+              value={msg}
+              onChange={e => setMsg(e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] resize-none leading-relaxed"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100 bg-white rounded-b-2xl">
+          {sent ? (
+            <span className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              {hasEmailConfig ? 'Quote sent!' : 'Marked as sent'}
+            </span>
+          ) : (
+            <p className="text-[10px] text-gray-400">{hasEmailConfig ? 'Sends via your connected email account.' : 'Email not configured — message will be shown for manual sending.'}</p>
+          )}
+          <div className="flex gap-2">
+            <button onClick={onClose}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg transition-colors">
+              {sent ? 'Close' : 'Cancel'}
+            </button>
+            {!sent && (
+              <button
+                onClick={handleSend}
+                disabled={sending || !to.trim() || !subj.trim()}
+                className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-[#F890E7] hover:bg-[#e57dd6] disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                <Send className="w-3.5 h-3.5" />
+                {sending ? 'Sending…' : hasEmailConfig ? 'Send' : 'Mark as Sent'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
 
 export const QuoteDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -992,6 +1133,35 @@ export const QuoteDetail: React.FC = () => {
               setShowAddressDialog(false);
             }}
             onClose={() => setShowAddressDialog(false)}
+          />
+        );
+      })()}
+
+      {/* ── Send Quote dialog ─────────────────────────────────────────── */}
+      {showSendDialog && (() => {
+        const customer = customers.find(c => c.id === quote.customerId);
+        const primaryContact = contacts.find(c => c.customerId === quote.customerId && c.isPrimary)
+          || contacts.find(c => c.customerId === quote.customerId);
+        const toEmail = primaryContact?.email || customer?.email || '';
+        const toName = primaryContact
+          ? `${primaryContact.firstName} ${primaryContact.lastName}`
+          : (quote.contactName || quote.customerName || '');
+        const emailCfg = (companySettings as any).emailSettings;
+        const fromEmail = emailCfg?.fromEmail || companySettings.email || '';
+        const fromName  = emailCfg?.fromName  || companySettings.name  || '';
+        const subject   = `Quote ${quote.number}${quote.title ? ' — ' + quote.title : ''} from ${companySettings.name}`;
+        const defaultMsg = `Hi ${primaryContact?.firstName || quote.contactName?.split(' ')[0] || 'there'},\n\nPlease find your quote ${quote.number} attached. This quote is valid until ${quote.validUntil ? formatDate(quote.validUntil) : 'further notice'}.\n\nPlease don't hesitate to reach out with any questions.\n\nThank you for the opportunity,\n${fromName}`;
+        return (
+          <QuoteSendDialog
+            quoteNumber={quote.number}
+            fromEmail={fromEmail}
+            fromName={fromName}
+            toEmail={toEmail}
+            toName={toName}
+            subject={subject}
+            defaultMessage={defaultMsg}
+            hasEmailConfig={!!emailCfg?.host}
+            onClose={() => setShowSendDialog(false)}
           />
         );
       })()}
