@@ -2492,11 +2492,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               )}
 
               {/* ═══ SERVICES ═════════════════════════════════════════ */}
-              <div className="space-y-3 pt-3 border-t border-gray-100">
+              <div className="space-y-4 pt-4 mt-1 border-t border-gray-100">
                 {/* Section label */}
                 <div className="flex items-center gap-1.5">
-                  <Layers className="w-3 h-3 text-gray-400" />
-                  <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Services</span>
+                  <Layers className="w-3.5 h-3.5 text-gray-500" />
+                  <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Services</span>
                 </div>
 
                 {/* ── FINISHING ─────────────────────────────────────────── */}
@@ -2512,7 +2512,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       const note = serviceNotes[id] || '';
                       if (!svc) return null;
                       return (
-                        <span key={id} className="inline-flex flex-col gap-0.5">
+                        <span key={id} className="relative inline-flex items-center">
                           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border shadow-sm transition-all ${
                             note ? 'bg-purple-200 text-purple-800 border-purple-300' : 'bg-purple-100 text-purple-700 border-purple-200'
                           }`}>
@@ -2544,17 +2544,20 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               <X className="w-2.5 h-2.5" />
                             </button>
                           </span>
+                          {/* Note popup — absolute so it never shifts surrounding tags */}
                           {editingNoteId === id && (
-                            <input
-                              autoFocus
-                              type="text"
-                              value={note}
-                              onChange={e => setServiceNotes(prev => ({ ...prev, [id]: e.target.value }))}
-                              onBlur={() => setEditingNoteId(null)}
-                              onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditingNoteId(null); }}
-                              placeholder="Add instructions..."
-                              className="text-[10px] px-2 py-0.5 border border-purple-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-400 bg-purple-50 text-purple-800 min-w-[150px] max-w-[220px]"
-                            />
+                            <div className="absolute bottom-full left-0 mb-1.5 z-20 shadow-lg">
+                              <textarea
+                                autoFocus
+                                rows={2}
+                                value={note}
+                                onChange={e => setServiceNotes(prev => ({ ...prev, [id]: e.target.value }))}
+                                onBlur={() => setEditingNoteId(null)}
+                                onKeyDown={e => { if (e.key === 'Escape') setEditingNoteId(null); }}
+                                placeholder="Add instructions for this service..."
+                                className="w-72 text-[11px] px-2.5 py-1.5 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white text-purple-900 resize-none shadow-md"
+                              />
+                            </div>
                           )}
                         </span>
                       );
@@ -2611,7 +2614,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         const note = serviceNotes[id] || '';
                         if (!svc) return null;
                         return (
-                          <span key={id} className="inline-flex flex-col gap-0.5">
+                          <span key={id} className="relative inline-flex items-center">
                             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border shadow-sm transition-all ${
                               note ? 'bg-blue-200 text-blue-800 border-blue-300' : 'bg-blue-100 text-blue-700 border-blue-200'
                             }`}>
@@ -2630,16 +2633,18 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               </button>
                             </span>
                             {editingNoteId === id && (
-                              <input
-                                autoFocus
-                                type="text"
-                                value={note}
-                                onChange={e => setServiceNotes(prev => ({ ...prev, [id]: e.target.value }))}
-                                onBlur={() => setEditingNoteId(null)}
-                                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditingNoteId(null); }}
-                                placeholder="Add instructions..."
-                                className="text-[10px] px-2 py-0.5 border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 bg-blue-50 text-blue-800 min-w-[150px] max-w-[220px]"
-                              />
+                              <div className="absolute bottom-full left-0 mb-1.5 z-20">
+                                <textarea
+                                  autoFocus
+                                  rows={2}
+                                  value={note}
+                                  onChange={e => setServiceNotes(prev => ({ ...prev, [id]: e.target.value }))}
+                                  onBlur={() => setEditingNoteId(null)}
+                                  onKeyDown={e => { if (e.key === 'Escape') setEditingNoteId(null); }}
+                                  placeholder="Add instructions for this service..."
+                                  className="w-72 text-[11px] px-2.5 py-1.5 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white text-blue-900 resize-none shadow-md"
+                                />
+                              </div>
                             )}
                           </span>
                         );
@@ -2684,7 +2689,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         const note = serviceNotes[id] || '';
                         if (!svc) return null;
                         return (
-                          <span key={id} className="inline-flex flex-col gap-0.5">
+                          <span key={id} className="relative inline-flex items-center">
                             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border shadow-sm transition-all ${
                               note ? 'bg-amber-200 text-amber-800 border-amber-300' : 'bg-amber-100 text-amber-700 border-amber-200'
                             }`}>
@@ -2703,16 +2708,18 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               </button>
                             </span>
                             {editingNoteId === id && (
-                              <input
-                                autoFocus
-                                type="text"
-                                value={note}
-                                onChange={e => setServiceNotes(prev => ({ ...prev, [id]: e.target.value }))}
-                                onBlur={() => setEditingNoteId(null)}
-                                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditingNoteId(null); }}
-                                placeholder="Add instructions..."
-                                className="text-[10px] px-2 py-0.5 border border-amber-300 rounded focus:outline-none focus:ring-1 focus:ring-amber-400 bg-amber-50 text-amber-800 min-w-[150px] max-w-[220px]"
-                              />
+                              <div className="absolute bottom-full left-0 mb-1.5 z-20">
+                                <textarea
+                                  autoFocus
+                                  rows={2}
+                                  value={note}
+                                  onChange={e => setServiceNotes(prev => ({ ...prev, [id]: e.target.value }))}
+                                  onBlur={() => setEditingNoteId(null)}
+                                  onKeyDown={e => { if (e.key === 'Escape') setEditingNoteId(null); }}
+                                  placeholder="Add instructions for this service..."
+                                  className="w-72 text-[11px] px-2.5 py-1.5 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white text-amber-900 resize-none shadow-md"
+                                />
+                              </div>
                             )}
                           </span>
                         );
