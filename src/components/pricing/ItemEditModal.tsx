@@ -110,6 +110,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // ── Local UI state ────────────────────────────────────────────────────
   const [productQuery, setProductQuery] = useState(ps.productName || '');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showProductBrowser, setShowProductBrowser] = useState(false);
+  const [browserCatId, setBrowserCatId] = useState<string | null>(null);
   // Global product search for multi-part item name
   const [showGlobalSuggestions, setShowGlobalSuggestions] = useState(false);
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
@@ -153,6 +155,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   // ── Quick-add new material state ─────────────────────────────────────
   const [showAddMaterial, setShowAddMaterial] = useState(false);
+  const [showRichEditor, setShowRichEditor] = useState(false);
+  const richEditorRef = React.useRef<HTMLDivElement>(null);
   const blankAddMaterialForm = () => ({
     name: '',
     materialType: 'paper' as 'paper' | 'roll_media' | 'rigid_substrate' | 'blanks',
@@ -2000,11 +2004,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Product</label>
-                        {needsProduct && (
-                          <span className="text-[9px] font-semibold text-[var(--brand)] bg-[var(--brand-light)] px-2 py-0.5 rounded-full uppercase tracking-wide">
-                            Select a product to begin
-                          </span>
-                        )}
                       </div>
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -2064,7 +2063,19 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                 {/* ── Left: Description textarea ───────────────────── */}
                 <div className="flex-1 min-w-0">
-                  <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wide mb-1.5">Description</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Description</label>
+                    {/* Enhance button — opens rich-text editor without disturbing the plain textarea */}
+                    <button
+                      type="button"
+                      onClick={() => setShowRichEditor(true)}
+                      title="Open rich-text editor — add images, colors, formatting"
+                      className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 hover:border-violet-300 rounded-md transition-colors"
+                    >
+                      <Layers className="w-3 h-3" />
+                      Enhance ✨
+                    </button>
+                  </div>
                   <textarea
                     rows={2}
                     value={item.description}
@@ -2841,7 +2852,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 const bInpVio = (err: boolean) => `w-[68px] px-1.5 py-0.5 text-[12px] font-medium text-right num rounded focus:outline-none focus:ring-1 transition-colors border ${err ? 'border-red-400 text-red-700 bg-red-50' : 'border-violet-300 text-violet-900 bg-violet-50 focus:ring-violet-400'}`;
 
                 return (
-                  <div className="rounded-xl border border-emerald-200 overflow-hidden mt-4">
+                  <div className="rounded-xl border border-emerald-200 overflow-hidden mt-6">
 
                     {/* ── Collapsed header — always visible, shows summary stats ── */}
                     <button
@@ -3384,6 +3395,19 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
           message="This part has content configured. Are you sure you want to delete it? This cannot be undone."
           confirmLabel="Delete Part"
         />
+
+        {/* ══ Rich Description Editor ════════════════════════════════════ */}
+        {showRichEditor && (
+          <RichDescriptionEditor
+            initialHtml={(item as any).richDescription || item.description || ''}
+            onSave={(html, plainText) => {
+              onUpdateItem({ richDescription: html, description: plainText } as any);
+              setAutoDescribe(false);
+              setShowRichEditor(false);
+            }}
+            onClose={() => setShowRichEditor(false)}
+          />
+        )}
 
         {/* ══ Quick-Add New Material Dialog ══════════════════════════════ */}
     {showAddMaterial && (() => {
@@ -4310,6 +4334,232 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={onClose}>Cancel</Button>
             <Button variant="success" onClick={() => onSave(localLines)}>Apply Changes</Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// RICH DESCRIPTION EDITOR — full-featured formatting dialog
+// Uses contenteditable + execCommand (zero dependencies, universally supported)
+// ═════════════════════════════════════════════════════════════════════════════
+
+const RichDescriptionEditor: React.FC<{
+  initialHtml: string;
+  onSave: (html: string, plainText: string) => void;
+  onClose: () => void;
+}> = ({ initialHtml, onSave, onClose }) => {
+  const editorRef = React.useRef<HTMLDivElement>(null);
+  const [fontColor, setFontColor] = React.useState('#000000');
+  const [fontSize, setFontSize] = React.useState('3');
+  const [imageUrl, setImageUrl] = React.useState('');
+  const [showImageInput, setShowImageInput] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Seed the editor with existing content on mount
+  React.useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.innerHTML = initialHtml;
+      editorRef.current.focus();
+    }
+  }, []);
+
+  const exec = (cmd: string, value?: string) => {
+    editorRef.current?.focus();
+    document.execCommand(cmd, false, value);
+  };
+
+  const handleSave = () => {
+    const html = editorRef.current?.innerHTML ?? '';
+    const plainText = editorRef.current?.innerText?.trim() ?? '';
+    onSave(html, plainText);
+  };
+
+  const insertImage = (src: string) => {
+    if (!src.trim()) return;
+    exec('insertHTML', `<img src="${src.trim()}" style="max-width:100%;height:auto;border-radius:4px;margin:4px 0;" alt=""/>`);
+    setImageUrl('');
+    setShowImageInput(false);
+  };
+
+  const handleFileImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const src = ev.target?.result as string;
+      if (src) insertImage(src);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const ToolBtn: React.FC<{ title: string; onClick: () => void; active?: boolean; children: React.ReactNode }> =
+    ({ title, onClick, active, children }) => (
+      <button
+        type="button"
+        title={title}
+        onMouseDown={e => { e.preventDefault(); onClick(); }}
+        className={`p-1.5 rounded transition-colors ${active ? 'bg-gray-200 text-gray-900' : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'}`}
+      >
+        {children}
+      </button>
+    );
+
+  const Divider = () => <div className="w-px h-5 bg-gray-200 mx-0.5 flex-shrink-0" />;
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[85vh]"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <Layers className="w-4 h-4 text-violet-500" />
+              Enhanced Description Editor
+            </h3>
+            <p className="text-[10px] text-gray-400 mt-0.5">Rich formatting — images, colors, lists. Plain description stays untouched.</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+            <X className="w-4 h-4 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Toolbar */}
+        <div className="flex items-center flex-wrap gap-0.5 px-3 py-2 border-b border-gray-100 bg-gray-50/80">
+          {/* Text style */}
+          <ToolBtn title="Bold (Ctrl+B)" onClick={() => exec('bold')}><strong className="text-xs">B</strong></ToolBtn>
+          <ToolBtn title="Italic (Ctrl+I)" onClick={() => exec('italic')}><em className="text-xs">I</em></ToolBtn>
+          <ToolBtn title="Underline (Ctrl+U)" onClick={() => exec('underline')}><span className="text-xs underline">U</span></ToolBtn>
+          <ToolBtn title="Strikethrough" onClick={() => exec('strikeThrough')}><span className="text-xs line-through">S</span></ToolBtn>
+          <Divider />
+
+          {/* Font size */}
+          <select
+            value={fontSize}
+            onChange={e => { setFontSize(e.target.value); exec('fontSize', e.target.value); }}
+            className="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-violet-400 mx-0.5"
+            title="Font size"
+          >
+            <option value="1">Tiny</option>
+            <option value="2">Small</option>
+            <option value="3">Normal</option>
+            <option value="4">Medium</option>
+            <option value="5">Large</option>
+            <option value="6">X-Large</option>
+            <option value="7">Huge</option>
+          </select>
+
+          {/* Font color */}
+          <div className="flex items-center gap-0.5 mx-0.5" title="Text color">
+            <span className="text-[10px] text-gray-500">A</span>
+            <input
+              type="color"
+              value={fontColor}
+              onChange={e => { setFontColor(e.target.value); exec('foreColor', e.target.value); }}
+              className="w-6 h-6 rounded border border-gray-200 cursor-pointer p-0.5 bg-white"
+            />
+          </div>
+          <Divider />
+
+          {/* Alignment */}
+          <ToolBtn title="Align left" onClick={() => exec('justifyLeft')}>
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 5h14a1 1 0 000-2H3a1 1 0 000 2zm0 4h10a1 1 0 000-2H3a1 1 0 000 2zm0 4h14a1 1 0 000-2H3a1 1 0 000 2zm0 4h10a1 1 0 000-2H3a1 1 0 000 2z"/></svg>
+          </ToolBtn>
+          <ToolBtn title="Center" onClick={() => exec('justifyCenter')}>
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 5h14a1 1 0 000-2H3a1 1 0 000 2zm2 4h10a1 1 0 000-2H5a1 1 0 000 2zm-2 4h14a1 1 0 000-2H3a1 1 0 000 2zm2 4h10a1 1 0 000-2H5a1 1 0 000 2z"/></svg>
+          </ToolBtn>
+          <ToolBtn title="Align right" onClick={() => exec('justifyRight')}>
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 5h14a1 1 0 000-2H3a1 1 0 000 2zm4 4h10a1 1 0 000-2H7a1 1 0 000 2zm-4 4h14a1 1 0 000-2H3a1 1 0 000 2zm4 4h10a1 1 0 000-2H7a1 1 0 000 2z"/></svg>
+          </ToolBtn>
+          <Divider />
+
+          {/* Lists */}
+          <ToolBtn title="Bullet list" onClick={() => exec('insertUnorderedList')}>
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M4 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm4-14h8a1 1 0 010 2H8a1 1 0 010-2zm0 6h8a1 1 0 010 2H8a1 1 0 010-2zm0 6h8a1 1 0 010 2H8a1 1 0 010-2z"/></svg>
+          </ToolBtn>
+          <ToolBtn title="Numbered list" onClick={() => exec('insertOrderedList')}>
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4h1v1H3V4zm1 2H3V5h1v1zm-1 2h1V7H3v1zm1 2H3V9h1v1zM8 5h8a1 1 0 010 2H8a1 1 0 010-2zm0 4h8a1 1 0 010 2H8a1 1 0 010-2zm0 4h8a1 1 0 010 2H8a1 1 0 010-2z"/></svg>
+          </ToolBtn>
+          <Divider />
+
+          {/* Indent */}
+          <ToolBtn title="Indent" onClick={() => exec('indent')}>
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 5h14a1 1 0 000-2H3a1 1 0 000 2zm5 4h9a1 1 0 000-2H8a1 1 0 000 2zm0 4h9a1 1 0 000-2H8a1 1 0 000 2zm-5 4h14a1 1 0 000-2H3a1 1 0 000 2zM3 9.7l3 2-3 2V9.7z"/></svg>
+          </ToolBtn>
+          <ToolBtn title="Outdent" onClick={() => exec('outdent')}>
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 5h14a1 1 0 000-2H3a1 1 0 000 2zm5 4h9a1 1 0 000-2H8a1 1 0 000 2zm0 4h9a1 1 0 000-2H8a1 1 0 000 2zm-5 4h14a1 1 0 000-2H3a1 1 0 000 2zM6 9.7L3 11.7l3 2V9.7z"/></svg>
+          </ToolBtn>
+          <Divider />
+
+          {/* Image */}
+          <ToolBtn title="Insert image from URL or file" onClick={() => setShowImageInput(s => !s)}>
+            <Eye className="w-3.5 h-3.5" />
+          </ToolBtn>
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileImage} />
+          <ToolBtn title="Upload image from device" onClick={() => fileInputRef.current?.click()}>
+            <Plus className="w-3.5 h-3.5" />
+          </ToolBtn>
+          <Divider />
+
+          {/* Clear */}
+          <ToolBtn title="Clear all formatting" onClick={() => exec('removeFormat')}>
+            <X className="w-3 h-3" />
+          </ToolBtn>
+        </div>
+
+        {/* Image URL bar */}
+        {showImageInput && (
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-100 bg-violet-50/60">
+            <Eye className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" />
+            <input
+              type="text"
+              value={imageUrl}
+              onChange={e => setImageUrl(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') insertImage(imageUrl); if (e.key === 'Escape') setShowImageInput(false); }}
+              placeholder="Paste image URL and press Enter…"
+              className="flex-1 text-xs bg-transparent focus:outline-none placeholder-violet-400 text-gray-700"
+              autoFocus
+            />
+            <button type="button" onClick={() => insertImage(imageUrl)}
+              className="text-[10px] font-semibold text-violet-600 hover:text-violet-800 px-2 py-0.5 bg-white border border-violet-200 rounded-md transition-colors">
+              Insert
+            </button>
+            <button type="button" onClick={() => setShowImageInput(false)} className="p-0.5 hover:bg-violet-100 rounded">
+              <X className="w-3 h-3 text-violet-400" />
+            </button>
+          </div>
+        )}
+
+        {/* Editable canvas */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 min-h-[200px]">
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            className="min-h-[180px] text-sm text-gray-800 focus:outline-none leading-relaxed"
+            style={{ wordBreak: 'break-word' }}
+          />
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100 bg-white rounded-b-2xl">
+          <p className="text-[10px] text-gray-400">The plain description field remains unchanged unless you save.</p>
+          <div className="flex gap-2">
+            <button onClick={onClose}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg transition-colors">
+              Cancel
+            </button>
+            <button onClick={handleSave}
+              className="px-5 py-2 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors">
+              Save Description
+            </button>
           </div>
         </div>
       </div>
