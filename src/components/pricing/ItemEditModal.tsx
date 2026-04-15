@@ -225,12 +225,12 @@ const PerimeterSidePicker: React.FC<{
                 right:  { x: rx + rW - 2,  y: ry - 4,         width: HIT + SIDE_PX + 2, height: rH + 8 },
               }[side];
 
-              const labelProps = {
-                top:    { x: rx + rW / 2, y: ry - 9, textAnchor: 'middle', dominantBaseline: 'auto' },
-                bottom: { x: rx + rW / 2, y: ry + rH + 16, textAnchor: 'middle', dominantBaseline: 'auto' },
-                left:   { x: rx - 5,      y: ry + rH / 2, textAnchor: 'end', dominantBaseline: 'middle' },
-                right:  { x: rx + rW + 5, y: ry + rH / 2, textAnchor: 'start', dominantBaseline: 'middle' },
-              }[side];
+              const labelProps = ({
+                top:    { x: rx + rW / 2, y: ry - 9,       textAnchor: 'middle' as const, dominantBaseline: 'auto'   as const },
+                bottom: { x: rx + rW / 2, y: ry + rH + 16, textAnchor: 'middle' as const, dominantBaseline: 'auto'   as const },
+                left:   { x: rx - 5,      y: ry + rH / 2,  textAnchor: 'end'    as const, dominantBaseline: 'middle' as const },
+                right:  { x: rx + rW + 5, y: ry + rH / 2,  textAnchor: 'start'  as const, dominantBaseline: 'middle' as const },
+              })[side];
 
               return (
                 <g key={side} onClick={() => toggle(side)} style={{ cursor: 'pointer' }}>
@@ -2010,6 +2010,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   };
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col">
@@ -4284,6 +4285,33 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     })()}
       </div>
     </div>
+
+    {/* ── Perimeter Side Picker — fixed overlay above the modal ── */}
+    {perimPickerSvcId !== null && (() => {
+      const pickerSvc = finishing.find(f => f.id === perimPickerSvcId);
+      if (!pickerSvc) return null;
+      const existing = perimeterSideData[perimPickerSvcId] ?? { top: true, bottom: true, left: true, right: true };
+      return (
+        <PerimeterSidePicker
+          svcName={pickerSvc.name}
+          perimeterMode={pickerSvc.perimeterMode ?? 'full'}
+          intervalInches={pickerSvc.perimeterIntervalInches ?? 12}
+          width={ps.finalWidth}
+          height={ps.finalHeight}
+          initial={existing}
+          onConfirm={sel => {
+            setPerimeterSideData(prev => ({ ...prev, [perimPickerSvcId]: sel }));
+            if (sel.note) {
+              setServiceNotes(prev => ({ ...prev, [perimPickerSvcId]: sel.note! }));
+            }
+            setPerimPickerSvcId(null);
+            userChangedPricing.current = true;
+          }}
+          onClose={() => setPerimPickerSvcId(null)}
+        />
+      );
+    })()}
+    </>
   );
 };
 
@@ -5085,32 +5113,6 @@ const RichDescriptionEditor: React.FC<{
           </button>
         </div>
       </div>
-
-      {/* ── Perimeter Side Picker (renders above the modal backdrop) ── */}
-      {perimPickerSvcId !== null && (() => {
-        const pickerSvc = finishing.find(f => f.id === perimPickerSvcId);
-        if (!pickerSvc) return null;
-        const existing = perimeterSideData[perimPickerSvcId] ?? { top: true, bottom: true, left: true, right: true };
-        return (
-          <PerimeterSidePicker
-            svcName={pickerSvc.name}
-            perimeterMode={pickerSvc.perimeterMode ?? 'full'}
-            intervalInches={pickerSvc.perimeterIntervalInches ?? 12}
-            width={ps.finalWidth}
-            height={ps.finalHeight}
-            initial={existing}
-            onConfirm={sel => {
-              setPerimeterSideData(prev => ({ ...prev, [perimPickerSvcId]: sel }));
-              if (sel.note) {
-                setServiceNotes(prev => ({ ...prev, [perimPickerSvcId]: sel.note! }));
-              }
-              setPerimPickerSvcId(null);
-              userChangedPricing.current = true;
-            }}
-            onClose={() => setPerimPickerSvcId(null)}
-          />
-        );
-      })()}
     </div>
   );
 };
