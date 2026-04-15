@@ -317,6 +317,7 @@ export interface PricingMaterial {
   favoriteProductIds: string[];    // products marked as favorites for this material
   favoriteCategoryIds: string[];   // categories marked as favorites for this material
   isFavorite: boolean;             // for starring/favoriting
+  useCount?: number;               // company-wide usage count — auto-incremented each time this material is selected on an item
   // Photo & description
   imageUrl?: string;               // material photo URL or base64 data URL
   description?: string;            // material description / notes

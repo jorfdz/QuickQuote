@@ -2245,10 +2245,20 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       setMaterialEntries(updated);
                       setMaterialDropdownOpen(false);
                       setMaterialSearch('');
+                      // Increment company-wide use count so popularity is tracked automatically
+                      pricing.trackMaterialUse(id);
                     };
+
+                    // Popularity threshold: materials used 3+ times company-wide, or in top 20% of used materials
+                    const usedMaterials = availableMaterials.filter(m => (m.useCount ?? 0) > 0);
+                    const useCounts = usedMaterials.map(m => m.useCount ?? 0).sort((a, b) => b - a);
+                    const top20Threshold = useCounts[Math.floor(useCounts.length * 0.2)] ?? 0;
+                    const popularThreshold = Math.max(3, top20Threshold);
+                    const isPopular = (m: typeof materials[0]) => (m.useCount ?? 0) >= popularThreshold;
 
                     const MatRow = ({ m }: { m: typeof materials[0] }) => {
                       const isSel = (materialEntries[0]?.materialId || ps.materialId) === m.id;
+                      const popular = isPopular(m);
                       return (
                         <button
                           key={m.id}
@@ -2257,8 +2267,16 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           className={`w-full flex items-start justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-[#F890E7]/8 ${isSel ? 'bg-[#F890E7]/10' : ''}`}
                         >
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm truncate ${isSel ? 'font-semibold text-[#c060b8]' : 'text-gray-800'}`}>{m.name}</p>
-                            <p className="text-[10px] text-gray-400 truncate">{m.size} · {fmt(m.pricePerM)}/M</p>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <p className={`text-sm truncate ${isSel ? 'font-semibold text-[#c060b8]' : 'text-gray-800'}`}>{m.name}</p>
+                              {popular && (
+                                <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 text-[9px] font-bold uppercase tracking-wide whitespace-nowrap border border-orange-200">
+                                  <svg className="w-2 h-2 fill-orange-500" viewBox="0 0 24 24"><path d="M13.5 2C13.5 2 13.2 4.6 11.8 6.4C10.3 8.3 8 9 8 9C8 9 9.9 3.7 6 2C6 2 6 7 2 9.5C2 9.5 4.5 9.5 4.5 12.5C4.5 15 2 17 2 17C2 17 5 16 7 19C8.5 21 8 23 8 23C8 23 14 21.5 14 16C14 13.8 13.1 12.4 12 11.5C12 11.5 13.5 10 13.5 7.5C13.5 7.5 16 9 17 12C17.5 13.4 17.5 14.8 17 16C17 16 20 14 20 10C20 6 17 4 13.5 2Z" /></svg>
+                                  Popular
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-gray-400 truncate">{m.size} · {fmt(m.pricePerM)}/M{(m.useCount ?? 0) > 0 ? ` · used ${m.useCount} time${m.useCount === 1 ? '' : 's'}` : ''}</p>
                           </div>
                           {isSel && <Check className="w-3.5 h-3.5 text-[#F890E7] flex-shrink-0 mt-0.5" />}
                         </button>

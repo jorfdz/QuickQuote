@@ -150,6 +150,9 @@ interface PricingStore {
   deleteTemplate: (id: string) => void;
   incrementTemplateUsage: (id: string) => void;
 
+  // Usage tracking
+  trackMaterialUse: (materialId: string) => void;  // increments useCount — company-wide, persisted
+
   // Toggle helpers
   toggleMaterialFavorite: (id: string) => void;
   toggleProductTemplate: (id: string) => void;
@@ -463,6 +466,13 @@ export const usePricingStore = create<PricingStore>()(
       })),
 
       // ── Toggle helpers ─────────────────────────────────────────────────
+      // Increment company-wide use count each time a material is selected on an item
+      trackMaterialUse: (materialId) => set((s) => ({
+        materials: s.materials.map((x) =>
+          x.id === materialId ? { ...x, useCount: (x.useCount ?? 0) + 1 } : x
+        ),
+      })),
+
       toggleMaterialFavorite: (id) => set((s) => ({
         materials: s.materials.map((x) =>
           x.id === id ? { ...x, isFavorite: !x.isFavorite } : x
