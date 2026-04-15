@@ -15,6 +15,9 @@ import { nanoid } from '../../utils/nanoid';
 
 const fmt = (n: number) => formatCurrency(n);
 const fmtPct = (n: number) => `${n.toFixed(1)}%`;
+// Unit costs always show 3 decimal places — critical in print (e.g. $0.025/click, $0.035/sheet)
+const fmtUnit = (n: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(n);
 // Stable deterministic IDs — must not change between renders so edit mode survives re-renders
 export const slId = (service: string, index = 0) => `sl_${service.toLowerCase().replace(/\s+/g, '_')}_${index}`;
 
@@ -2933,7 +2936,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                           <td className="py-1.5 px-3 text-gray-900">{row.qty.toLocaleString()}{idx === 0 && <span className="text-[10px] text-purple-500 ml-1">(primary)</span>}</td>
                           <td className="py-1.5 px-3 text-right num text-gray-600">{fmt(row.cost)}</td>
                           <td className="py-1.5 px-3 text-right num text-gray-900">{fmt(row.sell)}</td>
-                          <td className="py-1.5 px-3 text-right num text-gray-500">{row.qty > 0 ? fmt(row.sell / row.qty) : '--'}</td>
+                          <td className="py-1.5 px-3 text-right num text-gray-500">{row.qty > 0 ? fmtUnit(row.sell / row.qty) : '--'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -3130,11 +3133,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                       ? line.quantity.toLocaleString()
                                       : '—';
 
-                                  // Unit Cost — rate per unit
+                                  // Unit Cost — rate per unit, always 3 decimal places
                                   const unitCostDisplay = timeBased && line.hourlyCost
-                                    ? `${fmt(line.hourlyCost / 60)}/min`
+                                    ? `${fmtUnit(line.hourlyCost / 60)}/min`
                                     : qtyBased && line.unitCost > 0
-                                      ? `${fmt(line.unitCost)}/${(line.unit ?? '').replace(/s$/, '') || 'unit'}`
+                                      ? `${fmtUnit(line.unitCost)}/${(line.unit ?? '').replace(/s$/, '') || 'unit'}`
                                       : '—';
 
                                   // Shared cell padding — same for th AND td to guarantee alignment
@@ -4143,7 +4146,7 @@ export const PriceBreakdownDialog: React.FC<PriceBreakdownDialogProps> = ({ line
           />
           <span className="text-[10px] text-gray-500">{line.unit}</span>
           {line.unitCost > 0 && (
-            <span className="text-[10px] text-gray-400">@ {formatCurrency(line.unitCost)}/{(line.unit ?? '').replace(/s$/, '') || 'unit'}</span>
+            <span className="text-[10px] text-gray-400">@ {fmtUnit(line.unitCost)}/{(line.unit ?? '').replace(/s$/, '') || 'unit'}</span>
           )}
           {changed && (
             <span className="text-[9px] text-amber-500 num">actual: {line.quantity.toLocaleString()}</span>
