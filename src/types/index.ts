@@ -289,6 +289,26 @@ export interface Quote {
   updatedAt: string;
 }
 
+export interface EmailSettings {
+  // Outbound sender identity
+  fromName: string;               // display name shown in From field
+  fromEmail: string;              // reply-to / from email address
+  // Server connection (IMAP / Exchange / SMTP)
+  protocol: 'smtp' | 'exchange' | 'imap';
+  host: string;                   // mail server hostname
+  port: number;                   // e.g. 587 (SMTP TLS), 993 (IMAP SSL), 443 (Exchange EWS)
+  useSSL: boolean;
+  username: string;               // usually the full email address
+  password: string;               // stored locally, never transmitted to our servers
+  // Exchange-specific
+  exchangeTenantId?: string;      // Azure AD tenant ID (for OAuth / modern auth)
+  exchangeClientId?: string;      // App registration client ID
+  // Status / test result
+  connectionTested: boolean;
+  connectionOk?: boolean;
+  lastTestedAt?: string;
+}
+
 export interface CompanySettings {
   name: string;
   email: string;
@@ -311,6 +331,7 @@ export interface CompanySettings {
   defaultBleedWide: number;
   openLinksInNewTab: boolean;  // true = open new quotes/orders in new tab (default)
   defaultGutterWide: number;
+  emailSettings?: EmailSettings; // outbound email configuration
 }
 
 export interface DocumentTemplates {
