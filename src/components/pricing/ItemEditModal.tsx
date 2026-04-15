@@ -3337,7 +3337,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               })()}
 
               {/* ── Notes ─────────────────────────────────────────────── */}
-              <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="grid grid-cols-2 gap-3 pt-5">
                 <div>
                   <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wide mb-1.5">Customer Notes</label>
                   <textarea
