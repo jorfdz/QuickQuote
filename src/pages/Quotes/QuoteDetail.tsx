@@ -840,21 +840,11 @@ export const QuoteDetail: React.FC = () => {
 
         {/* Expandable header — inline editable fields */}
         {!headerCollapsed && (
-          <div className="px-5 pb-5 pt-0 border-t border-gray-100">
-            <div className="flex items-center justify-between mt-3 mb-3">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Click any field to edit</p>
-              {/* Ship/Bill To address shortcut — slightly larger */}
-              <button
-                onClick={() => setShowAddressDialog(true)}
-                className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-900 border border-gray-300 hover:border-gray-400 hover:bg-gray-50 rounded-lg transition-colors shadow-sm"
-              >
-                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                Ship / Bill To
-                {(quote.billToAddress || quote.shipToAddress) && <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />}
-              </button>
-            </div>
-            <div className="grid grid-cols-3 gap-x-6 gap-y-3 items-start">
-              {/* Row 1: Account | Contact | Title */}
+          <div className="px-5 pb-5 pt-3 border-t border-gray-100">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-3">Click any field to edit</p>
+            <div className="grid grid-cols-3 gap-x-6 gap-y-4 items-start">
+
+              {/* ── Row 1: Account | Title | Ship/Bill To ── */}
               <InlineField
                 label="Account"
                 value={quote.customerName || ''}
@@ -873,24 +863,38 @@ export const QuoteDetail: React.FC = () => {
                   });
                 }}
               />
+              <InlineField label="Title" value={quote.title} placeholder="Quote title..."
+                onSave={v => saveField({ title: v })} />
+              {/* Ship/Bill To — lives in col 3, row 1 */}
+              <div>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Addresses</p>
+                <button
+                  onClick={() => setShowAddressDialog(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-900 border border-gray-300 hover:border-gray-400 hover:bg-gray-50 rounded-lg transition-colors shadow-sm w-full justify-center"
+                >
+                  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  Ship / Bill To
+                  {(quote.billToAddress || quote.shipToAddress) && <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />}
+                </button>
+              </div>
+
+              {/* ── Row 2: Contact | Quote Date + Valid Until | CSR + Sales Rep ── */}
               <InlineField label="Contact" value={quote.contactName || ''} placeholder="Search contacts..."
                 searchable options={contactOptions}
                 onAddNew={() => {}}
                 onSave={v => { const c = contacts.find(x => x.id === v); saveField({ contactId: v || undefined, contactName: c ? `${c.firstName} ${c.lastName}` : undefined }); }} />
-              {/* Title — same row as Contact */}
-              <InlineField label="Title" value={quote.title} placeholder="Quote title..."
-                onSave={v => saveField({ title: v })} />
-
-              {/* Row 2: Quote Date | Valid Until | CSR + Sales Rep */}
-              <InlineField label="Quote Date"
-                value={quote.quoteDate ? formatDate(quote.quoteDate) : (quote.createdAt ? formatDate(quote.createdAt) : '')}
-                rawValue={quote.quoteDate || quote.createdAt?.slice(0,10) || ''}
-                type="date" onSave={v => saveField({ quoteDate: v || undefined })} />
-              <InlineField label="Valid Until"
-                value={quote.validUntil ? formatDate(quote.validUntil) : ''}
-                rawValue={quote.validUntil || ''}
-                type="date" onSave={v => saveField({ validUntil: v || undefined })} />
-              {/* CSR + Sales Rep share the third column as a 2-col sub-grid */}
+              {/* Quote Date + Valid Until — both under col 2 (Title above) */}
+              <div className="grid grid-cols-2 gap-x-4">
+                <InlineField label="Quote Date"
+                  value={quote.quoteDate ? formatDate(quote.quoteDate) : (quote.createdAt ? formatDate(quote.createdAt) : '')}
+                  rawValue={quote.quoteDate || quote.createdAt?.slice(0,10) || ''}
+                  type="date" onSave={v => saveField({ quoteDate: v || undefined })} />
+                <InlineField label="Valid Until"
+                  value={quote.validUntil ? formatDate(quote.validUntil) : ''}
+                  rawValue={quote.validUntil || ''}
+                  type="date" onSave={v => saveField({ validUntil: v || undefined })} />
+              </div>
+              {/* CSR + Sales Rep — both under col 3 (Ship/Bill To above) */}
               <div className="grid grid-cols-2 gap-x-4">
                 <InlineField label="CSR" value={csr?.name || ''} placeholder="Search CSR..."
                   searchable options={csrOptions}
@@ -899,6 +903,7 @@ export const QuoteDetail: React.FC = () => {
                   searchable options={salesOptions}
                   onSave={v => saveField({ salesId: v || undefined })} />
               </div>
+
             </div>
           </div>
         )}
