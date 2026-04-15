@@ -1061,95 +1061,97 @@ export const Equipment: React.FC = () => {
             {/* ── Test Price Panel ─────────────────────────────────────────── */}
             {showTestPanel && showUnitCost && (() => {
               const isColorAndBlack = equipForm.colorCapability === 'Color and Black';
+              const isClick = equipForm.costUnit === 'per_click';
+              const unitSingular = isClick ? 'click' : 'sq ft';
+              const unitPlural   = isClick ? 'clicks' : 'sq ft';
               const res = computeEquipTest(testClicks, testColorMode);
-              const unitLabel = equipForm.costUnit === 'per_click' ? 'clicks' : 'sq ft';
-              return (
-                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <FlaskConical className="w-3.5 h-3.5 text-amber-600" />
-                      <span className="text-[11px] font-semibold text-amber-800">Test Price</span>
-                    </div>
-                    <button onClick={() => setShowTestPanel(false)} className="p-0.5 hover:bg-amber-100 rounded">
-                      <X className="w-3.5 h-3.5 text-amber-500" />
-                    </button>
-                  </div>
+              const profit = res.totalSell - res.totalCost;
+              const hasSell = res.sellPerUnit > 0;
 
-                  {/* Inputs row */}
-                  <div className="flex items-end gap-3 flex-wrap">
-                    <div>
-                      <label className="block text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-1">
-                        {equipForm.costUnit === 'per_click' ? 'Test Clicks' : 'Test Sq Ft'}
+              return (
+                <div className="rounded-xl bg-amber-50 border border-amber-200 overflow-hidden">
+                  {/* Header row — inputs */}
+                  <div className="flex items-center gap-3 px-3 py-2 border-b border-amber-200 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <FlaskConical className="w-3.5 h-3.5 text-amber-600" />
+                      <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wide">Test Price</span>
+                    </div>
+                    {/* Qty input */}
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-[10px] font-semibold text-amber-700 whitespace-nowrap">
+                        {isClick ? 'Clicks:' : 'Sq Ft:'}
                       </label>
                       <input type="number" min="1" value={testClicks}
                         onChange={e => setTestClicks(parseInt(e.target.value) || 1)}
-                        className="w-28 px-2 py-1.5 text-sm bg-white border border-amber-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 text-right num" />
+                        className="w-24 px-2 py-1 text-sm bg-white border border-amber-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 text-right num" />
                     </div>
+                    {/* Color toggle */}
                     {isColorAndBlack && (
-                      <div>
-                        <label className="block text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-1">Color Mode</label>
-                        <div className="flex gap-1">
-                          {(['Color', 'Black'] as const).map(m => (
-                            <button key={m} type="button" onClick={() => setTestColorMode(m)}
-                              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${testColorMode === m ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-100'}`}>
-                              {m === 'Color' ? '🔵 Color' : '⚫ Black'}
-                            </button>
-                          ))}
-                        </div>
+                      <div className="flex gap-1">
+                        {(['Color', 'Black'] as const).map(m => (
+                          <button key={m} type="button" onClick={() => setTestColorMode(m)}
+                            className={`px-2.5 py-1 text-[11px] font-semibold rounded-md border transition-all ${
+                              testColorMode === m
+                                ? 'bg-amber-500 text-white border-amber-500'
+                                : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-100'
+                            }`}>
+                            {m === 'Color' ? 'Color' : 'Black'}
+                          </button>
+                        ))}
                       </div>
                     )}
+                    <button onClick={() => setShowTestPanel(false)} className="ml-auto p-0.5 hover:bg-amber-100 rounded flex-shrink-0">
+                      <X className="w-3.5 h-3.5 text-amber-400" />
+                    </button>
                   </div>
 
-                  {/* Results */}
-                  <div className="bg-white/70 rounded-lg px-3 py-2.5 space-y-1.5">
-                    <div className="flex justify-between text-[11px]">
-                      <span className="text-gray-500">Unit cost ({isColorAndBlack ? testColorMode : ''}):</span>
-                      <span className="font-medium text-gray-700 num">${res.unitCostForMode.toFixed(4)}/{equipForm.costUnit === 'per_click' ? 'click' : 'sqft'}</span>
-                    </div>
-                    <div className="flex justify-between text-[11px]">
-                      <span className="text-gray-500">Cost ({testClicks.toLocaleString()} {unitLabel}):</span>
-                      <span className="font-medium text-gray-700 num">{formatCurrency(res.clickCost)}</span>
-                    </div>
-                    {res.timeCost > 0 && (
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-gray-500">Staff time cost:</span>
-                        <span className="font-medium text-gray-700 num">{formatCurrency(res.timeCost)}</span>
-                      </div>
-                    )}
-                    {res.setupFee > 0 && (
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-gray-500">Setup fee:</span>
-                        <span className="font-medium text-gray-700 num">{formatCurrency(res.setupFee)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between text-[11px] pt-1 border-t border-amber-200">
-                      <span className="text-gray-600 font-medium">Total Cost:</span>
-                      <span className="font-semibold text-gray-800 num">{formatCurrency(res.totalCost)}</span>
-                    </div>
-                    {res.sellPerUnit > 0 && (
+                  {/* Results row — single clean line matching the requested format */}
+                  <div className="px-3 py-2.5">
+                    {!hasSell ? (
+                      <p className="text-[11px] text-amber-600 italic">Set a markup or enable Table Pricing to see sell price.</p>
+                    ) : (
                       <>
-                        <div className="flex justify-between text-[11px]">
-                          <span className="text-gray-500">Sell price ({testClicks.toLocaleString()} {unitLabel}):</span>
-                          <span className="font-medium text-emerald-700 num">{formatCurrency(res.clickSell)}</span>
+                        {/* Primary summary line */}
+                        <div className="flex items-baseline gap-2 flex-wrap text-sm">
+                          {/* Label: "1,000 Clicks" or "1,000 Sq Ft" */}
+                          <span className="font-bold text-gray-800 num">{testClicks.toLocaleString()}</span>
+                          <span className="text-gray-500 font-medium capitalize">{unitPlural}</span>
+                          {isColorAndBlack && <span className="text-[11px] text-gray-400">({testColorMode})</span>}
+                          <span className="text-gray-300 mx-0.5">·</span>
+                          {/* Unit cost */}
+                          <span className="text-[12px] text-gray-500">${res.unitCostForMode.toFixed(4)}/{unitSingular}</span>
+                          <span className="text-gray-300 mx-0.5">·</span>
+                          {/* Total cost */}
+                          <span className="text-[12px] text-gray-600">Cost <span className="font-semibold text-gray-800 num">{formatCurrency(res.totalCost)}</span></span>
+                          <span className="text-gray-300 mx-0.5">·</span>
+                          {/* Sell */}
+                          <span className="text-[12px] text-gray-600">Sell <span className="font-semibold text-emerald-700 num">{formatCurrency(res.totalSell)}</span></span>
+                          <span className="text-gray-300 mx-0.5">·</span>
+                          {/* Profit */}
+                          <span className="text-[12px] text-gray-600">Profit <span className="font-semibold text-emerald-700 num">{formatCurrency(profit)}</span></span>
+                          <span className="text-gray-300 mx-0.5">·</span>
+                          {/* Margin */}
+                          <span className={`text-[12px] font-bold num ${res.margin >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{res.margin.toFixed(1)}% Margin</span>
                         </div>
-                        {res.timeSell > 0 && (
-                          <div className="flex justify-between text-[11px]">
-                            <span className="text-gray-500">Staff sell:</span>
-                            <span className="font-medium text-emerald-700 num">{formatCurrency(res.timeSell)}</span>
+
+                        {/* Secondary detail — only when there are extra components */}
+                        {(res.timeCost > 0 || res.setupFee > 0) && (
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap text-[10px] text-gray-400">
+                            <span>Breakdown:</span>
+                            <span className="num">Clicks {formatCurrency(res.clickCost)}</span>
+                            {res.timeCost > 0 && <><span>+</span><span className="num">Staff {formatCurrency(res.timeCost)}</span></>}
+                            {res.setupFee > 0 && <><span>+</span><span className="num">Setup {formatCurrency(res.setupFee)}</span></>}
+                            <span>=</span>
+                            <span className="font-semibold text-gray-600 num">{formatCurrency(res.totalCost)} total cost</span>
                           </div>
                         )}
-                        <div className="flex justify-between text-[11px] pt-1 border-t border-amber-200">
-                          <span className="font-bold text-amber-800">= Total Sell:</span>
-                          <span className="font-bold text-emerald-700 num text-sm">{formatCurrency(res.totalSell)}</span>
-                        </div>
-                        <div className="flex justify-between text-[11px]">
-                          <span className="text-gray-400">Margin:</span>
-                          <span className={`font-semibold num ${res.margin >= 30 ? 'text-emerald-600' : 'text-amber-600'}`}>{res.margin.toFixed(1)}%</span>
-                        </div>
+
+                        {/* Sell rate info */}
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          Sell rate: <span className="num font-medium text-gray-500">${res.sellPerUnit.toFixed(4)}/{unitSingular}</span>
+                          {equipForm.usePricingTiers ? ' (from table)' : equipForm.markupMultiplier ? ` (${equipForm.markupType === 'percent' ? `${equipForm.markupMultiplier}% markup` : `${equipForm.markupMultiplier}× multiplier`})` : ''}
+                        </p>
                       </>
-                    )}
-                    {res.sellPerUnit === 0 && (
-                      <p className="text-[10px] text-amber-600 italic">Set a markup or enable Table Pricing to see sell price.</p>
                     )}
                   </div>
                 </div>
