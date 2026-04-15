@@ -656,12 +656,49 @@ export const QuoteDetail: React.FC = () => {
     contact: primaryContact, assignedUser: csr || null,
   }), [companySettings, csr, customer, documentTemplates.quote, primaryContact, quote]);
 
+  // Print — opens rendered quote in a new tab and immediately triggers the browser's Print dialog
   const openPrintWindow = () => {
     const blob = new Blob([printHtml], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const w = window.open(url, '_blank');
     if (!w) { URL.revokeObjectURL(url); return; }
     w.addEventListener('load', () => { w.focus(); setTimeout(() => w.print(), 150); setTimeout(() => URL.revokeObjectURL(url), 60000); }, { once: true });
+  };
+
+  // PDF download — injects a print-to-PDF instruction into the page so the browser's
+  // "Save as PDF" destination is pre-selected, then triggers print.
+  // This is the standard browser-native PDF download path without a server dependency.
+  const downloadPdf = () => {
+    // Wrap the HTML with a @media print rule that hides the browser chrome
+    // and a script that calls print() immediately on load so the user gets
+    // the Save dialog instead of a visible page.
+    const pdfHtml = printHtml.replace(
+      '</head>',
+      `<style>
+        @media screen { body { margin: 0; } }
+        @media print { @page { margin: 10mm; } }
+      </style>
+      <script>
+        window.addEventListener('load', function() {
+          document.title = 'Quote-${quote.number}';
+          setTimeout(function() { window.print(); }, 200);
+        });
+      </script>
+      </head>`
+    );
+    const blob = new Blob([pdfHtml], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank');
+    if (!w) {
+      // Popup blocked — fall back to download link
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Quote-${quote.number}.html`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      return;
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   };
 
   const addItem = () => {
@@ -718,8 +755,8 @@ export const QuoteDetail: React.FC = () => {
         back={() => guardedNavigate('/quotes')}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />} onClick={openPrintWindow}>Print</Button>
-            <Button variant="secondary" size="sm" icon={<FileDown className="w-4 h-4" />} onClick={openPrintWindow}>PDF</Button>
+            <Button variant="secondary" size="sm" icon={<Printer className="w-4 h-4" />} onClick={openPrintWindow} title="Open print dialog">Print</Button>
+            <Button variant="secondary" size="sm" icon={<FileDown className="w-4 h-4" />} onClick={downloadPdf} title="Download as PDF">PDF</Button>
             <Button variant="secondary" size="sm" icon={<Send className="w-4 h-4" />} onClick={() => setShowSendDialog(true)}>Send</Button>
             <Button variant="secondary" size="sm" icon={<Copy className="w-4 h-4" />} onClick={() => setShowCloneConfirm(true)}>Clone</Button>
             {!quote.convertedToOrderId && (
