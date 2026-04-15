@@ -2118,7 +2118,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                     );
                                   }
                                   return (
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-3 gap-1.5">
                                       {catProducts.map(p => (
                                         <button
                                           key={p.id}
@@ -2127,20 +2127,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                             selectProduct(p);
                                             setShowProductBrowser(false);
                                           }}
-                                          className="flex flex-col items-start gap-0.5 p-3 rounded-xl border border-gray-100 hover:border-[#F890E7] hover:bg-[#F890E7]/5 text-left transition-all group"
+                                          className="px-3 py-2 rounded-lg border border-gray-100 hover:border-[#F890E7] hover:bg-[#F890E7]/5 text-left transition-all group"
                                         >
-                                          <span className="text-sm font-semibold text-gray-800 group-hover:text-[#c060b8] leading-snug">{p.name}</span>
-                                          {p.aliases.length > 0 && (
-                                            <span className="text-[10px] text-gray-400 truncate w-full">aka {p.aliases.slice(0, 2).join(', ')}</span>
+                                          <span className="text-sm font-medium text-gray-800 group-hover:text-[#c060b8] leading-snug">{p.name}</span>
+                                          {p.aliases.length > 0 && p.aliases[0].toLowerCase().trim() !== p.name.toLowerCase().trim() && (
+                                            <span className="block text-[10px] text-gray-400 mt-0.5 leading-snug truncate">{p.aliases[0]}</span>
                                           )}
-                                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                            {p.defaultSides && (
-                                              <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{p.defaultSides}-sided</span>
-                                            )}
-                                            {p.defaultQuantity > 0 && (
-                                              <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{p.defaultQuantity.toLocaleString()} default</span>
-                                            )}
-                                          </div>
                                         </button>
                                       ))}
                                     </div>
