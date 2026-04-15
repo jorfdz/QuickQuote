@@ -105,6 +105,7 @@ interface PricingStore {
   addFinishing: (f: Omit<PricingFinishing, 'id' | 'createdAt'>) => PricingFinishing;
   updateFinishing: (id: string, f: Partial<PricingFinishing>) => void;
   deleteFinishing: (id: string) => void;
+  reorderFinishing: (fromIndex: number, toIndex: number) => void;
 
   // Labor CRUD
   addLabor: (l: Omit<PricingLabor, 'id' | 'createdAt'>) => PricingLabor;
@@ -287,6 +288,12 @@ export const usePricingStore = create<PricingStore>()(
       deleteFinishing: (id) => set((s) => ({
         finishing: s.finishing.filter((x) => x.id !== id),
       })),
+      reorderFinishing: (fromIndex, toIndex) => set((s) => {
+        const arr = [...s.finishing];
+        const [moved] = arr.splice(fromIndex, 1);
+        arr.splice(toIndex, 0, moved);
+        return { finishing: arr };
+      }),
 
       // ── Labor ─────────────────────────────────────────────────────────
       addLabor: (l) => {

@@ -85,7 +85,7 @@ const emptyGroupForm = { name: '', description: '' };
 export const Finishing: React.FC = () => {
   const [searchParams] = useSearchParams();
   const {
-    finishing, addFinishing, updateFinishing, deleteFinishing,
+    finishing, addFinishing, updateFinishing, deleteFinishing, reorderFinishing,
     finishingGroups, addFinishingGroup, updateFinishingGroup, deleteFinishingGroup,
     categories,
   } = usePricingStore();
@@ -102,6 +102,15 @@ export const Finishing: React.FC = () => {
   // Test pricing state
   const [showTestPanel, setShowTestPanel] = useState(false);
   const [testQty, setTestQty] = useState(1000);
+
+  // ── String buffers for decimal inputs in perimeter section ──
+  // Prevents "0.035" from being wiped when the || 0 fallback fires mid-typing.
+  const [perimUnitCostStr,   setPerimUnitCostStr]   = useState('');
+  const [perimIntervalStr,   setPerimIntervalStr]    = useState('12');
+
+  // ── Drag-to-reorder state ──
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const dragFromIndex = React.useRef<number | null>(null);
 
   // Group manager state
   const [showGroupManager, setShowGroupManager] = useState(false);
@@ -230,6 +239,8 @@ export const Finishing: React.FC = () => {
     setForm(emptyForm);
     setEditingId(null);
     setShowTestPanel(false);
+    setPerimUnitCostStr('');
+    setPerimIntervalStr('12');
     setShowModal(true);
   };
 
@@ -263,6 +274,8 @@ export const Finishing: React.FC = () => {
       perimeterMode: f.perimeterMode ?? 'full',
       perimeterIntervalInches: f.perimeterIntervalInches ?? 12,
     });
+    setPerimUnitCostStr(f.unitCost ? String(f.unitCost) : '');
+    setPerimIntervalStr(String(f.perimeterIntervalInches ?? 12));
     setShowTestPanel(false);
     setShowModal(true);
   };
@@ -347,6 +360,8 @@ export const Finishing: React.FC = () => {
       perimeterMode: f.perimeterMode ?? 'full',
       perimeterIntervalInches: f.perimeterIntervalInches ?? 12,
     });
+    setPerimUnitCostStr(f.unitCost ? String(f.unitCost) : '');
+    setPerimIntervalStr(String(f.perimeterIntervalInches ?? 12));
     setShowTestPanel(false);
     setShowModal(true);
   };
@@ -463,13 +478,35 @@ export const Finishing: React.FC = () => {
 
       {/* Table */}
       <Card>
-        <Table headers={['Name', 'Group(s)', 'Categories', 'Charge Basis', 'Cost/Rate', 'Setup', 'Markup', 'Actions']}>
-          {filteredFinishing.map(f => (
+        <Table headers={['', 'Name', 'Group(s)', 'Categories', 'Charge Basis', 'Cost/Rate', 'Setup', 'Markup', 'Actions']}>
+          {filteredFinishing.map((f, rowIdx) => {
+            const realIndex = finishing.findIndex(x => x.id === f.id);
+            return (
             <tr
               key={f.id}
-              className="hover:bg-gray-50 transition-colors cursor-pointer"
+              className={`hover:bg-gray-50 transition-colors cursor-pointer ${dragOverIndex === rowIdx ? 'border-t-2 border-blue-400' : ''}`}
+              draggable
+              onDragStart={() => { dragFromIndex.current = realIndex; }}
+              onDragOver={e => { e.preventDefault(); setDragOverIndex(rowIdx); }}
+              onDragLeave={() => setDragOverIndex(null)}
+              onDrop={e => {
+                e.preventDefault();
+                setDragOverIndex(null);
+                if (dragFromIndex.current !== null && dragFromIndex.current !== realIndex) {
+                  reorderFinishing(dragFromIndex.current, realIndex);
+                }
+                dragFromIndex.current = null;
+              }}
               onClick={() => openEditModal(f)}
             >
+              {/* Drag handle */}
+              <td className="py-2 pl-3 pr-1 w-5" onClick={e => e.stopPropagation()}>
+                <div className="flex flex-col gap-0.5 items-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors">
+                  <div className="w-3 h-0.5 bg-current rounded" />
+                  <div className="w-3 h-0.5 bg-current rounded" />
+                  <div className="w-3 h-0.5 bg-current rounded" />
+                </div>
+              </td>
               <td className="py-2 px-3">
                 <div className="flex items-center gap-2">
                   <Scissors className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
@@ -570,7 +607,8 @@ export const Finishing: React.FC = () => {
                 </div>
               </td>
             </tr>
-          ))}
+          );
+          })}
         </Table>
         {filteredFinishing.length === 0 && (
           <div className="flex flex-col items-center justify-center py-14 text-center">
@@ -736,7 +774,15 @@ export const Finishing: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Charge Basis</label>
-                    <select value={form.chargeBasis} onChange={e => setForm(f => ({ ...f, chargeBasis: e.target.value as PricingFinishing['chargeBasis'] }))}
+                    <select value={form.chargeBasis} onChange={e => {
+                      const basis = e.target.value as PricingFinishing['chargeBasis'];
+                      setForm(f => {
+                        if (basis === 'per_perimeter') {
+                          setPerimUnitCostStr(f.unitCost ? String(f.unitCost) : '');
+                        }
+                        return { ...f, chargeBasis: basis };
+                      });
+                    }}
                       className="w-full px-3 py-1.5 text-sm border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none">
                       {CHARGE_BASIS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
@@ -856,7 +902,15 @@ export const Finishing: React.FC = () => {
                     </label>
                     <select
                       value={form.chargeBasis}
-                      onChange={e => setForm(f => ({ ...f, chargeBasis: e.target.value as PricingFinishing['chargeBasis'] }))}
+                      onChange={e => {
+                        const basis = e.target.value as PricingFinishing['chargeBasis'];
+                        setForm(f => {
+                          if (basis === 'per_perimeter') {
+                            setPerimUnitCostStr(f.unitCost ? String(f.unitCost) : '');
+                          }
+                          return { ...f, chargeBasis: basis };
+                        });
+                      }}
                       className="w-full px-3 py-1.5 text-sm border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none"
                     >
                       {CHARGE_BASIS_OPTIONS.map(o => (
@@ -974,14 +1028,37 @@ export const Finishing: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-3 gap-4">
-                      {/* Unit cost (cost per linear inch for full, cost per item for interval) */}
-                      <Input
-                        label={form.perimeterMode === 'full' ? 'Cost per Linear Inch ($)' : 'Cost per Item ($)'}
-                        type="number"
-                        value={form.unitCost || ''}
-                        onChange={e => setForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))}
-                        prefix="$"
-                      />
+                      {/* Unit cost — string-buffer so "0.035" can be typed freely */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                          <Tip
+                            label={form.perimeterMode === 'full' ? 'Cost per Linear Inch ($)' : 'Cost per Item ($)'}
+                            tip={form.perimeterMode === 'full' ? 'Your cost for every inch of perimeter (e.g. 0.035 = 3.5¢/inch).' : 'Your cost per individual item placed (e.g. cost per grommet).'}
+                          />
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">$</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={perimUnitCostStr}
+                            onChange={e => {
+                              const raw = e.target.value;
+                              setPerimUnitCostStr(raw);
+                              const n = parseFloat(raw);
+                              if (!isNaN(n) && n >= 0) setForm(f => ({ ...f, unitCost: n }));
+                            }}
+                            onBlur={() => {
+                              const n = parseFloat(perimUnitCostStr);
+                              const val = isNaN(n) || n < 0 ? 0 : n;
+                              setPerimUnitCostStr(val === 0 ? '' : String(val));
+                              setForm(f => ({ ...f, unitCost: val }));
+                            }}
+                            placeholder="0.000"
+                            className="w-full pl-7 pr-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 num"
+                          />
+                        </div>
+                      </div>
 
                       {/* Interval spacing — only for interval mode */}
                       {form.perimeterMode === 'interval' && (
@@ -990,11 +1067,23 @@ export const Finishing: React.FC = () => {
                             <Tip label="Spacing (inches)" tip="Distance between each item around the perimeter. e.g. 12 = one grommet every 12 inches." />
                           </label>
                           <input
-                            type="number" min="1" step="0.5"
-                            value={form.perimeterIntervalInches || ''}
-                            onChange={e => setForm(f => ({ ...f, perimeterIntervalInches: parseFloat(e.target.value) || 12 }))}
-                            placeholder="e.g. 12"
-                            className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            type="text"
+                            inputMode="decimal"
+                            value={perimIntervalStr}
+                            onChange={e => {
+                              const raw = e.target.value;
+                              setPerimIntervalStr(raw);
+                              const n = parseFloat(raw);
+                              if (!isNaN(n) && n > 0) setForm(f => ({ ...f, perimeterIntervalInches: n }));
+                            }}
+                            onBlur={() => {
+                              const n = parseFloat(perimIntervalStr);
+                              const val = isNaN(n) || n <= 0 ? 12 : n;
+                              setPerimIntervalStr(String(val));
+                              setForm(f => ({ ...f, perimeterIntervalInches: val }));
+                            }}
+                            placeholder="12"
+                            className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 num"
                           />
                           <p className="text-[9px] text-gray-400 mt-0.5">inches between each item</p>
                         </div>
