@@ -1999,7 +1999,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   return (
                     <div>
                       <div className="flex items-center gap-2 mb-2">
-                        <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Product</label>
+                        <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Product</label>
                         {needsProduct && (
                           <span className="text-[9px] font-semibold text-[var(--brand)] bg-[var(--brand-light)] px-2 py-0.5 rounded-full uppercase tracking-wide">
                             Select a product to begin
@@ -2064,7 +2064,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                 {/* ── Left: Description textarea ───────────────────── */}
                 <div className="flex-1 min-w-0">
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Description</label>
+                  <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wide mb-1.5">Description</label>
                   <textarea
                     rows={2}
                     value={item.description}
@@ -2080,7 +2080,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                 {/* ── Right: Specs (all fields on one row, matching screenshot proportions) ── */}
                 <div className="flex-1 min-w-0 flex flex-col">
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Specs</label>
+                  <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wide mb-1.5">Specs</label>
                   <div className="flex items-start gap-2">
 
                     {/* QTY — widest; holds multi-qty "1000, 2000" */}
@@ -2196,7 +2196,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               <div className="pt-3 border-t border-gray-100 grid grid-cols-2 gap-3">
                 {/* ── Searchable material picker with favorites ────────── */}
                 <div ref={materialDropdownRef} className="relative">
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Material</label>
+                  <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wide mb-1.5">Material</label>
 
                   {/* Trigger button — shows selected material or placeholder */}
                   <button
@@ -2341,7 +2341,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   })()}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Equipment</label>
+                  <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wide mb-1.5">Equipment</label>
                   <select value={ps.equipmentId}
                     onChange={e => { trackInteraction(); onUpdatePricing({ equipmentId: e.target.value }); }}
                     className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
@@ -2353,7 +2353,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
               {/* ═══ IMPOSITION (collapsible) ═════════════════════════ */}
               {selectedMaterial && imposition.totalUps > 0 && (
-                <div className="rounded-xl border border-blue-200 overflow-hidden mt-3">
+                <div className="rounded-xl border border-blue-200 overflow-hidden mt-5">
                   <button
                     onClick={() => setShowImpositionCalc(prev => !prev)}
                     className="w-full flex items-center justify-between px-4 py-2.5 bg-blue-50/60 hover:bg-blue-50 transition-colors"
@@ -2500,12 +2500,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 </div>
 
                 {/* ── FINISHING ─────────────────────────────────────────── */}
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   {/* Label row + selected pills */}
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       <Scissors className="w-3 h-3 text-purple-500" />
-                      <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wide">Finishing</span>
+                      <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Finishing</span>
                     </div>
                     {selectedFinishingIds.map(id => {
                       const svc = finishing.find(f => f.id === id);
@@ -2603,11 +2603,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                 {/* ── LABOR — only show if there are category-relevant labor services ── */}
                 {relevantLabor.length > 0 && (
-                  <div className="space-y-1.5">
+                  <div className="space-y-2 pt-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <Wrench className="w-3 h-3 text-blue-500" />
-                        <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wide">Labor</span>
+                        <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Labor</span>
                       </div>
                       {selectedLaborIds.map(id => {
                         const svc = pricing.labor.find(l => l.id === id);
@@ -2678,11 +2678,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                 {/* ── BROKERED — only show if there are category-relevant brokered services ── */}
                 {relevantBrokered.length > 0 && (
-                  <div className="space-y-1.5">
+                  <div className="space-y-2 pt-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <Package className="w-3 h-3 text-amber-500" />
-                        <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wide">Brokered</span>
+                        <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Brokered</span>
                       </div>
                       {selectedBrokeredIds.map(id => {
                         const svc = pricing.brokered.find(b => b.id === id);
@@ -3180,7 +3180,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               {/* ── Notes ─────────────────────────────────────────────── */}
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Customer Notes</label>
+                  <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wide mb-1.5">Customer Notes</label>
                   <textarea
                     value={item.notes || ''}
                     onChange={e => onUpdateItem({ notes: e.target.value })}
@@ -3190,7 +3190,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Internal Notes</label>
+                  <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wide mb-1.5">Internal Notes</label>
                   <textarea
                     value={(item as any).internalNotes || ''}
                     onChange={e => onUpdateItem({ internalNotes: e.target.value } as any)}
