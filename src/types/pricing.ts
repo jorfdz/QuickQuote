@@ -152,6 +152,7 @@ export interface PricingFinishing {
   categoryIds: string[];           // which categories this applies to
   finishingGroupIds: string[];     // which finishing groups this belongs to
   productIds: string[];            // specific products this applies to (optional)
+  autoAddCategoryIds?: string[];   // auto-selected on new items in these categories
 
   // Pricing model
   costType: 'cost_only' | 'cost_plus_time' | 'time_only';

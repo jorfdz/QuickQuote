@@ -539,6 +539,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // ── Services selection state ──────────────────────────────────────────
   // Restore finishing selections from pricingContext if available (survives navigation like labor/brokered).
   // Fall back to deriving from the legacy cuttingEnabled/foldingType/drillingType fields for backward compat.
+  // For brand-new items (isNew + no saved lines), also auto-apply any services marked for this category.
   const [selectedFinishingIds, setSelectedFinishingIds] = useState<string[]>(() => {
     if (ps.selectedFinishingIds && ps.selectedFinishingIds.length > 0) return ps.selectedFinishingIds;
     const ids: string[] = [];
@@ -553,6 +554,18 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     if (ps.drillingType) {
       const dSvc = finishing.find(f => f.name === ps.drillingType);
       if (dSvc) ids.push(dSvc.id);
+    }
+    // Auto-add: on truly new items with no saved service lines, pre-select any finishing
+    // service that has autoAddCategoryIds containing the current item's category.
+    if (isNew && (!ps.serviceLines || ps.serviceLines.length === 0)) {
+      const catId = categories.find(c => c.name === ps.categoryName)?.id;
+      if (catId) {
+        finishing.forEach(svc => {
+          if ((svc.autoAddCategoryIds ?? []).includes(catId) && !ids.includes(svc.id)) {
+            ids.push(svc.id);
+          }
+        });
+      }
     }
     return ids;
   });

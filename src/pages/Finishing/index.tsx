@@ -49,6 +49,7 @@ const emptyForm = {
   categoryIds: [] as string[],
   finishingGroupIds: [] as string[],
   productIds: [] as string[],
+  autoAddCategoryIds: [] as string[],
   chargeBasis: 'per_unit' as PricingFinishing['chargeBasis'],
   costType: 'time_only' as PricingFinishing['costType'],
   unitCost: 0,
@@ -254,6 +255,7 @@ export const Finishing: React.FC = () => {
       categoryIds: [...f.categoryIds],
       finishingGroupIds: [...f.finishingGroupIds],
       productIds: [...f.productIds],
+      autoAddCategoryIds: [...(f.autoAddCategoryIds ?? [])],
       chargeBasis: f.chargeBasis,
       costType: f.costType,
       unitCost: f.unitCost,
@@ -316,6 +318,7 @@ export const Finishing: React.FC = () => {
       pricingMode: form.pricingMode,
       sellRate: form.pricingMode === 'rate_card' ? form.sellRate : undefined,
       sellRateTiers: form.pricingMode === 'rate_card' && form.sellRateTiers.length > 0 ? form.sellRateTiers : undefined,
+      autoAddCategoryIds: form.autoAddCategoryIds.length > 0 ? form.autoAddCategoryIds : undefined,
     };
     if (editingId) {
       updateFinishing(editingId, payload);
@@ -340,6 +343,7 @@ export const Finishing: React.FC = () => {
       categoryIds: [...f.categoryIds],
       finishingGroupIds: [...f.finishingGroupIds],
       productIds: [...f.productIds],
+      autoAddCategoryIds: [...(f.autoAddCategoryIds ?? [])],
       chargeBasis: f.chargeBasis,
       costType: f.costType,
       unitCost: f.unitCost,
@@ -372,6 +376,10 @@ export const Finishing: React.FC = () => {
       categoryIds: f.categoryIds.includes(catId)
         ? f.categoryIds.filter(id => id !== catId)
         : [...f.categoryIds, catId],
+      // If the category is being removed, also clear it from auto-add
+      autoAddCategoryIds: f.categoryIds.includes(catId)
+        ? (f.autoAddCategoryIds ?? []).filter(id => id !== catId)
+        : (f.autoAddCategoryIds ?? []),
     }));
   };
 
@@ -685,6 +693,46 @@ export const Finishing: React.FC = () => {
                 <p className="text-[10px] text-red-400 mt-0.5">Required</p>
               )}
             </div>
+
+            {/* Auto-add to new items */}
+            {form.categoryIds.length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                  Auto-add to new items
+                </label>
+                <p className="text-[10px] text-gray-400 mb-2">
+                  This service will be pre-selected on every new item in the checked categories. Users can still remove it per item.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {form.categoryIds.map(catId => {
+                    const cat = categories.find(c => c.id === catId);
+                    if (!cat) return null;
+                    const isAuto = (form.autoAddCategoryIds ?? []).includes(catId);
+                    return (
+                      <label key={catId} className="flex items-center gap-1.5 cursor-pointer select-none group">
+                        <input
+                          type="checkbox"
+                          checked={isAuto}
+                          onChange={e => {
+                            const next = e.target.checked
+                              ? [...(form.autoAddCategoryIds ?? []), catId]
+                              : (form.autoAddCategoryIds ?? []).filter(id => id !== catId);
+                            setForm(f => ({ ...f, autoAddCategoryIds: next }));
+                          }}
+                          className="rounded border-gray-300 text-emerald-500 focus:ring-emerald-400"
+                        />
+                        <span className={`text-[11px] font-medium transition-colors ${isAuto ? 'text-emerald-700' : 'text-gray-500 group-hover:text-gray-700'}`}>
+                          {cat.name}
+                        </span>
+                        {isAuto && (
+                          <span className="text-[9px] bg-emerald-100 text-emerald-600 border border-emerald-200 px-1 py-0.5 rounded font-bold uppercase tracking-wide">auto</span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Finish Groups */}
             <div>
