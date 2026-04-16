@@ -10,7 +10,7 @@ import type { QuoteLineItem } from '../../types';
 import type { PricingProduct, PricingServiceLine, ProductPricingTemplate } from '../../types/pricing';
 import { formatCurrency } from '../../data/mockData';
 import { nanoid } from '../../utils/nanoid';
-import { getTierCost } from '../../utils/materialCost';
+import { getTierCost, getUnitCost, getUnitLabel } from '../../utils/materialCost';
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
@@ -2917,7 +2917,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                 </span>
                               )}
                             </div>
-                            <p className="text-[10px] text-gray-400 truncate">{m.size} · {fmt(m.pricePerM)}/M{(m.useCount ?? 0) > 0 ? ` · used ${m.useCount} time${m.useCount === 1 ? '' : 's'}` : ''}</p>
+                            <p className="text-[10px] text-gray-400 truncate">{m.size} · {fmtUnit(getUnitCost(m))}{getUnitLabel(m)}{(m.useCount ?? 0) > 0 ? ` · used ${m.useCount} time${m.useCount === 1 ? '' : 's'}` : ''}</p>
                           </div>
                           {isSel && <Check className="w-3.5 h-3.5 text-[#F890E7] flex-shrink-0 mt-0.5" />}
                         </button>
