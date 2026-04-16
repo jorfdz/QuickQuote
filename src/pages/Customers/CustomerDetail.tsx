@@ -494,29 +494,61 @@ export const CustomerDetail: React.FC = () => {
 
           {/* Right sidebar */}
           <div className="space-y-4">
-            {/* Terms & Delivery */}
+            {/* Terms & Delivery — inline editable */}
             <Card>
               <div className="px-4 py-4 border-b border-gray-100">
                 <h3 className="text-sm font-semibold text-gray-900">Terms & Delivery</h3>
               </div>
               <div className="px-4 py-4 space-y-3">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500 flex items-center gap-1.5"><CreditCard className="w-3.5 h-3.5 text-gray-400" /> Payment Terms</span>
-                  <span className="font-semibold text-gray-800">{customer.terms || <span className="text-gray-400 font-normal">—</span>}</span>
+                {/* Payment Terms — inline select */}
+                <div className="flex justify-between items-center gap-3 text-sm">
+                  <span className="text-gray-500 flex items-center gap-1.5 flex-shrink-0"><CreditCard className="w-3.5 h-3.5 text-gray-400" /> Payment Terms</span>
+                  <select
+                    value={customer.terms || ''}
+                    onChange={e => updateCustomer(customer.id, { terms: e.target.value || undefined })}
+                    className="text-xs font-semibold text-gray-800 border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-300 appearance-none bg-white cursor-pointer hover:border-gray-300 transition-colors"
+                  >
+                    <option value="">— None —</option>
+                    {allTerms.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
                 </div>
-                <div className="flex justify-between items-start text-sm">
-                  <span className="text-gray-500 flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 text-gray-400" /> Delivery</span>
-                  <div className="text-right">
-                    <span className="font-semibold text-gray-800">{customer.deliveryMethod || <span className="text-gray-400 font-normal">—</span>}</span>
+                {/* Delivery Method — inline select */}
+                <div className="flex justify-between items-center gap-3 text-sm">
+                  <span className="text-gray-500 flex items-center gap-1.5 flex-shrink-0"><Truck className="w-3.5 h-3.5 text-gray-400" /> Delivery</span>
+                  <select
+                    value={customer.deliveryMethod || ''}
+                    onChange={e => updateCustomer(customer.id, { deliveryMethod: e.target.value || undefined, thirdPartyShipping: false, thirdPartyCarrierAccountNumber: undefined })}
+                    className="text-xs font-semibold text-gray-800 border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-300 appearance-none bg-white cursor-pointer hover:border-gray-300 transition-colors"
+                  >
+                    <option value="">— None —</option>
+                    {allMethods.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                {/* Third-party shipping toggle — shown when FedEx or UPS selected */}
+                {(customer.deliveryMethod === 'FedEx' || customer.deliveryMethod === 'UPS') && (
+                  <div className="pl-5 space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={customer.thirdPartyShipping || false}
+                        onChange={e => updateCustomer(customer.id, { thirdPartyShipping: e.target.checked, thirdPartyCarrierAccountNumber: e.target.checked ? customer.thirdPartyCarrierAccountNumber : undefined })}
+                        className="rounded border-gray-300 text-brand-600"
+                      />
+                      Third Party Shipping
+                    </label>
                     {customer.thirdPartyShipping && (
-                      <p className="text-[11px] text-gray-400 mt-0.5">
-                        3rd Party{customer.thirdPartyCarrierAccountNumber ? ` · Acct: ${customer.thirdPartyCarrierAccountNumber}` : ''}
-                      </p>
+                      <input
+                        type="text"
+                        value={customer.thirdPartyCarrierAccountNumber || ''}
+                        onChange={e => updateCustomer(customer.id, { thirdPartyCarrierAccountNumber: e.target.value || undefined })}
+                        placeholder="Carrier account number"
+                        className="w-full text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-300 bg-white"
+                      />
                     )}
                   </div>
-                </div>
+                )}
                 {customer.taxExempt && (
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm pt-1 border-t border-gray-100">
                     <span className="text-gray-500">Tax Status</span>
                     <span className="font-semibold text-amber-600">Exempt{customer.taxId ? ` · ${customer.taxId}` : ''}</span>
                   </div>

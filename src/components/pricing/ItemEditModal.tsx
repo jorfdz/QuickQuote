@@ -2530,7 +2530,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
                           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowProductBrowser(false)} />
                           <div
-                            className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[80vh]"
+                            className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col h-[75vh]"
                             onClick={e => e.stopPropagation()}
                           >
                             {/* Dialog header */}
