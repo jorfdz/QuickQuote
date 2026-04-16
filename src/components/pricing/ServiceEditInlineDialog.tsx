@@ -1,4 +1,3 @@
-// Build: 2026-04-16
 /**
  * ServiceEditInlineDialog
  *
@@ -10,7 +9,8 @@
  * it can recalculate only that service's price breakdown lines.
  */
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import {
   X, Plus, TrendingUp, Tag, Lock, Info,
   Clock, DollarSign,
@@ -494,8 +494,40 @@ export interface ServiceEditInlineDialogProps {
   onSaved: () => void;
 }
 
+// Lazy-load the full catalog pages to avoid circular imports
+const MaterialsPage  = React.lazy(() => import('../../pages/Materials').then(m => ({ default: m.Materials })));
+const EquipmentPage  = React.lazy(() => import('../../pages/Equipment').then(m => ({ default: m.Equipment })));
+
+// ─── Shared full-page overlay shell ──────────────────────────────────────────
+const FullPageDialog: React.FC<{
+  title: string;
+  onClose: () => void;
+  search: string;
+  children: React.ReactNode;
+}> = ({ title, onClose, search, children }) => (
+  <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/60" onClick={onClose}>
+    <div className="relative bg-gray-50 rounded-2xl shadow-2xl w-full max-w-[96vw] h-[92vh] flex flex-col overflow-hidden"
+      onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200 flex-shrink-0">
+        <div>
+          <h2 className="text-sm font-bold text-gray-900">{title}</h2>
+          <p className="text-[10px] text-gray-400 mt-0.5">Searching: <span className="font-semibold text-gray-600">{search}</span> · Changes save immediately to the catalog</p>
+        </div>
+        <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors ml-4">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4">
+        <Suspense fallback={<div className="flex items-center justify-center h-40 text-gray-400 text-sm">Loading…</div>}>
+          {children}
+        </Suspense>
+      </div>
+    </div>
+  </div>
+);
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// MATERIAL EDIT DIALOG
+// MATERIAL EDIT DIALOG — full Materials catalog page embedded in overlay
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export const MaterialEditInlineDialog: React.FC<{
@@ -503,7 +535,7 @@ export const MaterialEditInlineDialog: React.FC<{
   onClose: () => void;
   onSaved: () => void;
 }> = ({ id, onClose, onSaved }) => {
-  const { materials, updateMaterial } = usePricingStore();
+  const { materials } = usePricingStore();
   const mat = materials.find(m => m.id === id);
   if (!mat) return null;
 

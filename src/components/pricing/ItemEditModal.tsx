@@ -4008,28 +4008,28 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                             are never squeezed. Description gets leftover space but is truncated. */}
                         <table className="w-full border-collapse" style={{ tableLayout: 'fixed', fontSize: '11px' }}>
                           <colgroup>
-                            <col style={{ width: '94px'  }} /> {/* Service */}
-                            <col />                              {/* Description — takes leftover; text truncates */}
-                            <col style={{ width: '56px'  }} /> {/* Actual */}
-                            <col style={{ width: '80px'  }} /> {/* Unit Cost */}
+                            <col style={{ width: '90px'  }} /> {/* Service */}
+                            <col style={{ width: '30%'   }} /> {/* Description — % so it scales with panel width */}
+                            <col style={{ width: '54px'  }} /> {/* Actual */}
+                            <col style={{ width: '82px'  }} /> {/* Unit Cost */}
                             <col style={{ width: '68px'  }} /> {/* Charge ✎ */}
-                            <col style={{ width: '80px'  }} /> {/* Cost $ */}
-                            <col style={{ width: '86px'  }} /> {/* Markup/Profit % */}
+                            <col style={{ width: '76px'  }} /> {/* Cost $ */}
+                            <col style={{ width: '88px'  }} /> {/* Markup/Profit % */}
                             <col style={{ width: '88px'  }} /> {/* Sell $ */}
                             <col style={{ width: '24px'  }} /> {/* 🔒 lock */}
                           </colgroup>
 
                           {/* ── Column headers ── */}
                           <thead>
-                            {/* Zone band */}
+                            {/* Zone band — 9 columns: Service | Desc | Actual | UnitCost | Charge | Cost || Markup | Sell | Lock */}
                             <tr className="border-b border-gray-200 bg-gray-100">
-                              <th colSpan={2} className="py-1 px-3 text-left" />
-                              {/* COST zone label */}
+                              <th colSpan={2} className="py-1 px-3 text-left text-[8px] font-bold text-gray-500 uppercase tracking-widest">Service</th>
+                              {/* COST zone */}
                               <th colSpan={4}
                                 className="py-1 px-0 text-center text-[8px] font-bold uppercase tracking-widest text-gray-600 border-l border-gray-300">
                                 Cost
                               </th>
-                              {/* SELL zone label */}
+                              {/* SELL zone */}
                               <th colSpan={3}
                                 className="py-1 px-0 text-center text-[8px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-100 border-l-2 border-emerald-400">
                                 Sell
@@ -4037,8 +4037,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                             </tr>
                             {/* Column labels */}
                             <tr className="border-b-2 border-gray-300 bg-gray-50">
-                              <th className="py-1.5 px-3 text-left text-[9px] font-bold text-gray-700 uppercase tracking-wide">Service</th>
-                              <th className="py-1.5 px-3 text-left text-[9px] font-bold text-gray-700 uppercase tracking-wide">Description</th>
+                              <th className="py-1.5 px-3 text-left text-[9px] font-bold text-gray-600 uppercase tracking-wide"></th>
+                              <th className="py-1.5 px-3 text-left text-[9px] font-bold text-gray-600 uppercase tracking-wide">Description</th>
                               {/* COST cols */}
                               <th className="py-1.5 px-3 text-right text-[9px] font-bold text-gray-600 uppercase tracking-wide border-l border-gray-300">Actual</th>
                               <th className="py-1.5 px-3 text-right text-[9px] font-bold text-gray-600 uppercase tracking-wide">Unit Cost</th>
