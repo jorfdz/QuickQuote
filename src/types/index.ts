@@ -17,6 +17,17 @@ export interface User {
 
 // ─── CUSTOMER / CONTACT ─────────────────────────────────────────────────────
 
+export interface CustomerShippingAddress {
+  id: string;
+  label?: string;          // e.g. "Warehouse", "Main Office"
+  address: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  country?: string;
+  isDefault?: boolean;
+}
+
 export interface Customer {
   id: string;
   customerNumber?: string;           // sequential 5-digit display number: C00001, C00002, …
@@ -29,6 +40,9 @@ export interface Customer {
   state?: string;
   zip?: string;
   country?: string;
+  shippingAddresses?: CustomerShippingAddress[];  // multiple shipping addresses
+  defaultBuyerContactId?: string;    // contact ID of the default buyer
+  defaultPayerContactId?: string;    // contact ID of the default payer
   taxExempt: boolean;
   taxId?: string;
   notes?: string;
