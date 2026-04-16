@@ -12,6 +12,7 @@ import {
   defaultMaterialGroups, defaultFinishingGroups, defaultLaborGroups, defaultBrokeredGroups, defaultLabor, defaultBrokered,
 } from '../data/pricingData';
 import { useStore } from './index';
+import { isPrePressName } from '../pages/Labor';
 
 // ─── HELPER: Generate IDs ──────────────────────────────────────────────────
 
@@ -654,16 +655,53 @@ export const usePricingStore = create<PricingStore>()(
     }),
     {
       name: 'quikquote-pricing-storage',
-      version: 9,
+      version: 10,
       migrate: (_persisted: unknown) => {
-        // Version 9: added laborGroups / brokeredGroups with CRUD
         const prev = _persisted as Record<string, unknown> | null;
+
+        // Build a lookup of pre-press labor service IDs from stored labor data
+        const storedLabor = (prev?.labor ?? defaultLabor) as PricingLabor[];
+        const prePressLaborIds = new Set(
+          storedLabor
+            .filter(l => l.isPrePress === true || isPrePressName(l.name))
+            .map(l => l.id)
+        );
+
+        // Helper: re-sort a serviceLines array so pre-press labor lines come first.
+        // Pre-press detection: line.isPrePress flag OR the labor service ID in the line's id.
+        const sortServiceLines = (lines: unknown[]): unknown[] => {
+          if (!Array.isArray(lines)) return lines;
+          const isPrePressLine = (l: Record<string, unknown>) => {
+            if (l.isPrePress) return true;
+            // Extract labor id from line id pattern: sl_labor_<lid>_<idx>
+            const m = String(l.id ?? '').match(/^sl_labor_(.+)_\d+$/);
+            return m ? prePressLaborIds.has(m[1]) : false;
+          };
+          const pre  = lines.filter(l => isPrePressLine(l as Record<string, unknown>));
+          const rest = lines.filter(l => !isPrePressLine(l as Record<string, unknown>));
+          return [...pre, ...rest];
+        };
+
+        // Re-sort serviceLines in every product's defaultPricingContext
+        const storedProducts = (prev?.products ?? defaultProducts) as PricingProduct[];
+        const migratedProducts = storedProducts.map(p => {
+          const ctx = p.defaultPricingContext as Record<string, unknown> | undefined;
+          if (!ctx?.serviceLines) return p;
+          return {
+            ...p,
+            defaultPricingContext: {
+              ...ctx,
+              serviceLines: sortServiceLines(ctx.serviceLines as unknown[]),
+            },
+          };
+        });
+
         return {
           categories: prev?.categories ?? defaultCategories,
-          products: prev?.products ?? defaultProducts,
+          products: migratedProducts,
           equipment: prev?.equipment ?? defaultPricingEquipment,
           finishing: prev?.finishing ?? defaultFinishing,
-          labor: prev?.labor ?? defaultLabor,
+          labor: storedLabor,
           brokered: prev?.brokered ?? defaultBrokered,
           materials: prev?.materials ?? defaultPricingMaterials,
           templates: prev?.templates ?? defaultPricingTemplates,
