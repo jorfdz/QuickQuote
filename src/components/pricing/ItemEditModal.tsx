@@ -3306,7 +3306,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               disabled={available.length === 0}
                               className="w-full pl-2 pr-7 py-1.5 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-purple-300 appearance-none text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:border-purple-300 transition-colors cursor-pointer"
                             >
-                              <option value="" disabled hidden>Add {group.name}</option>
+                              <option value="" disabled hidden>{{group.name}}</option>
                               {available.map(s => (
                                 <option key={s.id} value={s.id}>{s.name}</option>
                               ))}
@@ -3382,7 +3382,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                 disabled={available.length === 0}
                                 className="w-full pl-2 pr-7 py-1.5 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-300 appearance-none text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:border-blue-300 transition-colors cursor-pointer"
                               >
-                                <option value="" disabled hidden>Add {lg.name}</option>
+                                <option value="" disabled hidden>{{lg.name}}</option>
                                 {available.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                               </select>
                               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
@@ -3457,7 +3457,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                 disabled={available.length === 0}
                                 className="w-full pl-2 pr-7 py-1.5 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-300 appearance-none text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:border-amber-300 transition-colors cursor-pointer"
                               >
-                                <option value="" disabled hidden>Add {bg.name}</option>
+                                <option value="" disabled hidden>{{bg.name}}</option>
                                 {available.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                               </select>
                               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
