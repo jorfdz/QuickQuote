@@ -413,6 +413,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     onAliasesChange?.(next);
   };
   const [browserCatId, setBrowserCatId] = useState<string | null>(null);
+  const [browserSearch, setBrowserSearch] = useState('');
   // Global product search for multi-part item name
   const [showGlobalSuggestions, setShowGlobalSuggestions] = useState(false);
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
@@ -2557,7 +2558,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         {/* Browse all products button */}
                         <button
                           type="button"
-                          onClick={() => { setBrowserCatId(categories[0]?.id ?? null); setShowProductBrowser(true); setShowSuggestions(false); }}
+                          onClick={() => { setBrowserCatId(categories[0]?.id ?? null); setBrowserSearch(''); setShowProductBrowser(true); setShowSuggestions(false); }}
                           title="Browse all products by category"
                           className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-gray-500 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md transition-colors"
                         >
@@ -2605,7 +2606,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                       {/* ── Two-pane product browser dialog ────────────── */}
                       {showProductBrowser && (() => {
-                        const [browserSearch, setBrowserSearch] = React.useState('');
                         const catProducts = browserCatId
                           ? products.filter(p => p.categoryIds.includes(browserCatId))
                           : products;
