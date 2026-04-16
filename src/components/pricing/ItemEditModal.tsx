@@ -1293,7 +1293,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     if (ps.foldingType)    { const s = finishing.find(f => f.name.toLowerCase().replace('-','') === ps.foldingType.toLowerCase().replace('-','')); if (s) handledFinishingIds.add(s.id); }
     if (ps.drillingType)   { const s = finishing.find(f => f.name === ps.drillingType); if (s) handledFinishingIds.add(s.id); }
 
-    selectedFinishingIds.forEach((fid, idx) => {
+    // Deduplicate before iterating — prevents the same service ID appearing
+    // twice in selectedFinishingIds from producing duplicate breakdown rows.
+    const uniqueFinishingIds = [...new Set(selectedFinishingIds)];
+    uniqueFinishingIds.forEach((fid, idx) => {
       if (handledFinishingIds.has(fid)) return; // already computed above
       const svc = finishing.find(f => f.id === fid);
       if (!svc) return;
@@ -1884,7 +1887,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       onUpdatePricing(restored);
       // Restore ALL local selection state from context — these drive the UI tags and
       // computeServiceLines; onUpdatePricing only updates the parent, not these local refs.
-      if (savedCtx.selectedFinishingIds) setSelectedFinishingIds(savedCtx.selectedFinishingIds);
+      if (savedCtx.selectedFinishingIds) setSelectedFinishingIds([...new Set(savedCtx.selectedFinishingIds)]);
       if (savedCtx.selectedLaborIds)     setSelectedLaborIds(savedCtx.selectedLaborIds);
       if (savedCtx.selectedBrokeredIds)  setSelectedBrokeredIds(savedCtx.selectedBrokeredIds);
       // Guard: prevent the recompute effect from overwriting the restored service lines.
@@ -1924,7 +1927,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         sheetsPerStack: 500,
       });
       // Sync local state so the service tags appear immediately
-      setSelectedFinishingIds(product.defaultFinishingIds || []);
+      setSelectedFinishingIds([...new Set(product.defaultFinishingIds || [])]);
       onUpdateItem({ description: product.name, quantity: product.defaultQuantity });
       setMultiQtyInput(String(product.defaultQuantity));
     }
