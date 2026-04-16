@@ -9,6 +9,14 @@ import { Button, Card, PageHeader, Table, Modal, Input } from '../../components/
 import type { PricingLabor, LaborGroup, LaborChargeBasis, ServicePricingMode, SellRateTier } from '../../types/pricing';
 import { nanoid } from '../../utils/nanoid';
 
+// Keywords that identify a pre-press / design service.
+// Services whose names contain any of these are auto-flagged as pre-press
+// (shown before material & printing in the price breakdown).
+export const PRE_PRESS_KEYWORDS = ['design', 'graphic', 'file prep', 'file preparation', 'artwork', 'prepress', 'pre-press'];
+
+export const isPrePressName = (name: string): boolean =>
+  PRE_PRESS_KEYWORDS.some(kw => name.toLowerCase().includes(kw));
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const formatCurrency = (n: number) => `$${n.toFixed(2)}`;
 
@@ -43,6 +51,7 @@ const emptyLaborForm = {
   categoryIds: [] as string[],
   laborGroupIds: [] as string[],
   autoAddCategoryIds: [] as string[],
+  isPrePress: false,
   isFixedCharge: false,
   fixedChargeAmount: 0,
   fixedChargeCost: 0,
@@ -150,6 +159,7 @@ export const Labor: React.FC = () => {
       categoryIds: l.categoryIds || [],
       laborGroupIds: l.laborGroupIds || [],
       autoAddCategoryIds: [...(l.autoAddCategoryIds ?? [])],
+      isPrePress: l.isPrePress ?? isPrePressName(l.name),
       isFixedCharge: mode === 'fixed',
       fixedChargeAmount: l.fixedChargeAmount ?? 0,
       fixedChargeCost: l.fixedChargeCost ?? 0,
@@ -180,6 +190,7 @@ export const Labor: React.FC = () => {
       categoryIds: form.categoryIds,
       laborGroupIds: form.laborGroupIds,
       autoAddCategoryIds: form.autoAddCategoryIds.length > 0 ? form.autoAddCategoryIds : undefined,
+      isPrePress: form.isPrePress || undefined,
       isFixedCharge: isFixed,
       fixedChargeAmount: isFixed ? form.fixedChargeAmount : 0,
       fixedChargeCost: isFixed ? form.fixedChargeCost : 0,
@@ -848,6 +859,25 @@ export const Labor: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Pre-press toggle */}
+          <label className="flex items-start gap-2.5 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={form.isPrePress || false}
+              onChange={e => setForm(f => ({ ...f, isPrePress: e.target.checked }))}
+              className="mt-0.5 rounded border-gray-300 text-violet-600 focus:ring-violet-400"
+            />
+            <div>
+              <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition-colors">
+                Pre-press service
+                {form.isPrePress && <span className="ml-2 text-[10px] bg-violet-100 text-violet-700 border border-violet-200 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">pre-press</span>}
+              </span>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                Pre-press services (design, file prep, etc.) appear <strong>before</strong> material &amp; printing in the price breakdown.
+              </p>
+            </div>
+          </label>
 
           {/* Notes */}
           <Input

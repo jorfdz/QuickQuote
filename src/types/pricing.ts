@@ -207,6 +207,7 @@ export interface PricingLabor {
   categoryIds: string[];           // which categories this labor applies to
   laborGroupIds: string[];          // which labor groups this belongs to
   autoAddCategoryIds?: string[];   // auto-selected on new items in these categories
+  isPrePress?: boolean;            // if true, line appears before Material/Printing in breakdown
   isFixedCharge: boolean;           // if true, charge a fixed amount
   fixedChargeAmount: number;        // fixed amount to charge
   fixedChargeCost: number;          // cost basis for fixed charge
@@ -367,6 +368,7 @@ export interface PricingServiceLine {
   hoursCharge?: number;            // hours to actually charge (user-overridable)
   // Quantity override — user can bill a different qty than the system-calculated actual qty
   chargeQty?: number;              // qty to actually charge (defaults to quantity when not set)
+  isPrePress?: boolean;            // if true, sort this line before Material/Printing
 }
 
 export interface PricingJob {
