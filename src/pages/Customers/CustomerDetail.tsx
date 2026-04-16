@@ -292,6 +292,29 @@ export const CustomerDetail: React.FC = () => {
               <div className="p-4">
                 <h3 className="text-sm font-semibold text-gray-900 mb-3">Company Info</h3>
                 <div className="space-y-2">
+                  {customer.accountNumber && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">Account #</span>
+                      <span className="text-gray-700 font-medium">{customer.accountNumber}</span>
+                    </div>
+                  )}
+                  {customer.terms && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">Terms</span>
+                      <span className="text-gray-700 font-medium">{customer.terms}</span>
+                    </div>
+                  )}
+                  {customer.deliveryMethod && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">Delivery</span>
+                      <span className="text-gray-700 font-medium">
+                        {customer.deliveryMethod}
+                        {customer.thirdPartyShipping && (
+                          <span className="text-gray-400"> (3rd Party{customer.thirdPartyCarrierAccountNumber ? ': ' + customer.thirdPartyCarrierAccountNumber : ''})</span>
+                        )}
+                      </span>
+                    </div>
+                  )}
                   {customer.address && (
                     <div className="flex gap-2 text-sm">
                       <MapPin className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
@@ -497,27 +520,77 @@ export const CustomerDetail: React.FC = () => {
 
       {/* Edit Modal */}
       <Modal isOpen={editMode} onClose={() => setEditMode(false)} title="Edit Customer" size="lg">
-        {editForm && (
-          <div className="space-y-4">
-            <Input label="Company Name" value={editForm.name} onChange={e => setEditForm(f => f ? { ...f, name: e.target.value } : f)} />
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Email" type="email" value={editForm.email || ''} onChange={e => setEditForm(f => f ? { ...f, email: e.target.value } : f)} />
-              <Input label="Phone" value={editForm.phone || ''} onChange={e => setEditForm(f => f ? { ...f, phone: e.target.value } : f)} />
+        {editForm && (() => {
+          const DEFAULT_PAYMENT_TERMS = ['Net 10', 'Net 15', 'Net 30', 'COD'];
+          const DEFAULT_DELIVERY_METHODS = ['Pickup', 'Local Delivery', 'FedEx', 'UPS'];
+          const allTerms = [...DEFAULT_PAYMENT_TERMS, ...(companySettings.customTerms || [])];
+          const allMethods = [...DEFAULT_DELIVERY_METHODS, ...(companySettings.customDeliveryMethods || [])];
+          const showThirdParty = editForm.deliveryMethod === 'FedEx' || editForm.deliveryMethod === 'UPS';
+          return (
+            <div className="space-y-4">
+              <Input label="Company Name" value={editForm.name} onChange={e => setEditForm(f => f ? { ...f, name: e.target.value } : f)} />
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Email" type="email" value={editForm.email || ''} onChange={e => setEditForm(f => f ? { ...f, email: e.target.value } : f)} />
+                <Input label="Phone" value={editForm.phone || ''} onChange={e => setEditForm(f => f ? { ...f, phone: e.target.value } : f)} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Website" value={editForm.website || ''} onChange={e => setEditForm(f => f ? { ...f, website: e.target.value } : f)} />
+                <Input label="Account Number" value={editForm.accountNumber || ''} onChange={e => setEditForm(f => f ? { ...f, accountNumber: e.target.value } : f)} />
+              </div>
+              <Input label="Address" value={editForm.address || ''} onChange={e => setEditForm(f => f ? { ...f, address: e.target.value } : f)} />
+              <div className="grid grid-cols-3 gap-3">
+                <Input label="City" value={editForm.city || ''} onChange={e => setEditForm(f => f ? { ...f, city: e.target.value } : f)} />
+                <Input label="State" value={editForm.state || ''} onChange={e => setEditForm(f => f ? { ...f, state: e.target.value } : f)} />
+                <Input label="ZIP" value={editForm.zip || ''} onChange={e => setEditForm(f => f ? { ...f, zip: e.target.value } : f)} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Payment Terms</label>
+                  <select
+                    value={editForm.terms || ''}
+                    onChange={e => setEditForm(f => f ? { ...f, terms: e.target.value || undefined } : f)}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 appearance-none bg-white text-gray-700"
+                  >
+                    <option value="">— None —</option>
+                    {allTerms.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Delivery Method</label>
+                  <select
+                    value={editForm.deliveryMethod || ''}
+                    onChange={e => setEditForm(f => f ? { ...f, deliveryMethod: e.target.value || undefined, thirdPartyShipping: false, thirdPartyCarrierAccountNumber: undefined } : f)}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 appearance-none bg-white text-gray-700"
+                  >
+                    <option value="">— None —</option>
+                    {allMethods.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+              </div>
+              {showThirdParty && (
+                <div className="space-y-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editForm.thirdPartyShipping || false}
+                      onChange={e => setEditForm(f => f ? { ...f, thirdPartyShipping: e.target.checked, thirdPartyCarrierAccountNumber: e.target.checked ? f.thirdPartyCarrierAccountNumber : undefined } : f)}
+                      className="rounded border-gray-300 text-brand-600"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Third Party Shipping</span>
+                  </label>
+                  {editForm.thirdPartyShipping && (
+                    <Input label="Carrier Account Number" value={editForm.thirdPartyCarrierAccountNumber || ''} onChange={e => setEditForm(f => f ? { ...f, thirdPartyCarrierAccountNumber: e.target.value } : f)} placeholder="Enter carrier account number" />
+                  )}
+                </div>
+              )}
+              <Textarea label="Notes" value={editForm.notes || ''} onChange={e => setEditForm(f => f ? { ...f, notes: e.target.value } : f)} rows={3} />
+              <div className="flex gap-3 justify-end pt-2">
+                <Button variant="secondary" onClick={() => setEditMode(false)}>Cancel</Button>
+                <Button variant="primary" onClick={handleSaveEdit}>Save Changes</Button>
+              </div>
             </div>
-            <Input label="Website" value={editForm.website || ''} onChange={e => setEditForm(f => f ? { ...f, website: e.target.value } : f)} />
-            <Input label="Address" value={editForm.address || ''} onChange={e => setEditForm(f => f ? { ...f, address: e.target.value } : f)} />
-            <div className="grid grid-cols-3 gap-3">
-              <Input label="City" value={editForm.city || ''} onChange={e => setEditForm(f => f ? { ...f, city: e.target.value } : f)} />
-              <Input label="State" value={editForm.state || ''} onChange={e => setEditForm(f => f ? { ...f, state: e.target.value } : f)} />
-              <Input label="ZIP" value={editForm.zip || ''} onChange={e => setEditForm(f => f ? { ...f, zip: e.target.value } : f)} />
-            </div>
-            <Textarea label="Notes" value={editForm.notes || ''} onChange={e => setEditForm(f => f ? { ...f, notes: e.target.value } : f)} rows={3} />
-            <div className="flex gap-3 justify-end pt-2">
-              <Button variant="secondary" onClick={() => setEditMode(false)}>Cancel</Button>
-              <Button variant="primary" onClick={handleSaveEdit}>Save Changes</Button>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </Modal>
 
       {/* New Contact Modal */}
