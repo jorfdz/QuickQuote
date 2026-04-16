@@ -52,6 +52,7 @@ export const Catalog: React.FC = () => {
   // Store the editing product id separately from the old modal
   const [prodItemEditId, setProdItemEditId] = useState<string | null>(null);
   const [prodItemAliasesStr, setProdItemAliasesStr] = useState('');
+  const [prodItemDescription, setProdItemDescription] = useState('');
   // User-selected category IDs for the current product being created/edited
   const [prodSelectedCategoryIds, setProdSelectedCategoryIds] = useState<string[]>([]);
 
@@ -208,6 +209,7 @@ export const Catalog: React.FC = () => {
     setProdPricingState(DEFAULT_PRICING_STATE());
     setProdItemEditId(null);
     setProdItemAliasesStr('');
+    setProdItemDescription('');
     // Pre-select the current category filter if one is active
     setProdSelectedCategoryIds(prodCategoryFilter !== 'all' ? [prodCategoryFilter] : []);
     setProdItemModalOpen(true);
@@ -271,6 +273,7 @@ export const Catalog: React.FC = () => {
     setProdPricingState(ps);
     setProdItemEditId(p.id);
     setProdItemAliasesStr(p.aliases.join(', '));
+    setProdItemDescription(p.description || '');
     // Restore the product's existing category assignments for editing
     setProdSelectedCategoryIds(p.categoryIds || []);
     setProdItemModalOpen(true);
@@ -301,7 +304,8 @@ export const Catalog: React.FC = () => {
         : prodCategoryFilter !== 'all' ? [prodCategoryFilter] : (categories.length > 0 ? [categories[0].id] : []);
     const productDefaults = {
       categoryIds,
-      name: finalItem.description || finalPs.productName || 'New Product',
+      name: finalPs.productName || finalItem.description || 'New Product',
+      description: prodItemDescription.trim() || undefined,
       aliases: prodItemAliasesStr.split(',').map(s => s.trim()).filter(Boolean),
       defaultQuantity: finalPs.quantity || finalItem.quantity || 1000,
       defaultFinalSize: w && h ? `${w}x${h}` : '',
@@ -431,7 +435,10 @@ export const Catalog: React.FC = () => {
           <Table headers={['Name', 'Categories', 'Aliases', 'Size', 'Paper', 'Equipment', 'Color', 'Sides', 'Actions']}>
             {filteredProducts.map(prod => (
               <tr key={prod.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => openEditProduct(prod)}>
-                <td className="py-2.5 px-4 font-medium text-sm text-gray-900">{prod.name}</td>
+                <td className="py-2.5 px-4">
+                  <p className="font-medium text-sm text-gray-900">{prod.name}</p>
+                  {prod.description && <p className="text-[11px] text-gray-400 mt-0.5 truncate max-w-[200px]">{prod.description}</p>}
+                </td>
                 <td className="py-2.5 px-4">
                   <div className="flex flex-wrap gap-1">
                     {prod.categoryIds.map(cid => {
@@ -548,6 +555,8 @@ export const Catalog: React.FC = () => {
           onCategoryIdsChange={setProdSelectedCategoryIds}
           aliases={prodItemAliasesStr.split(',').map(s => s.trim()).filter(Boolean)}
           onAliasesChange={aliases => setProdItemAliasesStr(aliases.join(', '))}
+          productDescription={prodItemDescription}
+          onProductDescriptionChange={setProdItemDescription}
           onUpdateItem={updates => {
             setProdItem(prev => prev ? { ...prev, ...updates } : prev);
           }}

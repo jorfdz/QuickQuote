@@ -51,6 +51,7 @@ export interface PricingProduct {
   id: string;
   categoryIds: string[];
   name: string;
+  description?: string;             // short product description shown below the name
   aliases: string[];
   defaultQuantity: number;
   defaultMaterialId?: string;
