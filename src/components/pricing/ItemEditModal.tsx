@@ -25,6 +25,40 @@ function parseInlineService(lineId: string): { type: 'finishing' | 'labor' | 'br
   if (!m) return null;
   return { type: m[1] as 'finishing' | 'labor' | 'brokered', id: m[2] };
 }
+
+/** Returns the action to take when clicking the edit pencil on a breakdown line.
+ *  - { kind: 'inline', type, id }  → open ServiceEditInlineDialog
+ *  - { kind: 'tab', url }          → open catalog page in new tab
+ *  - null                          → no action available
+ */
+function getLineEditAction(
+  line: PricingServiceLine,
+  desc: string
+): { kind: 'inline'; type: 'finishing' | 'labor' | 'brokered'; id: string }
+ | { kind: 'tab'; url: string }
+ | null {
+  const id = line.id;
+  const searchName = encodeURIComponent((desc.split(/\s+[—@]/)[0] ?? desc).trim());
+
+  // Inline dialog — Finishing / Labor / Brokered
+  const parsed = parseInlineService(id);
+  if (parsed) return { kind: 'inline', ...parsed };
+
+  // Material → open Materials catalog
+  if (id.startsWith('sl_material_')) return { kind: 'tab', url: `/materials?search=${searchName}` };
+
+  // Equipment — Printing or Setup
+  if (id.startsWith('sl_printing_') || id.startsWith('sl_setup_')) {
+    return { kind: 'tab', url: `/equipment?search=${searchName}` };
+  }
+
+  // Legacy finishing lines (cutting/folding/drilling) — open Finishing page
+  if (id.startsWith('sl_cutting_'))  return { kind: 'tab', url: `/finishing?search=Cut` };
+  if (id.startsWith('sl_folding_'))  return { kind: 'tab', url: `/finishing?search=${searchName}` };
+  if (id.startsWith('sl_drilling_')) return { kind: 'tab', url: `/finishing?search=${searchName}` };
+
+  return null;
+}
 const fmtPct = (n: number) => `${n.toFixed(1)}%`;
 // Unit costs always show 3 decimal places — critical in print (e.g. $0.025/click, $0.035/sheet)
 const fmtUnit = (n: number) =>
@@ -4036,12 +4070,18 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                       <span className="flex items-center gap-1">
                                         {service}
                                         {(() => {
-                                          const parsed = parseInlineService(grpLines[0].id);
-                                          if (!parsed) return null;
+                                          const action = getLineEditAction(grpLines[0], grpLines[0].description);
+                                          if (!action) return null;
                                           return (
                                             <button type="button"
-                                              onClick={() => setQuickEditSvc({ ...parsed, lineIdPattern: `sl_${parsed.type}_${parsed.id}` })}
-                                              title={`Edit ${service} service`}
+                                              onClick={() => {
+                                                if (action.kind === 'inline') {
+                                                  setQuickEditSvc({ type: action.type, id: action.id, lineIdPattern: `sl_${action.type}_${action.id}` });
+                                                } else {
+                                                  window.open(action.url, '_blank');
+                                                }
+                                              }}
+                                              title={action.kind === 'inline' ? `Edit ${service} service` : `Open ${service} in catalog`}
                                               className="p-0.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all flex-shrink-0">
                                               <Edit3 className="w-2.5 h-2.5" />
                                             </button>
@@ -4091,15 +4131,21 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                           {manualOverrides[line.id] && (
                                             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Manually edited" />
                                           )}
-                                          {/* Service edit shortcut */}
+                                          {/* Service edit pencil — ALL row types */}
                                           {(() => {
-                                            const parsed = parseInlineService(line.id);
-                                            if (!parsed) return null;
+                                            const action = getLineEditAction(line, line.description);
+                                            if (!action) return null;
                                             return (
                                               <button
                                                 type="button"
-                                                onClick={() => setQuickEditSvc({ ...parsed, lineIdPattern: `sl_${parsed.type}_${parsed.id}` })}
-                                                title={`Edit ${service} service`}
+                                                onClick={() => {
+                                                  if (action.kind === 'inline') {
+                                                    setQuickEditSvc({ type: action.type, id: action.id, lineIdPattern: `sl_${action.type}_${action.id}` });
+                                                  } else {
+                                                    window.open(action.url, '_blank');
+                                                  }
+                                                }}
+                                                title={action.kind === 'inline' ? `Edit ${service} service` : `Open ${service} in catalog`}
                                                 className="p-0.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all flex-shrink-0"
                                               >
                                                 <Edit3 className="w-2.5 h-2.5" />
