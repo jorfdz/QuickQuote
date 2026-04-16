@@ -42,6 +42,7 @@ const emptyLaborForm = {
   markupPercent: 0,
   categoryIds: [] as string[],
   laborGroupIds: [] as string[],
+  autoAddCategoryIds: [] as string[],
   isFixedCharge: false,
   fixedChargeAmount: 0,
   fixedChargeCost: 0,
