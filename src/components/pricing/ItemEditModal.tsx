@@ -1395,6 +1395,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
           description: `${svc.name} — ${qty.toFixed(basis === 'per_hour' ? 2 : 0)} ${unit}${setupFee > 0 ? ` + $${setupFee.toFixed(2)} setup` : ''}`,
           quantity: qty, unit, unitCost: costPer,
           totalCost, markupPercent: markupPct, sellPrice, editable: true,
+          isPrePress: laborIsPrePress || undefined,
           ...(basis === 'per_hour' ? { hourlyCost: svc.hourlyCost, hoursActual: qty, hoursCharge: qty } : {}),
         });
       }
