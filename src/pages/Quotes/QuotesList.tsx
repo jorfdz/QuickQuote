@@ -108,6 +108,25 @@ const StatusPicker: React.FC<{
   );
 };
 
+// ─── Status filter persistence ────────────────────────────────────────────────
+
+const STATUS_FILTER_KEY = 'quikquote-quotes-status-filter';
+
+function loadStatusFilter(): Set<QuoteStatus> {
+  try {
+    const raw = localStorage.getItem(STATUS_FILTER_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw) as string[];
+      if (Array.isArray(arr)) return new Set(arr as QuoteStatus[]);
+    }
+  } catch {}
+  return new Set<QuoteStatus>(); // empty = show all
+}
+
+function saveStatusFilter(s: Set<QuoteStatus>) {
+  try { localStorage.setItem(STATUS_FILTER_KEY, JSON.stringify([...s])); } catch {}
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export const QuotesList: React.FC = () => {
@@ -117,11 +136,26 @@ export const QuotesList: React.FC = () => {
 
   // Filters
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  // Multi-select status filter — empty set means "All"
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<QuoteStatus>>(loadStatusFilter);
   const [csrFilter, setCsrFilter] = useState('all');
   const [salesFilter, setSalesFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  const toggleStatus = (status: QuoteStatus) => {
+    setSelectedStatuses(prev => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status); else next.add(status);
+      saveStatusFilter(next);
+      return next;
+    });
+  };
+
+  const clearStatuses = () => {
+    setSelectedStatuses(new Set());
+    saveStatusFilter(new Set());
+  };
 
   const csrUsers  = useMemo(() => users.filter(u => u.active && ['csr','admin','manager'].includes(u.role)), [users]);
   const salesUsers = useMemo(() => users.filter(u => u.active && ['sales','admin','manager'].includes(u.role)), [users]);
@@ -131,17 +165,17 @@ export const QuotesList: React.FC = () => {
       const s = search.toLowerCase();
       if (!q.title?.toLowerCase().includes(s) && !q.number?.toLowerCase().includes(s) && !(q.customerName || '').toLowerCase().includes(s) && !(q.contactName || '').toLowerCase().includes(s)) return false;
     }
-    if (statusFilter !== 'all' && q.status !== statusFilter) return false;
+    if (selectedStatuses.size > 0 && !selectedStatuses.has(q.status)) return false;
     if (csrFilter !== 'all' && q.csrId !== csrFilter) return false;
     if (salesFilter !== 'all' && (q as any).salesId !== salesFilter) return false;
     if (!inDateRange(q.createdAt, dateFilter)) return false;
     return true;
-  }), [quotes, search, statusFilter, csrFilter, salesFilter, dateFilter]);
+  }), [quotes, search, selectedStatuses, csrFilter, salesFilter, dateFilter]);
 
   const quoteToDelete = deleteConfirmId ? quotes.find(q => q.id === deleteConfirmId) : null;
 
   const filterCount = [
-    statusFilter !== 'all', csrFilter !== 'all', salesFilter !== 'all', dateFilter !== 'all'
+    selectedStatuses.size > 0, csrFilter !== 'all', salesFilter !== 'all', dateFilter !== 'all'
   ].filter(Boolean).length;
 
   return (
@@ -163,7 +197,7 @@ export const QuotesList: React.FC = () => {
           <div className="flex items-center gap-3 flex-wrap">
             <SearchInput value={search} onChange={setSearch} placeholder="Search quote #, title, customer…" />
             {filterCount > 0 && (
-              <button onClick={() => { setStatusFilter('all'); setCsrFilter('all'); setSalesFilter('all'); setDateFilter('all'); }}
+              <button onClick={() => { clearStatuses(); setCsrFilter('all'); setSalesFilter('all'); setDateFilter('all'); }}
                 className="text-xs text-[var(--brand)] hover:underline flex-shrink-0">
                 Clear {filterCount} filter{filterCount > 1 ? 's' : ''}
               </button>
@@ -171,20 +205,43 @@ export const QuotesList: React.FC = () => {
             <span className="text-xs text-gray-400 ml-auto">{filtered.length} quote{filtered.length !== 1 ? 's' : ''}</span>
           </div>
 
-          {/* Row 2: Status pills + dropdowns */}
+          {/* Row 2: Status pills (multi-select) + dropdowns */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Status pills */}
+            {/* "All" pill — active only when nothing is selected */}
             <div className="flex items-center gap-1 flex-wrap">
-              {[{ id: 'all', label: 'All' }, ...STATUS_OPTIONS.map(s => ({ id: s.value, label: s.label }))].map(f => (
-                <button key={f.id} onClick={() => setStatusFilter(f.id)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
-                    statusFilter === f.id
-                      ? (f.id === 'all' ? 'bg-gray-800 text-white border-gray-800' : `${STATUS_COLORS[f.id]} border-transparent`)
-                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
-                  }`}>
-                  {f.label}
-                </button>
-              ))}
+              <button
+                onClick={clearStatuses}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
+                  selectedStatuses.size === 0
+                    ? 'bg-gray-800 text-white border-gray-800'
+                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                All
+              </button>
+              {STATUS_OPTIONS.map(s => {
+                const active = selectedStatuses.has(s.value);
+                return (
+                  <button key={s.value} onClick={() => toggleStatus(s.value)}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
+                      active
+                        ? `${STATUS_COLORS[s.value]} border-transparent shadow-sm`
+                        : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                    }`}>
+                    {s.label}
+                    {active && selectedStatuses.size > 1 && (
+                      <span className="ml-1 opacity-70">
+                        ({filtered.filter(q => q.status === s.value).length})
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+              {selectedStatuses.size > 0 && (
+                <span className="text-[10px] text-gray-400 font-medium ml-1">
+                  {selectedStatuses.size} selected
+                </span>
+              )}
             </div>
 
             <div className="w-px h-5 bg-gray-200" />
