@@ -922,21 +922,26 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   const availableMaterials = useMemo(() => {
     // Step 1 — category filter: STRICT match.
-    // When the item has a known category, only show materials that explicitly list that category.
-    // Materials with empty categoryIds are NOT shown — they must be assigned to a category first.
-    // When the item has no category (catId is undefined), all materials are available.
-    const catId = categories.find(c => c.name === ps.categoryName)?.id;
+    // In Catalog mode (isProductCreation=true), the category comes from selectedCategoryIds
+    // (the pill toggles), NOT from ps.categoryName which is empty in that flow.
+    // In Quote/Order mode, category comes from ps.categoryName.
+    // Only show materials that explicitly list the active category.
+    // Materials with empty categoryIds are hidden — they must be categorized first.
+    const catId = isProductCreation && selectedCategoryIds && selectedCategoryIds.length > 0
+      ? selectedCategoryIds[0]                                           // Catalog: use first selected
+      : categories.find(c => c.name === ps.categoryName)?.id;           // Quote/Order: look up by name
     const catFiltered = catId
       ? materials.filter(m => m.categoryIds.includes(catId))
       : materials;
 
-    // Step 2 — size filter: hide materials that are physically smaller than the item.
+    // Step 2 — size filter: hide materials physically smaller than the item.
     if (ps.finalWidth <= 0 || ps.finalHeight <= 0) return catFiltered;
     return catFiltered.filter(m =>
       (m.sizeWidth >= ps.finalWidth && m.sizeHeight >= ps.finalHeight) ||
       (m.sizeHeight >= ps.finalWidth && m.sizeWidth >= ps.finalHeight)
     );
-  }, [materials, categories, ps.categoryName, ps.finalWidth, ps.finalHeight]);
+  }, [materials, categories, ps.categoryName, ps.finalWidth, ps.finalHeight,
+      isProductCreation, selectedCategoryIds]);
 
   const suggestions = useMemo(() => {
     if (!productQuery.trim() || productQuery.length < 1) return [];
@@ -2330,7 +2335,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         {/* ═══ Modal Header ═══════════════════════════════════════════════ */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold text-gray-900">{isNew ? 'Add Item' : 'Edit Item'}</h2>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {isProductCreation
+                ? (isNew ? 'Add Product' : 'Edit Product')
+                : (isNew ? 'Add Item' : 'Edit Item')}
+            </h2>
             {ps.productName && (() => {
               const isLinked = !!(item as any).templateId;
               const isActive = isLinked || savedAsTemplate;
