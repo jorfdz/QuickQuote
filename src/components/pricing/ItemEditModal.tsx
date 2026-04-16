@@ -1021,47 +1021,52 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
       if (model === 'cost_per_sqft' || model === 'cost_per_unit') {
         // ── Area-based billing: charge for the item's actual dimensions only ──
-        // For a 24×36 sign cut from a 48×96 board, the customer pays for 6 sqft,
-        // not 32 sqft. This correctly reflects what was consumed.
-        //
-        // cost_per_sqft: direct sqft rate (e.g. $1.00/sqft → 6 sqft = $6.00)
-        // cost_per_unit: derive sqft rate from board cost ÷ board area, then
-        //                apply to item area (e.g. $15/board ÷ 32 sqft = $0.469/sqft → $2.81)
-        // Material is never multiplied by sides — you use the same board/stock
-        // whether printing single or double-sided. Sides only affect equipment.
         const itemSqft = (ps.finalWidth * ps.finalHeight) / 144;
         const totalSqft = parseFloat((itemSqft * ps.quantity * originals).toFixed(4));
 
         let costPerSqft: number;
+        let rateLabel: string; // shows the original pricing basis in the description
         if (model === 'cost_per_sqft') {
           costPerSqft = selectedMaterial.costPerSqft ?? 0;
+          // Roll media: show the original roll cost if available
+          if (selectedMaterial.materialType === 'roll_media' && selectedMaterial.rollCost && selectedMaterial.rollLength) {
+            const rollSqft = selectedMaterial.rollLength * (selectedMaterial.sizeWidth / 12);
+            rateLabel = `${fmtCost(selectedMaterial.rollCost)}/roll (${selectedMaterial.rollLength} ft × ${selectedMaterial.sizeWidth}" = ${rollSqft.toFixed(0)} sqft → ${fmtCost(costPerSqft)}/sqft)`;
+          } else {
+            rateLabel = `${fmtCost(costPerSqft)}/sqft`;
+          }
         } else {
-          // cost_per_unit → implied sqft rate
+          // cost_per_unit → implied sqft rate from board dimensions
           const boardW = selectedMaterial.sizeWidth || ps.finalWidth;
           const boardH = selectedMaterial.sizeHeight || ps.finalHeight;
           const boardSqft = (boardW * boardH) / 144;
           costPerSqft = boardSqft > 0 ? (selectedMaterial.costPerUnit ?? 0) / boardSqft : 0;
+          rateLabel = `${fmtCost(selectedMaterial.costPerUnit ?? 0)}/board (${boardW}×${boardH}" = ${boardSqft.toFixed(1)} sqft → ${fmtCost(costPerSqft)}/sqft)`;
         }
 
         const totalCost = totalSqft * costPerSqft;
         const sqftLabel = totalSqft % 1 === 0 ? String(totalSqft) : totalSqft.toFixed(2);
         lines.push({
           id: slId('material'), service: 'Material',
-          description: `${selectedMaterial.name} — ${sqftLabel} sqft${originalsNote}`,
+          description: `${selectedMaterial.name} — ${sqftLabel} sqft @ ${rateLabel}${originalsNote}`,
           quantity: totalSqft, unit: 'sqft', unitCost: costPerSqft,
           totalCost, markupPercent: markup, sellPrice: totalCost * (1 + markup / 100), editable: true,
         });
 
       } else if (imposition.sheetsNeeded > 0) {
         // ── Sheet-based billing (cost_per_m): charge by number of parent sheets ──
-        // Paper and similar stock: you consume the whole sheet per run so charge by sheets.
         const totalSheets = imposition.sheetsNeeded * originals;
         const tierCost = getTierCost(selectedMaterial, totalSheets);
-        const costPerSheet = tierCost !== null ? tierCost : (selectedMaterial.pricePerM || 0) / 1000;
+        const baseRatePerM = selectedMaterial.pricePerM || 0;
+        const costPerSheet = tierCost !== null ? tierCost : baseRatePerM / 1000;
         const totalCost = totalSheets * costPerSheet;
+        // Show the original /M rate; if a tier is in effect, show that too
+        const rateLabel = tierCost !== null
+          ? `${fmtCost(tierCost)}/sheet (tier — base ${fmtCost(baseRatePerM)}/M)`
+          : `${fmtCost(baseRatePerM)}/M`;
         lines.push({
           id: slId('material'), service: 'Material',
-          description: `${selectedMaterial.name} (${selectedMaterial.size}) — ${totalSheets} sheets${originalsNote}`,
+          description: `${selectedMaterial.name} (${selectedMaterial.size}) — ${totalSheets} sheets @ ${rateLabel}${originalsNote}`,
           quantity: totalSheets, unit: 'sheets', unitCost: costPerSheet,
           totalCost, markupPercent: markup, sellPrice: totalCost * (1 + markup / 100), editable: true,
         });
