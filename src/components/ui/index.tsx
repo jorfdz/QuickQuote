@@ -179,7 +179,7 @@ export const SearchInput: React.FC<{ value: string; onChange: (v: string) => voi
     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
     <input
       type="text" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-      className="pl-9 pr-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent w-56 placeholder-gray-400"
+      className="pl-9 pr-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-[#F890E7] focus:border-transparent w-80 placeholder-gray-400"
     />
   </div>
 );

@@ -10,6 +10,7 @@ import type { QuoteLineItem } from '../../types';
 import type { PricingProduct, PricingServiceLine, ProductPricingTemplate } from '../../types/pricing';
 import { formatCurrency } from '../../data/mockData';
 import { nanoid } from '../../utils/nanoid';
+import { getTierCost } from '../../utils/materialCost';
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
@@ -843,14 +844,37 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     if (selectedMaterial && imposition.sheetsNeeded > 0) {
       const sheetsPerRun = imposition.sheetsNeeded;
       const totalSheets = sheetsPerRun * originals;
-      const costPerSheet = selectedMaterial.pricePerM / 1000;
+
+      // ── Cost per sheet/board — respects the material's pricing model ──────
+      // cost_per_m:    pricePerM / 1000           (standard paper, per sheet)
+      // cost_per_unit: costPerUnit                 (rigid substrates, per board)
+      // cost_per_sqft: costPerSqft × sheetSqft    (roll media / sqft-rated boards)
+      const model = selectedMaterial.pricingModel || 'cost_per_m';
+      const tierCost = getTierCost(selectedMaterial, totalSheets);
+      let costPerSheet: number;
+      if (tierCost !== null) {
+        // Tier pricing overrides base cost when the quantity matches a tier
+        costPerSheet = tierCost;
+      } else if (model === 'cost_per_unit') {
+        costPerSheet = selectedMaterial.costPerUnit ?? 0;
+      } else if (model === 'cost_per_sqft') {
+        const sheetW = selectedMaterial.sizeWidth  || ps.finalWidth  || 0;
+        const sheetH = selectedMaterial.sizeHeight || ps.finalHeight || 0;
+        const sheetSqft = (sheetW * sheetH) / 144;
+        costPerSheet = (selectedMaterial.costPerSqft ?? 0) * sheetSqft;
+      } else {
+        // cost_per_m (default)
+        costPerSheet = (selectedMaterial.pricePerM || 0) / 1000;
+      }
+
       const totalCost = totalSheets * costPerSheet;
       const markup = selectedMaterial.markup;
+      const unitLabel = model === 'cost_per_unit' ? 'boards' : 'sheets';
       const originalsNote = originals > 1 ? ` × ${originals} originals` : '';
       lines.push({
         id: slId('material'), service: 'Material',
-        description: `${selectedMaterial.name} (${selectedMaterial.size}) — ${totalSheets} sheets${originalsNote}`,
-        quantity: totalSheets, unit: 'sheets', unitCost: costPerSheet,
+        description: `${selectedMaterial.name} (${selectedMaterial.size}) — ${totalSheets} ${unitLabel}${originalsNote}`,
+        quantity: totalSheets, unit: unitLabel, unitCost: costPerSheet,
         totalCost, markupPercent: markup, sellPrice: totalCost * (1 + markup / 100), editable: true,
       });
     }
@@ -1366,10 +1390,23 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       sheetsNeeded = Math.ceil((qty * originals) / ups);
       cutsPerSheet = rawImp.upsAcross + rawImp.upsDown; // same formula as main imposition
 
-      // MATERIAL
-      const costPerSheet = selectedMaterial.pricePerM / 1000;
-      tCost += sheetsNeeded * costPerSheet;
-      tSell += sheetsNeeded * costPerSheet * (1 + selectedMaterial.markup / 100);
+      // MATERIAL — same pricing-model logic as computeServiceLines
+      const matModel = selectedMaterial.pricingModel || 'cost_per_m';
+      const matTierCost = getTierCost(selectedMaterial, sheetsNeeded);
+      let matCostPerSheet: number;
+      if (matTierCost !== null) {
+        matCostPerSheet = matTierCost;
+      } else if (matModel === 'cost_per_unit') {
+        matCostPerSheet = selectedMaterial.costPerUnit ?? 0;
+      } else if (matModel === 'cost_per_sqft') {
+        const sheetW = selectedMaterial.sizeWidth  || ps.finalWidth  || 0;
+        const sheetH = selectedMaterial.sizeHeight || ps.finalHeight || 0;
+        matCostPerSheet = (selectedMaterial.costPerSqft ?? 0) * (sheetW * sheetH) / 144;
+      } else {
+        matCostPerSheet = (selectedMaterial.pricePerM || 0) / 1000;
+      }
+      tCost += sheetsNeeded * matCostPerSheet;
+      tSell += sheetsNeeded * matCostPerSheet * (1 + selectedMaterial.markup / 100);
     }
 
     // PRINTING
