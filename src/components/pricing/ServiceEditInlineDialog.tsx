@@ -21,6 +21,7 @@ import { isPrePressName } from '../../pages/Labor';
 import type {
   PricingLabor, PricingFinishing, PricingBrokered,
   LaborChargeBasis, ServicePricingMode, SellRateTier,
+  PricingMaterial, MaterialPricingModel, MaterialMarkupType, PricingEquipment,
 } from '../../types/pricing';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -491,6 +492,234 @@ export interface ServiceEditInlineDialogProps {
   onClose: () => void;
   onSaved: () => void;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MATERIAL EDIT DIALOG
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const MaterialEditInlineDialog: React.FC<{
+  id: string;
+  onClose: () => void;
+  onSaved: () => void;
+}> = ({ id, onClose, onSaved }) => {
+  const { materials, updateMaterial } = usePricingStore();
+  const mat = materials.find(m => m.id === id);
+  if (!mat) return null;
+
+  const [form, setForm] = useState<PricingMaterial>({ ...mat });
+  const set = (p: Partial<PricingMaterial>) => setForm(f => ({ ...f, ...p }));
+
+  const MODEL_OPTIONS: { value: MaterialPricingModel; label: string }[] = [
+    { value: 'cost_per_m',    label: 'Per 1,000 sheets' },
+    { value: 'cost_per_unit', label: 'Per unit / board'  },
+    { value: 'cost_per_sqft', label: 'Per sq ft'         },
+  ];
+  const MARKUP_OPTIONS: { value: MaterialMarkupType; label: string }[] = [
+    { value: 'percent',        label: '% per unit'      },
+    { value: 'fixed',          label: '$ per unit'      },
+    { value: 'global_percent', label: '% on total'      },
+    { value: 'global_flat',    label: '$ on total'      },
+  ];
+
+  const handleSave = () => { updateMaterial(id, form); onSaved(); };
+
+  const DialogShell: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+    <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+          <h2 className="text-sm font-bold text-gray-900">{title}</h2>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-6 py-5">{children}</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <DialogShell title="Edit Material">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Name"><input className={inp} value={form.name} onChange={e => set({ name: e.target.value })} /></Field>
+          <Field label="Size (display)"><input className={inp} value={form.size} onChange={e => set({ size: e.target.value })} placeholder="e.g. 13×19" /></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Width (in)"><input type="number" className={ninp} value={form.sizeWidth || ''} onChange={e => set({ sizeWidth: parseFloat(e.target.value) || 0 })} /></Field>
+          <Field label="Height (in)"><input type="number" className={ninp} value={form.sizeHeight || ''} onChange={e => set({ sizeHeight: parseFloat(e.target.value) || 0 })} /></Field>
+        </div>
+
+        <Field label="Pricing Model">
+          <div className="flex gap-2 flex-wrap">
+            {MODEL_OPTIONS.map(o => (
+              <button key={o.value} type="button" onClick={() => set({ pricingModel: o.value })}
+                className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg border transition-all ${form.pricingModel === o.value ? 'bg-[#F890E7] text-white border-[#F890E7]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#F890E7]/60'}`}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        <div className="grid grid-cols-3 gap-4">
+          {form.pricingModel === 'cost_per_m' && (
+            <Input label="Price per 1,000 ($)" type="number" value={form.pricePerM || ''} onChange={e => set({ pricePerM: parseFloat(e.target.value) || 0 })} prefix="$" />
+          )}
+          {form.pricingModel === 'cost_per_unit' && (
+            <Input label="Cost per Unit ($)" type="number" value={form.costPerUnit || ''} onChange={e => set({ costPerUnit: parseFloat(e.target.value) || 0 })} prefix="$" />
+          )}
+          {form.pricingModel === 'cost_per_sqft' && (
+            <Input label="Cost per Sq Ft ($)" type="number" value={form.costPerSqft || ''} onChange={e => set({ costPerSqft: parseFloat(e.target.value) || 0 })} prefix="$" />
+          )}
+          <Input label="Markup" type="number" value={form.markup || ''} onChange={e => set({ markup: parseFloat(e.target.value) || 0 })} />
+          <Field label="Markup Type">
+            <select className={inp} value={form.markupType} onChange={e => set({ markupType: e.target.value as MaterialMarkupType })}>
+              {MARKUP_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </Field>
+        </div>
+
+        {form.pricingModel === 'cost_per_sqft' && (
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Roll Cost ($)" type="number" value={form.rollCost || ''} onChange={e => set({ rollCost: parseFloat(e.target.value) || 0 })} prefix="$" />
+            <Input label="Roll Length (ft)" type="number" value={form.rollLength || ''} onChange={e => set({ rollLength: parseFloat(e.target.value) || 0 })} />
+          </div>
+        )}
+
+        <Input label="Minimum Charge ($)" type="number" value={form.minimumCharge || ''} onChange={e => set({ minimumCharge: parseFloat(e.target.value) || 0 })} prefix="$" />
+
+        <Field label="Description / Notes">
+          <textarea rows={2} className={`${inp} resize-none`} value={form.description || ''} onChange={e => set({ description: e.target.value })} />
+        </Field>
+
+        <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={handleSave} disabled={!form.name}>Save Changes</Button>
+        </div>
+      </div>
+    </DialogShell>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EQUIPMENT EDIT DIALOG
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const EquipmentEditInlineDialog: React.FC<{
+  id: string;
+  onClose: () => void;
+  onSaved: () => void;
+}> = ({ id, onClose, onSaved }) => {
+  const { equipment, updateEquipment } = usePricingStore();
+  const eq = equipment.find(e => e.id === id);
+  if (!eq) return null;
+
+  const [form, setForm] = useState<PricingEquipment>({ ...eq });
+  const set = (p: Partial<PricingEquipment>) => setForm(f => ({ ...f, ...p }));
+
+  const handleSave = () => { updateEquipment(id, form); onSaved(); };
+
+  return (
+    <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+          <h2 className="text-sm font-bold text-gray-900">Edit Equipment</h2>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Name"><input className={inp} value={form.name} onChange={e => set({ name: e.target.value })} /></Field>
+            <Field label="Category"><input className={inp} value={form.categoryApplies} onChange={e => set({ categoryApplies: e.target.value })} /></Field>
+          </div>
+
+          <Field label="Cost Unit">
+            <div className="flex gap-2">
+              {(['per_click', 'per_sqft'] as const).map(u => (
+                <button key={u} type="button" onClick={() => set({ costUnit: u })}
+                  className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg border transition-all ${form.costUnit === u ? 'bg-[#F890E7] text-white border-[#F890E7]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#F890E7]/60'}`}>
+                  {u === 'per_click' ? 'Per Click' : 'Per Sq Ft'}
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Color Unit Cost ($)" type="number" value={form.colorUnitCost ?? form.unitCost ?? 0} onChange={e => set({ colorUnitCost: parseFloat(e.target.value) || 0 })} prefix="$" />
+            <Input label="B&W Unit Cost ($)" type="number" value={form.blackUnitCost ?? form.unitCost ?? 0} onChange={e => set({ blackUnitCost: parseFloat(e.target.value) || 0 })} prefix="$" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Markup Type">
+              <select className={inp} value={form.markupType} onChange={e => set({ markupType: e.target.value as 'multiplier' | 'percent' })}>
+                <option value="multiplier">Multiplier (×)</option>
+                <option value="percent">Percent (%)</option>
+              </select>
+            </Field>
+            <Input label={form.markupType === 'percent' ? 'Markup %' : 'Multiplier ×'} type="number" value={form.markupMultiplier || ''} onChange={e => set({ markupMultiplier: parseFloat(e.target.value) || 0 })} />
+          </div>
+
+          <Input label="Setup Fee ($)" type="number" value={form.initialSetupFee || ''} onChange={e => set({ initialSetupFee: parseFloat(e.target.value) || 0 })} prefix="$" />
+          <Field label="Color Capability">
+            <div className="flex gap-2">
+              {(['Color and Black', 'Color', 'Black'] as const).map(c => (
+                <button key={c} type="button" onClick={() => set({ colorCapability: c })}
+                  className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg border transition-all ${form.colorCapability === c ? 'bg-[#F890E7] text-white border-[#F890E7]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#F890E7]/60'}`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          {form.costType !== 'cost_only' && (
+            <div className="grid grid-cols-3 gap-4">
+              <Input label="Units/Hour" type="number" value={form.unitsPerHour || ''} onChange={e => set({ unitsPerHour: parseFloat(e.target.value) || 0 })} />
+              <Input label="Time Cost ($/hr)" type="number" value={form.timeCostPerHour || ''} onChange={e => set({ timeCostPerHour: parseFloat(e.target.value) || 0 })} prefix="$" />
+              <Input label="Time Markup %" type="number" value={form.timeCostMarkup || ''} onChange={e => set({ timeCostMarkup: parseFloat(e.target.value) || 0 })} suffix="%" />
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button variant="primary" onClick={handleSave} disabled={!form.name}>Save Changes</Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Re-export the Finishing form for use when opened by name (cutting etc.) ─
+
+export const FinishingByNameDialog: React.FC<{
+  serviceName: string;     // 'Cut', 'Tri-Fold', etc.
+  onClose: () => void;
+  onSaved: () => void;
+}> = ({ serviceName, onClose, onSaved }) => {
+  const { finishing, updateFinishing } = usePricingStore();
+  const svc = finishing.find(f => f.name.toLowerCase() === serviceName.toLowerCase() ||
+    f.name.toLowerCase().includes(serviceName.toLowerCase()));
+  if (!svc) return null;
+
+  const handleSave = (updated: Partial<PricingFinishing>) => {
+    updateFinishing(svc.id, updated as Partial<PricingFinishing>);
+    onSaved();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+          <h2 className="text-sm font-bold text-gray-900">Edit Finishing — {svc.name}</h2>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-6 py-5">
+          <FinishingEditForm svc={svc} onSave={handleSave} onClose={onClose} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN LABOR/FINISHING/BROKERED DIALOG (original)
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export const ServiceEditInlineDialog: React.FC<ServiceEditInlineDialogProps> = ({
   type, id, onClose, onSaved,
