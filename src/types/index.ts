@@ -37,6 +37,11 @@ export interface Customer {
   website?: string;
   salesHistorically?: number;
   sales12m?: number;
+  accountNumber?: string;
+  terms?: string;                        // e.g. 'Net 30', 'COD'
+  deliveryMethod?: string;               // e.g. 'FedEx', 'Pickup'
+  thirdPartyShipping?: boolean;
+  thirdPartyCarrierAccountNumber?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -285,6 +290,8 @@ export interface Quote {
   shipToState?: string;
   shipToZip?: string;
   shipToCountry?: string;
+  deliveryMethod?: string;
+  terms?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -332,6 +339,8 @@ export interface CompanySettings {
   openLinksInNewTab: boolean;  // true = open new quotes/orders in new tab (default)
   defaultGutterWide: number;
   emailSettings?: EmailSettings; // outbound email configuration
+  customTerms?: string[];
+  customDeliveryMethods?: string[];
 }
 
 export interface DocumentTemplates {
@@ -399,6 +408,8 @@ export interface Order {
   shipToState?: string;
   shipToZip?: string;
   shipToCountry?: string;
+  deliveryMethod?: string;
+  terms?: string;
   createdAt: string;
   updatedAt: string;
 }

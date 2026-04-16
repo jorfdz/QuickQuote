@@ -16,6 +16,7 @@ const TABS = [
   { id: 'documents', label: 'Documents' },
   { id: 'defaults', label: 'Quote Defaults' }, { id: 'catalog', label: 'Catalog' },
   { id: 'order-tracker', label: 'Order Tracker' },
+  { id: 'terms-delivery', label: 'Terms & Delivery' },
   { id: 'notifications', label: 'Notifications' }, { id: 'billing', label: 'Billing' },
 ];
 
@@ -242,6 +243,38 @@ export const Settings: React.FC = () => {
     };
 
     updateDocumentTemplates(nextTemplates);
+  };
+
+  // Terms & Delivery state
+  const [newTermInput, setNewTermInput] = useState('');
+  const [newDeliveryInput, setNewDeliveryInput] = useState('');
+
+  const addCustomTerm = () => {
+    const val = newTermInput.trim();
+    if (!val) return;
+    const existing = companySettings.customTerms || [];
+    if (existing.includes(val)) return;
+    updateCompanySettings({ customTerms: [...existing, val] });
+    setNewTermInput('');
+  };
+
+  const removeCustomTerm = (term: string) => {
+    const existing = companySettings.customTerms || [];
+    updateCompanySettings({ customTerms: existing.filter(t => t !== term) });
+  };
+
+  const addCustomDelivery = () => {
+    const val = newDeliveryInput.trim();
+    if (!val) return;
+    const existing = companySettings.customDeliveryMethods || [];
+    if (existing.includes(val)) return;
+    updateCompanySettings({ customDeliveryMethods: [...existing, val] });
+    setNewDeliveryInput('');
+  };
+
+  const removeCustomDelivery = (method: string) => {
+    const existing = companySettings.customDeliveryMethods || [];
+    updateCompanySettings({ customDeliveryMethods: existing.filter(m => m !== method) });
   };
 
   // Catalog state
@@ -1423,6 +1456,109 @@ export const Settings: React.FC = () => {
       )}
 
       {/* ── BILLING TAB ──────────────────────────────────────────────────── */}
+      {/* ── TERMS & DELIVERY TAB ─────────────────────────────────────────── */}
+      {activeTab === 'terms-delivery' && (
+        <div className="grid grid-cols-2 gap-6 max-w-4xl">
+          {/* Payment Terms Card */}
+          <Card className="p-6">
+            <h2 className="font-semibold text-gray-900 mb-1">Payment Terms</h2>
+            <p className="text-xs text-gray-500 mb-4">Add custom payment terms beyond the built-in options.</p>
+            {/* Built-in terms */}
+            <div className="mb-4">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Built-in (cannot be removed)</p>
+              <div className="flex flex-wrap gap-2">
+                {['Net 10', 'Net 15', 'Net 30', 'COD'].map(term => (
+                  <span key={term} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                    {term}
+                  </span>
+                ))}
+              </div>
+            </div>
+            {/* Custom terms */}
+            {(companySettings.customTerms || []).length > 0 && (
+              <div className="mb-4">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Custom</p>
+                <div className="flex flex-wrap gap-2">
+                  {(companySettings.customTerms || []).map(term => (
+                    <span key={term} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                      {term}
+                      <button
+                        onClick={() => removeCustomTerm(term)}
+                        className="ml-1 hover:text-red-600 transition-colors"
+                        title="Remove"
+                      >
+                        <Plus className="w-3 h-3 rotate-45" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Add new term */}
+            <div className="flex gap-2 mt-2">
+              <input
+                type="text"
+                value={newTermInput}
+                onChange={e => setNewTermInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addCustomTerm(); }}
+                placeholder="e.g. Net 45, 2/10 Net 30"
+                className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+              <Button variant="secondary" size="sm" onClick={addCustomTerm}>Add</Button>
+            </div>
+          </Card>
+
+          {/* Delivery Methods Card */}
+          <Card className="p-6">
+            <h2 className="font-semibold text-gray-900 mb-1">Delivery Methods</h2>
+            <p className="text-xs text-gray-500 mb-4">Add custom delivery methods beyond the built-in options.</p>
+            {/* Built-in methods */}
+            <div className="mb-4">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Built-in (cannot be removed)</p>
+              <div className="flex flex-wrap gap-2">
+                {['Pickup', 'Local Delivery', 'FedEx', 'UPS'].map(method => (
+                  <span key={method} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                    {method}
+                  </span>
+                ))}
+              </div>
+            </div>
+            {/* Custom methods */}
+            {(companySettings.customDeliveryMethods || []).length > 0 && (
+              <div className="mb-4">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Custom</p>
+                <div className="flex flex-wrap gap-2">
+                  {(companySettings.customDeliveryMethods || []).map(method => (
+                    <span key={method} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                      {method}
+                      <button
+                        onClick={() => removeCustomDelivery(method)}
+                        className="ml-1 hover:text-red-600 transition-colors"
+                        title="Remove"
+                      >
+                        <Plus className="w-3 h-3 rotate-45" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Add new method */}
+            <div className="flex gap-2 mt-2">
+              <input
+                type="text"
+                value={newDeliveryInput}
+                onChange={e => setNewDeliveryInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addCustomDelivery(); }}
+                placeholder="e.g. USPS, Freight, Courier"
+                className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+              <Button variant="secondary" size="sm" onClick={addCustomDelivery}>Add</Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {activeTab === 'billing' && (
         <Card className="p-6 max-w-2xl">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><CreditCard className="w-4 h-4 text-blue-500" /> Subscription & Billing</h2>
