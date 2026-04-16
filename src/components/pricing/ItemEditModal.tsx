@@ -4001,19 +4001,19 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         </div>
 
                         {/* ── Price breakdown table ─────────────────────────────────────────── */}
-                        {/* tableLayout:auto lets the browser distribute remaining space to Description
-                            while keeping fixed columns at their minimum; avoids clipping on any screen. */}
-                        <table className="w-full border-collapse" style={{ tableLayout: 'auto', fontSize: '11px' }}>
+                        {/* tableLayout:fixed + explicit widths on all columns guarantees Cost/Sell
+                            are never squeezed. Description gets leftover space but is truncated. */}
+                        <table className="w-full border-collapse" style={{ tableLayout: 'fixed', fontSize: '11px' }}>
                           <colgroup>
-                            <col style={{ width: '90px',  minWidth: '80px'  }} /> {/* Service */}
-                            <col />                                                  {/* Description — flex, takes all leftover */}
-                            <col style={{ width: '58px',  minWidth: '52px'  }} /> {/* Actual */}
-                            <col style={{ width: '78px',  minWidth: '72px'  }} /> {/* Unit Cost */}
-                            <col style={{ width: '66px',  minWidth: '60px'  }} /> {/* Charge ✎ */}
-                            <col style={{ width: '80px',  minWidth: '76px'  }} /> {/* Cost */}
-                            <col style={{ width: '82px',  minWidth: '78px'  }} /> {/* Markup/Profit % */}
-                            <col style={{ width: '86px',  minWidth: '82px'  }} /> {/* Sell $ */}
-                            <col style={{ width: '24px',  minWidth: '22px'  }} /> {/* 🔒 lock */}
+                            <col style={{ width: '94px'  }} /> {/* Service */}
+                            <col />                              {/* Description — takes leftover; text truncates */}
+                            <col style={{ width: '56px'  }} /> {/* Actual */}
+                            <col style={{ width: '80px'  }} /> {/* Unit Cost */}
+                            <col style={{ width: '68px'  }} /> {/* Charge ✎ */}
+                            <col style={{ width: '80px'  }} /> {/* Cost $ */}
+                            <col style={{ width: '86px'  }} /> {/* Markup/Profit % */}
+                            <col style={{ width: '88px'  }} /> {/* Sell $ */}
+                            <col style={{ width: '24px'  }} /> {/* 🔒 lock */}
                           </colgroup>
 
                           {/* ── Column headers ── */}
@@ -4155,22 +4155,38 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                         </span>
                                       </td>
 
-                                      {/* DESCRIPTION — for sub-rows strip the parent's equipment prefix to avoid repetition */}
+                                      {/* DESCRIPTION — truncated; click to expand in a tooltip popover */}
                                       <td className={`py-2 ${tdPx} overflow-hidden`}>
                                         {(() => {
-                                          // For grouped sub-rows (e.g. ↳ Time under Printing), the description
-                                          // repeats the equipment name — strip it so we only show the detail.
                                           const raw = line.description;
                                           const displayText = isGrouped && raw.includes(' — ')
                                             ? raw.split(' — ').slice(1).join(' — ')
                                             : raw;
+                                          // Truncate visually; full text in title + click opens a small overlay
+                                          const [descExpanded, setDescExpanded] = React.useState(false);
+                                          const CHAR_LIMIT = 48;
+                                          const isTruncatable = displayText.length > CHAR_LIMIT;
                                           return (
-                                            <span
-                                              className="block truncate text-[11px] text-gray-700"
-                                              title={raw}
-                                            >
-                                              {displayText}
-                                            </span>
+                                            <div className="relative">
+                                              <button
+                                                type="button"
+                                                onClick={() => isTruncatable && setDescExpanded(x => !x)}
+                                                title={isTruncatable ? 'Click to read full description' : raw}
+                                                className={`block text-left text-[11px] text-gray-700 w-full overflow-hidden ${isTruncatable ? 'cursor-pointer hover:text-gray-900' : 'cursor-default'}`}
+                                                style={{ display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' } as React.CSSProperties}
+                                              >
+                                                {displayText}
+                                              </button>
+                                              {descExpanded && (
+                                                <div
+                                                  className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-xl px-3 py-2 text-[11px] text-gray-700 max-w-[360px] w-max leading-relaxed"
+                                                  onClick={() => setDescExpanded(false)}
+                                                >
+                                                  {raw}
+                                                  <span className="block text-[10px] text-gray-400 mt-1">Click to close</span>
+                                                </div>
+                                              )}
+                                            </div>
                                           );
                                         })()}
                                       </td>
