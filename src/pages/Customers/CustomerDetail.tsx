@@ -10,6 +10,7 @@ import { useStore } from '../../store';
 import {
   Button, Card, Badge, Modal, Input, Textarea, PageHeader, Table, EmptyState, StatCard
 } from '../../components/ui';
+import { AddressAutocomplete } from '../../components/ui/AddressAutocomplete';
 import { nanoid } from '../../utils/nanoid';
 import { formatDate, formatCurrency } from '../../data/mockData';
 import type { CustomerShippingAddress } from '../../types';
@@ -768,12 +769,22 @@ export const CustomerDetail: React.FC = () => {
               <Input label="Website" value={editForm.website || ''} onChange={e => setEditForm(f => f ? { ...f, website: e.target.value } : f)} />
               <Input label="Account Number" value={editForm.accountNumber || ''} onChange={e => setEditForm(f => f ? { ...f, accountNumber: e.target.value } : f)} />
             </div>
-            <Input label="Address" value={editForm.address || ''} onChange={e => setEditForm(f => f ? { ...f, address: e.target.value } : f)} />
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Address</label>
+              <AddressAutocomplete
+                value={editForm.address || ''}
+                onChange={v => setEditForm(f => f ? { ...f, address: v } : f)}
+                onPlaceSelected={p => setEditForm(f => f ? { ...f, address: p.address, city: p.city, state: p.state, zip: p.zip, country: p.country } : f)}
+                apiKey={companySettings.googleMapsApiKey}
+                className="w-full px-2.5 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-300 pl-8"
+              />
+            </div>
             <div className="grid grid-cols-3 gap-3">
               <Input label="City"  value={editForm.city  || ''} onChange={e => setEditForm(f => f ? { ...f, city:  e.target.value } : f)} />
               <Input label="State" value={editForm.state || ''} onChange={e => setEditForm(f => f ? { ...f, state: e.target.value } : f)} />
               <Input label="ZIP"   value={editForm.zip   || ''} onChange={e => setEditForm(f => f ? { ...f, zip:   e.target.value } : f)} />
             </div>
+            <Input label="Country" value={editForm.country || ''} onChange={e => setEditForm(f => f ? { ...f, country: e.target.value } : f)} placeholder="US" />
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Payment Terms</label>
@@ -839,13 +850,28 @@ export const CustomerDetail: React.FC = () => {
       <Modal isOpen={showAddrModal} onClose={() => setShowAddrModal(false)} title={editingAddrId ? 'Edit Shipping Address' : 'Add Shipping Address'} size="md">
         <div className="space-y-4">
           <Input label="Label (optional)" value={addrForm.label || ''} onChange={e => setAddrForm(f => ({ ...f, label: e.target.value }))} placeholder="e.g. Warehouse, Main Office" />
-          <Input label="Street Address" value={addrForm.address} onChange={e => setAddrForm(f => ({ ...f, address: e.target.value }))} />
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Street Address</label>
+            <AddressAutocomplete
+              value={addrForm.address}
+              onChange={v => setAddrForm(f => ({ ...f, address: v }))}
+              onPlaceSelected={p => setAddrForm(f => ({ ...f, address: p.address, city: p.city, state: p.state, zip: p.zip, country: p.country }))}
+              apiKey={companySettings.googleMapsApiKey}
+              className="w-full px-2.5 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-300 pl-8"
+            />
+          </div>
           <div className="grid grid-cols-3 gap-3">
             <Input label="City"  value={addrForm.city  || ''} onChange={e => setAddrForm(f => ({ ...f, city:  e.target.value }))} />
             <Input label="State" value={addrForm.state || ''} onChange={e => setAddrForm(f => ({ ...f, state: e.target.value }))} />
             <Input label="ZIP"   value={addrForm.zip   || ''} onChange={e => setAddrForm(f => ({ ...f, zip:   e.target.value }))} />
           </div>
           <Input label="Country (optional)" value={addrForm.country || ''} onChange={e => setAddrForm(f => ({ ...f, country: e.target.value }))} />
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Delivery Notes (optional)</label>
+            <textarea rows={2} value={addrForm.notes || ''} onChange={e => setAddrForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder="Loading dock, access code, contact on arrival…"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-300 resize-none" />
+          </div>
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={addrForm.isDefault || false} onChange={e => setAddrForm(f => ({ ...f, isDefault: e.target.checked }))} className="rounded border-gray-300 text-brand-600" />
             <span className="text-sm font-medium text-gray-700">Set as default shipping address</span>

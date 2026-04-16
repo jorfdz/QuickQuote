@@ -1289,7 +1289,9 @@ export const OrderDetail: React.FC = () => {
               state: order.shipToState ?? '',
               zip: order.shipToZip ?? '',
               country: order.shipToCountry ?? 'US',
+              notes: order.shipToNotes ?? '',
             }}
+            apiKey={companySettings?.googleMapsApiKey}
             onSave={(bill, ship) => {
               updateOrder(id!, {
                 billToName: bill.name, billToAddress: bill.address, billToCity: bill.city,
@@ -1301,6 +1303,7 @@ export const OrderDetail: React.FC = () => {
                 shipToState: ship.same ? bill.state : ship.state,
                 shipToZip: ship.same ? bill.zip : ship.zip,
                 shipToCountry: ship.same ? bill.country : ship.country,
+                shipToNotes: ship.notes || undefined,
               });
               setShowAddressDialog(false);
             }}

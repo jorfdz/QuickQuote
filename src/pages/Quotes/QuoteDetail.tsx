@@ -349,15 +349,18 @@ const InlineField: React.FC<{
 // ADDRESS DIALOG — shared between Quote and Order screens
 // ═════════════════════════════════════════════════════════════════════════════
 
-interface AddrBlock { name: string; address: string; city: string; state: string; zip: string; country: string; }
-interface ShipBlock extends AddrBlock { same: boolean; }
+import { AddressAutocomplete } from '../../components/ui/AddressAutocomplete';
+import type { ParsedAddress } from '../../components/ui/AddressAutocomplete';
 
-const FieldRow: React.FC<{ label: string; value: string; onChange: (v: string) => void; placeholder?: string; textarea?: boolean }> =
-  ({ label, value, onChange, placeholder, textarea }) => (
+interface AddrBlock { name: string; address: string; city: string; state: string; zip: string; country: string; }
+interface ShipBlock extends AddrBlock { same: boolean; notes: string; }
+
+const FieldRow: React.FC<{ label: string; value: string; onChange: (v: string) => void; placeholder?: string; textarea?: boolean; rows?: number }> =
+  ({ label, value, onChange, placeholder, textarea, rows = 2 }) => (
     <div>
       <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">{label}</label>
       {textarea ? (
-        <textarea rows={2} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        <textarea rows={rows} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
           className="w-full px-2.5 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] resize-none" />
       ) : (
         <input type="text" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
@@ -372,35 +375,56 @@ export const AddressDialog: React.FC<{
   shipTo: ShipBlock;
   onSave: (bill: AddrBlock, ship: ShipBlock) => void;
   onClose: () => void;
-}> = ({ title, billTo: initBill, shipTo: initShip, onSave, onClose }) => {
+  apiKey?: string;
+}> = ({ title, billTo: initBill, shipTo: initShip, onSave, onClose, apiKey }) => {
   const [bill, setBill] = React.useState<AddrBlock>({ ...initBill });
   const [ship, setShip] = React.useState<ShipBlock>({ ...initShip });
 
   const updateBill = (k: keyof AddrBlock, v: string) => setBill(p => ({ ...p, [k]: v }));
-  const updateShip = (k: keyof AddrBlock, v: string) => setShip(p => ({ ...p, [k]: v }));
+  const updateShip = (k: keyof AddrBlock | 'notes', v: string) => setShip(p => ({ ...p, [k]: v }));
 
-  const AddrForm: React.FC<{ data: AddrBlock; onChange: (k: keyof AddrBlock, v: string) => void; disabled?: boolean }> =
-    ({ data, onChange, disabled }) => (
-      <div className={`space-y-2.5 ${disabled ? 'opacity-40 pointer-events-none select-none' : ''}`}>
-        <FieldRow label="Name / Company" value={data.name} onChange={v => onChange('name', v)} placeholder="Recipient or company name" />
-        <FieldRow label="Street Address" value={data.address} onChange={v => onChange('address', v)} placeholder="123 Main St" textarea />
-        <div className="grid grid-cols-3 gap-2">
-          <FieldRow label="City" value={data.city} onChange={v => onChange('city', v)} placeholder="City" />
-          <FieldRow label="State" value={data.state} onChange={v => onChange('state', v)} placeholder="FL" />
-          <FieldRow label="ZIP" value={data.zip} onChange={v => onChange('zip', v)} placeholder="33101" />
-        </div>
-        <FieldRow label="Country" value={data.country} onChange={v => onChange('country', v)} placeholder="US" />
+  const AddrForm: React.FC<{
+    data: AddrBlock;
+    onChange: (k: keyof AddrBlock, v: string) => void;
+    disabled?: boolean;
+  }> = ({ data, onChange, disabled }) => (
+    <div className={`space-y-2.5 ${disabled ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+      <FieldRow label="Name / Company" value={data.name} onChange={v => onChange('name', v)} placeholder="Recipient or company name" />
+      <div>
+        <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Street Address</label>
+        <AddressAutocomplete
+          value={data.address}
+          onChange={v => onChange('address', v)}
+          onPlaceSelected={(p: ParsedAddress) => {
+            onChange('address', p.address);
+            onChange('city',    p.city);
+            onChange('state',   p.state);
+            onChange('zip',     p.zip);
+            onChange('country', p.country);
+          }}
+          placeholder="123 Main St — type to search"
+          apiKey={apiKey}
+          disabled={disabled}
+          className="w-full px-2.5 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] pl-8"
+        />
       </div>
-    );
+      <div className="grid grid-cols-3 gap-2">
+        <FieldRow label="City"  value={data.city}  onChange={v => onChange('city',  v)} placeholder="City" />
+        <FieldRow label="State" value={data.state} onChange={v => onChange('state', v)} placeholder="FL" />
+        <FieldRow label="ZIP"   value={data.zip}   onChange={v => onChange('zip',   v)} placeholder="33101" />
+      </div>
+      <FieldRow label="Country" value={data.country} onChange={v => onChange('country', v)} placeholder="US" />
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-7 py-5 border-b border-gray-100">
           <div>
-            <h2 className="text-[14px] font-semibold text-gray-900">Ship To &amp; Bill To</h2>
+            <h2 className="text-base font-semibold text-gray-900">Ship To &amp; Bill To</h2>
             <p className="text-[10px] text-gray-400 mt-0.5">{title} · addresses are saved to this document only</p>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
@@ -409,11 +433,11 @@ export const AddressDialog: React.FC<{
         </div>
 
         {/* Body — two columns */}
-        <div className="overflow-y-auto flex-1 px-6 py-5">
-          <div className="grid grid-cols-2 gap-6">
+        <div className="overflow-y-auto flex-1 px-7 py-6">
+          <div className="grid grid-cols-2 gap-8">
             {/* Bill To */}
             <div>
-              <h3 className="text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <h3 className="text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-4 flex items-center gap-1.5">
                 <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
                 Bill To
               </h3>
@@ -422,25 +446,39 @@ export const AddressDialog: React.FC<{
 
             {/* Ship To */}
             <div>
-              <h3 className="text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <h3 className="text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-4 flex items-center gap-1.5">
                 <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7" /></svg>
                 Ship To
               </h3>
               {/* Same as Bill To toggle */}
-              <label className="flex items-center gap-2 mb-3 cursor-pointer">
+              <label className="flex items-center gap-2 mb-4 cursor-pointer">
                 <div className={`relative w-8 h-4 rounded-full transition-colors ${ship.same ? 'bg-emerald-500' : 'bg-gray-200'}`}
                   onClick={() => setShip(p => ({ ...p, same: !p.same }))}>
                   <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${ship.same ? 'translate-x-4' : 'translate-x-0.5'}`} />
                 </div>
                 <span className="text-[11px] font-medium text-gray-600">Same as Bill To</span>
               </label>
-              <AddrForm data={ship.same ? bill : ship} onChange={updateShip} disabled={ship.same} />
+              <AddrForm data={ship.same ? bill : ship} onChange={updateShip as (k: keyof AddrBlock, v: string) => void} disabled={ship.same} />
+
+              {/* Delivery / access notes */}
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                  Delivery Notes
+                </label>
+                <textarea
+                  rows={3}
+                  value={ship.notes}
+                  onChange={e => updateShip('notes', e.target.value)}
+                  placeholder="Access instructions, loading dock hours, contact on arrival…"
+                  className="w-full px-2.5 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] resize-none"
+                />
+              </div>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-white rounded-b-2xl">
+        <div className="flex items-center justify-end gap-3 px-7 py-4 border-t border-gray-100 bg-white rounded-b-2xl">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg transition-colors">Cancel</button>
           <button
             onClick={() => onSave(bill, ship)}
@@ -1353,7 +1391,9 @@ export const QuoteDetail: React.FC = () => {
               state: quote.shipToState ?? '',
               zip: quote.shipToZip ?? '',
               country: quote.shipToCountry ?? 'US',
+              notes: quote.shipToNotes ?? '',
             }}
+            apiKey={companySettings.googleMapsApiKey}
             onSave={(bill, ship) => {
               updateQuote(id!, {
                 billToName: bill.name, billToAddress: bill.address, billToCity: bill.city,
@@ -1365,6 +1405,7 @@ export const QuoteDetail: React.FC = () => {
                 shipToState: ship.same ? bill.state : ship.state,
                 shipToZip: ship.same ? bill.zip : ship.zip,
                 shipToCountry: ship.same ? bill.country : ship.country,
+                shipToNotes: ship.notes || undefined,
               });
               setShowAddressDialog(false);
             }}

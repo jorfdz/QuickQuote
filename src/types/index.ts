@@ -26,6 +26,7 @@ export interface CustomerShippingAddress {
   zip?: string;
   country?: string;
   isDefault?: boolean;
+  notes?: string;          // delivery / access instructions
 }
 
 export interface Customer {
@@ -305,6 +306,7 @@ export interface Quote {
   shipToState?: string;
   shipToZip?: string;
   shipToCountry?: string;
+  shipToNotes?: string;    // delivery / access instructions for this quote
   deliveryMethod?: string;
   terms?: string;
   createdAt: string;
@@ -356,6 +358,7 @@ export interface CompanySettings {
   emailSettings?: EmailSettings; // outbound email configuration
   customTerms?: string[];
   customDeliveryMethods?: string[];
+  googleMapsApiKey?: string;    // Google Maps / Places API key for address autocomplete
 }
 
 export interface DocumentTemplates {
@@ -423,6 +426,7 @@ export interface Order {
   shipToState?: string;
   shipToZip?: string;
   shipToCountry?: string;
+  shipToNotes?: string;    // delivery / access instructions for this order
   deliveryMethod?: string;
   terms?: string;
   createdAt: string;
