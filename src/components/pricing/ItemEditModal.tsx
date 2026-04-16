@@ -1450,7 +1450,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       }
     });
 
-    return lines;
+    // ── Sort: pre-press labor lines float to the top, everything else keeps original order ──
+    const prePress = lines.filter(l => l.isPrePress);
+    const rest     = lines.filter(l => !l.isPrePress);
+    return [...prePress, ...rest];
   // Depend only on the specific ps fields that actually affect calculations — NOT ps.serviceLines
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMaterial, selectedEquipment, imposition,
