@@ -11,29 +11,19 @@ import type { PricingProduct, PricingServiceLine, ProductPricingTemplate } from 
 import { formatCurrency } from '../../data/mockData';
 import { nanoid } from '../../utils/nanoid';
 import { getTierCost, getUnitCost, getUnitLabel } from '../../utils/materialCost';
+import { ServiceEditInlineDialog } from './ServiceEditInlineDialog';
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
 const fmt = (n: number) => formatCurrency(n);
 
-/** Given a breakdown line, return the URL (with ?search=) to open the
- *  corresponding service page in a new tab for full editing. */
-function serviceEditUrl(line: PricingServiceLine): string | null {
-  const id = line.id;
-  // Extract the first word(s) of the description as the search term (before ' — ' or ' @')
-  const name = encodeURIComponent(
-    (line.description.split(/\s+[—@]/)[0] ?? line.description).trim()
-  );
-
-  if (id.startsWith('sl_material_'))  return `/materials?search=${name}`;
-  if (id.startsWith('sl_printing_') || id.startsWith('sl_setup_')) return `/equipment?search=${name}`;
-  if (id.startsWith('sl_cutting_'))   return `/finishing?search=Cut`;
-  if (id.startsWith('sl_folding_'))   return `/finishing?search=${name}`;
-  if (id.startsWith('sl_drilling_'))  return `/finishing?search=${name}`;
-  if (id.startsWith('sl_finishing_')) return `/finishing?search=${name}`;
-  if (id.startsWith('sl_labor_'))     return `/labor?search=${name}`;
-  if (id.startsWith('sl_brokered_'))  return `/brokered?search=${name}`;
-  return null;
+/** Extract a service type + ID from a breakdown line ID for inline editing.
+ *  Returns null for Material/Printing/Cutting/Folding/Drilling lines which
+ *  require navigating to their own pages. */
+function parseInlineService(lineId: string): { type: 'finishing' | 'labor' | 'brokered'; id: string } | null {
+  const m = lineId.match(/^sl_(finishing|labor|brokered)_(.+)_\d+$/);
+  if (!m) return null;
+  return { type: m[1] as 'finishing' | 'labor' | 'brokered', id: m[2] };
 }
 const fmtPct = (n: number) => `${n.toFixed(1)}%`;
 // Unit costs always show 3 decimal places — critical in print (e.g. $0.025/click, $0.035/sheet)
@@ -613,6 +603,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   );
   // Which per_perimeter service picker is currently open (null = closed)
   const [perimPickerSvcId, setPerimPickerSvcId] = useState<string | null>(null);
+  // Inline service editor — opens the full edit form over the item modal
+  const [quickEditSvc, setQuickEditSvc] = useState<{ type: 'finishing' | 'labor' | 'brokered'; id: string; lineIdPattern: string } | null>(null);
 
   // ── Reactive auto-add / auto-remove: fires when categories change ───────────
   //
@@ -4051,18 +4043,18 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                           {manualOverrides[line.id] && (
                                             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Manually edited" />
                                           )}
-                                          {/* Quick-navigate: opens the service/material/equipment page in a new tab */}
+                                          {/* Service edit shortcut */}
                                           {(() => {
-                                            const url = serviceEditUrl(line);
-                                            if (!url) return null;
+                                            const parsed = parseInlineService(line.id);
+                                            if (!parsed) return null;
                                             return (
                                               <button
                                                 type="button"
-                                                onClick={() => window.open(url, '_blank')}
-                                                title={`Open ${service} in new tab to edit`}
+                                                onClick={() => setQuickEditSvc({ ...parsed, lineIdPattern: `sl_${parsed.type}_${parsed.id}` })}
+                                                title={`Edit ${service} service`}
                                                 className="p-0.5 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded transition-all flex-shrink-0"
                                               >
-                                                <ExternalLink className="w-2.5 h-2.5" />
+                                                <Edit3 className="w-2.5 h-2.5" />
                                               </button>
                                             );
                                           })()}
@@ -4798,6 +4790,39 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       );
     })()}
 
+    {/* ── Inline service editor — full form over the item modal ── */}
+    {quickEditSvc && (
+      <ServiceEditInlineDialog
+        type={quickEditSvc.type}
+        id={quickEditSvc.id}
+        onClose={() => setQuickEditSvc(null)}
+        onSaved={() => {
+          // After the store is updated, recompute ONLY the edited service's lines.
+          // All other lines (including manual overrides) are preserved untouched.
+          const pattern = quickEditSvc.lineIdPattern;
+          const freshLines = computeServiceLines();
+          const freshForService = freshLines.filter(l => l.id.startsWith(pattern));
+
+          // Merge: replace matching lines with fresh ones, keep everything else
+          const existingIds = new Set(ps.serviceLines.map(l => l.id));
+          const merged = [
+            ...ps.serviceLines.map(l =>
+              l.id.startsWith(pattern)
+                ? (freshLines.find(fl => fl.id === l.id) ?? l)
+                : l
+            ),
+            // Add any brand-new lines the service now produces
+            ...freshForService.filter(l => !existingIds.has(l.id)),
+          ];
+
+          // Re-apply pre-press sort
+          const pre  = merged.filter(l => l.isPrePress);
+          const rest = merged.filter(l => !l.isPrePress);
+          onUpdatePricing({ serviceLines: [...pre, ...rest] });
+          setQuickEditSvc(null);
+        }}
+      />
+    )}
     </>
   );
 };
