@@ -13,7 +13,7 @@ import { nanoid } from '../../utils/nanoid';
 import { getTierCost, getUnitCost, getUnitLabel } from '../../utils/materialCost';
 import { ServiceEditInlineDialog, MaterialEditInlineDialog, EquipmentEditInlineDialog, FinishingByNameDialog } from './ServiceEditInlineDialog';
 
-// ─── HELPERS ────────────────────────────────────────────────────────────────
+// ─── HELPERS ──────────────────────────────────────────────────────────────── (build: 2026-04-16)
 
 const fmt = (n: number) => formatCurrency(n);
 
