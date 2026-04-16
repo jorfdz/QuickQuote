@@ -848,17 +848,30 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // ── Auto-describe helper ──────────────────────────────────────────────
   // Build a description string from current part/item specs
   const buildDescription = useCallback(() => {
-    const materialName = materials.find(m => m.id === ps.materialId)?.name;
+    const mat = materials.find(m => m.id === ps.materialId);
     let desc = ps.productName || '';
-    if (materialName) desc += ' - ' + materialName;
-    if (ps.finalWidth && ps.finalHeight) desc += ', ' + ps.finalWidth + 'x' + ps.finalHeight;
-    // Only append color/sides after a material has been selected — not from bare defaults
-    if (materialName && !isMultiPart) {
+
+    if (mat) {
+      // Strip parent/unit size dimensions from the material name.
+      // e.g. "Gloss Text 100# 13×19"   → "Gloss Text 100#"
+      //      "Foamboard 3/16" (48×96)" → "Foamboard 3/16""
+      //      "3M Vinyl 54" wide"        → "3M Vinyl 54" wide" (no W×H pair, left intact)
+      // Matches: optional '(' + digits × digits + optional ')' at the end or anywhere.
+      const matLabel = mat.name
+        .replace(/\s*\(?\d+\.?\d*\s*[xX×]\s*\d+\.?\d*"?\)?\s*$/, '')
+        .trim();
+      desc += ' - ' + matLabel;
+    }
+
+    // Never include the final item size (W×H) — per user requirement.
+
+    // Append color and sides only when a material is selected.
+    if (mat && !isMultiPart) {
       if (ps.colorMode) desc += ', ' + ps.colorMode;
-      if (ps.sides) desc += ', ' + ps.sides + '-Sided';
+      if (ps.sides)     desc += ', ' + ps.sides + '-Sided';
     }
     return desc;
-  }, [ps.productName, ps.materialId, ps.finalWidth, ps.finalHeight, ps.colorMode, ps.sides, materials, isMultiPart]);
+  }, [ps.productName, ps.materialId, ps.colorMode, ps.sides, materials, isMultiPart]);
 
   useEffect(() => {
     if (!autoDescribe || !ps.productName) return;
