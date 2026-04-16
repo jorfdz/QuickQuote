@@ -1355,6 +1355,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       const svc = pricing.labor.find(l => l.id === lid);
       if (!svc) return;
       const basis = svc.chargeBasis ?? 'per_hour';
+      // Pre-press flag: explicitly set on the service, or auto-detected by keyword
+      const laborIsPrePress = svc.isPrePress ?? false;
 
       if (svc.pricingMode === 'fixed') {
         const totalCost = svc.fixedChargeCost ?? 0;
@@ -1365,6 +1367,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
           description: `${svc.name}${svc.description ? ' — ' + svc.description : ''} (fixed)`,
           quantity: 1, unit: 'flat', unitCost: totalCost,
           totalCost, markupPercent: markupPct, sellPrice, editable: true,
+          isPrePress: laborIsPrePress || undefined,
         });
       } else {
         // Determine quantity & unit label based on chargeBasis
