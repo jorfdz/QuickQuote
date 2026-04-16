@@ -19,6 +19,10 @@ const fmtPct = (n: number) => `${n.toFixed(1)}%`;
 // Unit costs always show 3 decimal places — critical in print (e.g. $0.025/click, $0.035/sheet)
 const fmtUnit = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(n);
+// Smart cost formatter: 2 decimals normally, 3 only when the third decimal is non-zero.
+// e.g. $1.000 → $1.00 · $0.035 → $0.035 · $1.234 → $1.234
+const fmtCost = (n: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 3 }).format(n);
 // Stable deterministic IDs — must not change between renders so edit mode survives re-renders
 export const slId = (service: string, index = 0) => `sl_${service.toLowerCase().replace(/\s+/g, '_')}_${index}`;
 
@@ -2917,7 +2921,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                 </span>
                               )}
                             </div>
-                            <p className="text-[10px] text-gray-400 truncate">{m.size} · {fmtUnit(getUnitCost(m))}{getUnitLabel(m)}{(m.useCount ?? 0) > 0 ? ` · used ${m.useCount} time${m.useCount === 1 ? '' : 's'}` : ''}</p>
+                            <p className="text-[10px] text-gray-400 truncate">{m.size} · {fmtCost(getUnitCost(m))}{getUnitLabel(m)}{(m.useCount ?? 0) > 0 ? ` · used ${m.useCount} time${m.useCount === 1 ? '' : 's'}` : ''}</p>
                           </div>
                           {isSel && <Check className="w-3.5 h-3.5 text-[#F890E7] flex-shrink-0 mt-0.5" />}
                         </button>
@@ -3324,7 +3328,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                 {svc.name}
                                 {note && <span className="w-1.5 h-1.5 rounded-full bg-blue-600 ml-0.5 flex-shrink-0" />}
                               </button>
-                              <button type="button" onClick={() => { setSelectedLaborIds(prev => prev.filter(x => x !== id)); setServiceNotes(prev => { const n = { ...prev }; delete n[id]; return n; }); }} className="hover:text-blue-900 ml-0.5">
+                              <button type="button" onClick={() => { trackInteraction(); setManualOverrides({}); setSelectedLaborIds(prev => prev.filter(x => x !== id)); setServiceNotes(prev => { const n = { ...prev }; delete n[id]; return n; }); }} className="hover:text-blue-900 ml-0.5">
                                 <X className="w-2.5 h-2.5" />
                               </button>
                             </span>
@@ -3356,7 +3360,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                             <div key={lg.id} className="relative min-w-[140px] max-w-[200px] flex-1">
                               <select
                                 value=""
-                                onChange={e => { if (e.target.value) { trackInteraction(); setSelectedLaborIds(prev => [...prev, e.target.value]); } }}
+                                onChange={e => { if (e.target.value) { trackInteraction(); setManualOverrides({}); setSelectedLaborIds(prev => [...prev, e.target.value]); } }}
                                 disabled={available.length === 0}
                                 className="w-full pl-2 pr-7 py-1.5 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-300 appearance-none text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:border-blue-300 transition-colors cursor-pointer"
                               >
@@ -3399,7 +3403,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                 {svc.name}
                                 {note && <span className="w-1.5 h-1.5 rounded-full bg-amber-600 ml-0.5 flex-shrink-0" />}
                               </button>
-                              <button type="button" onClick={() => { setSelectedBrokeredIds(prev => prev.filter(x => x !== id)); setServiceNotes(prev => { const n = { ...prev }; delete n[id]; return n; }); }} className="hover:text-amber-900 ml-0.5">
+                              <button type="button" onClick={() => { trackInteraction(); setManualOverrides({}); setSelectedBrokeredIds(prev => prev.filter(x => x !== id)); setServiceNotes(prev => { const n = { ...prev }; delete n[id]; return n; }); }} className="hover:text-amber-900 ml-0.5">
                                 <X className="w-2.5 h-2.5" />
                               </button>
                             </span>
@@ -3431,7 +3435,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                             <div key={bg.id} className="relative min-w-[140px] max-w-[200px] flex-1">
                               <select
                                 value=""
-                                onChange={e => { if (e.target.value) { trackInteraction(); setSelectedBrokeredIds(prev => [...prev, e.target.value]); } }}
+                                onChange={e => { if (e.target.value) { trackInteraction(); setManualOverrides({}); setSelectedBrokeredIds(prev => [...prev, e.target.value]); } }}
                                 disabled={available.length === 0}
                                 className="w-full pl-2 pr-7 py-1.5 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-300 appearance-none text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:border-amber-300 transition-colors cursor-pointer"
                               >
