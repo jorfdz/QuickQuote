@@ -860,24 +860,27 @@ export const Labor: React.FC = () => {
             </div>
           )}
 
-          {/* Pre-press toggle */}
-          <label className="flex items-start gap-2.5 cursor-pointer group">
-            <input
-              type="checkbox"
-              checked={form.isPrePress || false}
-              onChange={e => setForm(f => ({ ...f, isPrePress: e.target.checked }))}
-              className="mt-0.5 rounded border-gray-300 text-violet-600 focus:ring-violet-400"
-            />
-            <div>
-              <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition-colors">
+          {/* Pre-press toggle — styled to match the Auto-add section above */}
+          <div>
+            <div className="flex items-center gap-2">
+              <input
+                id="isPrePress"
+                type="checkbox"
+                checked={form.isPrePress || false}
+                onChange={e => setForm(f => ({ ...f, isPrePress: e.target.checked }))}
+                className="rounded border-gray-300 text-violet-500 focus:ring-violet-400 w-3.5 h-3.5"
+              />
+              <label htmlFor="isPrePress" className="text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none">
                 Pre-press service
-                {form.isPrePress && <span className="ml-2 text-[10px] bg-violet-100 text-violet-700 border border-violet-200 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">pre-press</span>}
-              </span>
-              <p className="text-[11px] text-gray-400 mt-0.5">
-                Pre-press services (design, file prep, etc.) appear <strong>before</strong> material &amp; printing in the price breakdown.
-              </p>
+              </label>
+              {form.isPrePress && (
+                <span className="text-[9px] bg-violet-50 text-violet-600 border border-violet-200 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">pre-press</span>
+              )}
             </div>
-          </label>
+            <p className="text-[10px] text-gray-400 mt-1 ml-5">
+              Appears before material &amp; printing in the price breakdown (design, file prep, etc.)
+            </p>
+          </div>
 
           {/* Notes */}
           <Input
