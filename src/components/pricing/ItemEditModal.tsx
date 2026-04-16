@@ -26,36 +26,35 @@ function parseInlineService(lineId: string): { type: 'finishing' | 'labor' | 'br
   return { type: m[1] as 'finishing' | 'labor' | 'brokered', id: m[2] };
 }
 
-/** Returns the action to take when clicking the edit pencil on a breakdown line.
- *  - { kind: 'inline', type, id }  → open ServiceEditInlineDialog
- *  - { kind: 'tab', url }          → open catalog page in new tab
- *  - null                          → no action available
- */
+type LineEditAction =
+  | { kind: 'inline';    type: 'finishing' | 'labor' | 'brokered'; id: string }
+  | { kind: 'material';  id: string }
+  | { kind: 'equipment'; id: string }
+  | { kind: 'finishing-name'; name: string };
+
+/** Returns the action to take when clicking the edit pencil on a breakdown line. */
 function getLineEditAction(
   line: PricingServiceLine,
-  desc: string
-): { kind: 'inline'; type: 'finishing' | 'labor' | 'brokered'; id: string }
- | { kind: 'tab'; url: string }
- | null {
+  _desc: string
+): LineEditAction | null {
   const id = line.id;
-  const searchName = encodeURIComponent((desc.split(/\s+[—@]/)[0] ?? desc).trim());
 
-  // Inline dialog — Finishing / Labor / Brokered
+  // Inline service dialogs
   const parsed = parseInlineService(id);
   if (parsed) return { kind: 'inline', ...parsed };
 
-  // Material → open Materials catalog
-  if (id.startsWith('sl_material_')) return { kind: 'tab', url: `/materials?search=${searchName}` };
+  // Material — extract the material ID from line id: sl_material_0 → no embedded id.
+  // The material is known via the parent ps.materialId, but here we just signal 'material'
+  // and let the render pass the actual materialId.
+  if (id.startsWith('sl_material_')) return { kind: 'material', id: '' }; // placeholder; real id injected at render
 
-  // Equipment — Printing or Setup
-  if (id.startsWith('sl_printing_') || id.startsWith('sl_setup_')) {
-    return { kind: 'tab', url: `/equipment?search=${searchName}` };
-  }
+  // Equipment — Printing / Setup
+  if (id.startsWith('sl_printing_') || id.startsWith('sl_setup_')) return { kind: 'equipment', id: '' };
 
-  // Legacy finishing lines (cutting/folding/drilling) — open Finishing page
-  if (id.startsWith('sl_cutting_'))  return { kind: 'tab', url: `/finishing?search=Cut` };
-  if (id.startsWith('sl_folding_'))  return { kind: 'tab', url: `/finishing?search=${searchName}` };
-  if (id.startsWith('sl_drilling_')) return { kind: 'tab', url: `/finishing?search=${searchName}` };
+  // Legacy cutting/folding/drilling — find by service name
+  if (id.startsWith('sl_cutting_'))  return { kind: 'finishing-name', name: 'Cut' };
+  if (id.startsWith('sl_folding_'))  return { kind: 'finishing-name', name: line.description.split(' — ')[0] ?? 'Fold' };
+  if (id.startsWith('sl_drilling_')) return { kind: 'finishing-name', name: line.description.split(' — ')[0] ?? 'Drill' };
 
   return null;
 }
