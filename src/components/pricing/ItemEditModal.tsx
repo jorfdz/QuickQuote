@@ -585,50 +585,82 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // Which per_perimeter service picker is currently open (null = closed)
   const [perimPickerSvcId, setPerimPickerSvcId] = useState<string | null>(null);
 
-  // ── Reactive auto-add: fires when the item's category changes after mount ──
-  // The useState initializer above handles the case where the category is known
-  // at mount. This effect handles the case where the category is assigned later
-  // (e.g. Catalog "Add Product" — user selects the category after the modal opens,
-  // or Quote/Order where the product is picked after the modal is already open).
+  // ── Reactive auto-add / auto-remove: fires when categories change ───────────
   //
-  // We track which category IDs have already been processed in a ref so we never
-  // double-add services that were already handled by the initializer.
-  // Pre-populate with the category known at mount so the effect doesn't repeat it
+  // Tracks which services were automatically added for each category so that
+  // de-selecting a category removes only those auto-added services — never
+  // anything the user added manually from the dropdown.
+  //
+  // autoAddedByCategory: catId → service IDs that were auto-added for that cat
+  // autoAddProcessedCatIds: set of catIds already seen (prevents double-add)
+  // prevCatIds: the previous category list, used to detect removals
+
   const _initCatId = categories.find(c => c.name === ps.categoryName)?.id;
+  const autoAddedByCategory  = React.useRef<Map<string, string[]>>(new Map());
   const autoAddProcessedCatIds = React.useRef<Set<string>>(
     new Set(_initCatId ? [_initCatId] : [])
   );
+  const prevCatIds = React.useRef<string[]>(
+    _initCatId ? [_initCatId] : []
+  );
 
   useEffect(() => {
-    // Collect current category IDs to evaluate
-    const catIdsNow: string[] = [];
-    if (isProductCreation && selectedCategoryIds && selectedCategoryIds.length > 0) {
-      catIdsNow.push(...selectedCategoryIds);
-    } else {
-      const catId = categories.find(c => c.name === ps.categoryName)?.id;
-      if (catId) catIdsNow.push(catId);
-    }
+    // Resolve the current category IDs
+    const catIdsNow: string[] = isProductCreation && selectedCategoryIds
+      ? [...selectedCategoryIds]
+      : (() => { const id = categories.find(c => c.name === ps.categoryName)?.id; return id ? [id] : []; })();
 
-    // Only process categories we haven't seen before
-    const freshCatIds = catIdsNow.filter(id => !autoAddProcessedCatIds.current.has(id));
-    if (freshCatIds.length === 0) return;
-    freshCatIds.forEach(id => autoAddProcessedCatIds.current.add(id));
+    const prev = new Set(prevCatIds.current);
+    const curr = new Set(catIdsNow);
 
-    // Collect services to auto-add for these newly-seen categories
-    const toAdd = finishing
-      .filter(svc =>
-        (svc.autoAddCategoryIds ?? []).some(catId => freshCatIds.includes(catId))
-      )
-      .map(svc => svc.id);
+    const addedCats   = catIdsNow.filter(id => !prev.has(id));
+    const removedCats = prevCatIds.current.filter(id => !curr.has(id));
 
-    if (toAdd.length > 0) {
-      setSelectedFinishingIds(prev => {
-        const merged = [...prev];
-        toAdd.forEach(id => { if (!merged.includes(id)) merged.push(id); });
-        return merged;
-      });
-      trackInteraction();
-    }
+    prevCatIds.current = catIdsNow;
+
+    let didChange = false;
+
+    setSelectedFinishingIds(prevSvcs => {
+      let svcs = [...prevSvcs];
+
+      // ── REMOVAL: pull back services auto-added for deselected categories ──
+      for (const catId of removedCats) {
+        const autoAdded = autoAddedByCategory.current.get(catId) ?? [];
+        autoAddedByCategory.current.delete(catId);
+        autoAddProcessedCatIds.current.delete(catId); // allow re-adding if re-selected
+
+        for (const svcId of autoAdded) {
+          // Keep the service if another currently-selected category also auto-adds it
+          const keptByOtherCat = catIdsNow.some(otherId =>
+            (autoAddedByCategory.current.get(otherId) ?? []).includes(svcId)
+          );
+          if (!keptByOtherCat && svcs.includes(svcId)) {
+            svcs = svcs.filter(id => id !== svcId);
+            didChange = true;
+          }
+        }
+      }
+
+      // ── ADDITION: auto-add services for newly selected categories ──
+      for (const catId of addedCats) {
+        if (autoAddProcessedCatIds.current.has(catId)) continue;
+        autoAddProcessedCatIds.current.add(catId);
+
+        const toAdd: string[] = [];
+        for (const svc of finishing) {
+          if ((svc.autoAddCategoryIds ?? []).includes(catId) && !svcs.includes(svc.id)) {
+            svcs = [...svcs, svc.id];
+            toAdd.push(svc.id);
+            didChange = true;
+          }
+        }
+        if (toAdd.length > 0) autoAddedByCategory.current.set(catId, toAdd);
+      }
+
+      return didChange ? svcs : prevSvcs;
+    });
+
+    if (didChange) trackInteraction();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isProductCreation ? (selectedCategoryIds ?? []).join(',') : ps.categoryName]);
 
