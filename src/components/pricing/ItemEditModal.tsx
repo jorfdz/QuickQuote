@@ -2600,92 +2600,170 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       </div>
 
                       {/* ── Two-pane product browser dialog ────────────── */}
-                      {showProductBrowser && (
-                        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
-                          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowProductBrowser(false)} />
-                          <div
-                            className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col h-[75vh]"
-                            onClick={e => e.stopPropagation()}
-                          >
-                            {/* Dialog header */}
-                            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                                <Grid3X3 className="w-4 h-4 text-[#F890E7]" />
-                                Browse Products
-                              </h3>
-                              <button onClick={() => setShowProductBrowser(false)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
-                                <X className="w-4 h-4 text-gray-400" />
-                              </button>
-                            </div>
+                      {showProductBrowser && (() => {
+                        const [browserSearch, setBrowserSearch] = React.useState('');
+                        const catProducts = browserCatId
+                          ? products.filter(p => p.categoryIds.includes(browserCatId))
+                          : products;
+                        const visibleProducts = browserSearch.trim()
+                          ? catProducts.filter(p =>
+                              p.name.toLowerCase().includes(browserSearch.toLowerCase()) ||
+                              p.aliases.some(a => a.toLowerCase().includes(browserSearch.toLowerCase()))
+                            )
+                          : catProducts;
+                        const activeCat = categories.find(c => c.id === browserCatId);
 
-                            {/* Two-pane body */}
-                            <div className="flex flex-1 overflow-hidden">
-                              {/* Left: category list */}
-                              <div className="w-44 flex-shrink-0 border-r border-gray-100 overflow-y-auto py-2 bg-gray-50/60">
-                                {categories.map(cat => {
-                                  const count = products.filter(p => p.categoryIds.includes(cat.id)).length;
-                                  const isActive = browserCatId === cat.id;
-                                  return (
-                                    <button
-                                      key={cat.id}
-                                      type="button"
-                                      onClick={() => setBrowserCatId(cat.id)}
-                                      className={`w-full flex items-center justify-between px-3 py-2.5 text-left text-sm transition-colors ${
-                                        isActive
-                                          ? 'bg-[#F890E7]/12 text-[#c060b8] font-semibold border-r-2 border-[#F890E7]'
-                                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                                      }`}
-                                    >
-                                      <span className="truncate">{cat.name}</span>
-                                      <span className={`text-[10px] rounded-full px-1.5 py-0.5 font-medium flex-shrink-0 ml-1 ${isActive ? 'bg-[#F890E7]/20 text-[#c060b8]' : 'bg-gray-200 text-gray-500'}`}>
-                                        {count}
-                                      </span>
-                                    </button>
-                                  );
-                                })}
+                        return (
+                          <div className="fixed inset-0 z-[65] flex items-center justify-center p-6">
+                            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowProductBrowser(false)} />
+                            <div
+                              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col h-[78vh]"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              {/* Header */}
+                              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-lg bg-[#F890E7]/10 flex items-center justify-center">
+                                    <Grid3X3 className="w-4 h-4 text-[#c060b8]" />
+                                  </div>
+                                  <div>
+                                    <h3 className="text-sm font-bold text-gray-900">Product Catalog</h3>
+                                    <p className="text-[11px] text-gray-400 mt-0.5">
+                                      {activeCat ? `${activeCat.name} · ` : ''}{visibleProducts.length} product{visibleProducts.length !== 1 ? 's' : ''}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {/* Inline search */}
+                                  <div className="relative">
+                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                                    <input
+                                      type="text"
+                                      value={browserSearch}
+                                      onChange={e => setBrowserSearch(e.target.value)}
+                                      placeholder="Search products…"
+                                      autoFocus={false}
+                                      className="pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg w-52 focus:outline-none focus:ring-2 focus:ring-[#F890E7] focus:border-transparent placeholder-gray-400"
+                                    />
+                                    {browserSearch && (
+                                      <button type="button" onClick={() => setBrowserSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600">
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                  <button onClick={() => setShowProductBrowser(false)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors ml-1">
+                                    <X className="w-4 h-4 text-gray-400" />
+                                  </button>
+                                </div>
                               </div>
 
-                              {/* Right: products grid */}
-                              <div className="flex-1 overflow-y-auto p-3">
-                                {(() => {
-                                  const catProducts = browserCatId
-                                    ? products.filter(p => p.categoryIds.includes(browserCatId))
-                                    : products;
-                                  const activeCat = categories.find(c => c.id === browserCatId);
-                                  if (catProducts.length === 0) {
+                              {/* Two-pane body */}
+                              <div className="flex flex-1 overflow-hidden">
+                                {/* Left: category sidebar */}
+                                <div className="w-52 flex-shrink-0 border-r border-gray-100 overflow-y-auto bg-gray-50/50 py-3">
+                                  <p className="px-4 pb-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Categories</p>
+                                  {categories.map(cat => {
+                                    const count = products.filter(p => p.categoryIds.includes(cat.id)).length;
+                                    const isActive = browserCatId === cat.id;
                                     return (
-                                      <div className="flex flex-col items-center justify-center h-32 text-gray-400 text-sm">
-                                        <Package className="w-8 h-8 mb-2 opacity-30" />
-                                        No products in {activeCat?.name ?? 'this category'}
-                                      </div>
+                                      <button
+                                        key={cat.id}
+                                        type="button"
+                                        onClick={() => { setBrowserCatId(cat.id); setBrowserSearch(''); }}
+                                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                                          isActive
+                                            ? 'bg-white text-[#c060b8] font-semibold border-r-2 border-[#F890E7]'
+                                            : 'text-gray-600 hover:bg-white/80 hover:text-gray-900'
+                                        }`}
+                                      >
+                                        <span className="flex-1 text-sm leading-snug">{cat.name}</span>
+                                        <span className={`text-[11px] rounded-full min-w-[22px] h-5 flex items-center justify-center px-1.5 font-semibold flex-shrink-0 ${
+                                          isActive ? 'bg-[#F890E7]/20 text-[#c060b8]' : 'bg-gray-200 text-gray-500'
+                                        }`}>
+                                          {count}
+                                        </span>
+                                      </button>
                                     );
-                                  }
-                                  return (
-                                    <div className="grid grid-cols-3 gap-1.5">
-                                      {catProducts.map(p => (
-                                        <button
-                                          key={p.id}
-                                          type="button"
-                                          onClick={() => {
-                                            selectProduct(p);
-                                            setShowProductBrowser(false);
-                                          }}
-                                          className="px-3 py-2 rounded-lg border border-gray-100 hover:border-[#F890E7] hover:bg-[#F890E7]/5 text-left transition-all group"
-                                        >
-                                          <span className="text-sm font-medium text-gray-800 group-hover:text-[#c060b8] leading-snug">{p.name}</span>
-                                          {p.aliases.length > 0 && p.aliases[0].toLowerCase().trim() !== p.name.toLowerCase().trim() && (
-                                            <span className="block text-[10px] text-gray-400 mt-0.5 leading-snug truncate">{p.aliases[0]}</span>
-                                          )}
-                                        </button>
-                                      ))}
+                                  })}
+                                </div>
+
+                                {/* Right: products */}
+                                <div className="flex-1 overflow-y-auto">
+                                  {visibleProducts.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
+                                      <Package className="w-10 h-10 opacity-25" />
+                                      <div className="text-center">
+                                        <p className="text-sm font-medium text-gray-500">No products found</p>
+                                        <p className="text-xs text-gray-400 mt-0.5">
+                                          {browserSearch ? `Nothing matches "${browserSearch}"` : `No products in ${activeCat?.name ?? 'this category'}`}
+                                        </p>
+                                      </div>
                                     </div>
-                                  );
-                                })()}
+                                  ) : (
+                                    <div className="p-5 grid grid-cols-3 gap-3">
+                                      {visibleProducts.map(p => {
+                                        const hasSize = p.defaultFinalWidth > 0 && p.defaultFinalHeight > 0;
+                                        const hasQty  = (p.defaultQuantity ?? 0) > 0;
+                                        return (
+                                          <button
+                                            key={p.id}
+                                            type="button"
+                                            onClick={() => {
+                                              selectProduct(p);
+                                              setShowProductBrowser(false);
+                                            }}
+                                            className="group relative flex flex-col gap-1.5 px-4 py-4 rounded-xl border border-gray-150 bg-white hover:border-[#F890E7] hover:shadow-md hover:shadow-[#F890E7]/10 text-left transition-all duration-150 active:scale-[0.98]"
+                                          >
+                                            {/* Product name */}
+                                            <span className="text-[13px] font-semibold text-gray-800 group-hover:text-[#c060b8] leading-snug transition-colors line-clamp-2">
+                                              {p.name}
+                                            </span>
+
+                                            {/* Alias */}
+                                            {p.aliases.length > 0 && p.aliases[0].toLowerCase().trim() !== p.name.toLowerCase().trim() && (
+                                              <span className="text-[11px] text-gray-400 leading-snug truncate">
+                                                aka {p.aliases[0]}
+                                              </span>
+                                            )}
+
+                                            {/* Meta chips */}
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                              {hasSize && (
+                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-500 text-[10px] font-medium">
+                                                  {p.defaultFinalWidth}×{p.defaultFinalHeight}"
+                                                </span>
+                                              )}
+                                              {hasQty && (
+                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-500 text-[10px] font-medium">
+                                                  {p.defaultQuantity?.toLocaleString()} qty
+                                                </span>
+                                              )}
+                                              {p.defaultColor && (
+                                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium ${
+                                                  p.defaultColor === 'Color'
+                                                    ? 'bg-blue-50 text-blue-600'
+                                                    : 'bg-gray-100 text-gray-500'
+                                                }`}>
+                                                  {p.defaultColor === 'Color' ? 'Color' : 'B&W'}
+                                                </span>
+                                              )}
+                                            </div>
+
+                                            {/* Hover arrow indicator */}
+                                            <span className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-[#F890E7]">
+                                              <ChevronRight className="w-3.5 h-3.5" />
+                                            </span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   );
                 })()
