@@ -16,14 +16,24 @@ import { getTierCost, getUnitCost, getUnitLabel } from '../../utils/materialCost
 
 const fmt = (n: number) => formatCurrency(n);
 
-/** Extract the underlying service ID and type from a breakdown line ID.
- *  Line IDs follow the pattern: sl_<type>_<serviceId>_<index>
- *  e.g. sl_labor_abc123_0  →  { type: 'labor', id: 'abc123' }
- */
-function parseServiceFromLineId(lineId: string): { type: 'finishing' | 'labor' | 'brokered'; id: string } | null {
-  const m = lineId.match(/^sl_(finishing|labor|brokered)_(.+)_\d+$/);
-  if (!m) return null;
-  return { type: m[1] as 'finishing' | 'labor' | 'brokered', id: m[2] };
+/** Given a breakdown line, return the URL (with ?search=) to open the
+ *  corresponding service page in a new tab for full editing. */
+function serviceEditUrl(line: PricingServiceLine): string | null {
+  const id = line.id;
+  // Extract the first word(s) of the description as the search term (before ' — ' or ' @')
+  const name = encodeURIComponent(
+    (line.description.split(/\s+[—@]/)[0] ?? line.description).trim()
+  );
+
+  if (id.startsWith('sl_material_'))  return `/materials?search=${name}`;
+  if (id.startsWith('sl_printing_') || id.startsWith('sl_setup_')) return `/equipment?search=${name}`;
+  if (id.startsWith('sl_cutting_'))   return `/finishing?search=Cut`;
+  if (id.startsWith('sl_folding_'))   return `/finishing?search=${name}`;
+  if (id.startsWith('sl_drilling_'))  return `/finishing?search=${name}`;
+  if (id.startsWith('sl_finishing_')) return `/finishing?search=${name}`;
+  if (id.startsWith('sl_labor_'))     return `/labor?search=${name}`;
+  if (id.startsWith('sl_brokered_'))  return `/brokered?search=${name}`;
+  return null;
 }
 const fmtPct = (n: number) => `${n.toFixed(1)}%`;
 // Unit costs always show 3 decimal places — critical in print (e.g. $0.025/click, $0.035/sheet)
@@ -730,8 +740,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   );
   // Which per_perimeter service picker is currently open (null = closed)
   const [perimPickerSvcId, setPerimPickerSvcId] = useState<string | null>(null);
-  // Quick-edit: opens the full service dialog directly from the price breakdown
-  const [quickEditSvc, setQuickEditSvc] = useState<{ type: 'finishing' | 'labor' | 'brokered'; id: string } | null>(null);
 
   // ── Reactive auto-add / auto-remove: fires when categories change ───────────
   //
@@ -4170,15 +4178,15 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                           {manualOverrides[line.id] && (
                                             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Manually edited" />
                                           )}
-                                          {/* Quick-edit shortcut: opens the service definition dialog */}
+                                          {/* Quick-navigate: opens the service/material/equipment page in a new tab */}
                                           {(() => {
-                                            const parsed = parseServiceFromLineId(line.id);
-                                            if (!parsed) return null;
+                                            const url = serviceEditUrl(line);
+                                            if (!url) return null;
                                             return (
                                               <button
                                                 type="button"
-                                                onClick={() => setQuickEditSvc(parsed)}
-                                                title={`Edit ${service} service definition`}
+                                                onClick={() => window.open(url, '_blank')}
+                                                title={`Open ${service} in new tab to edit`}
                                                 className="p-0.5 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded transition-all flex-shrink-0"
                                               >
                                                 <ExternalLink className="w-2.5 h-2.5" />
