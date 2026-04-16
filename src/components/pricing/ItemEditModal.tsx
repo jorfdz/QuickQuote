@@ -4925,19 +4925,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       );
     })()}
 
-    {/* ── Service Quick-Edit — opens service definition directly from breakdown ── */}
-    {quickEditSvc && (
-      <ServiceQuickEditDialog
-        type={quickEditSvc.type}
-        id={quickEditSvc.id}
-        onClose={() => {
-          setQuickEditSvc(null);
-          // Clear manual overrides so the breakdown recomputes with the new service rates
-          setManualOverrides({});
-          trackInteraction();
-        }}
-      />
-    )}
     </>
   );
 };
