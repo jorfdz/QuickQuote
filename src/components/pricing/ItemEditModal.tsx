@@ -2797,20 +2797,6 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                     />
                   </div>
 
-                  {/* Description — short subtitle shown under the product name in Browse */}
-                  <div className="flex-[2] min-w-0">
-                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
-                      Description <span className="text-gray-400 font-normal normal-case">(optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={productDescription}
-                      onChange={e => onProductDescriptionChange?.(e.target.value)}
-                      placeholder="e.g. Full color, gloss coating, letter size…"
-                      className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400"
-                    />
-                  </div>
-
                   {/* Aliases — tag-style input, right of Product Name */}
                   <div className="flex-[2] min-w-0">
                     <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">

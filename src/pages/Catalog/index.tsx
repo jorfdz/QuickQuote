@@ -305,7 +305,8 @@ export const Catalog: React.FC = () => {
     const productDefaults = {
       categoryIds,
       name: finalPs.productName || finalItem.description || 'New Product',
-      description: prodItemDescription.trim() || undefined,
+      // Use explicitly entered description; fall back to the item's auto-generated description
+      description: prodItemDescription.trim() || finalItem.description?.trim() || undefined,
       aliases: prodItemAliasesStr.split(',').map(s => s.trim()).filter(Boolean),
       defaultQuantity: finalPs.quantity || finalItem.quantity || 1000,
       defaultFinalSize: w && h ? `${w}x${h}` : '',
@@ -437,7 +438,7 @@ export const Catalog: React.FC = () => {
               <tr key={prod.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => openEditProduct(prod)}>
                 <td className="py-2.5 px-4">
                   <p className="font-medium text-sm text-gray-900">{prod.name}</p>
-                  {prod.description && <p className="text-[11px] text-gray-400 mt-0.5 truncate max-w-[200px]">{prod.description}</p>}
+                  {prod.description && <p className="text-[11px] text-gray-400 mt-0.5 truncate max-w-[260px]" title={prod.description}>{prod.description}</p>}
                 </td>
                 <td className="py-2.5 px-4">
                   <div className="flex flex-wrap gap-1">
