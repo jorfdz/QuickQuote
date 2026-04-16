@@ -1,11 +1,22 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react';
 import { useStore } from '../../store';
 import { useNavigation } from '../../hooks/useNavigation';
 import { Button, SearchInput, Badge, Table, PageHeader, EmptyState, Card, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
 import type { QuoteStatus } from '../../types';
+
+// ─── Sort state ───────────────────────────────────────────────────────────────
+type QuoteSortCol = 'number' | 'title' | 'customer' | 'total' | 'created' | 'status';
+type SortDir = 'asc' | 'desc';
+
+const SortIcon: React.FC<{ col: QuoteSortCol; active: QuoteSortCol; dir: SortDir }> = ({ col, active, dir }) => {
+  if (col !== active) return <ChevronsUpDown className="w-3 h-3 text-gray-300 ml-0.5 inline" />;
+  return dir === 'asc'
+    ? <ChevronUp   className="w-3 h-3 text-[var(--brand)] ml-0.5 inline" />
+    : <ChevronDown className="w-3 h-3 text-[var(--brand)] ml-0.5 inline" />;
+};
 
 // ─── Status options ──────────────────────────────────────────────────────────
 
@@ -172,6 +183,30 @@ export const QuotesList: React.FC = () => {
     return true;
   }), [quotes, search, selectedStatuses, csrFilter, salesFilter, dateFilter]);
 
+  // Sorting
+  const [sortCol, setSortCol] = useState<QuoteSortCol>('created');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const toggleSort = (col: QuoteSortCol) => {
+    if (sortCol === col) { setSortDir(d => d === 'asc' ? 'desc' : 'asc'); }
+    else { setSortCol(col); setSortDir('desc'); }
+  };
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      let cmp = 0;
+      if (sortCol === 'number')   cmp = a.number.localeCompare(b.number);
+      if (sortCol === 'title')    cmp = (a.title || '').localeCompare(b.title || '');
+      if (sortCol === 'customer') cmp = (a.customerName || '').localeCompare(b.customerName || '');
+      if (sortCol === 'total')    cmp = (a.total || 0) - (b.total || 0);
+      if (sortCol === 'created')  cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      if (sortCol === 'status')   cmp = a.status.localeCompare(b.status);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [filtered, sortCol, sortDir]);
+
   const quoteToDelete = deleteConfirmId ? quotes.find(q => q.id === deleteConfirmId) : null;
 
   const filterCount = [
@@ -279,8 +314,17 @@ export const QuotesList: React.FC = () => {
             action={<Button variant="primary" onClick={() => nav('/quotes/new')}>New Quote</Button>}
           />
         ) : (
-          <Table headers={['Quote #', 'Title', 'Customer', 'Buyer', 'Total', 'Created', 'Status', '']}>
-            {filtered.map(quote => (
+          <Table headers={[
+            <button key="number"   onClick={() => toggleSort('number')}   className="flex items-center whitespace-nowrap hover:text-gray-900 transition-colors">Quote # <SortIcon col="number"   active={sortCol} dir={sortDir} /></button>,
+            <button key="title"    onClick={() => toggleSort('title')}    className="flex items-center whitespace-nowrap hover:text-gray-900 transition-colors">Title <SortIcon col="title"    active={sortCol} dir={sortDir} /></button>,
+            <button key="customer" onClick={() => toggleSort('customer')} className="flex items-center whitespace-nowrap hover:text-gray-900 transition-colors">Customer <SortIcon col="customer" active={sortCol} dir={sortDir} /></button>,
+            'Buyer',
+            <button key="total"   onClick={() => toggleSort('total')}   className="flex items-center whitespace-nowrap hover:text-gray-900 transition-colors">Total <SortIcon col="total"   active={sortCol} dir={sortDir} /></button>,
+            <button key="created" onClick={() => toggleSort('created')} className="flex items-center whitespace-nowrap hover:text-gray-900 transition-colors">Created <SortIcon col="created" active={sortCol} dir={sortDir} /></button>,
+            <button key="status"  onClick={() => toggleSort('status')}  className="flex items-center whitespace-nowrap hover:text-gray-900 transition-colors">Status <SortIcon col="status"  active={sortCol} dir={sortDir} /></button>,
+            '',
+          ]}>
+            {sorted.map(quote => (
               <tr key={quote.id}
                 className="hover:bg-gray-50 cursor-pointer transition-colors"
                 onClick={() => navigate(`/quotes/${quote.id}`)}>

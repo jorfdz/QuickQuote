@@ -972,7 +972,6 @@ export const QuoteDetail: React.FC = () => {
         {/* Expandable header — inline editable fields */}
         {!headerCollapsed && (
           <div className="px-5 pb-5 pt-3 border-t border-gray-100">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-3">Click any field to edit</p>
             <div className="grid grid-cols-3 gap-x-6 gap-y-4 items-start">
 
               {/* ── Row 1: Account | Title | [Addresses | Delivery] ── */}

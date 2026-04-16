@@ -226,12 +226,16 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ isOpen, onClose, o
 
 // ─── TABLE ───────────────────────────────────────────────────────────────────
 
-export const Table: React.FC<{ headers: string[]; children: React.ReactNode; className?: string }> = ({ headers, children, className = '' }) => (
+export const Table: React.FC<{ headers: (React.ReactNode | string)[]; children: React.ReactNode; className?: string }> = ({ headers, children, className = '' }) => (
   <div className={`overflow-x-auto ${className}`}>
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-gray-100">
-          {headers.map((h, i) => <th key={i} className="text-left py-2.5 px-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>)}
+          {headers.map((h, i) => (
+            <th key={i} className="text-left py-2.5 px-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap select-none">
+              {h}
+            </th>
+          ))}
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-50">{children}</tbody>

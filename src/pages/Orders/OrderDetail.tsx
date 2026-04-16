@@ -641,7 +641,6 @@ export const OrderDetail: React.FC = () => {
         {!headerCollapsed && (
           <div className="px-5 pb-4 pt-0 border-t border-gray-100">
             <div className="flex items-center justify-between mt-3 mb-3">
-              <p className="text-[9px] text-gray-400 uppercase tracking-widest font-semibold">Click any field to edit · saves automatically</p>
               <button
                 onClick={() => setShowAddressDialog(true)}
                 className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold text-gray-500 hover:text-gray-800 border border-gray-200 hover:border-gray-300 rounded-lg transition-colors"

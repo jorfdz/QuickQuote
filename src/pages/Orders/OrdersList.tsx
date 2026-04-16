@@ -1,6 +1,17 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronUp, ChevronsUpDown, AlertTriangle } from 'lucide-react';
+
+// ─── Sort state ───────────────────────────────────────────────────────────────
+type OrderSortCol = 'number' | 'title' | 'customer' | 'total' | 'dueDate' | 'created' | 'status';
+type SortDir = 'asc' | 'desc';
+
+const SortIcon: React.FC<{ col: OrderSortCol; active: OrderSortCol; dir: SortDir }> = ({ col, active, dir }) => {
+  if (col !== active) return <ChevronsUpDown className="w-3 h-3 text-gray-300 ml-0.5 inline" />;
+  return dir === 'asc'
+    ? <ChevronUp   className="w-3 h-3 text-[var(--brand)] ml-0.5 inline" />
+    : <ChevronDown className="w-3 h-3 text-[var(--brand)] ml-0.5 inline" />;
+};
 import { useStore } from '../../store';
 import { useNavigation } from '../../hooks/useNavigation';
 import { Button, SearchInput, Table, PageHeader, EmptyState, Card, ConfirmDialog } from '../../components/ui';
@@ -143,6 +154,31 @@ export const OrdersList: React.FC = () => {
   const filterCount = [statusFilter !== 'all', customerFilter !== 'all', dateFilter !== 'all'].filter(Boolean).length;
   const orderToDelete = deleteConfirmId ? orders.find(o => o.id === deleteConfirmId) : null;
 
+  // Sorting
+  const [sortCol, setSortCol] = useState<OrderSortCol>('created');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const toggleSort = (col: OrderSortCol) => {
+    if (sortCol === col) { setSortDir(d => d === 'asc' ? 'desc' : 'asc'); }
+    else { setSortCol(col); setSortDir('desc'); }
+  };
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      let cmp = 0;
+      if (sortCol === 'number')   cmp = a.number.localeCompare(b.number);
+      if (sortCol === 'title')    cmp = (a.title || '').localeCompare(b.title || '');
+      if (sortCol === 'customer') cmp = (a.customerName || '').localeCompare(b.customerName || '');
+      if (sortCol === 'total')    cmp = (a.total || 0) - (b.total || 0);
+      if (sortCol === 'dueDate')  cmp = new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime();
+      if (sortCol === 'created')  cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      if (sortCol === 'status')   cmp = a.status.localeCompare(b.status);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [filtered, sortCol, sortDir]);
+
   return (
     <div>
       <PageHeader
@@ -216,8 +252,17 @@ export const OrdersList: React.FC = () => {
             action={<Button variant="primary" onClick={() => nav('/orders/new')}>New Order</Button>}
           />
         ) : (
-          <Table headers={['Order #', 'Title', 'Customer', 'Total', 'Due Date', 'Quote #', 'Status', '']}>
-            {filtered.map(order => {
+          <Table headers={[
+            <button key="number"   onClick={() => toggleSort('number')}   className="flex items-center whitespace-nowrap hover:text-gray-900 transition-colors">Order # <SortIcon col="number"   active={sortCol} dir={sortDir} /></button>,
+            <button key="title"    onClick={() => toggleSort('title')}    className="flex items-center whitespace-nowrap hover:text-gray-900 transition-colors">Title <SortIcon col="title"    active={sortCol} dir={sortDir} /></button>,
+            <button key="customer" onClick={() => toggleSort('customer')} className="flex items-center whitespace-nowrap hover:text-gray-900 transition-colors">Customer <SortIcon col="customer" active={sortCol} dir={sortDir} /></button>,
+            <button key="total"   onClick={() => toggleSort('total')}   className="flex items-center whitespace-nowrap hover:text-gray-900 transition-colors">Total <SortIcon col="total"   active={sortCol} dir={sortDir} /></button>,
+            <button key="dueDate" onClick={() => toggleSort('dueDate')} className="flex items-center whitespace-nowrap hover:text-gray-900 transition-colors">Due Date <SortIcon col="dueDate" active={sortCol} dir={sortDir} /></button>,
+            'Quote #',
+            <button key="status"  onClick={() => toggleSort('status')}  className="flex items-center whitespace-nowrap hover:text-gray-900 transition-colors">Status <SortIcon col="status"  active={sortCol} dir={sortDir} /></button>,
+            '',
+          ]}>
+            {sorted.map(order => {
               const isOverdue = order.dueDate && order.status === 'in_progress' && new Date(order.dueDate) < now;
               return (
                 <tr key={order.id}
