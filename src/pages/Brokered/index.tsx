@@ -47,6 +47,7 @@ const emptyBrokeredForm = {
   vendorName: '' as string | undefined,
   categoryIds: [] as string[],
   brokeredGroupIds: [] as string[],
+  autoAddCategoryIds: [] as string[],
   notes: '',
   pricingMode: 'cost_markup' as ServicePricingMode,
   sellRate: 0,
@@ -150,6 +151,7 @@ export const Brokered: React.FC = () => {
       vendorName: b.vendorName || '',
       categoryIds: b.categoryIds || [],
       brokeredGroupIds: b.brokeredGroupIds || [],
+      autoAddCategoryIds: [...(b.autoAddCategoryIds ?? [])],
       notes: b.notes || '',
       pricingMode: b.pricingMode ?? 'cost_markup',
       sellRate: b.sellRate ?? 0,
@@ -176,6 +178,7 @@ export const Brokered: React.FC = () => {
       vendorName: form.vendorName || undefined,
       categoryIds: form.categoryIds,
       brokeredGroupIds: form.brokeredGroupIds,
+      autoAddCategoryIds: form.autoAddCategoryIds.length > 0 ? form.autoAddCategoryIds : undefined,
       notes: form.notes || undefined,
       pricingMode: form.pricingMode,
       sellRate: form.pricingMode === 'rate_card' ? form.sellRate : undefined,
@@ -201,6 +204,7 @@ export const Brokered: React.FC = () => {
       vendorName: b.vendorName,
       categoryIds: b.categoryIds || [],
       brokeredGroupIds: b.brokeredGroupIds || [],
+      autoAddCategoryIds: b.autoAddCategoryIds ? [...b.autoAddCategoryIds] : undefined,
       notes: b.notes,
       pricingMode: b.pricingMode,
       sellRate: b.sellRate,
@@ -214,6 +218,9 @@ export const Brokered: React.FC = () => {
       categoryIds: f.categoryIds.includes(catId)
         ? f.categoryIds.filter(id => id !== catId)
         : [...f.categoryIds, catId],
+      autoAddCategoryIds: f.categoryIds.includes(catId)
+        ? (f.autoAddCategoryIds ?? []).filter(id => id !== catId)
+        : (f.autoAddCategoryIds ?? []),
     }));
   };
 
