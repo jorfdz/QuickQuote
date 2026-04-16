@@ -709,6 +709,22 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       return didChange ? svcs : prevSvcs;
     });
 
+    // ── EQUIPMENT auto-select ─────────────────────────────────────────────
+    // Equipment is a single selection. Auto-select only when no equipment is
+    // already chosen. When a category is removed, clear the equipment only if
+    // it was auto-selected for that category.
+    for (const catId of addedCats) {
+      if (!ps.equipmentId) { // only auto-set when nothing is currently selected
+        const autoEq = equipment.find(eq =>
+          (eq.autoAddCategoryIds ?? []).includes(catId)
+        );
+        if (autoEq) {
+          onUpdatePricing({ equipmentId: autoEq.id });
+          didChange = true;
+        }
+      }
+    }
+
     if (didChange) trackInteraction();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isProductCreation ? (selectedCategoryIds ?? []).join(',') : ps.categoryName]);

@@ -49,6 +49,7 @@ const emptyEquipmentForm = {
   timeCostMarkup: undefined as number | undefined,
   imageUrl: '' as string | undefined,
   maintenanceVendorId: '' as string | undefined,
+  autoAddCategoryIds: [] as string[],
 };
 
 const emptyServiceForm = {
@@ -275,6 +276,7 @@ export const Equipment: React.FC = () => {
       timeCostMarkup: equipForm.timeCostMarkup,
       imageUrl: equipForm.imageUrl || undefined,
       maintenanceVendorId: equipForm.maintenanceVendorId || undefined,
+      autoAddCategoryIds: equipForm.autoAddCategoryIds.length > 0 ? equipForm.autoAddCategoryIds : undefined,
     });
     setShowNewEquip(false);
     setEquipForm(emptyEquipmentForm);
@@ -302,6 +304,7 @@ export const Equipment: React.FC = () => {
       timeCostMarkup: e.timeCostMarkup,
       imageUrl: e.imageUrl || '',
       maintenanceVendorId: e.maintenanceVendorId || '',
+      autoAddCategoryIds: [...(e.autoAddCategoryIds ?? [])],
     });
     syncCostBuffers({
       ...emptyEquipmentForm,
@@ -339,6 +342,7 @@ export const Equipment: React.FC = () => {
       timeCostMarkup: equipForm.timeCostMarkup,
       imageUrl: equipForm.imageUrl || undefined,
       maintenanceVendorId: equipForm.maintenanceVendorId || undefined,
+      autoAddCategoryIds: equipForm.autoAddCategoryIds.length > 0 ? equipForm.autoAddCategoryIds : undefined,
     });
     setEditingEquipId(null);
   };
@@ -856,7 +860,7 @@ export const Equipment: React.FC = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Category</label>
-                <select value={equipForm.categoryApplies} onChange={e => setEquipForm(f => ({ ...f, categoryApplies: e.target.value }))}
+                <select value={equipForm.categoryApplies} onChange={e => setEquipForm(f => ({ ...f, categoryApplies: e.target.value, autoAddCategoryIds: [] }))}
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none">
                   {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                   <option value="Other">Other</option>
@@ -872,6 +876,45 @@ export const Equipment: React.FC = () => {
                 </select>
               </div>
             </div>
+
+            {/* Auto-add to new items */}
+            {equipForm.categoryApplies && (
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                  Auto-add to new items
+                </label>
+                <p className="text-[10px] text-gray-400 mb-2">
+                  This equipment will be pre-selected on every new item in this category. Users can still change it per item.
+                </p>
+                {(() => {
+                  const cat = categories.find(c => c.name === equipForm.categoryApplies);
+                  if (!cat) return null;
+                  const isAuto = (equipForm.autoAddCategoryIds ?? []).includes(cat.id);
+                  return (
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none group">
+                      <input
+                        type="checkbox"
+                        checked={isAuto}
+                        onChange={e => {
+                          const catId = cat.id;
+                          const next = e.target.checked
+                            ? [...(equipForm.autoAddCategoryIds ?? []), catId]
+                            : (equipForm.autoAddCategoryIds ?? []).filter(id => id !== catId);
+                          setEquipForm(f => ({ ...f, autoAddCategoryIds: next }));
+                        }}
+                        className="rounded border-gray-300 text-emerald-500 focus:ring-emerald-400"
+                      />
+                      <span className={`text-[11px] font-medium transition-colors ${isAuto ? 'text-emerald-700' : 'text-gray-500 group-hover:text-gray-700'}`}>
+                        {equipForm.categoryApplies}
+                      </span>
+                      {isAuto && (
+                        <span className="text-[9px] bg-emerald-100 text-emerald-600 border border-emerald-200 px-1 py-0.5 rounded font-bold uppercase tracking-wide">auto</span>
+                      )}
+                    </label>
+                  );
+                })()}
+              </div>
+            )}
 
             {/* ── Divider ── */}
             <div className="border-t border-gray-100" />

@@ -103,6 +103,7 @@ export interface PricingEquipment {
   colorUnitCost?: number;          // cost per click/sqft for Color jobs
   blackUnitCost?: number;          // cost per click/sqft for Black jobs
   usePricingTiers?: boolean;       // when true, tier tables set sell price; markup fields disabled
+  autoAddCategoryIds?: string[];   // auto-selected on new items in these categories
   // Maintenance
   maintenanceVendorId?: string;    // FK to Vendor catalog
   maintenanceHistory: MaintenanceRecord[];
