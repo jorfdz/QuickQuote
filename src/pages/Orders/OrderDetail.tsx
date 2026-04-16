@@ -286,7 +286,7 @@ export const OrderDetail: React.FC = () => {
       return {
         ...DEFAULT_PRICING_STATE(),
         productId: saved.productId || '',
-        productName: saved.productName || saved.description || '',
+        productName: saved.productName || '',
         categoryName: saved.categoryName || '',
         quantity: saved.quantity || 1000,
         finalWidth: saved.width || 0,
@@ -329,7 +329,7 @@ export const OrderDetail: React.FC = () => {
         restored = {
           ...DEFAULT_PRICING_STATE(),
           productId: saved.productId || '',
-          productName: saved.productName || saved.description || '',
+          productName: saved.productName || '',
           categoryName: saved.categoryName || '',
           quantity: saved.quantity || 1000,
           finalWidth: saved.width || 0,
@@ -1221,7 +1221,7 @@ export const OrderDetail: React.FC = () => {
                   } else if (saved) {
                     base = {
                       ...DEFAULT_PRICING_STATE(),
-                      productId: saved.productId || '', productName: saved.productName || saved.description || '',
+                      productId: saved.productId || '', productName: saved.productName || '',
                       categoryName: saved.categoryName || '', quantity: saved.quantity || 1000,
                       finalWidth: saved.width || 0, finalHeight: saved.height || 0,
                       materialId: saved.materialId || '', equipmentId: saved.equipmentId || '',

@@ -695,7 +695,7 @@ export const QuoteDetail: React.FC = () => {
       return {
         ...DEFAULT_PRICING_STATE(),
         productId: saved.productId || '',
-        productName: saved.productName || saved.description || '',
+        productName: saved.productName || '',
         categoryName: saved.categoryName || '',
         quantity: saved.quantity || 1000,
         finalWidth: saved.width || 0,
@@ -728,7 +728,7 @@ export const QuoteDetail: React.FC = () => {
         restored = {
           ...DEFAULT_PRICING_STATE(),
           productId: saved.productId || '',
-          productName: saved.productName || saved.description || '',
+          productName: saved.productName || '',
           categoryName: saved.categoryName || '',
           quantity: saved.quantity || 1000,
           finalWidth: saved.width || 0,
@@ -1281,7 +1281,7 @@ export const QuoteDetail: React.FC = () => {
                     base = {
                       ...DEFAULT_PRICING_STATE(),
                       productId: saved.productId || '',
-                      productName: saved.productName || saved.description || '',
+                      productName: saved.productName || '',
                       categoryName: saved.categoryName || '',
                       quantity: saved.quantity || 1000,
                       finalWidth: saved.width || 0,
