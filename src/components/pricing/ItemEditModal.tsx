@@ -370,6 +370,10 @@ interface ProductEditModalProps {
   allCategories?: { id: string; name: string }[];
   /** Catalog-only: called whenever the user changes the category selection */
   onCategoryIdsChange?: (ids: string[]) => void;
+  /** Catalog-only: current alias list for the product */
+  aliases?: string[];
+  /** Catalog-only: called whenever the user changes the alias list */
+  onAliasesChange?: (aliases: string[]) => void;
 }
 
 export const ProductEditModal: React.FC<ProductEditModalProps> = ({
@@ -377,6 +381,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   onUpdateItem, onUpdatePricing, onClose, onRemove,
   matchingTemplates, onApplyTemplate,
   selectedCategoryIds, allCategories, onCategoryIdsChange,
+  aliases: aliasesProp = [], onAliasesChange,
 }) => {
   const pricing = usePricingStore();
   const { categories, products, equipment, finishing, materials, finishingGroups,
@@ -386,6 +391,22 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [productQuery, setProductQuery] = useState(ps.productName || '');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showProductBrowser, setShowProductBrowser] = useState(false);
+  // ── Aliases (Catalog mode only) ──────────────────────────────────────
+  const [aliasInput, setAliasInput] = useState('');
+  const [localAliases, setLocalAliases] = useState<string[]>(aliasesProp);
+  const commitAlias = () => {
+    const trimmed = aliasInput.trim().replace(/,$/, '').trim();
+    if (!trimmed || localAliases.includes(trimmed)) { setAliasInput(''); return; }
+    const next = [...localAliases, trimmed];
+    setLocalAliases(next);
+    onAliasesChange?.(next);
+    setAliasInput('');
+  };
+  const removeAlias = (a: string) => {
+    const next = localAliases.filter(x => x !== a);
+    setLocalAliases(next);
+    onAliasesChange?.(next);
+  };
   const [browserCatId, setBrowserCatId] = useState<string | null>(null);
   // Global product search for multi-part item name
   const [showGlobalSuggestions, setShowGlobalSuggestions] = useState(false);
@@ -2336,8 +2357,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
               {/* ── Product Name Row ──────────────────────────────────── */}
               {isProductCreation ? (
-                /* ── CATALOG mode: free-text name + category assignment side-by-side ── */
-                <div className="flex gap-3 items-start">
+                /* ── CATALOG mode: free-text name + aliases + category assignment ── */
+                <div className="space-y-2">
+                  <div className="flex gap-3 items-start">
                   {/* Product name — takes most of the space */}
                   <div className="flex-[2] min-w-0">
                     <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
@@ -2355,6 +2377,39 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       autoFocus
                       className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] placeholder-gray-400"
                     />
+                  </div>
+
+                  {/* Aliases — tag-style input, right of Product Name */}
+                  <div className="flex-[2] min-w-0">
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
+                      Aliases <span className="text-gray-400 font-normal normal-case">(also known as…)</span>
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 items-center min-h-[38px] px-2 py-1.5 border border-gray-200 rounded-lg bg-white focus-within:ring-2 focus-within:ring-[#F890E7]">
+                      {localAliases.map(a => (
+                        <span key={a} className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold bg-gray-100 text-gray-700 rounded-full border border-gray-200">
+                          {a}
+                          <button type="button" onClick={() => removeAlias(a)}
+                            className="hover:text-red-500 transition-colors ml-0.5">
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        type="text"
+                        value={aliasInput}
+                        onChange={e => setAliasInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commitAlias(); }
+                          if (e.key === 'Backspace' && !aliasInput && localAliases.length > 0) {
+                            removeAlias(localAliases[localAliases.length - 1]);
+                          }
+                        }}
+                        onBlur={commitAlias}
+                        placeholder={localAliases.length === 0 ? 'Type & press Enter…' : ''}
+                        className="flex-1 min-w-[80px] text-sm outline-none bg-transparent placeholder-gray-300"
+                      />
+                    </div>
+                    <p className="text-[9px] text-gray-400 mt-0.5">Press Enter or comma to add · Backspace to remove last</p>
                   </div>
 
                   {/* Category assignment — required, multi-select pill toggles */}
@@ -2401,6 +2456,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                       )}
                     </div>
                   )}
+                  </div>
                 </div>
               ) : (
                 /* ── QUOTE / ORDER mode: search existing products ── */

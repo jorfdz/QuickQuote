@@ -1,11 +1,95 @@
 import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import { AddressDialog } from '../Quotes/QuoteDetail';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Printer, Receipt, KanbanSquare, Edit3, Trash2, CheckCircle, ChevronDown, ChevronUp, Copy, ArrowRight, ShoppingCart, Plus, Search } from 'lucide-react';
+import { Printer, Receipt, KanbanSquare, Edit3, Trash2, CheckCircle, ChevronDown, ChevronUp, Copy, ArrowRight, ShoppingCart, Plus, Search, Eye, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Badge, Card, PageHeader, Select, Tabs, Modal, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
-import type { OrderStatus, OrderItem, OrderTrackingMode } from '../../types';
+import type { OrderStatus, OrderItem, OrderTrackingMode, Customer, Contact } from '../../types';
+
+// ─── Payment Terms constant ───────────────────────────────────────────────────
+const DEFAULT_PAYMENT_TERMS = ['Net 10', 'Net 15', 'Net 30', 'COD'];
+
+// ─── Account Info Dialog ─────────────────────────────────────────────────────
+const AccountInfoDialog: React.FC<{
+  customer: Customer | undefined;
+  onClose: () => void;
+}> = ({ customer, onClose }) => {
+  if (!customer) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <p className="font-bold text-gray-900 text-base">{customer.name}</p>
+            {customer.accountNumber && <p className="text-xs text-gray-400 mt-0.5">Acct #{customer.accountNumber}</p>}
+          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          {[
+            { label: 'Email', value: customer.email },
+            { label: 'Phone', value: customer.phone },
+            { label: 'Website', value: customer.website },
+            { label: 'Address', value: [customer.address, customer.city, customer.state, customer.zip, customer.country].filter(Boolean).join(', ') },
+            { label: 'Terms', value: customer.terms },
+            { label: 'Delivery', value: customer.deliveryMethod ? `${customer.deliveryMethod}${customer.thirdPartyShipping ? ' (3rd Party: ' + (customer.thirdPartyCarrierAccountNumber || '') + ')' : ''}` : undefined },
+            { label: 'Tax Exempt', value: customer.taxExempt ? 'Yes' : undefined },
+            { label: 'Tax ID', value: customer.taxId },
+            { label: 'Notes', value: customer.notes },
+          ].filter(r => r.value).map(r => (
+            <div key={r.label} className="flex justify-between text-sm">
+              <span className="text-gray-500 flex-shrink-0 w-24">{r.label}</span>
+              <span className="text-gray-900 font-medium text-right">{r.value}</span>
+            </div>
+          ))}
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+          <button onClick={onClose} className="px-4 py-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg">Close</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Contact Info Dialog ──────────────────────────────────────────────────────
+const ContactInfoDialog: React.FC<{
+  contact: Contact | undefined;
+  onClose: () => void;
+}> = ({ contact, onClose }) => {
+  if (!contact) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <p className="font-bold text-gray-900 text-base">{contact.firstName} {contact.lastName}</p>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          {[
+            { label: 'Title', value: contact.title },
+            { label: 'Email', value: contact.email },
+            { label: 'Phone', value: contact.phone },
+            { label: 'Mobile', value: contact.mobile },
+            { label: 'Notes', value: contact.notes },
+          ].filter(r => r.value).map(r => (
+            <div key={r.label} className="flex justify-between text-sm">
+              <span className="text-gray-500 w-20">{r.label}</span>
+              <span className="text-gray-900 font-medium text-right">{r.value}</span>
+            </div>
+          ))}
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+          <button onClick={onClose} className="px-4 py-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg">Close</button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // ─── Inline editable field (same pattern as QuoteDetail) ─────────────────────
 const OrderInlineField: React.FC<{
@@ -119,6 +203,8 @@ export const OrderDetail: React.FC = () => {
   const [statusOpen, setStatusOpen] = useState(false);
   const convertRef = useRef<HTMLDivElement>(null);
   const statusRef = useRef<HTMLDivElement>(null);
+  const [accountDialogId, setAccountDialogId] = useState<string | null>(null);
+  const [contactDialogId, setContactDialogId] = useState<string | null>(null);
 
   const order = orders.find(o => o.id === id);
 
@@ -485,7 +571,15 @@ export const OrderDetail: React.FC = () => {
         >
           <div className="flex items-center gap-4">
             <h1 className="text-3xl font-bold text-gray-900 obj-num">{order.number}</h1>
-            <span className="text-sm text-gray-500">{order.customerName || 'No customer'}</span>
+            {order.customerId ? (
+              <button type="button"
+                onClick={e => { e.stopPropagation(); setAccountDialogId(order.customerId!); }}
+                className="text-sm text-gray-700 font-medium hover:text-blue-600 hover:underline transition-colors">
+                {order.customerName}
+              </button>
+            ) : (
+              <span className="text-sm text-gray-500">No customer</span>
+            )}
             <Badge label={order.status} />
           </div>
           <button className="p-1 hover:bg-gray-100 rounded-lg transition-colors text-gray-400">
@@ -506,29 +600,45 @@ export const OrderDetail: React.FC = () => {
               </button>
             </div>
             <div className="grid grid-cols-3 gap-x-6 gap-y-3 items-start">
-              <OrderInlineField label="Account"
-                value={order.customerName || ''}
-                searchable
-                options={customers.map(c => ({ value: c.id, label: c.name }))}
-                placeholder="Search customers..."
-                onSave={v => {
-                  const c = customers.find(x => x.id === v);
-                  const primary = v ? (contacts.find(ct => ct.customerId === v && ct.isPrimary) || contacts.find(ct => ct.customerId === v)) : undefined;
-                  updateOrder(id!, {
-                    customerId: v || undefined,
-                    customerName: c?.name,
-                    contactId: primary?.id,
-                    contactName: primary ? `${primary.firstName} ${primary.lastName}` : undefined,
-                  });
-                }}
-              />
-              <OrderInlineField label="Contact"
-                value={order.contactName || ''}
-                searchable
-                options={contacts.filter(c => c.customerId === order.customerId).map(c => ({ value: c.id, label: `${c.firstName} ${c.lastName}` }))}
-                placeholder="Search contacts..."
-                onSave={v => { const c = contacts.find(x => x.id === v); updateOrder(id!, { contactId: v || undefined, contactName: c ? `${c.firstName} ${c.lastName}` : undefined }); }}
-              />
+              <div>
+                <OrderInlineField label="Account"
+                  value={order.customerName || ''}
+                  searchable
+                  options={customers.map(c => ({ value: c.id, label: c.name }))}
+                  placeholder="Search customers..."
+                  onSave={v => {
+                    const c = customers.find(x => x.id === v);
+                    const primary = v ? (contacts.find(ct => ct.customerId === v && ct.isPrimary) || contacts.find(ct => ct.customerId === v)) : undefined;
+                    updateOrder(id!, {
+                      customerId: v || undefined,
+                      customerName: c?.name,
+                      contactId: primary?.id,
+                      contactName: primary ? `${primary.firstName} ${primary.lastName}` : undefined,
+                    });
+                  }}
+                />
+                {order.customerId && (
+                  <button type="button" onClick={() => setAccountDialogId(order.customerId!)}
+                    className="mt-0.5 flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700 transition-colors">
+                    <Eye className="w-3 h-3" /> View info
+                  </button>
+                )}
+              </div>
+              <div>
+                <OrderInlineField label="Contact"
+                  value={order.contactName || ''}
+                  searchable
+                  options={contacts.filter(c => c.customerId === order.customerId).map(c => ({ value: c.id, label: `${c.firstName} ${c.lastName}` }))}
+                  placeholder="Search contacts..."
+                  onSave={v => { const c = contacts.find(x => x.id === v); updateOrder(id!, { contactId: v || undefined, contactName: c ? `${c.firstName} ${c.lastName}` : undefined }); }}
+                />
+                {order.contactId && (
+                  <button type="button" onClick={() => setContactDialogId(order.contactId!)}
+                    className="mt-0.5 flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700 transition-colors">
+                    <Eye className="w-3 h-3" /> View info
+                  </button>
+                )}
+              </div>
               <OrderInlineField label="Due Date" type="date"
                 value={order.dueDate || ''}
                 onSave={v => updateOrder(id!, { dueDate: v || undefined })}
@@ -714,6 +824,21 @@ export const OrderDetail: React.FC = () => {
                   <span>Total</span>
                   <span className="text-blue-600">{formatCurrency(order.total)}</span>
                 </div>
+              </div>
+            </Card>
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment Terms</span>
+                <select
+                  value={order.terms || ''}
+                  onChange={e => updateOrder(id!, { terms: e.target.value || undefined })}
+                  className="text-xs text-gray-600 border border-gray-200 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-300 appearance-none bg-white"
+                >
+                  <option value="">— None —</option>
+                  {[...DEFAULT_PAYMENT_TERMS, ...(companySettings?.customTerms || [])].map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
               </div>
             </Card>
             <Card className="p-5">
@@ -1122,6 +1247,21 @@ export const OrderDetail: React.FC = () => {
           />
         );
       })()}
+
+      {/* Account Info Dialog */}
+      {accountDialogId && (
+        <AccountInfoDialog
+          customer={customers.find(c => c.id === accountDialogId)}
+          onClose={() => setAccountDialogId(null)}
+        />
+      )}
+      {/* Contact Info Dialog */}
+      {contactDialogId && (
+        <ContactInfoDialog
+          contact={contacts.find(c => c.id === contactDialogId)}
+          onClose={() => setContactDialogId(null)}
+        />
+      )}
     </div>
   );
 };

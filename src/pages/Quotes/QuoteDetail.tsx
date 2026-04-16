@@ -60,6 +60,87 @@ function itemHasContent(item: any): boolean {
   );
 }
 
+// ─── Account Info Dialog ─────────────────────────────────────────────────────
+const AccountInfoDialog: React.FC<{
+  customer: Customer | undefined;
+  onClose: () => void;
+}> = ({ customer, onClose }) => {
+  if (!customer) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <p className="font-bold text-gray-900 text-base">{customer.name}</p>
+            {customer.accountNumber && <p className="text-xs text-gray-400 mt-0.5">Acct #{customer.accountNumber}</p>}
+          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          {[
+            { label: 'Email', value: customer.email },
+            { label: 'Phone', value: customer.phone },
+            { label: 'Website', value: customer.website },
+            { label: 'Address', value: [customer.address, customer.city, customer.state, customer.zip, customer.country].filter(Boolean).join(', ') },
+            { label: 'Terms', value: customer.terms },
+            { label: 'Delivery', value: customer.deliveryMethod ? `${customer.deliveryMethod}${customer.thirdPartyShipping ? ' (3rd Party: ' + (customer.thirdPartyCarrierAccountNumber || '') + ')' : ''}` : undefined },
+            { label: 'Tax Exempt', value: customer.taxExempt ? 'Yes' : undefined },
+            { label: 'Tax ID', value: customer.taxId },
+            { label: 'Notes', value: customer.notes },
+          ].filter(r => r.value).map(r => (
+            <div key={r.label} className="flex justify-between text-sm">
+              <span className="text-gray-500 flex-shrink-0 w-24">{r.label}</span>
+              <span className="text-gray-900 font-medium text-right">{r.value}</span>
+            </div>
+          ))}
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+          <button onClick={onClose} className="px-4 py-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg">Close</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Contact Info Dialog ──────────────────────────────────────────────────────
+const ContactInfoDialog: React.FC<{
+  contact: Contact | undefined;
+  onClose: () => void;
+}> = ({ contact, onClose }) => {
+  if (!contact) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <p className="font-bold text-gray-900 text-base">{contact.firstName} {contact.lastName}</p>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          {[
+            { label: 'Title', value: contact.title },
+            { label: 'Email', value: contact.email },
+            { label: 'Phone', value: contact.phone },
+            { label: 'Mobile', value: contact.mobile },
+            { label: 'Notes', value: contact.notes },
+          ].filter(r => r.value).map(r => (
+            <div key={r.label} className="flex justify-between text-sm">
+              <span className="text-gray-500 w-20">{r.label}</span>
+              <span className="text-gray-900 font-medium text-right">{r.value}</span>
+            </div>
+          ))}
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+          <button onClick={onClose} className="px-4 py-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg">Close</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── No-Account Guard Modal ───────────────────────────────────────────────────
 const NoAccountGuard: React.FC<{
   quoteNumber: string;
@@ -484,6 +565,8 @@ export const QuoteDetail: React.FC = () => {
   const [convertOpen, setConvertOpen] = useState(false);
   const convertRef = useRef<HTMLDivElement>(null);
   const [showAddressDialog, setShowAddressDialog] = useState(false);
+  const [accountDialogId, setAccountDialogId] = useState<string | null>(null);
+  const [contactDialogId, setContactDialogId] = useState<string | null>(null);
 
   // ── No-account guard ──────────────────────────────────────────────────────
   const [showNoAccountGuard, setShowNoAccountGuard] = useState(false);
@@ -781,40 +864,32 @@ export const QuoteDetail: React.FC = () => {
           <div className="flex items-center gap-4 flex-1 min-w-0 flex-wrap">
             <span className="text-lg font-semibold text-gray-700 obj-num flex-shrink-0 tracking-wide">{quote.number}</span>
 
-            {/* Status pills */}
-            <div className="flex items-center gap-1">
-              {STATUS_OPTIONS.map(s => {
-                const isActive = quote.status === s.value;
-                const activeStyles: Record<string, string> = {
-                  pending: 'bg-amber-500 text-white shadow-amber-200',
-                  hot:     'bg-red-500 text-white shadow-red-200',
-                  cold:    'bg-sky-500 text-white shadow-sky-200',
-                  won:     'bg-emerald-500 text-white shadow-emerald-200',
-                  lost:    'bg-gray-500 text-white shadow-gray-200',
-                };
-                return (
-                  <button
-                    key={s.value}
-                    onClick={() => updateQuote(id!, { status: s.value })}
-                    title={`Set to ${s.label}`}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all duration-150 ${
-                      isActive
-                        ? `${activeStyles[s.value]} shadow-sm`
-                        : 'bg-gray-50 text-gray-400 border border-gray-200 hover:bg-gray-100 hover:text-gray-600'
-                    }`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-white' : dotColors[s.value]}`} />
-                    {s.label}
-                  </button>
-                );
-              })}
+            {/* Status indicator (compact dot + label) */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <span className={`w-2 h-2 rounded-full ${dotColors[quote.status] ?? 'bg-gray-300'}`} />
+              <span className="text-xs font-semibold text-gray-500">{STATUS_OPTIONS.find(s => s.value === quote.status)?.label}</span>
             </div>
 
-            {/* Account + contact compact */}
+            {/* Account + contact compact — clickable */}
             {(quote.customerName || quote.contactName) && (
               <div className="flex items-center gap-2 text-xs text-gray-500 flex-shrink-0">
-                {quote.customerName && <span className="font-medium text-gray-700">{quote.customerName}</span>}
-                {quote.contactName && <><span className="text-gray-300">·</span><span>{quote.contactName}</span></>}
+                {quote.customerName && (
+                  <button type="button"
+                    onClick={e => { e.stopPropagation(); setAccountDialogId(quote.customerId || null); }}
+                    className="font-medium text-gray-700 hover:text-blue-600 hover:underline transition-colors">
+                    {quote.customerName}
+                  </button>
+                )}
+                {quote.contactName && (
+                  <>
+                    <span className="text-gray-300">·</span>
+                    <button type="button"
+                      onClick={e => { e.stopPropagation(); setContactDialogId(quote.contactId || null); }}
+                      className="hover:text-blue-600 hover:underline transition-colors">
+                      {quote.contactName}
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
@@ -848,25 +923,33 @@ export const QuoteDetail: React.FC = () => {
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-3">Click any field to edit</p>
             <div className="grid grid-cols-3 gap-x-6 gap-y-4 items-start">
 
-              {/* ── Row 1: Account | Title | [Addresses | Status] ── */}
-              <InlineField
-                label="Account"
-                value={quote.customerName || ''}
-                placeholder="Search accounts..."
-                searchable options={customerOptions}
-                forwardRef={accountFieldRef}
-                onAddNew={() => {}}
-                onSave={v => {
-                  const c = customers.find(x => x.id === v);
-                  const primary = v ? (contacts.find(ct => ct.customerId === v && ct.isPrimary) || contacts.find(ct => ct.customerId === v)) : undefined;
-                  saveField({
-                    customerId: v || undefined,
-                    customerName: c?.name,
-                    contactId: primary?.id,
-                    contactName: primary ? `${primary.firstName} ${primary.lastName}` : undefined,
-                  });
-                }}
-              />
+              {/* ── Row 1: Account | Title | [Addresses | Delivery] ── */}
+              <div>
+                <InlineField
+                  label="Account"
+                  value={quote.customerName || ''}
+                  placeholder="Search accounts..."
+                  searchable options={customerOptions}
+                  forwardRef={accountFieldRef}
+                  onAddNew={() => {}}
+                  onSave={v => {
+                    const c = customers.find(x => x.id === v);
+                    const primary = v ? (contacts.find(ct => ct.customerId === v && ct.isPrimary) || contacts.find(ct => ct.customerId === v)) : undefined;
+                    saveField({
+                      customerId: v || undefined,
+                      customerName: c?.name,
+                      contactId: primary?.id,
+                      contactName: primary ? `${primary.firstName} ${primary.lastName}` : undefined,
+                    });
+                  }}
+                />
+                {quote.customerId && (
+                  <button type="button" onClick={() => setAccountDialogId(quote.customerId!)}
+                    className="mt-0.5 flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700 transition-colors">
+                    <Eye className="w-3 h-3" /> View info
+                  </button>
+                )}
+              </div>
               <InlineField label="Title" value={quote.title} placeholder="Quote title..."
                 onSave={v => saveField({ title: v })} />
               {/* Col 3 Row 1: Addresses button | Status selector — 2-col sub-grid */}
@@ -883,29 +966,35 @@ export const QuoteDetail: React.FC = () => {
                     {(quote.billToAddress || quote.shipToAddress) && <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />}
                   </button>
                 </div>
-                {/* Status */}
+                {/* Delivery Method */}
                 <div>
-                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Status</p>
-                  <div className="relative">
-                    <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full flex-shrink-0 pointer-events-none ${dotColors[quote.status] ?? 'bg-gray-300'}`} />
-                    <select
-                      value={quote.status}
-                      onChange={e => saveField({ status: e.target.value as QuoteStatus })}
-                      className="w-full pl-7 pr-2 py-1.5 text-xs font-semibold border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none bg-white text-gray-700 cursor-pointer hover:border-gray-300 transition-colors"
-                    >
-                      {STATUS_OPTIONS.map(s => (
-                        <option key={s.value} value={s.value}>{s.label}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Delivery</p>
+                  <select
+                    value={quote.deliveryMethod || ''}
+                    onChange={e => saveField({ deliveryMethod: e.target.value || undefined })}
+                    className="w-full px-2.5 py-1.5 text-xs font-semibold border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] appearance-none bg-white text-gray-700 cursor-pointer hover:border-gray-300 transition-colors"
+                  >
+                    <option value="">— Select —</option>
+                    {[...DEFAULT_DELIVERY_METHODS, ...(companySettings.customDeliveryMethods || [])].map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
               {/* ── Row 2: Contact | Quote Date + Valid Until | [CSR | Sales Rep] ── */}
-              <InlineField label="Contact" value={quote.contactName || ''} placeholder="Search contacts..."
-                searchable options={contactOptions}
-                onAddNew={() => {}}
-                onSave={v => { const c = contacts.find(x => x.id === v); saveField({ contactId: v || undefined, contactName: c ? `${c.firstName} ${c.lastName}` : undefined }); }} />
+              <div>
+                <InlineField label="Contact" value={quote.contactName || ''} placeholder="Search contacts..."
+                  searchable options={contactOptions}
+                  onAddNew={() => {}}
+                  onSave={v => { const c = contacts.find(x => x.id === v); saveField({ contactId: v || undefined, contactName: c ? `${c.firstName} ${c.lastName}` : undefined }); }} />
+                {quote.contactId && (
+                  <button type="button" onClick={() => setContactDialogId(quote.contactId!)}
+                    className="mt-0.5 flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700 transition-colors">
+                    <Eye className="w-3 h-3" /> View info
+                  </button>
+                )}
+              </div>
               {/* Quote Date + Valid Until — both under col 2 (Title above) */}
               <div className="grid grid-cols-2 gap-x-4">
                 <InlineField label="Quote Date"
@@ -1036,6 +1125,22 @@ export const QuoteDetail: React.FC = () => {
               {quote.taxRate ? <div className="flex justify-between text-sm"><span className="text-gray-500">Tax ({quote.taxRate}%)</span><span className="num">{formatCurrency(quote.taxAmount || 0)}</span></div> : null}
               <div className="flex justify-between text-lg font-bold border-t border-gray-100 pt-3">
                 <span>Total</span><span className="text-brand num">{formatCurrency(quote.total)}</span>
+              </div>
+              {/* Payment Terms */}
+              <div className="pt-3 border-t border-gray-50 mt-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400 font-medium">Payment Terms</span>
+                  <select
+                    value={quote.terms || ''}
+                    onChange={e => saveField({ terms: e.target.value || undefined })}
+                    className="text-xs text-gray-600 border border-gray-200 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-300 appearance-none bg-white"
+                  >
+                    <option value="">— None —</option>
+                    {[...DEFAULT_PAYMENT_TERMS, ...(companySettings.customTerms || [])].map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
           </Card>
@@ -1252,6 +1357,21 @@ export const QuoteDetail: React.FC = () => {
             setShowNoAccountGuard(false);
             pendingNavRef.current = null;
           }}
+        />
+      )}
+
+      {/* Account Info Dialog */}
+      {accountDialogId && (
+        <AccountInfoDialog
+          customer={customers.find(c => c.id === accountDialogId)}
+          onClose={() => setAccountDialogId(null)}
+        />
+      )}
+      {/* Contact Info Dialog */}
+      {contactDialogId && (
+        <ContactInfoDialog
+          contact={contacts.find(c => c.id === contactDialogId)}
+          onClose={() => setContactDialogId(null)}
         />
       )}
     </div>

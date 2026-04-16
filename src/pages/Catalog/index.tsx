@@ -546,6 +546,8 @@ export const Catalog: React.FC = () => {
           selectedCategoryIds={prodSelectedCategoryIds}
           allCategories={categories}
           onCategoryIdsChange={setProdSelectedCategoryIds}
+          aliases={prodItemAliasesStr.split(',').map(s => s.trim()).filter(Boolean)}
+          onAliasesChange={aliases => setProdItemAliasesStr(aliases.join(', '))}
           onUpdateItem={updates => {
             setProdItem(prev => prev ? { ...prev, ...updates } : prev);
           }}
