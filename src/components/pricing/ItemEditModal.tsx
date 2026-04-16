@@ -734,11 +734,13 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   }, [ps.categoryName, equipment, getEquipmentForCategory]);
 
   const availableMaterials = useMemo(() => {
-    // Step 1 — category filter: only show materials assigned to the current product category.
-    // A material with an empty categoryIds array is considered "universal" (no restriction).
+    // Step 1 — category filter: STRICT match.
+    // When the item has a known category, only show materials that explicitly list that category.
+    // Materials with empty categoryIds are NOT shown — they must be assigned to a category first.
+    // When the item has no category (catId is undefined), all materials are available.
     const catId = categories.find(c => c.name === ps.categoryName)?.id;
     const catFiltered = catId
-      ? materials.filter(m => m.categoryIds.length === 0 || m.categoryIds.includes(catId))
+      ? materials.filter(m => m.categoryIds.includes(catId))
       : materials;
 
     // Step 2 — size filter: hide materials that are physically smaller than the item.
