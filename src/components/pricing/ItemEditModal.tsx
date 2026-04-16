@@ -4032,7 +4032,23 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                 {/* Grouped parent header row — darker bg so it reads as a section divider */}
                                 {isGrouped && (
                                   <tr className="bg-gray-100 border-b border-gray-200">
-                                    <td className="py-1.5 px-3 font-bold text-gray-900 text-[11px]">{service}</td>
+                                    <td className="py-1.5 px-3 font-bold text-gray-900 text-[11px]">
+                                      <span className="flex items-center gap-1">
+                                        {service}
+                                        {(() => {
+                                          const parsed = parseInlineService(grpLines[0].id);
+                                          if (!parsed) return null;
+                                          return (
+                                            <button type="button"
+                                              onClick={() => setQuickEditSvc({ ...parsed, lineIdPattern: `sl_${parsed.type}_${parsed.id}` })}
+                                              title={`Edit ${service} service`}
+                                              className="p-0.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all flex-shrink-0">
+                                              <Edit3 className="w-2.5 h-2.5" />
+                                            </button>
+                                          );
+                                        })()}
+                                      </span>
+                                    </td>
                                     <td className="py-1.5 px-3 text-gray-600 text-[11px] overflow-hidden">
                                       <span className="block truncate" title={label}>{label}</span>
                                     </td>
