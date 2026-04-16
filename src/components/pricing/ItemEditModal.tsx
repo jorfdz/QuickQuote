@@ -1882,9 +1882,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         categoryName: cat?.name || savedCtx.categoryName || '',
       };
       onUpdatePricing(restored);
-      // Restore local selection state from context
-      if (savedCtx.selectedLaborIds)    setSelectedLaborIds(savedCtx.selectedLaborIds);
-      if (savedCtx.selectedBrokeredIds) setSelectedBrokeredIds(savedCtx.selectedBrokeredIds);
+      // Restore ALL local selection state from context — these drive the UI tags and
+      // computeServiceLines; onUpdatePricing only updates the parent, not these local refs.
+      if (savedCtx.selectedFinishingIds) setSelectedFinishingIds(savedCtx.selectedFinishingIds);
+      if (savedCtx.selectedLaborIds)     setSelectedLaborIds(savedCtx.selectedLaborIds);
+      if (savedCtx.selectedBrokeredIds)  setSelectedBrokeredIds(savedCtx.selectedBrokeredIds);
       // Guard: prevent the recompute effect from overwriting the restored service lines.
       // skipInitialRecompute blocks recompute until the user changes a fundamental field.
       // CRITICAL: also reset userChangedPricing to false here — selectProduct set it true
@@ -1916,10 +1918,13 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         sides: product.defaultSides,
         foldingType: product.defaultFolding || '',
         drillingType: '',
-        cuttingEnabled: false,   // never force-enable cutting — user must explicitly select it
-        selectedFinishingIds: [], // start with no finishing services selected
+        cuttingEnabled: false,
+        // Apply product-level default finishing services (e.g. Hemming assigned to Banner)
+        selectedFinishingIds: product.defaultFinishingIds || [],
         sheetsPerStack: 500,
       });
+      // Sync local state so the service tags appear immediately
+      setSelectedFinishingIds(product.defaultFinishingIds || []);
       onUpdateItem({ description: product.name, quantity: product.defaultQuantity });
       setMultiQtyInput(String(product.defaultQuantity));
     }
