@@ -858,7 +858,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         // cost_per_unit: derive sqft rate from board cost ÷ board area, then
         //                apply to item area (e.g. $15/board ÷ 32 sqft = $0.469/sqft → $2.81)
         const itemSqft = (ps.finalWidth * ps.finalHeight) / 144;
-        const totalSqft = parseFloat((itemSqft * ps.quantity * originals).toFixed(4));
+        const sides = ps.sides === 'Double' ? 2 : 1;
+        const totalSqft = parseFloat((itemSqft * ps.quantity * originals * sides).toFixed(4));
 
         let costPerSqft: number;
         if (model === 'cost_per_sqft') {
@@ -978,7 +979,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
           totalCost: clickCost, markupPercent: markupPct, sellPrice: clickSell, editable: true,
         });
       } else if (selectedEquipment.costUnit === 'per_sqft') {
-        const sqft = (ps.finalWidth * ps.finalHeight * ps.quantity) / 144;
+        const sqft = (ps.finalWidth * ps.finalHeight * ps.quantity) / 144 * (ps.sides === 'Double' ? 2 : 1);
         const costPerSqft = selectedEquipment.unitCost;
         const totalCost = sqft * costPerSqft;
         const mult = selectedEquipment.markupMultiplier || 1;
@@ -1411,7 +1412,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       const matModel = selectedMaterial.pricingModel || 'cost_per_m';
       if (matModel === 'cost_per_sqft' || matModel === 'cost_per_unit') {
         const itemSqft = (ps.finalWidth * ps.finalHeight) / 144;
-        const totalSqft = itemSqft * qty * originals;
+        const sidesM = ps.sides === 'Double' ? 2 : 1;
+        const totalSqft = itemSqft * qty * originals * sidesM;
         let costPerSqft: number;
         if (matModel === 'cost_per_sqft') {
           costPerSqft = selectedMaterial.costPerSqft ?? 0;
@@ -1468,7 +1470,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
           tSell += selectedEquipment.initialSetupFee;
         }
       } else if (selectedEquipment.costUnit === 'per_sqft') {
-        const sqft = (ps.finalWidth * ps.finalHeight * qty) / 144;
+        const sqft = (ps.finalWidth * ps.finalHeight * qty) / 144 * (ps.sides === 'Double' ? 2 : 1);
         const cost = sqft * selectedEquipment.unitCost;
         const mult = selectedEquipment.markupMultiplier || 1;
         tCost += cost;
@@ -2834,19 +2836,31 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                         setMaterialEntries(updated);
                       };
 
+                      // Filter options based on equipment color capability
+                      const cap = selectedEquipment?.colorCapability ?? 'Color and Black';
+                      const canColor = cap === 'Color' || cap === 'Color and Black';
+                      const canBlack = cap === 'Black' || cap === 'Color and Black';
+
+                      // Build the allowed option list; if current value isn't allowed, snap to first valid
+                      type SidesColorOption = { value: string; label: string };
+                      const opts: SidesColorOption[] = [
+                        ...(canColor ? [{ value: '1-Color',       label: '1 Side: Color'       }] : []),
+                        ...(canBlack ? [{ value: '1-Black',       label: '1 Side: B&W'         }] : []),
+                        ...(canColor ? [{ value: '2-Color-Color', label: '2 Sides: Color/Color' }] : []),
+                        ...(canColor && canBlack ? [{ value: '2-Color-Black', label: '2 Sides: Color/B&W'  }] : []),
+                        ...(canBlack ? [{ value: '2-Black-Black', label: '2 Sides: B&W/B&W'    }] : []),
+                      ];
+                      const safeValue = opts.some(o => o.value === combinedValue) ? combinedValue : opts[0]?.value ?? combinedValue;
+
                       return (
                         <div className="flex-[2.6] min-w-0">
                           <label className="block text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">SIDES &amp; COLOR</label>
                           <select
-                            value={combinedValue}
+                            value={safeValue}
                             onChange={e => handleCombinedChange(e.target.value)}
                             className="w-full px-2 py-2 text-[13px] bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F890E7] cursor-pointer"
                           >
-                            <option value="1-Color">1 Side: Color</option>
-                            <option value="1-Black">1 Side: Black</option>
-                            <option value="2-Color-Color">2 Sides: Color/Color</option>
-                            <option value="2-Color-Black">2 Sides: Color/B&amp;W</option>
-                            <option value="2-Black-Black">2 Sides: B&amp;W/B&amp;W</option>
+                            {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                           </select>
                         </div>
                       );
