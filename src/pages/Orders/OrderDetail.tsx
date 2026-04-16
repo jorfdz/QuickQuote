@@ -121,7 +121,9 @@ const OrderInlineField: React.FC<{
   options?: { value: string; label: string }[];
   placeholder?: string;
   onAddNew?: () => void;
-}> = ({ label, value, onSave, type = 'text', searchable, options, placeholder, onAddNew }) => {
+  /** When provided, clicking the value text opens info. Pencil pencil triggers edit. */
+  onInfoClick?: () => void;
+}> = ({ label, value, onSave, type = 'text', searchable, options, placeholder, onAddNew, onInfoClick }) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const [search, setSearch] = useState('');
@@ -138,6 +140,28 @@ const OrderInlineField: React.FC<{
   }, [options, search]);
 
   if (!editing) {
+    if (onInfoClick) {
+      return (
+        <div className="group rounded-md px-2 py-1.5 -mx-2">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            {value ? (
+              <button type="button" onClick={onInfoClick}
+                className="text-sm font-medium text-gray-800 hover:text-blue-600 hover:underline transition-colors text-left">
+                {value}
+              </button>
+            ) : (
+              <span className="text-gray-300 text-sm font-normal italic">Click ✎ to set</span>
+            )}
+            <button type="button" onClick={start}
+              title={`Edit ${label.toLowerCase()}`}
+              className="p-0.5 text-gray-300 hover:text-gray-600 hover:bg-gray-100 rounded transition-all opacity-0 group-hover:opacity-100">
+              <Edit3 className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="group cursor-pointer hover:bg-gray-50 rounded-md px-2 py-1.5 -mx-2 transition-colors" onClick={start}>
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
@@ -634,6 +658,7 @@ export const OrderDetail: React.FC = () => {
                   searchable
                   options={customers.map(c => ({ value: c.id, label: c.name }))}
                   placeholder="Search customers..."
+                  onInfoClick={order.customerId ? () => setAccountDialogId(order.customerId!) : undefined}
                   onSave={v => {
                     const c = customers.find(x => x.id === v);
                     const primary = v ? (contacts.find(ct => ct.customerId === v && ct.isPrimary) || contacts.find(ct => ct.customerId === v)) : undefined;
@@ -645,7 +670,6 @@ export const OrderDetail: React.FC = () => {
                     });
                   }}
                 />
-                {/* click account name in collapsed header to open the dialog */}
               </div>
               <div>
                 <OrderInlineField label="Contact"
@@ -653,9 +677,9 @@ export const OrderDetail: React.FC = () => {
                   searchable
                   options={contacts.filter(c => c.customerId === order.customerId).map(c => ({ value: c.id, label: `${c.firstName} ${c.lastName}` }))}
                   placeholder="Search contacts..."
+                  onInfoClick={order.contactId ? () => setContactDialogId(order.contactId!) : undefined}
                   onSave={v => { const c = contacts.find(x => x.id === v); updateOrder(id!, { contactId: v || undefined, contactName: c ? `${c.firstName} ${c.lastName}` : undefined }); }}
                 />
-                {/* click contact name in collapsed header to open the dialog */}
               </div>
               <OrderInlineField label="Due Date" type="date"
                 value={order.dueDate || ''}

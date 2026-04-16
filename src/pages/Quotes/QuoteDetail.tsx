@@ -229,7 +229,10 @@ const InlineField: React.FC<{
   placeholder?: string;
   onAddNew?: () => void;
   forwardRef?: React.RefObject<HTMLDivElement | null>;
-}> = ({ label, value, rawValue, onSave, type = 'text', searchable, options, placeholder, onAddNew, forwardRef }) => {
+  /** When provided, clicking the value text opens info instead of editing.
+   *  The pencil icon becomes the sole edit trigger. */
+  onInfoClick?: () => void;
+}> = ({ label, value, rawValue, onSave, type = 'text', searchable, options, placeholder, onAddNew, forwardRef, onInfoClick }) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(rawValue ?? value);
   const [search, setSearch] = useState('');
@@ -247,6 +250,29 @@ const InlineField: React.FC<{
   }, [options, search]);
 
   if (!editing) {
+    // When onInfoClick is provided: name text opens info card, pencil starts edit
+    if (onInfoClick) {
+      return (
+        <div ref={forwardRef} className="group rounded-md px-2 py-1.5 -mx-2">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            {value ? (
+              <button type="button" onClick={onInfoClick}
+                className="text-sm font-semibold text-gray-800 hover:text-blue-600 hover:underline transition-colors text-left">
+                {value}
+              </button>
+            ) : (
+              <span className="text-gray-300 text-sm font-normal">—</span>
+            )}
+            <button type="button" onClick={start}
+              title={`Edit ${label.toLowerCase()}`}
+              className="p-0.5 text-gray-300 hover:text-gray-600 hover:bg-gray-100 rounded transition-all opacity-0 group-hover:opacity-100">
+              <Edit3 className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div
         ref={forwardRef}
@@ -958,6 +984,7 @@ export const QuoteDetail: React.FC = () => {
                   searchable options={customerOptions}
                   forwardRef={accountFieldRef}
                   onAddNew={() => {}}
+                  onInfoClick={quote.customerId ? () => setAccountDialogId(quote.customerId!) : undefined}
                   onSave={v => {
                     const c = customers.find(x => x.id === v);
                     const primary = v ? (contacts.find(ct => ct.customerId === v && ct.isPrimary) || contacts.find(ct => ct.customerId === v)) : undefined;
@@ -969,7 +996,6 @@ export const QuoteDetail: React.FC = () => {
                     });
                   }}
                 />
-                {/* no "View info" link — click the name in the collapsed bar instead */}
               </div>
               <InlineField label="Title" value={quote.title} placeholder="Quote title..."
                 onSave={v => saveField({ title: v })} />
@@ -1008,8 +1034,8 @@ export const QuoteDetail: React.FC = () => {
                 <InlineField label="Contact" value={quote.contactName || ''} placeholder="Search contacts..."
                   searchable options={contactOptions}
                   onAddNew={() => {}}
+                  onInfoClick={quote.contactId ? () => setContactDialogId(quote.contactId!) : undefined}
                   onSave={v => { const c = contacts.find(x => x.id === v); saveField({ contactId: v || undefined, contactName: c ? `${c.firstName} ${c.lastName}` : undefined }); }} />
-                {/* no "View info" link — click the name in the collapsed bar instead */}
               </div>
               {/* Quote Date + Valid Until — both under col 2 (Title above) */}
               <div className="grid grid-cols-2 gap-x-4">
