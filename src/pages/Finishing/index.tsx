@@ -181,6 +181,14 @@ export const Finishing: React.FC = () => {
     return 0;
   };
 
+  // ── Inline example box ── (blue preview, same style as perimeter example)
+  const ExampleBox = ({ title, lines }: { title: string; lines: React.ReactNode[] }) => (
+    <div className="text-[11px] text-gray-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 space-y-0.5">
+      <p className="font-semibold text-blue-800">{title}</p>
+      {lines.map((l, i) => <p key={i}>{l}</p>)}
+    </div>
+  );
+
   const computeTestPrice = (f: typeof form, qty: number) => {
     if (f.isFixedCharge) {
       const total = f.fixedChargeAmount + f.initialSetupFee;
@@ -1036,11 +1044,25 @@ export const Finishing: React.FC = () => {
                         suffix="%"
                       />
                     </div>
-                    {form.hourlyCost > 0 && (form.stacksPerHour || 0) > 0 && (form.sheetsPerStack || 0) > 0 && (
-                      <div className="text-[11px] text-gray-500 bg-gray-50 rounded-md px-3 py-1.5">
-                        Cost per sheet: <span className="font-semibold text-gray-900">{fmt(form.hourlyCost / (form.stacksPerHour || 150) / (form.sheetsPerStack || 500))}</span>
-                      </div>
-                    )}
+                    {/* Example — 10 stacks */}
+                    {form.hourlyCost > 0 && (form.stacksPerHour || 0) > 0 && (form.sheetsPerStack || 0) > 0 && (() => {
+                      const stacks = 10;
+                      const stacksPerHr = form.stacksPerHour || 150;
+                      const sheetsPerStack = form.sheetsPerStack || 500;
+                      const totalSheets = stacks * sheetsPerStack;
+                      const hrs = stacks / stacksPerHr;
+                      const cost = hrs * form.hourlyCost;
+                      const costPerSheet = cost / totalSheets;
+                      const sell = cost * (1 + form.markupPercent / 100) + form.initialSetupFee;
+                      const lines: React.ReactNode[] = [
+                        <>{stacks} stacks × {sheetsPerStack.toLocaleString()} sheets/stack = <span className="font-medium">{totalSheets.toLocaleString()} sheets</span></>,
+                        <>Time: {stacks} ÷ {stacksPerHr}/hr = <span className="font-medium">{hrs.toFixed(3)} hrs</span> × {fmt(form.hourlyCost)}/hr = <span className="text-blue-900 font-medium">{fmt(cost)}</span></>,
+                        <>Cost per sheet: <span className="font-medium">{fmt(costPerSheet)}</span></>,
+                      ];
+                      if (form.initialSetupFee > 0) lines.push(<>+ Setup fee: {fmt(form.initialSetupFee)}</>);
+                      lines.push(<>Sell ({stacks} stacks): <span className="font-bold text-emerald-700">{fmt(sell)}</span></>);
+                      return <ExampleBox title="Example — 10 stacks" lines={lines} />;
+                    })()}
                   </div>
                 )}
 
@@ -1175,134 +1197,211 @@ export const Finishing: React.FC = () => {
                 )}
 
                 {form.chargeBasis === 'per_unit' && (
-                  <div className="grid grid-cols-3 gap-4">
-                    {(form.costType === 'time_only' || form.costType === 'cost_plus_time') && (
-                      <>
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                            <Tip
-                              label="Units Per Hour"
-                              tip="How many units of this service can be completed per hour. Units are determined by the item's quantity or square footage."
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-4">
+                      {(form.costType === 'time_only' || form.costType === 'cost_plus_time') && (
+                        <>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                              <Tip
+                                label="Units Per Hour"
+                                tip="How many units of this service can be completed per hour. Units are determined by the item's quantity or square footage."
+                              />
+                            </label>
+                            <input
+                              type="number"
+                              value={form.outputPerHour || ''}
+                              onChange={e => setForm(f => ({ ...f, outputPerHour: parseInt(e.target.value) || 0 }))}
+                              placeholder="e.g. 5000"
+                              className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400"
                             />
-                          </label>
-                          <input
+                          </div>
+                          <Input
+                            label="Hourly Cost ($)"
                             type="number"
-                            value={form.outputPerHour || ''}
-                            onChange={e => setForm(f => ({ ...f, outputPerHour: parseInt(e.target.value) || 0 }))}
-                            placeholder="e.g. 5000"
-                            className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400"
+                            value={form.hourlyCost || ''}
+                            onChange={e => setForm(f => ({ ...f, hourlyCost: parseFloat(e.target.value) || 0 }))}
+                            prefix="$"
                           />
-                        </div>
+                        </>
+                      )}
+                      {(form.costType === 'cost_only' || form.costType === 'cost_plus_time') && (
                         <Input
-                          label="Hourly Cost ($)"
+                          label="Unit Cost ($)"
                           type="number"
-                          value={form.hourlyCost || ''}
-                          onChange={e => setForm(f => ({ ...f, hourlyCost: parseFloat(e.target.value) || 0 }))}
+                          value={form.unitCost || ''}
+                          onChange={e => setForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))}
                           prefix="$"
                         />
-                      </>
-                    )}
-                    {(form.costType === 'cost_only' || form.costType === 'cost_plus_time') && (
+                      )}
                       <Input
-                        label="Unit Cost ($)"
+                        label="Markup %"
                         type="number"
-                        value={form.unitCost || ''}
-                        onChange={e => setForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))}
-                        prefix="$"
+                        value={form.markupPercent || ''}
+                        onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))}
+                        suffix="%"
                       />
-                    )}
-                    <Input
-                      label="Markup %"
-                      type="number"
-                      value={form.markupPercent || ''}
-                      onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))}
-                      suffix="%"
-                    />
+                    </div>
+                    {/* Example — 1,000 units */}
+                    {computeCostPerUnit(form) > 0 && (() => {
+                      const qty = 1000;
+                      const costPerUnit = computeCostPerUnit(form);
+                      const cost = costPerUnit * qty;
+                      const sell = cost * (1 + form.markupPercent / 100) + form.initialSetupFee;
+                      const lines: React.ReactNode[] = [];
+                      if (form.costType === 'time_only' && form.outputPerHour > 0) {
+                        const hrs = qty / form.outputPerHour;
+                        lines.push(<>Time: {qty.toLocaleString()} ÷ {form.outputPerHour.toLocaleString()}/hr = <span className="font-medium">{hrs.toFixed(2)} hrs</span> × {fmt(form.hourlyCost)}/hr = <span className="text-blue-900 font-medium">{fmt(cost)}</span></>);
+                      } else if (form.costType === 'cost_plus_time' && form.outputPerHour > 0) {
+                        const timePart = (form.hourlyCost / form.outputPerHour) * qty;
+                        lines.push(<>Material: {qty.toLocaleString()} × {fmt(form.unitCost)} = <span className="font-medium">{fmt(form.unitCost * qty)}</span></>);
+                        lines.push(<>Time: {qty.toLocaleString()} ÷ {form.outputPerHour.toLocaleString()}/hr = {(qty/form.outputPerHour).toFixed(2)} hrs × {fmt(form.hourlyCost)}/hr = <span className="font-medium">{fmt(timePart)}</span></>);
+                        lines.push(<>Cost: <span className="text-blue-900 font-medium">{fmt(cost)}</span></>);
+                      } else {
+                        lines.push(<>{qty.toLocaleString()} units × {fmt(costPerUnit)}/unit = <span className="text-blue-900 font-medium">{fmt(cost)}</span></>);
+                      }
+                      if (form.initialSetupFee > 0) lines.push(<>+ Setup fee: {fmt(form.initialSetupFee)}</>);
+                      lines.push(<>Sell: <span className="font-bold text-emerald-700">{fmt(sell)}</span></>);
+                      return <ExampleBox title="Example — 1,000 units" lines={lines} />;
+                    })()}
                   </div>
                 )}
 
                 {form.chargeBasis === 'per_sqft' && (
-                  <div className="grid grid-cols-3 gap-4">
-                    {(form.costType === 'cost_only' || form.costType === 'cost_plus_time') && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-4">
+                      {(form.costType === 'cost_only' || form.costType === 'cost_plus_time') && (
+                        <Input
+                          label="Unit Cost ($/sqft)"
+                          type="number"
+                          value={form.unitCost || ''}
+                          onChange={e => setForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))}
+                          prefix="$"
+                        />
+                      )}
+                      {(form.costType === 'time_only' || form.costType === 'cost_plus_time') && (
+                        <>
+                          <Input
+                            label="Hourly Cost ($)"
+                            type="number"
+                            value={form.hourlyCost || ''}
+                            onChange={e => setForm(f => ({ ...f, hourlyCost: parseFloat(e.target.value) || 0 }))}
+                            prefix="$"
+                          />
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                              <Tip
+                                label="Units Per Hour (sqft/hr)"
+                                tip="How many units of this service can be completed per hour. Units are determined by the item's quantity or square footage."
+                              />
+                            </label>
+                            <input
+                              type="number"
+                              value={form.outputPerHour || ''}
+                              onChange={e => setForm(f => ({ ...f, outputPerHour: parseInt(e.target.value) || 0 }))}
+                              placeholder="e.g. 200"
+                              className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400"
+                            />
+                          </div>
+                        </>
+                      )}
                       <Input
-                        label="Unit Cost ($/sqft)"
+                        label="Markup %"
+                        type="number"
+                        value={form.markupPercent || ''}
+                        onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))}
+                        suffix="%"
+                      />
+                    </div>
+                    {/* Example — 24×36 sign (6 sqft) */}
+                    {computeCostPerUnit(form) > 0 && (() => {
+                      const sqft = (24 * 36) / 144; // 6 sqft
+                      const costPerSqft = computeCostPerUnit(form);
+                      const cost = costPerSqft * sqft;
+                      const sell = cost * (1 + form.markupPercent / 100) + form.initialSetupFee;
+                      const lines: React.ReactNode[] = [];
+                      if (form.costType === 'time_only' && form.outputPerHour > 0) {
+                        const hrs = sqft / form.outputPerHour;
+                        lines.push(<>Area: 24" × 36" = <span className="font-medium">{sqft} sqft</span></>);
+                        lines.push(<>Time: {sqft} sqft ÷ {form.outputPerHour} sqft/hr = <span className="font-medium">{hrs.toFixed(3)} hrs</span> × {fmt(form.hourlyCost)}/hr = <span className="text-blue-900 font-medium">{fmt(cost)}</span></>);
+                      } else if (form.costType === 'cost_plus_time' && form.outputPerHour > 0) {
+                        const timePart = (form.hourlyCost / form.outputPerHour) * sqft;
+                        lines.push(<>Area: 24" × 36" = <span className="font-medium">{sqft} sqft</span></>);
+                        lines.push(<>Material: {sqft} × {fmt(form.unitCost)}/sqft = <span className="font-medium">{fmt(form.unitCost * sqft)}</span></>);
+                        lines.push(<>Time: {sqft} ÷ {form.outputPerHour} sqft/hr = {(sqft/form.outputPerHour).toFixed(3)} hrs × {fmt(form.hourlyCost)}/hr = <span className="font-medium">{fmt(timePart)}</span></>);
+                        lines.push(<>Cost: <span className="text-blue-900 font-medium">{fmt(cost)}</span></>);
+                      } else {
+                        lines.push(<>Area: 24" × 36" = <span className="font-medium">{sqft} sqft</span></>);
+                        lines.push(<>{sqft} sqft × {fmt(costPerSqft)}/sqft = <span className="text-blue-900 font-medium">{fmt(cost)}</span></>);
+                      }
+                      if (form.initialSetupFee > 0) lines.push(<>+ Setup fee: {fmt(form.initialSetupFee)}</>);
+                      lines.push(<>Sell: <span className="font-bold text-emerald-700">{fmt(sell)}</span></>);
+                      return <ExampleBox title="Example — 24″ × 36″ piece (6 sq ft)" lines={lines} />;
+                    })()}
+                  </div>
+                )}
+
+                {form.chargeBasis === 'per_hour' && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-4">
+                      <Input
+                        label="Hourly Cost ($)"
+                        type="number"
+                        value={form.hourlyCost || ''}
+                        onChange={e => setForm(f => ({ ...f, hourlyCost: parseFloat(e.target.value) || 0 }))}
+                        prefix="$"
+                      />
+                      <Input
+                        label="Markup %"
+                        type="number"
+                        value={form.markupPercent || ''}
+                        onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))}
+                        suffix="%"
+                      />
+                    </div>
+                    {/* Example — 1 hour */}
+                    {form.hourlyCost > 0 && (() => {
+                      const cost = form.hourlyCost;
+                      const sell = cost * (1 + form.markupPercent / 100) + form.initialSetupFee;
+                      const lines: React.ReactNode[] = [
+                        <>1 hr × {fmt(form.hourlyCost)}/hr = <span className="text-blue-900 font-medium">{fmt(cost)}</span></>,
+                      ];
+                      if (form.initialSetupFee > 0) lines.push(<>+ Setup fee: {fmt(form.initialSetupFee)}</>);
+                      lines.push(<>Sell: <span className="font-bold text-emerald-700">{fmt(sell)}</span></>);
+                      return <ExampleBox title="Example — 1 hour of work" lines={lines} />;
+                    })()}
+                  </div>
+                )}
+
+                {form.chargeBasis === 'flat' && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-4">
+                      <Input
+                        label="Flat Rate ($)"
                         type="number"
                         value={form.unitCost || ''}
                         onChange={e => setForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))}
                         prefix="$"
                       />
-                    )}
-                    {(form.costType === 'time_only' || form.costType === 'cost_plus_time') && (
-                      <>
-                        <Input
-                          label="Hourly Cost ($)"
-                          type="number"
-                          value={form.hourlyCost || ''}
-                          onChange={e => setForm(f => ({ ...f, hourlyCost: parseFloat(e.target.value) || 0 }))}
-                          prefix="$"
-                        />
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                            <Tip
-                              label="Units Per Hour (sqft/hr)"
-                              tip="How many units of this service can be completed per hour. Units are determined by the item's quantity or square footage."
-                            />
-                          </label>
-                          <input
-                            type="number"
-                            value={form.outputPerHour || ''}
-                            onChange={e => setForm(f => ({ ...f, outputPerHour: parseInt(e.target.value) || 0 }))}
-                            placeholder="e.g. 200"
-                            className="w-full px-3 py-1.5 text-sm bg-white border border-gray-150 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder-gray-400"
-                          />
-                        </div>
-                      </>
-                    )}
-                    <Input
-                      label="Markup %"
-                      type="number"
-                      value={form.markupPercent || ''}
-                      onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))}
-                      suffix="%"
-                    />
-                  </div>
-                )}
-
-                {form.chargeBasis === 'per_hour' && (
-                  <div className="grid grid-cols-3 gap-4">
-                    <Input
-                      label="Hourly Cost ($)"
-                      type="number"
-                      value={form.hourlyCost || ''}
-                      onChange={e => setForm(f => ({ ...f, hourlyCost: parseFloat(e.target.value) || 0 }))}
-                      prefix="$"
-                    />
-                    <Input
-                      label="Markup %"
-                      type="number"
-                      value={form.markupPercent || ''}
-                      onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))}
-                      suffix="%"
-                    />
-                  </div>
-                )}
-
-                {form.chargeBasis === 'flat' && (
-                  <div className="grid grid-cols-3 gap-4">
-                    <Input
-                      label="Flat Rate ($)"
-                      type="number"
-                      value={form.unitCost || ''}
-                      onChange={e => setForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))}
-                      prefix="$"
-                    />
-                    <Input
-                      label="Markup %"
-                      type="number"
-                      value={form.markupPercent || ''}
-                      onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))}
-                      suffix="%"
-                    />
+                      <Input
+                        label="Markup %"
+                        type="number"
+                        value={form.markupPercent || ''}
+                        onChange={e => setForm(f => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))}
+                        suffix="%"
+                      />
+                    </div>
+                    {/* Example — flat charge */}
+                    {form.unitCost > 0 && (() => {
+                      const cost = form.unitCost;
+                      const sell = cost * (1 + form.markupPercent / 100) + form.initialSetupFee;
+                      const lines: React.ReactNode[] = [
+                        <>Flat cost: <span className="text-blue-900 font-medium">{fmt(cost)}</span></>,
+                      ];
+                      if (form.initialSetupFee > 0) lines.push(<>+ Setup fee: {fmt(form.initialSetupFee)}</>);
+                      lines.push(<>Sell: <span className="font-bold text-emerald-700">{fmt(sell)}</span></>);
+                      return <ExampleBox title="Example — flat charge per job" lines={lines} />;
+                    })()}
                   </div>
                 )}
 
