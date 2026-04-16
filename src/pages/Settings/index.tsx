@@ -576,6 +576,17 @@ export const Settings: React.FC = () => {
               <Input label="ZIP" value={company.zip} onChange={e => setCompany(c => ({ ...c, zip: e.target.value }))} />
             </div>
             <Input label="Website" value={company.website} onChange={e => setCompany(c => ({ ...c, website: e.target.value }))} prefix={<Globe className="w-3.5 h-3.5" />} />
+            <div className="pt-2 border-t border-gray-100">
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Google Maps API Key</label>
+              <p className="text-[11px] text-gray-400 mb-2">Enables address autocomplete on all address fields. Get a key at <a href="https://console.cloud.google.com/apis/library/places-backend.googleapis.com" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Google Cloud Console</a> → Maps &gt; Places API.</p>
+              <input
+                type="text"
+                value={(company as any).googleMapsApiKey || ''}
+                onChange={e => setCompany(c => ({ ...c, googleMapsApiKey: e.target.value } as any))}
+                placeholder="AIzaSy…"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 font-mono"
+              />
+            </div>
             <div className="flex gap-3 pt-2">
               <Button variant="primary" onClick={saveCompanySettings}>Save Changes</Button>
             </div>
