@@ -1440,6 +1440,17 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     if (editingLineId !== null) return;
     // Never recompute if there are saved manual overrides (user manually edited lines in this session)
     if (Object.keys(manualOverrides).length > 0) return;
+    // Guard: don't compute until the minimum viable inputs are present.
+    // Exception: brokered services can always be computed on their own.
+    const hasSize      = ps.finalWidth > 0 && ps.finalHeight > 0;
+    const hasMaterial  = !!(ps.materialId || materialEntries[0]?.materialId);
+    const hasEquipment = !!ps.equipmentId;
+    const hasBrokered  = selectedBrokeredIds.length > 0;
+    if (!hasBrokered && !(hasSize && hasMaterial && hasEquipment)) {
+      // Clear any stale lines so the placeholder shows
+      if (ps.serviceLines.length > 0) onUpdatePricing({ serviceLines: [] });
+      return;
+    }
     // Never recompute on first mount when service lines were already loaded from pricingContext
     // (that would wipe manual edits saved in a previous session).
     // Once the user changes a fundamental (material, equipment, quantity etc.) this guard drops.
@@ -3753,8 +3764,32 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               )}
 
               {/* ═══ PRICE BREAKDOWN — inline expandable ══════════════ */}
-              {/* mt-4 gives breathing room after the multi-qty table */}
-              {ps.serviceLines.length > 0 && (() => {
+              {/* Guard: only compute once size + material + equipment are all set,
+                  OR when a brokered service is selected (brokered-only jobs). */}
+              {(() => {
+                const hasSize      = ps.finalWidth > 0 && ps.finalHeight > 0;
+                const hasMaterial  = !!(ps.materialId || materialEntries[0]?.materialId);
+                const hasEquipment = !!ps.equipmentId;
+                const hasBrokered  = selectedBrokeredIds.length > 0;
+                const canCompute   = (hasSize && hasMaterial && hasEquipment) || hasBrokered;
+
+                if (!canCompute) {
+                  return (
+                    <div className="mt-6 rounded-xl border border-dashed border-gray-200 bg-gray-50/50 px-5 py-6 text-center">
+                      <DollarSign className="w-6 h-6 text-gray-300 mx-auto mb-2" />
+                      <p className="text-[12px] font-semibold text-gray-400">Price breakdown not yet available</p>
+                      <p className="text-[11px] text-gray-400 mt-1 leading-relaxed max-w-xs mx-auto">
+                        Enter a <span className="font-medium text-gray-500">size</span>, select a <span className="font-medium text-gray-500">material</span> and <span className="font-medium text-gray-500">equipment</span> — or add a <span className="font-medium text-gray-500">brokered service</span>.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return null; // fall through to the existing ps.serviceLines check below
+              })()}
+
+              {/* Full breakdown — only rendered when canCompute (checked above) is true */}
+              {(((ps.finalWidth > 0 && ps.finalHeight > 0) && !!(ps.materialId || materialEntries[0]?.materialId) && !!ps.equipmentId) || selectedBrokeredIds.length > 0) && ps.serviceLines.length > 0 && (() => {
                 const bLines = ps.serviceLines;
                 const bTotalCost = bLines.reduce((s, l) => s + l.totalCost, 0);
                 const bTotalSell = bLines.reduce((s, l) => s + l.sellPrice, 0);
