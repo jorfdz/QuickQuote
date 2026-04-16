@@ -870,9 +870,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         // cost_per_sqft: direct sqft rate (e.g. $1.00/sqft → 6 sqft = $6.00)
         // cost_per_unit: derive sqft rate from board cost ÷ board area, then
         //                apply to item area (e.g. $15/board ÷ 32 sqft = $0.469/sqft → $2.81)
+        // Material is never multiplied by sides — you use the same board/stock
+        // whether printing single or double-sided. Sides only affect equipment.
         const itemSqft = (ps.finalWidth * ps.finalHeight) / 144;
-        const sides = ps.sides === 'Double' ? 2 : 1;
-        const totalSqft = parseFloat((itemSqft * ps.quantity * originals * sides).toFixed(4));
+        const totalSqft = parseFloat((itemSqft * ps.quantity * originals).toFixed(4));
 
         let costPerSqft: number;
         if (model === 'cost_per_sqft') {
@@ -1424,9 +1425,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       // MATERIAL — area-based for sqft/unit models, sheet-based for cost_per_m
       const matModel = selectedMaterial.pricingModel || 'cost_per_m';
       if (matModel === 'cost_per_sqft' || matModel === 'cost_per_unit') {
+        // Material never multiplied by sides — same stock used regardless of sides printed
         const itemSqft = (ps.finalWidth * ps.finalHeight) / 144;
-        const sidesM = ps.sides === 'Double' ? 2 : 1;
-        const totalSqft = itemSqft * qty * originals * sidesM;
+        const totalSqft = itemSqft * qty * originals;
         let costPerSqft: number;
         if (matModel === 'cost_per_sqft') {
           costPerSqft = selectedMaterial.costPerSqft ?? 0;
