@@ -843,44 +843,57 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
     // MATERIAL — stable id: sl_material_0
     // originals: each unique design/artwork requires its own full press run.
-    // Total sheets = sheetsNeeded per run × number of originals.
     const originals = ps.originals ?? 1;
-    if (selectedMaterial && imposition.sheetsNeeded > 0) {
-      const sheetsPerRun = imposition.sheetsNeeded;
-      const totalSheets = sheetsPerRun * originals;
-
-      // ── Cost per sheet/board — respects the material's pricing model ──────
-      // cost_per_m:    pricePerM / 1000           (standard paper, per sheet)
-      // cost_per_unit: costPerUnit                 (rigid substrates, per board)
-      // cost_per_sqft: costPerSqft × sheetSqft    (roll media / sqft-rated boards)
+    if (selectedMaterial && ps.finalWidth > 0 && ps.finalHeight > 0) {
       const model = selectedMaterial.pricingModel || 'cost_per_m';
-      const tierCost = getTierCost(selectedMaterial, totalSheets);
-      let costPerSheet: number;
-      if (tierCost !== null) {
-        // Tier pricing overrides base cost when the quantity matches a tier
-        costPerSheet = tierCost;
-      } else if (model === 'cost_per_unit') {
-        costPerSheet = selectedMaterial.costPerUnit ?? 0;
-      } else if (model === 'cost_per_sqft') {
-        const sheetW = selectedMaterial.sizeWidth  || ps.finalWidth  || 0;
-        const sheetH = selectedMaterial.sizeHeight || ps.finalHeight || 0;
-        const sheetSqft = (sheetW * sheetH) / 144;
-        costPerSheet = (selectedMaterial.costPerSqft ?? 0) * sheetSqft;
-      } else {
-        // cost_per_m (default)
-        costPerSheet = (selectedMaterial.pricePerM || 0) / 1000;
-      }
-
-      const totalCost = totalSheets * costPerSheet;
       const markup = selectedMaterial.markup;
-      const unitLabel = model === 'cost_per_unit' ? 'boards' : 'sheets';
       const originalsNote = originals > 1 ? ` × ${originals} originals` : '';
-      lines.push({
-        id: slId('material'), service: 'Material',
-        description: `${selectedMaterial.name} (${selectedMaterial.size}) — ${totalSheets} ${unitLabel}${originalsNote}`,
-        quantity: totalSheets, unit: unitLabel, unitCost: costPerSheet,
-        totalCost, markupPercent: markup, sellPrice: totalCost * (1 + markup / 100), editable: true,
-      });
+
+      if (model === 'cost_per_sqft' || model === 'cost_per_unit') {
+        // ── Area-based billing: charge for the item's actual dimensions only ──
+        // For a 24×36 sign cut from a 48×96 board, the customer pays for 6 sqft,
+        // not 32 sqft. This correctly reflects what was consumed.
+        //
+        // cost_per_sqft: direct sqft rate (e.g. $1.00/sqft → 6 sqft = $6.00)
+        // cost_per_unit: derive sqft rate from board cost ÷ board area, then
+        //                apply to item area (e.g. $15/board ÷ 32 sqft = $0.469/sqft → $2.81)
+        const itemSqft = (ps.finalWidth * ps.finalHeight) / 144;
+        const totalSqft = parseFloat((itemSqft * ps.quantity * originals).toFixed(4));
+
+        let costPerSqft: number;
+        if (model === 'cost_per_sqft') {
+          costPerSqft = selectedMaterial.costPerSqft ?? 0;
+        } else {
+          // cost_per_unit → implied sqft rate
+          const boardW = selectedMaterial.sizeWidth || ps.finalWidth;
+          const boardH = selectedMaterial.sizeHeight || ps.finalHeight;
+          const boardSqft = (boardW * boardH) / 144;
+          costPerSqft = boardSqft > 0 ? (selectedMaterial.costPerUnit ?? 0) / boardSqft : 0;
+        }
+
+        const totalCost = totalSqft * costPerSqft;
+        const sqftLabel = totalSqft % 1 === 0 ? String(totalSqft) : totalSqft.toFixed(2);
+        lines.push({
+          id: slId('material'), service: 'Material',
+          description: `${selectedMaterial.name} — ${sqftLabel} sqft${originalsNote}`,
+          quantity: totalSqft, unit: 'sqft', unitCost: costPerSqft,
+          totalCost, markupPercent: markup, sellPrice: totalCost * (1 + markup / 100), editable: true,
+        });
+
+      } else if (imposition.sheetsNeeded > 0) {
+        // ── Sheet-based billing (cost_per_m): charge by number of parent sheets ──
+        // Paper and similar stock: you consume the whole sheet per run so charge by sheets.
+        const totalSheets = imposition.sheetsNeeded * originals;
+        const tierCost = getTierCost(selectedMaterial, totalSheets);
+        const costPerSheet = tierCost !== null ? tierCost : (selectedMaterial.pricePerM || 0) / 1000;
+        const totalCost = totalSheets * costPerSheet;
+        lines.push({
+          id: slId('material'), service: 'Material',
+          description: `${selectedMaterial.name} (${selectedMaterial.size}) — ${totalSheets} sheets${originalsNote}`,
+          quantity: totalSheets, unit: 'sheets', unitCost: costPerSheet,
+          totalCost, markupPercent: markup, sellPrice: totalCost * (1 + markup / 100), editable: true,
+        });
+      }
     }
 
     // PRINTING — stable id: sl_printing_0
@@ -1394,23 +1407,28 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       sheetsNeeded = Math.ceil((qty * originals) / ups);
       cutsPerSheet = rawImp.upsAcross + rawImp.upsDown; // same formula as main imposition
 
-      // MATERIAL — same pricing-model logic as computeServiceLines
+      // MATERIAL — area-based for sqft/unit models, sheet-based for cost_per_m
       const matModel = selectedMaterial.pricingModel || 'cost_per_m';
-      const matTierCost = getTierCost(selectedMaterial, sheetsNeeded);
-      let matCostPerSheet: number;
-      if (matTierCost !== null) {
-        matCostPerSheet = matTierCost;
-      } else if (matModel === 'cost_per_unit') {
-        matCostPerSheet = selectedMaterial.costPerUnit ?? 0;
-      } else if (matModel === 'cost_per_sqft') {
-        const sheetW = selectedMaterial.sizeWidth  || ps.finalWidth  || 0;
-        const sheetH = selectedMaterial.sizeHeight || ps.finalHeight || 0;
-        matCostPerSheet = (selectedMaterial.costPerSqft ?? 0) * (sheetW * sheetH) / 144;
+      if (matModel === 'cost_per_sqft' || matModel === 'cost_per_unit') {
+        const itemSqft = (ps.finalWidth * ps.finalHeight) / 144;
+        const totalSqft = itemSqft * qty * originals;
+        let costPerSqft: number;
+        if (matModel === 'cost_per_sqft') {
+          costPerSqft = selectedMaterial.costPerSqft ?? 0;
+        } else {
+          const boardW = selectedMaterial.sizeWidth || ps.finalWidth;
+          const boardH = selectedMaterial.sizeHeight || ps.finalHeight;
+          const boardSqft = (boardW * boardH) / 144;
+          costPerSqft = boardSqft > 0 ? (selectedMaterial.costPerUnit ?? 0) / boardSqft : 0;
+        }
+        tCost += totalSqft * costPerSqft;
+        tSell += totalSqft * costPerSqft * (1 + selectedMaterial.markup / 100);
       } else {
-        matCostPerSheet = (selectedMaterial.pricePerM || 0) / 1000;
+        const matTierCost = getTierCost(selectedMaterial, sheetsNeeded);
+        const matCostPerSheet = matTierCost !== null ? matTierCost : (selectedMaterial.pricePerM || 0) / 1000;
+        tCost += sheetsNeeded * matCostPerSheet;
+        tSell += sheetsNeeded * matCostPerSheet * (1 + selectedMaterial.markup / 100);
       }
-      tCost += sheetsNeeded * matCostPerSheet;
-      tSell += sheetsNeeded * matCostPerSheet * (1 + selectedMaterial.markup / 100);
     }
 
     // PRINTING
