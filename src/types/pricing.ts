@@ -204,6 +204,7 @@ export interface PricingLabor {
   markupPercent: number;           // markup as percentage
   categoryIds: string[];           // which categories this labor applies to
   laborGroupIds: string[];          // which labor groups this belongs to
+  autoAddCategoryIds?: string[];   // auto-selected on new items in these categories
   isFixedCharge: boolean;           // if true, charge a fixed amount
   fixedChargeAmount: number;        // fixed amount to charge
   fixedChargeCost: number;          // cost basis for fixed charge
@@ -235,6 +236,7 @@ export interface PricingBrokered {
   vendorName?: string;             // cached vendor name
   categoryIds: string[];           // which categories this applies to
   brokeredGroupIds: string[];       // which brokered groups this belongs to
+  autoAddCategoryIds?: string[];   // auto-selected on new items in these categories
 
   // ── Sell-side pricing (Options A + B) ──
   pricingMode?: ServicePricingMode;
