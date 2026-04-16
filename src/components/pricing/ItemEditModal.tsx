@@ -852,18 +852,20 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     let desc = ps.productName || '';
 
     if (mat) {
-      // Strip parent/unit size dimensions from the material name.
-      // e.g. "Gloss Text 100# 13×19"   → "Gloss Text 100#"
-      //      "Foamboard 3/16" (48×96)" → "Foamboard 3/16""
-      //      "3M Vinyl 54" wide"        → "3M Vinyl 54" wide" (no W×H pair, left intact)
-      // Matches: optional '(' + digits × digits + optional ')' at the end or anywhere.
+      // Show material brand/grade/type but strip the parent/run sheet size.
+      // e.g. "Gloss Text 100# 13×19"    → "Gloss Text 100#"
+      //      "Foamboard 3/16" (48×96)"  → "Foamboard 3/16""
+      //      "3M Vinyl 54" wide"         → "3M Vinyl" (no sheet pair → leave intact)
       const matLabel = mat.name
         .replace(/\s*\(?\d+\.?\d*\s*[xX×]\s*\d+\.?\d*"?\)?\s*$/, '')
         .trim();
       desc += ' - ' + matLabel;
     }
 
-    // Never include the final item size (W×H) — per user requirement.
+    // Always append the final (finish) item size — this is what the client receives.
+    if (ps.finalWidth && ps.finalHeight) {
+      desc += ', ' + ps.finalWidth + '×' + ps.finalHeight + '"';
+    }
 
     // Append color and sides only when a material is selected.
     if (mat && !isMultiPart) {
@@ -871,7 +873,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       if (ps.sides)     desc += ', ' + ps.sides + '-Sided';
     }
     return desc;
-  }, [ps.productName, ps.materialId, ps.colorMode, ps.sides, materials, isMultiPart]);
+  }, [ps.productName, ps.materialId, ps.finalWidth, ps.finalHeight, ps.colorMode, ps.sides, materials, isMultiPart]);
 
   useEffect(() => {
     if (!autoDescribe || !ps.productName) return;
@@ -4082,7 +4084,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                                 type="button"
                                                 onClick={() => setQuickEditSvc({ ...parsed, lineIdPattern: `sl_${parsed.type}_${parsed.id}` })}
                                                 title={`Edit ${service} service`}
-                                                className="p-0.5 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded transition-all flex-shrink-0"
+                                                className="p-0.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all flex-shrink-0"
                                               >
                                                 <Edit3 className="w-2.5 h-2.5" />
                                               </button>
