@@ -585,6 +585,53 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // Which per_perimeter service picker is currently open (null = closed)
   const [perimPickerSvcId, setPerimPickerSvcId] = useState<string | null>(null);
 
+  // ── Reactive auto-add: fires when the item's category changes after mount ──
+  // The useState initializer above handles the case where the category is known
+  // at mount. This effect handles the case where the category is assigned later
+  // (e.g. Catalog "Add Product" — user selects the category after the modal opens,
+  // or Quote/Order where the product is picked after the modal is already open).
+  //
+  // We track which category IDs have already been processed in a ref so we never
+  // double-add services that were already handled by the initializer.
+  // Pre-populate with the category known at mount so the effect doesn't repeat it
+  const _initCatId = categories.find(c => c.name === ps.categoryName)?.id;
+  const autoAddProcessedCatIds = React.useRef<Set<string>>(
+    new Set(_initCatId ? [_initCatId] : [])
+  );
+
+  useEffect(() => {
+    // Collect current category IDs to evaluate
+    const catIdsNow: string[] = [];
+    if (isProductCreation && selectedCategoryIds && selectedCategoryIds.length > 0) {
+      catIdsNow.push(...selectedCategoryIds);
+    } else {
+      const catId = categories.find(c => c.name === ps.categoryName)?.id;
+      if (catId) catIdsNow.push(catId);
+    }
+
+    // Only process categories we haven't seen before
+    const freshCatIds = catIdsNow.filter(id => !autoAddProcessedCatIds.current.has(id));
+    if (freshCatIds.length === 0) return;
+    freshCatIds.forEach(id => autoAddProcessedCatIds.current.add(id));
+
+    // Collect services to auto-add for these newly-seen categories
+    const toAdd = finishing
+      .filter(svc =>
+        (svc.autoAddCategoryIds ?? []).some(catId => freshCatIds.includes(catId))
+      )
+      .map(svc => svc.id);
+
+    if (toAdd.length > 0) {
+      setSelectedFinishingIds(prev => {
+        const merged = [...prev];
+        toAdd.forEach(id => { if (!merged.includes(id)) merged.push(id); });
+        return merged;
+      });
+      trackInteraction();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isProductCreation ? (selectedCategoryIds ?? []).join(',') : ps.categoryName]);
+
   // Sync labor/brokered selections into pricing state so they persist in pricingContext
   useEffect(() => {
     if (JSON.stringify(selectedLaborIds) !== JSON.stringify(ps.selectedLaborIds ?? [])) {
