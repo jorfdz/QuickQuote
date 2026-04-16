@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Video, MessageCircle, BookOpen, Zap } from 'lucide-react';
+import { Search, Video, MessageCircle, BookOpen, Zap, Smile } from 'lucide-react';
 import { Card, PageHeader } from '../../components/ui';
 
 const DOCS = [
@@ -20,7 +20,12 @@ export const Help: React.FC = () => {
   const filtered = DOCS.filter(d => !search || d.title.toLowerCase().includes(search.toLowerCase()));
   return (
     <div>
-      <PageHeader title="Help Center" subtitle="Documentation, guides, and support" />
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2">Help Center <Smile className="w-5 h-5 text-yellow-500" /></h1>
+          <p className="text-[13px] text-gray-500 mt-0.5">Documentation, guides, and support</p>
+        </div>
+      </div>
       <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-8 mb-6 text-white text-center">
         <h2 className="text-2xl font-bold mb-2">How can we help?</h2>
         <div className="relative max-w-md mx-auto mt-4">
