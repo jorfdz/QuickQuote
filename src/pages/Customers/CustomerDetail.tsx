@@ -17,7 +17,7 @@ const TABS = ['Overview', 'Contacts', 'Quotes', 'Orders', 'Invoices', 'Activity'
 export const CustomerDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { customers, contacts, quotes, orders, invoices, updateCustomer, addContact } = useStore();
+  const { customers, contacts, quotes, orders, invoices, updateCustomer, addContact, companySettings } = useStore();
 
   const customer = customers.find(c => c.id === id);
   const [activeTab, setActiveTab] = useState('Overview');
