@@ -432,9 +432,12 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // Restore the full multi-qty string from pricingContext if it was previously saved
   const [multiQtyInput, setMultiQtyInput] = useState(ps.multiQtyString || String(ps.quantity || 1000));
   // Auto-describe is ON only for brand-new items (no existing description).
-  // If the item already has a description written by the user, default to OFF
-  // so we never overwrite what they typed.
-  const [autoDescribe, setAutoDescribe] = useState(() => !item.description);
+  // Auto-describe is ON by default every time the modal opens.
+  // It turns OFF only when the user manually edits the description textarea in
+  // the current session (onChange below calls setAutoDescribe(false)).
+  // Exception: if the item has a rich (HTML) description, auto-describe can't
+  // safely regenerate it, so we start it OFF in that case.
+  const [autoDescribe, setAutoDescribe] = useState(() => !(item as any).richDescription);
   const [sizeInput, setSizeInput] = useState(
     ps.finalWidth > 0 && ps.finalHeight > 0 ? `${ps.finalWidth}x${ps.finalHeight}` : ''
   );
