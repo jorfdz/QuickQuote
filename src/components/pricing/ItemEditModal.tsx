@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   Plus, Trash2, ChevronDown, ChevronRight, ChevronUp, Search, X, Scissors, FoldVertical, CircleDot, Printer,
   Package, DollarSign, Grid3X3, Edit3, Check, Star, Settings2,
-  Percent, Hash, Info, RefreshCw, Eye, Layers, Wrench, Hand, Lock, LockOpen,
+  Percent, Hash, Info, RefreshCw, Eye, Layers, Wrench, Hand, Lock, LockOpen, ExternalLink,
 } from 'lucide-react';
 import { usePricingStore } from '../../store/pricingStore';
 import { Button, Badge, ConfirmDialog } from '../../components/ui';
@@ -15,6 +15,16 @@ import { getTierCost, getUnitCost, getUnitLabel } from '../../utils/materialCost
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
 const fmt = (n: number) => formatCurrency(n);
+
+/** Extract the underlying service ID and type from a breakdown line ID.
+ *  Line IDs follow the pattern: sl_<type>_<serviceId>_<index>
+ *  e.g. sl_labor_abc123_0  →  { type: 'labor', id: 'abc123' }
+ */
+function parseServiceFromLineId(lineId: string): { type: 'finishing' | 'labor' | 'brokered'; id: string } | null {
+  const m = lineId.match(/^sl_(finishing|labor|brokered)_(.+)_\d+$/);
+  if (!m) return null;
+  return { type: m[1] as 'finishing' | 'labor' | 'brokered', id: m[2] };
+}
 const fmtPct = (n: number) => `${n.toFixed(1)}%`;
 // Unit costs always show 3 decimal places — critical in print (e.g. $0.025/click, $0.035/sheet)
 const fmtUnit = (n: number) =>
@@ -356,6 +366,137 @@ const SidesIndicator: React.FC<{ sel: PerimeterSideSelection }> = ({ sel }) => (
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── SERVICE QUICK-EDIT DIALOG ───────────────────────────────────────────────
+// Opens the full service definition form directly from the price breakdown row.
+// The user can adjust rates, markup, and any other field, then save. The parent
+// item modal will recompute automatically because the store update triggers
+// computeServiceLines via its deps on pricing.labor / pricing.finishing / pricing.brokered.
+
+const ServiceQuickEditDialog: React.FC<{
+  type: 'finishing' | 'labor' | 'brokered';
+  id: string;
+  onClose: () => void;
+}> = ({ type, id, onClose }) => {
+  const { finishing, labor, brokered, updateFinishing, updateLabor, updateBrokered } = usePricingStore();
+
+  // Build a simple editable snapshot from the current service record
+  const svc = type === 'finishing' ? finishing.find(s => s.id === id)
+             : type === 'labor'    ? labor.find(s => s.id === id)
+             : brokered.find(s => s.id === id);
+
+  const [form, setForm] = React.useState(() => svc ? { ...svc } : null);
+
+  if (!form || !svc) return null;
+
+  const handleSave = () => {
+    if (type === 'finishing') updateFinishing(id, form as any);
+    else if (type === 'labor') updateLabor(id, form as any);
+    else updateBrokered(id, form as any);
+    onClose();
+  };
+
+  // Field helper
+  const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+    <div>
+      <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">{label}</label>
+      {children}
+    </div>
+  );
+  const inp = 'w-full px-2.5 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400';
+  const numInp = `${inp} text-right num`;
+
+  const name = (form as any).name ?? '';
+  const description = (form as any).description ?? '';
+  const markupPercent = (form as any).markupPercent ?? 0;
+  const hourlyCost = (form as any).hourlyCost ?? 0;
+  const unitCost = (form as any).unitCost ?? 0;
+  const outputPerHour = (form as any).outputPerHour ?? 0;
+  const initialSetupFee = (form as any).initialSetupFee ?? 0;
+  const minimumCharge = (form as any).minimumCharge ?? 0;
+
+  return (
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/50"
+      onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh]"
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <p className="text-sm font-bold text-gray-900">{name}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5 capitalize">{type} service — quick edit</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+          <Field label="Name">
+            <input className={inp} value={name}
+              onChange={e => setForm((f: any) => ({ ...f, name: e.target.value }))} />
+          </Field>
+          <Field label="Description">
+            <input className={inp} value={description} placeholder="Optional…"
+              onChange={e => setForm((f: any) => ({ ...f, description: e.target.value }))} />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            {hourlyCost !== undefined && (
+              <Field label="Hourly Cost ($)">
+                <input type="number" className={numInp} value={hourlyCost}
+                  onChange={e => setForm((f: any) => ({ ...f, hourlyCost: parseFloat(e.target.value) || 0 }))} />
+              </Field>
+            )}
+            {unitCost !== undefined && (
+              <Field label="Unit Cost ($)">
+                <input type="number" className={numInp} value={unitCost}
+                  onChange={e => setForm((f: any) => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))} />
+              </Field>
+            )}
+            {outputPerHour !== undefined && outputPerHour > 0 && (
+              <Field label="Output / Hour">
+                <input type="number" className={numInp} value={outputPerHour}
+                  onChange={e => setForm((f: any) => ({ ...f, outputPerHour: parseInt(e.target.value) || 0 }))} />
+              </Field>
+            )}
+            <Field label="Markup %">
+              <input type="number" className={numInp} value={markupPercent}
+                onChange={e => setForm((f: any) => ({ ...f, markupPercent: parseFloat(e.target.value) || 0 }))} />
+            </Field>
+            <Field label="Setup Fee ($)">
+              <input type="number" className={numInp} value={initialSetupFee}
+                onChange={e => setForm((f: any) => ({ ...f, initialSetupFee: parseFloat(e.target.value) || 0 }))} />
+            </Field>
+            {minimumCharge !== undefined && (
+              <Field label="Minimum Charge ($)">
+                <input type="number" className={numInp} value={minimumCharge}
+                  onChange={e => setForm((f: any) => ({ ...f, minimumCharge: parseFloat(e.target.value) || 0 }))} />
+              </Field>
+            )}
+          </div>
+
+          <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Changes save directly to the service catalog and affect all future items. The price breakdown will recompute automatically.
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+          <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 font-medium">Cancel</button>
+          <button onClick={handleSave}
+            className="px-4 py-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface ProductEditModalProps {
   item: QuoteLineItem;
   pricingState: LineItemPricingState;
@@ -589,6 +730,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   );
   // Which per_perimeter service picker is currently open (null = closed)
   const [perimPickerSvcId, setPerimPickerSvcId] = useState<string | null>(null);
+  // Quick-edit: opens the full service dialog directly from the price breakdown
+  const [quickEditSvc, setQuickEditSvc] = useState<{ type: 'finishing' | 'labor' | 'brokered'; id: string } | null>(null);
 
   // ── Reactive auto-add / auto-remove: fires when categories change ───────────
   //
@@ -4036,11 +4179,26 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
                                       {/* SERVICE */}
                                       <td className={`py-2 ${tdPx} ${isGrouped ? 'pl-7 text-[10px] text-gray-700 font-medium' : 'text-[11px] font-bold text-gray-900'}`}>
-                                        <span className="flex items-center gap-1.5 whitespace-nowrap">
+                                        <span className="flex items-center gap-1 whitespace-nowrap">
                                           {isGrouped ? bSubLabel(line) : service}
                                           {manualOverrides[line.id] && (
                                             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Manually edited" />
                                           )}
+                                          {/* Quick-edit shortcut: opens the service definition dialog */}
+                                          {(() => {
+                                            const parsed = parseServiceFromLineId(line.id);
+                                            if (!parsed) return null;
+                                            return (
+                                              <button
+                                                type="button"
+                                                onClick={() => setQuickEditSvc(parsed)}
+                                                title={`Edit ${service} service definition`}
+                                                className="p-0.5 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded transition-all flex-shrink-0"
+                                              >
+                                                <ExternalLink className="w-2.5 h-2.5" />
+                                              </button>
+                                            );
+                                          })()}
                                         </span>
                                       </td>
 
@@ -4772,6 +4930,20 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         />
       );
     })()}
+
+    {/* ── Service Quick-Edit — opens service definition directly from breakdown ── */}
+    {quickEditSvc && (
+      <ServiceQuickEditDialog
+        type={quickEditSvc.type}
+        id={quickEditSvc.id}
+        onClose={() => {
+          setQuickEditSvc(null);
+          // Clear manual overrides so the breakdown recomputes with the new service rates
+          setManualOverrides({});
+          trackInteraction();
+        }}
+      />
+    )}
     </>
   );
 };
