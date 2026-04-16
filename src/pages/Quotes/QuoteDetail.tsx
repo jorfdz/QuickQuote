@@ -72,13 +72,16 @@ const AccountInfoDialog: React.FC<{
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div>
             <p className="font-bold text-gray-900 text-base">{customer.name}</p>
-            {customer.accountNumber && <p className="text-xs text-gray-400 mt-0.5">Acct #{customer.accountNumber}</p>}
+            <div className="flex items-center gap-3 mt-0.5">
+              {customer.customerNumber && <span className="text-xs font-bold text-blue-600 tracking-wide">{customer.customerNumber}</span>}
+              {customer.accountNumber && <span className="text-xs text-gray-400">Acct #{customer.accountNumber}</span>}
+            </div>
           </div>
           <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="px-5 py-4 space-y-3">
+        <div className="px-5 py-4 space-y-2.5">
           {[
             { label: 'Email', value: customer.email },
             { label: 'Phone', value: customer.phone },
@@ -91,12 +94,18 @@ const AccountInfoDialog: React.FC<{
             { label: 'Notes', value: customer.notes },
           ].filter(r => r.value).map(r => (
             <div key={r.label} className="flex justify-between text-sm">
-              <span className="text-gray-500 flex-shrink-0 w-24">{r.label}</span>
-              <span className="text-gray-900 font-medium text-right">{r.value}</span>
+              <span className="text-gray-400 flex-shrink-0 w-24">{r.label}</span>
+              <span className="text-gray-800 font-medium text-right">{r.value}</span>
             </div>
           ))}
         </div>
-        <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+        <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+          <button
+            onClick={() => { window.open(`/customers/${customer.id}`, '_blank'); onClose(); }}
+            className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+          >
+            View full account card →
+          </button>
           <button onClick={onClose} className="px-4 py-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg">Close</button>
         </div>
       </div>
@@ -107,33 +116,44 @@ const AccountInfoDialog: React.FC<{
 // ─── Contact Info Dialog ──────────────────────────────────────────────────────
 const ContactInfoDialog: React.FC<{
   contact: Contact | undefined;
+  customerId?: string;
   onClose: () => void;
-}> = ({ contact, onClose }) => {
+}> = ({ contact, customerId, onClose }) => {
   if (!contact) return null;
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <p className="font-bold text-gray-900 text-base">{contact.firstName} {contact.lastName}</p>
+          <div>
+            <p className="font-bold text-gray-900 text-base">{contact.firstName} {contact.lastName}</p>
+            {contact.title && <p className="text-xs text-gray-400 mt-0.5">{contact.title}</p>}
+          </div>
           <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="px-5 py-4 space-y-3">
+        <div className="px-5 py-4 space-y-2.5">
           {[
-            { label: 'Title', value: contact.title },
             { label: 'Email', value: contact.email },
             { label: 'Phone', value: contact.phone },
             { label: 'Mobile', value: contact.mobile },
             { label: 'Notes', value: contact.notes },
           ].filter(r => r.value).map(r => (
             <div key={r.label} className="flex justify-between text-sm">
-              <span className="text-gray-500 w-20">{r.label}</span>
-              <span className="text-gray-900 font-medium text-right">{r.value}</span>
+              <span className="text-gray-400 w-20">{r.label}</span>
+              <span className="text-gray-800 font-medium text-right">{r.value}</span>
             </div>
           ))}
         </div>
-        <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+        <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+          {customerId ? (
+            <button
+              onClick={() => { window.open(`/customers/${customerId}`, '_blank'); onClose(); }}
+              className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+            >
+              View full contact card →
+            </button>
+          ) : <span />}
           <button onClick={onClose} className="px-4 py-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg">Close</button>
         </div>
       </div>
@@ -873,6 +893,12 @@ export const QuoteDetail: React.FC = () => {
             {/* Account + contact compact — clickable */}
             {(quote.customerName || quote.contactName) && (
               <div className="flex items-center gap-2 text-xs text-gray-500 flex-shrink-0">
+                {quote.customerId && (() => {
+                  const acct = customers.find(c => c.id === quote.customerId);
+                  return acct?.customerNumber ? (
+                    <span className="text-[10px] font-bold text-blue-500 tracking-wide border border-blue-200 bg-blue-50 px-1.5 py-0.5 rounded">{acct.customerNumber}</span>
+                  ) : null;
+                })()}
                 {quote.customerName && (
                   <button type="button"
                     onClick={e => { e.stopPropagation(); setAccountDialogId(quote.customerId || null); }}
@@ -943,12 +969,7 @@ export const QuoteDetail: React.FC = () => {
                     });
                   }}
                 />
-                {quote.customerId && (
-                  <button type="button" onClick={() => setAccountDialogId(quote.customerId!)}
-                    className="mt-0.5 flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700 transition-colors">
-                    <Eye className="w-3 h-3" /> View info
-                  </button>
-                )}
+                {/* no "View info" link — click the name in the collapsed bar instead */}
               </div>
               <InlineField label="Title" value={quote.title} placeholder="Quote title..."
                 onSave={v => saveField({ title: v })} />
@@ -988,12 +1009,7 @@ export const QuoteDetail: React.FC = () => {
                   searchable options={contactOptions}
                   onAddNew={() => {}}
                   onSave={v => { const c = contacts.find(x => x.id === v); saveField({ contactId: v || undefined, contactName: c ? `${c.firstName} ${c.lastName}` : undefined }); }} />
-                {quote.contactId && (
-                  <button type="button" onClick={() => setContactDialogId(quote.contactId!)}
-                    className="mt-0.5 flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700 transition-colors">
-                    <Eye className="w-3 h-3" /> View info
-                  </button>
-                )}
+                {/* no "View info" link — click the name in the collapsed bar instead */}
               </div>
               {/* Quote Date + Valid Until — both under col 2 (Title above) */}
               <div className="grid grid-cols-2 gap-x-4">
@@ -1144,6 +1160,31 @@ export const QuoteDetail: React.FC = () => {
               </div>
             </div>
           </Card>
+
+          {/* Notes box — customer-facing and internal */}
+          <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 space-y-3">
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Notes</p>
+            <div>
+              <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide block mb-1">Customer Notes</label>
+              <textarea
+                rows={3}
+                value={quote.notes || ''}
+                onChange={e => saveField({ notes: e.target.value || undefined })}
+                placeholder="Visible to the customer on the quote…"
+                className="w-full text-xs px-2.5 py-2 border border-blue-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 resize-none placeholder-gray-300 text-gray-700"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide block mb-1">Internal Notes</label>
+              <textarea
+                rows={3}
+                value={quote.internalNotes || ''}
+                onChange={e => saveField({ internalNotes: e.target.value || undefined })}
+                placeholder="Internal only — not shown to the customer…"
+                className="w-full text-xs px-2.5 py-2 border border-amber-200 rounded-lg bg-amber-50/50 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none placeholder-gray-300 text-gray-700"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1371,6 +1412,7 @@ export const QuoteDetail: React.FC = () => {
       {contactDialogId && (
         <ContactInfoDialog
           contact={contacts.find(c => c.id === contactDialogId)}
+          customerId={quote.customerId}
           onClose={() => setContactDialogId(null)}
         />
       )}

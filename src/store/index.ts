@@ -14,8 +14,11 @@ import trackingDevicesSeed from '../data/trackingDevices.json';
 import { realCustomers, realContacts, realOrders } from '../data/realData';
 import { DEFAULT_COMPANY_SETTINGS, DEFAULT_DOCUMENT_TEMPLATES } from '../data/documentSettings';
 
-// Merge real data with mock data (deduplicate by id)
-const allCustomers = realCustomers;
+// Merge real data with mock data — assign sequential customer numbers to seed data
+const allCustomers = realCustomers.map((c, i) => ({
+  ...c,
+  customerNumber: c.customerNumber ?? `C${String(i + 1).padStart(5, '0')}`,
+}));
 const allContacts = realContacts;
 const allOrders: Order[] = [
   ...realOrders,
@@ -49,6 +52,7 @@ interface AppStore {
   orderCount: number;
   invoiceCount: number;
   poCount: number;
+  customerCount: number;
 
   // UI State
   sidebarCollapsed: boolean;
@@ -58,6 +62,7 @@ interface AppStore {
   addCustomer: (c: Customer) => void;
   updateCustomer: (id: string, c: Partial<Customer>) => void;
   deleteCustomer: (id: string) => void;
+  nextCustomerNumber: () => string;
 
   // Contacts
   addContact: (c: Contact) => void;
@@ -142,14 +147,22 @@ export const useStore = create<AppStore>()(
       orderCount: allOrders.length,
       invoiceCount: 1,
       poCount: 1,
+      customerCount: allCustomers.length,
       sidebarCollapsed: false,
 
       setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
 
       // Customers
-      addCustomer: (c) => set((s) => ({ customers: [c, ...s.customers] })),
+      addCustomer: (c) => set((s) => {
+        const n = s.customerCount + 1;
+        return {
+          customers: [{ ...c, customerNumber: `C${String(n).padStart(5, '0')}` }, ...s.customers],
+          customerCount: n,
+        };
+      }),
       updateCustomer: (id, c) => set((s) => ({ customers: s.customers.map(x => x.id === id ? { ...x, ...c, updatedAt: new Date().toISOString() } : x) })),
       deleteCustomer: (id) => set((s) => ({ customers: s.customers.filter(x => x.id !== id) })),
+      nextCustomerNumber: () => { const n = get().customerCount + 1; return `C${String(n).padStart(5, '0')}`; },
 
       // Contacts
       addContact: (c) => set((s) => ({ contacts: [c, ...s.contacts] })),
@@ -378,7 +391,7 @@ export const useStore = create<AppStore>()(
     }),
     {
       name: 'quikquote-storage',
-      version: 9,
+      version: 10,
       migrate: (persistedState) => {
         const state = persistedState as Partial<AppStore> | undefined;
 
@@ -386,8 +399,17 @@ export const useStore = create<AppStore>()(
           return state;
         }
 
+        // Assign customer numbers to any customer that doesn't have one yet
+        const existingCustomers: Customer[] = state.customers || allCustomers;
+        const migratedCustomers = existingCustomers.map((c, i) => ({
+          ...c,
+          customerNumber: c.customerNumber ?? `C${String(i + 1).padStart(5, '0')}`,
+        }));
+
         return {
           ...state,
+          customers: migratedCustomers,
+          customerCount: Math.max(state.customerCount ?? 0, migratedCustomers.length),
           workflows: (state.workflows || mockWorkflows).map((workflow) => {
             const nextWorkflow = workflow as Workflow & { description?: string; isActive?: boolean };
             return {

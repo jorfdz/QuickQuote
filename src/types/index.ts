@@ -19,6 +19,7 @@ export interface User {
 
 export interface Customer {
   id: string;
+  customerNumber?: string;           // sequential 5-digit display number: C00001, C00002, …
   name: string;
   company?: string;
   email?: string;

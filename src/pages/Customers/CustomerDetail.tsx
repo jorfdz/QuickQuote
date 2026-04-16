@@ -93,7 +93,14 @@ export const CustomerDetail: React.FC = () => {
             {customer.name.charAt(0)}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
+              {customer.customerNumber && (
+                <span className="text-sm font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg tracking-wide">
+                  {customer.customerNumber}
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-3 mt-1">
               {customer.email && (
                 <a href={`mailto:${customer.email}`} className="text-sm text-gray-500 hover:text-brand-600 flex items-center gap-1">
