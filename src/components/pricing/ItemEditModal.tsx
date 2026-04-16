@@ -542,8 +542,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [bQtyInputs,  setBQtyInputs]  = useState<Record<string, string>>({});
   const [bTimeErrors, setBTimeErrors] = useState<Record<string, boolean>>({});
   const [bQtyErrors,  setBQtyErrors]  = useState<Record<string, boolean>>({});
-  const [bLockedIds,  setBLockedIds]  = useState<Set<string>>(new Set());
-  const [bShowProfit, setBShowProfit] = useState(false);
+  const [bLockedIds,     setBLockedIds]     = useState<Set<string>>(new Set());
+  const [bShowProfit,    setBShowProfit]    = useState(false);
+  const [expandedDescIds, setExpandedDescIds] = useState<Set<string>>(new Set());
   const [bTotalMkInput, setBTotalMkInput] = useState<string | null>(null);
   const [bTotalSellInput, setBTotalSellInput] = useState<string | null>(null);
   const [bTotalMkErr,   setBTotalMkErr]   = useState(false);
@@ -4160,25 +4161,27 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                           const displayText = isGrouped && raw.includes(' — ')
                                             ? raw.split(' — ').slice(1).join(' — ')
                                             : raw;
-                                          // Truncate visually; full text in title + click opens a small overlay
-                                          const [descExpanded, setDescExpanded] = React.useState(false);
-                                          const CHAR_LIMIT = 48;
-                                          const isTruncatable = displayText.length > CHAR_LIMIT;
+                                          const isExpanded = expandedDescIds.has(line.id);
+                                          const toggle = () => setExpandedDescIds(prev => {
+                                            const s = new Set(prev);
+                                            s.has(line.id) ? s.delete(line.id) : s.add(line.id);
+                                            return s;
+                                          });
                                           return (
                                             <div className="relative">
                                               <button
                                                 type="button"
-                                                onClick={() => isTruncatable && setDescExpanded(x => !x)}
-                                                title={isTruncatable ? 'Click to read full description' : raw}
-                                                className={`block text-left text-[11px] text-gray-700 w-full overflow-hidden ${isTruncatable ? 'cursor-pointer hover:text-gray-900' : 'cursor-default'}`}
+                                                onClick={toggle}
+                                                title="Click to expand"
+                                                className="block text-left text-[11px] text-gray-700 w-full overflow-hidden cursor-pointer hover:text-gray-900"
                                                 style={{ display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' } as React.CSSProperties}
                                               >
                                                 {displayText}
                                               </button>
-                                              {descExpanded && (
+                                              {isExpanded && (
                                                 <div
                                                   className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-xl px-3 py-2 text-[11px] text-gray-700 max-w-[360px] w-max leading-relaxed"
-                                                  onClick={() => setDescExpanded(false)}
+                                                  onClick={toggle}
                                                 >
                                                   {raw}
                                                   <span className="block text-[10px] text-gray-400 mt-1">Click to close</span>
