@@ -1170,26 +1170,34 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     }
 
     // CUTTING — stable id: sl_cutting_0
+    // Per-stack logic:
+    //   1. Stacks needed     = ceil(sheets / sheetsPerStack)
+    //   2. Cut operations    = stacks × cutsPerSheet  (each stack goes through cutter that many times)
+    //   3. Hours             = cutOperations / stacksPerHour
+    //   4. Cost              = hours × hourlyCost
     if (ps.cuttingEnabled && effectiveSheetsNeeded > 0 && imposition.cutsPerSheet > 0) {
       const cutSvc = finishing.find(f => f.name === 'Cut');
       if (cutSvc) {
-        const totalStacks = Math.ceil(effectiveSheetsNeeded / ps.sheetsPerStack);
-        const totalCuts = imposition.cutsPerSheet * totalStacks;
-        const hours = totalCuts / cutSvc.outputPerHour;
-        const totalCost = cutSvc.pricingMode === 'fixed'
+        const sheetsPerStack  = (cutSvc.sheetsPerStack ?? ps.sheetsPerStack) || 500;
+        const stacksPerHr     = cutSvc.stacksPerHour || 150;
+        const totalStacks     = Math.ceil(effectiveSheetsNeeded / sheetsPerStack);
+        const totalCutOps     = imposition.cutsPerSheet * totalStacks; // cut passes through the machine
+        const hours           = stacksPerHr > 0 ? totalCutOps / stacksPerHr : 0;
+        const costPerCutOp    = stacksPerHr > 0 ? cutSvc.hourlyCost / stacksPerHr : 0;
+        const totalCost       = cutSvc.pricingMode === 'fixed'
           ? (cutSvc.fixedChargeCost ?? 0)
           : hours * cutSvc.hourlyCost;
-        const rcRate = lookupServiceSellRate(cutSvc, totalCuts);
+        const rcRate = lookupServiceSellRate(cutSvc, totalCutOps);
         const sellPrice = cutSvc.pricingMode === 'fixed'
           ? (cutSvc.fixedChargeAmount ?? 0)
           : rcRate !== null
-            ? totalCuts * rcRate
+            ? totalCutOps * rcRate
             : totalCost * (1 + cutSvc.markupPercent / 100);
         const markupPct = totalCost > 0 ? ((sellPrice - totalCost) / totalCost) * 100 : 0;
         lines.push({
           id: slId('cutting'), service: 'Cutting',
-          description: `${totalCuts} cuts (${imposition.cutsPerSheet}/sheet × ${totalStacks} stacks)`,
-          quantity: totalCuts, unit: 'cuts', unitCost: cutSvc.hourlyCost / cutSvc.outputPerHour,
+          description: `${totalCutOps} cut ops (${totalStacks} stack${totalStacks !== 1 ? 's' : ''} × ${imposition.cutsPerSheet} passes @ ${stacksPerHr}/hr)`,
+          quantity: totalCutOps, unit: 'cuts', unitCost: costPerCutOp,
           totalCost, markupPercent: markupPct, sellPrice, editable: true,
           hourlyCost: cutSvc.hourlyCost, hoursActual: hours, hoursCharge: hours,
         });
@@ -1655,18 +1663,20 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       }
     }
 
-    // CUTTING
+    // CUTTING — same per-stack logic as computeServiceLines
     if (ps.cuttingEnabled && sheetsNeeded > 0 && cutsPerSheet > 0) {
       const cutSvc = finishing.find(f => f.name === 'Cut');
       if (cutSvc) {
-        const totalStacks = Math.ceil(sheetsNeeded / ps.sheetsPerStack);
-        const totalCuts   = cutsPerSheet * totalStacks;
-        const hours       = totalCuts / cutSvc.outputPerHour;
+        const sheetsPerStack = (cutSvc.sheetsPerStack ?? ps.sheetsPerStack) || 500;
+        const stacksPerHr    = cutSvc.stacksPerHour || 150;
+        const totalStacks    = Math.ceil(sheetsNeeded / sheetsPerStack);
+        const totalCutOps    = cutsPerSheet * totalStacks;
+        const hours          = stacksPerHr > 0 ? totalCutOps / stacksPerHr : 0;
         const cost = cutSvc.pricingMode === 'fixed' ? (cutSvc.fixedChargeCost ?? 0) : hours * cutSvc.hourlyCost;
-        const rcRate = lookupServiceSellRate(cutSvc, totalCuts);
+        const rcRate = lookupServiceSellRate(cutSvc, totalCutOps);
         const sell = cutSvc.pricingMode === 'fixed'
           ? (cutSvc.fixedChargeAmount ?? 0)
-          : rcRate !== null ? totalCuts * rcRate : cost * (1 + cutSvc.markupPercent / 100);
+          : rcRate !== null ? totalCutOps * rcRate : cost * (1 + cutSvc.markupPercent / 100);
         tCost += cost; tSell += sell;
       }
     }
