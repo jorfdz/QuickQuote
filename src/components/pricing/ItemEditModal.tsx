@@ -734,12 +734,20 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   }, [ps.categoryName, equipment, getEquipmentForCategory]);
 
   const availableMaterials = useMemo(() => {
-    if (ps.finalWidth <= 0 || ps.finalHeight <= 0) return materials;
-    return materials.filter(m => {
-      return (m.sizeWidth >= ps.finalWidth && m.sizeHeight >= ps.finalHeight) ||
-        (m.sizeHeight >= ps.finalWidth && m.sizeWidth >= ps.finalHeight);
-    });
-  }, [materials, ps.finalWidth, ps.finalHeight]);
+    // Step 1 — category filter: only show materials assigned to the current product category.
+    // A material with an empty categoryIds array is considered "universal" (no restriction).
+    const catId = categories.find(c => c.name === ps.categoryName)?.id;
+    const catFiltered = catId
+      ? materials.filter(m => m.categoryIds.length === 0 || m.categoryIds.includes(catId))
+      : materials;
+
+    // Step 2 — size filter: hide materials that are physically smaller than the item.
+    if (ps.finalWidth <= 0 || ps.finalHeight <= 0) return catFiltered;
+    return catFiltered.filter(m =>
+      (m.sizeWidth >= ps.finalWidth && m.sizeHeight >= ps.finalHeight) ||
+      (m.sizeHeight >= ps.finalWidth && m.sizeWidth >= ps.finalHeight)
+    );
+  }, [materials, categories, ps.categoryName, ps.finalWidth, ps.finalHeight]);
 
   const suggestions = useMemo(() => {
     if (!productQuery.trim() || productQuery.length < 1) return [];
