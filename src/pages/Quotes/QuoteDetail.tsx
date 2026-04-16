@@ -1,14 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Printer, ArrowRight, Trash2, ChevronDown, ChevronUp, CheckCircle, Copy, Clock, Edit3, Plus, Search, Building2, X, Send, FileDown, AlertCircle } from 'lucide-react';
+import { Printer, ArrowRight, Trash2, ChevronDown, ChevronUp, CheckCircle, Copy, Clock, Edit3, Plus, Search, Building2, X, Send, FileDown, AlertCircle, Eye } from 'lucide-react';
 import { useStore } from '../../store';
 import { Button, Badge, Card, PageHeader, ConfirmDialog } from '../../components/ui';
 import { formatCurrency, formatDate } from '../../data/mockData';
-import type { QuoteStatus } from '../../types';
+import type { QuoteStatus, Customer, Contact } from '../../types';
 import { buildQuoteTemplateHtml } from '../../utils/documentTemplates';
 import { ProductEditModal, LineItemPricingState, DEFAULT_PRICING_STATE } from '../../components/pricing/ItemEditModal';
 import { usePricingStore } from '../../store/pricingStore';
 import { nanoid } from '../../utils/nanoid';
+
+// ─── Payment & Delivery constants ────────────────────────────────────────────
+const DEFAULT_PAYMENT_TERMS = ['Net 10', 'Net 15', 'Net 30', 'COD'];
+const DEFAULT_DELIVERY_METHODS = ['Pickup', 'Local Delivery', 'FedEx', 'UPS'];
 
 // ─── Status options ──────────────────────────────────────────────────────────
 const STATUS_OPTIONS: { value: QuoteStatus; label: string }[] = [
