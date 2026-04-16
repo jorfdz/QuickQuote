@@ -3213,6 +3213,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                             <button
                               type="button"
                               onClick={() => {
+                                trackInteraction();          // allow recompute
+                                setManualOverrides({});      // clear overrides — service list changed
                                 const nextIds = selectedFinishingIds.filter(x => x !== id);
                                 setSelectedFinishingIds(nextIds);
                                 const sel = finishing.filter(f => nextIds.includes(f.id));
@@ -3263,6 +3265,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                               onChange={e => {
                                 if (!e.target.value) return;
                                 trackInteraction();
+                                setManualOverrides({});      // clear overrides — service list changed
                                 const svcId = e.target.value;
                                 const nextIds = [...selectedFinishingIds, svcId];
                                 setSelectedFinishingIds(nextIds);
