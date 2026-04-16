@@ -936,7 +936,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       return { upsAcross: 0, upsDown: 0, totalUps: 0, sheetsNeeded: 0, cutsPerSheet: 0 };
     const r = calculateImposition(ps.finalWidth, ps.finalHeight, selectedMaterial.sizeWidth, selectedMaterial.sizeHeight);
     const sheetsNeeded = r.totalUps > 0 ? Math.ceil(ps.quantity / r.totalUps) : 0;
-    const cutsPerSheet = r.upsAcross + r.upsDown;
+    // Correct cut formula: (columns + 1) vertical cuts + (rows + 1) horizontal cuts
+    // = (M+1) + (N+1) = M + N + 2
+    // e.g. 1×2 layout → (1+1) + (2+1) = 5 cuts (left, right, top, mid, bottom)
+    const cutsPerSheet = r.totalUps > 0 ? (r.upsAcross + 1) + (r.upsDown + 1) : 0;
     return { ...r, sheetsNeeded, cutsPerSheet };
   }, [selectedMaterial, ps.finalWidth, ps.finalHeight, ps.quantity, calculateImposition]);
 
@@ -971,7 +974,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     const bestOrientation = impositionOrientation !== 'auto' ? impositionOrientation : (aTotal >= bTotal ? 'A' : 'B');
 
     const sheetsNeeded = chosen.totalUps > 0 ? Math.ceil(ps.quantity / chosen.totalUps) : 0;
-    const cutsPerSheet = chosen.upsAcross > 0 && chosen.upsDown > 0 ? (chosen.upsAcross - 1) + (chosen.upsDown - 1) + 2 : 0;
+    // Correct: (M+1) vertical + (N+1) horizontal = M + N + 2 total cuts
+    const cutsPerSheet = chosen.totalUps > 0 ? (chosen.upsAcross + 1) + (chosen.upsDown + 1) : 0;
     const usedArea = chosen.totalUps * runW * runH;
     const sheetArea = sheetW * sheetH;
     const waste = sheetArea > 0 ? ((sheetArea - usedArea) / sheetArea) * 100 : 0;
@@ -1579,7 +1583,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       const rawImp = calculateImposition(ps.finalWidth, ps.finalHeight, selectedMaterial.sizeWidth, selectedMaterial.sizeHeight);
       const ups = rawImp.totalUps > 0 ? rawImp.totalUps : 1;
       sheetsNeeded = Math.ceil((qty * originals) / ups);
-      cutsPerSheet = rawImp.upsAcross + rawImp.upsDown; // same formula as main imposition
+      cutsPerSheet = rawImp.totalUps > 0 ? (rawImp.upsAcross + 1) + (rawImp.upsDown + 1) : 0; // (M+1)+(N+1)
 
       // MATERIAL — area-based for sqft/unit models, sheet-based for cost_per_m
       const matModel = selectedMaterial.pricingModel || 'cost_per_m';
