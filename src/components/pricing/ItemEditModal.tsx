@@ -596,8 +596,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   // prevCatIds: the previous category list, used to detect removals
 
   const _initCatId = categories.find(c => c.name === ps.categoryName)?.id;
-  const autoAddedByCategory  = React.useRef<Map<string, string[]>>(new Map());
-  const autoAddProcessedCatIds = React.useRef<Set<string>>(
+  // Per-service-type tracking refs (finishing / labor / brokered)
+  const autoAddedByCategory     = React.useRef<Map<string, string[]>>(new Map()); // finishing
+  const autoAddedLaborByCat     = React.useRef<Map<string, string[]>>(new Map()); // labor
+  const autoAddedBrokeredByCat  = React.useRef<Map<string, string[]>>(new Map()); // brokered
+  const autoAddProcessedCatIds  = React.useRef<Set<string>>(
     new Set(_initCatId ? [_initCatId] : [])
   );
   const prevCatIds = React.useRef<string[]>(
@@ -641,7 +644,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         }
       }
 
-      // ── ADDITION: auto-add services for newly selected categories ──
+      // ── ADDITION: auto-add finishing services for newly selected categories ──
       for (const catId of addedCats) {
         if (autoAddProcessedCatIds.current.has(catId)) continue;
         autoAddProcessedCatIds.current.add(catId);
@@ -657,6 +660,52 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         if (toAdd.length > 0) autoAddedByCategory.current.set(catId, toAdd);
       }
 
+      return didChange ? svcs : prevSvcs;
+    });
+
+    // ── LABOR auto-add / remove ────────────────────────────────────────────
+    setSelectedLaborIds(prevSvcs => {
+      let svcs = [...prevSvcs];
+      for (const catId of removedCats) {
+        const autoAdded = autoAddedLaborByCat.current.get(catId) ?? [];
+        autoAddedLaborByCat.current.delete(catId);
+        for (const svcId of autoAdded) {
+          const protected_ = catIdsNow.some(id => (autoAddedLaborByCat.current.get(id) ?? []).includes(svcId));
+          if (!protected_ && svcs.includes(svcId)) { svcs = svcs.filter(id => id !== svcId); didChange = true; }
+        }
+      }
+      for (const catId of addedCats) {
+        const toAdd: string[] = [];
+        for (const svc of pricing.labor) {
+          if ((svc.autoAddCategoryIds ?? []).includes(catId) && !svcs.includes(svc.id)) {
+            svcs = [...svcs, svc.id]; toAdd.push(svc.id); didChange = true;
+          }
+        }
+        if (toAdd.length > 0) autoAddedLaborByCat.current.set(catId, toAdd);
+      }
+      return didChange ? svcs : prevSvcs;
+    });
+
+    // ── BROKERED auto-add / remove ─────────────────────────────────────────
+    setSelectedBrokeredIds(prevSvcs => {
+      let svcs = [...prevSvcs];
+      for (const catId of removedCats) {
+        const autoAdded = autoAddedBrokeredByCat.current.get(catId) ?? [];
+        autoAddedBrokeredByCat.current.delete(catId);
+        for (const svcId of autoAdded) {
+          const protected_ = catIdsNow.some(id => (autoAddedBrokeredByCat.current.get(id) ?? []).includes(svcId));
+          if (!protected_ && svcs.includes(svcId)) { svcs = svcs.filter(id => id !== svcId); didChange = true; }
+        }
+      }
+      for (const catId of addedCats) {
+        const toAdd: string[] = [];
+        for (const svc of pricing.brokered) {
+          if ((svc.autoAddCategoryIds ?? []).includes(catId) && !svcs.includes(svc.id)) {
+            svcs = [...svcs, svc.id]; toAdd.push(svc.id); didChange = true;
+          }
+        }
+        if (toAdd.length > 0) autoAddedBrokeredByCat.current.set(catId, toAdd);
+      }
       return didChange ? svcs : prevSvcs;
     });
 
