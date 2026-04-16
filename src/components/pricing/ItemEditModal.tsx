@@ -11,7 +11,7 @@ import type { PricingProduct, PricingServiceLine, ProductPricingTemplate } from 
 import { formatCurrency } from '../../data/mockData';
 import { nanoid } from '../../utils/nanoid';
 import { getTierCost, getUnitCost, getUnitLabel } from '../../utils/materialCost';
-import { ServiceEditInlineDialog } from './ServiceEditInlineDialog';
+import { ServiceEditInlineDialog, MaterialEditInlineDialog, EquipmentEditInlineDialog, FinishingByNameDialog } from './ServiceEditInlineDialog';
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
@@ -638,6 +638,9 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [perimPickerSvcId, setPerimPickerSvcId] = useState<string | null>(null);
   // Inline service editor — opens the full edit form over the item modal
   const [quickEditSvc, setQuickEditSvc] = useState<{ type: 'finishing' | 'labor' | 'brokered'; id: string; lineIdPattern: string } | null>(null);
+  const [quickEditMaterial, setQuickEditMaterial] = useState(false);
+  const [quickEditEquipment, setQuickEditEquipment] = useState(false);
+  const [quickEditFinishingName, setQuickEditFinishingName] = useState<string | null>(null);
 
   // ── Reactive auto-add / auto-remove: fires when categories change ───────────
   //
@@ -4071,16 +4074,15 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                         {(() => {
                                           const action = getLineEditAction(grpLines[0], grpLines[0].description);
                                           if (!action) return null;
+                                          const handleClick = () => {
+                                            if (action.kind === 'inline') setQuickEditSvc({ type: action.type, id: action.id, lineIdPattern: `sl_${action.type}_${action.id}` });
+                                            else if (action.kind === 'material') setQuickEditMaterial(true);
+                                            else if (action.kind === 'equipment') setQuickEditEquipment(true);
+                                            else if (action.kind === 'finishing-name') setQuickEditFinishingName(action.name);
+                                          };
                                           return (
-                                            <button type="button"
-                                              onClick={() => {
-                                                if (action.kind === 'inline') {
-                                                  setQuickEditSvc({ type: action.type, id: action.id, lineIdPattern: `sl_${action.type}_${action.id}` });
-                                                } else {
-                                                  window.open(action.url, '_blank');
-                                                }
-                                              }}
-                                              title={action.kind === 'inline' ? `Edit ${service} service` : `Open ${service} in catalog`}
+                                            <button type="button" onClick={handleClick}
+                                              title={`Edit ${service}`}
                                               className="p-0.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all flex-shrink-0">
                                               <Edit3 className="w-2.5 h-2.5" />
                                             </button>
@@ -4134,19 +4136,16 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                                           {(() => {
                                             const action = getLineEditAction(line, line.description);
                                             if (!action) return null;
+                                            const handleClick = () => {
+                                              if (action.kind === 'inline') setQuickEditSvc({ type: action.type, id: action.id, lineIdPattern: `sl_${action.type}_${action.id}` });
+                                              else if (action.kind === 'material') setQuickEditMaterial(true);
+                                              else if (action.kind === 'equipment') setQuickEditEquipment(true);
+                                              else if (action.kind === 'finishing-name') setQuickEditFinishingName(action.name);
+                                            };
                                             return (
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  if (action.kind === 'inline') {
-                                                    setQuickEditSvc({ type: action.type, id: action.id, lineIdPattern: `sl_${action.type}_${action.id}` });
-                                                  } else {
-                                                    window.open(action.url, '_blank');
-                                                  }
-                                                }}
-                                                title={action.kind === 'inline' ? `Edit ${service} service` : `Open ${service} in catalog`}
-                                                className="p-0.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all flex-shrink-0"
-                                              >
+                                              <button type="button" onClick={handleClick}
+                                                title={`Edit ${service}`}
+                                                className="p-0.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all flex-shrink-0">
                                                 <Edit3 className="w-2.5 h-2.5" />
                                               </button>
                                             );
@@ -4906,29 +4905,56 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
         id={quickEditSvc.id}
         onClose={() => setQuickEditSvc(null)}
         onSaved={() => {
-          // After the store is updated, recompute ONLY the edited service's lines.
-          // All other lines (including manual overrides) are preserved untouched.
           const pattern = quickEditSvc.lineIdPattern;
           const freshLines = computeServiceLines();
-          const freshForService = freshLines.filter(l => l.id.startsWith(pattern));
-
-          // Merge: replace matching lines with fresh ones, keep everything else
           const existingIds = new Set(ps.serviceLines.map(l => l.id));
           const merged = [
-            ...ps.serviceLines.map(l =>
-              l.id.startsWith(pattern)
-                ? (freshLines.find(fl => fl.id === l.id) ?? l)
-                : l
-            ),
-            // Add any brand-new lines the service now produces
-            ...freshForService.filter(l => !existingIds.has(l.id)),
+            ...ps.serviceLines.map(l => l.id.startsWith(pattern) ? (freshLines.find(fl => fl.id === l.id) ?? l) : l),
+            ...freshLines.filter(l => l.id.startsWith(pattern) && !existingIds.has(l.id)),
           ];
-
-          // Re-apply pre-press sort
-          const pre  = merged.filter(l => l.isPrePress);
+          const pre = merged.filter(l => l.isPrePress);
           const rest = merged.filter(l => !l.isPrePress);
           onUpdatePricing({ serviceLines: [...pre, ...rest] });
           setQuickEditSvc(null);
+        }}
+      />
+    )}
+
+    {/* ── Material editor ── */}
+    {quickEditMaterial && ps.materialId && (
+      <MaterialEditInlineDialog
+        id={ps.materialId}
+        onClose={() => setQuickEditMaterial(false)}
+        onSaved={() => {
+          setQuickEditMaterial(false);
+          setManualOverrides({});
+          trackInteraction();
+        }}
+      />
+    )}
+
+    {/* ── Equipment editor ── */}
+    {quickEditEquipment && ps.equipmentId && (
+      <EquipmentEditInlineDialog
+        id={ps.equipmentId}
+        onClose={() => setQuickEditEquipment(false)}
+        onSaved={() => {
+          setQuickEditEquipment(false);
+          setManualOverrides({});
+          trackInteraction();
+        }}
+      />
+    )}
+
+    {/* ── Cutting/Folding/Drilling editor (by name) ── */}
+    {quickEditFinishingName && (
+      <FinishingByNameDialog
+        serviceName={quickEditFinishingName}
+        onClose={() => setQuickEditFinishingName(null)}
+        onSaved={() => {
+          setQuickEditFinishingName(null);
+          setManualOverrides({});
+          trackInteraction();
         }}
       />
     )}

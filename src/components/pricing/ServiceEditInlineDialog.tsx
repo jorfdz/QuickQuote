@@ -515,10 +515,9 @@ export const MaterialEditInlineDialog: React.FC<{
     { value: 'cost_per_sqft', label: 'Per sq ft'         },
   ];
   const MARKUP_OPTIONS: { value: MaterialMarkupType; label: string }[] = [
-    { value: 'percent',        label: '% per unit'      },
-    { value: 'fixed',          label: '$ per unit'      },
-    { value: 'global_percent', label: '% on total'      },
-    { value: 'global_flat',    label: '$ on total'      },
+    { value: 'percent',       label: '% per unit'      },
+    { value: 'multiplier',    label: '× multiplier'    },
+    { value: 'profit_percent', label: '% profit margin' },
   ];
 
   const handleSave = () => { updateMaterial(id, form); onSaved(); };
