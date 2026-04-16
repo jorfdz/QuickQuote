@@ -24,8 +24,8 @@ export const Help: React.FC = () => {
       <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-8 mb-6 text-white text-center">
         <h2 className="text-2xl font-bold mb-2">How can we help?</h2>
         <div className="relative max-w-md mx-auto mt-4">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-300" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search docs..." className="w-full pl-12 pr-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-blue-200 focus:outline-none" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search docs..." className="w-full pl-12 pr-4 py-3 bg-white border border-white/30 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none" />
         </div>
       </div>
       <div className="grid grid-cols-4 gap-4 mb-6">
